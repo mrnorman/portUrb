@@ -1,10 +1,9 @@
 
 #include "coupler.h"
-#include "dynamics_euler_stratified_wenofv.h"
-#include "microphysics_kessler.h"
+#include "dynamics_euler_stratified_wenofv_subtract_exact.h"
+#include "horizontal_sponge.h"
+#include "time_averager.h"
 #include "sponge_layer.h"
-#include "perturb_temperature.h"
-#include "column_nudging.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -32,9 +31,11 @@ int main(int argc, char** argv) {
     auto zlen      = config["zlen"    ].as<real>();
     auto dtphys_in = config["dt_phys" ].as<real>();
 
-    coupler.set_option<std::string>( "out_prefix" , config["out_prefix"].as<std::string>() );
-    coupler.set_option<std::string>( "init_data" , config["init_data"].as<std::string>() );
-    coupler.set_option<real       >( "out_freq"  , config["out_freq" ].as<real       >() );
+    coupler.set_option<std::string>( "out_prefix"      , config["out_prefix"      ].as<std::string>() );
+    coupler.set_option<std::string>( "init_data"       , config["init_data"       ].as<std::string>() );
+    coupler.set_option<real       >( "out_freq"        , config["out_freq"        ].as<real       >() );
+    coupler.set_option<bool       >( "enable_gravity"  , config["enable_gravity"  ].as<bool       >(true));
+    coupler.set_option<bool       >( "file_per_process", config["file_per_process"].as<bool       >(false));
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!)
@@ -46,19 +47,18 @@ int main(int argc, char** argv) {
     // This is for the dycore to pull out to determine how to do idealized test cases
     coupler.set_option<std::string>( "standalone_input_file" , inFile );
 
-    // The column nudger nudges the column-average of the model state toward the initial column-averaged state
-    // This is primarily for the supercell test case to keep the the instability persistently strong
-    modules::ColumnNudger                     column_nudger;
-    // Microphysics performs water phase changess + hydrometeor production, transport, collision, and aggregation
-    modules::Microphysics_Kessler             micro;
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
-    modules::Dynamics_Euler_Stratified_WenoFV dycore;
+    modules::Dynamics_Euler_Stratified_WenoFV  dycore;
+    custom_modules::Horizontal_Sponge          horiz_sponge;
+    custom_modules::Time_Averager              time_averager;
+
+    coupler.add_tracer("water_vapor","water_vapor",true,true);
+    coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
 
     // Run the initialization modules
-    micro .init                 ( coupler ); // Allocate micro state and register its tracers in the coupler
-    dycore.init                 ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler ); // Set the column before perturbing
-    modules::perturb_temperature( coupler ); // Randomly perturb bottom layers of temperature to initiate convection
+    dycore       .init( coupler ); // Dycore should initialize its own state here
+    horiz_sponge .init( coupler , 10 , 1. );
+    time_averager.init( coupler );
 
     real etime = 0;   // Elapsed time
 
@@ -69,17 +69,15 @@ int main(int argc, char** argv) {
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
-      // Run the runtime modules
-      dycore.time_step             ( coupler , dtphys );  // Move the flow forward according to the Euler equations
-      micro .time_step             ( coupler , dtphys );  // Perform phase changes for water + precipitation / falling
-      modules::sponge_layer        ( coupler , dtphys );  // Damp spurious waves to the horiz. mean at model top
-      column_nudger.nudge_to_column( coupler , dtphys );  // Nudge slightly back toward unstable profile
-                                                          // so that supercell persists for all time
+      horiz_sponge.apply      ( coupler , dtphys , true , true , false , false );
+      dycore.time_step        ( coupler , dtphys );  // Move the flow forward according to the Euler equations
+      modules::sponge_layer   ( coupler , dtphys , 1 );
+      time_averager.accumulate( coupler , dtphys );
 
       etime += dtphys; // Advance elapsed time
     }
 
-    // TODO: Add finalize( coupler ) modules here
+    time_averager.finalize( coupler );
 
     yakl::timer_stop("main");
   }

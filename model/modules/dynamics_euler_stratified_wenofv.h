@@ -98,6 +98,10 @@ namespace modules {
         //////////////
         // Stage 1
         //////////////
+        parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+          tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens);
+        });
         compute_tendencies( coupler , state     , state_tend , tracers     , tracers_tend , dt_dyn );
         // Apply tendencies
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -115,6 +119,11 @@ namespace modules {
         //////////////
         // Stage 2
         //////////////
+        parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+          tracers_tend(tr,k,j,i,iens) = (3._fp/4._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
+                                        (1._fp/4._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
+        });
         compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (1._fp/4._fp) * dt_dyn );
         // Apply tendencies
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -136,6 +145,11 @@ namespace modules {
         //////////////
         // Stage 3
         //////////////
+        parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+          tracers_tend(tr,k,j,i,iens) = (1._fp/3._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
+                                        (2._fp/3._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
+        });
         compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (2._fp/3._fp) * dt_dyn );
         // Apply tendencies
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -183,8 +197,12 @@ namespace modules {
     // Compute the tendencies for state and tracers for one semi-discretized step inside the RK integrator
     // Tendencies are the time rate of change for a quantity
     // Coupler is non-const because we are writing to the flux variables
-    void compute_tendencies( core::Coupler &coupler , real5d const &state   , real5d const &state_tend   ,
-                                                      real5d const &tracers , real5d const &tracers_tend , real dt ) const {
+    void compute_tendencies( core::Coupler       & coupler      ,
+                             real5d        const & state        ,
+                             real5d        const & state_tend   ,
+                             real5d        const & tracers      ,
+                             real5d        const & tracers_tend ,
+                             real                  dt           ) const {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
       using std::min;
@@ -467,7 +485,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(num_tracers,nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
         if (tracer_positive(tr)) {
-          real mass_available = max(tracers(tr,hs+k,hs+j,hs+i,iens),0._fp) * dx * dy * dz;
+          real mass_available = max(tracers_tend(tr,k,j,i,iens),0._fp) * dx * dy * dz;
           real flux_out_x = ( max(tracers_flux_x(tr,k,j,i+1,iens),0._fp) - min(tracers_flux_x(tr,k,j,i,iens),0._fp) ) / dx;
           real flux_out_y = ( max(tracers_flux_y(tr,k,j+1,i,iens),0._fp) - min(tracers_flux_y(tr,k,j,i,iens),0._fp) ) / dy;
           real flux_out_z = ( max(tracers_flux_z(tr,k+1,j,i,iens),0._fp) - min(tracers_flux_z(tr,k,j,i,iens),0._fp) ) / dz;

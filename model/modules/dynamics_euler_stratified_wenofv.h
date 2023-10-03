@@ -53,7 +53,6 @@ namespace modules {
     int         num_out;       // Number of outputs produced thus far
     int         init_data_int; // Integer representation of the type of initial data to use (test case)
 
-    int         idWV;              // Index number for water vapor in the tracers array
     bool1d      tracer_adds_mass;  // Whether a tracer adds mass to the full density
     bool1d      tracer_positive;   // Whether a tracer needs to remain non-negative
 
@@ -1183,7 +1182,6 @@ namespace modules {
       using yakl::c::Bounds;
 
       YAKL_SCOPE( init_data_int       , this->init_data_int       );
-      YAKL_SCOPE( idWV                , this->idWV                );
 
       // Set class data from # grid points, grid spacing, domain sizes, whether it's 2-D, and physical constants
       auto nens        = coupler.get_nens();
@@ -1261,6 +1259,8 @@ namespace modules {
       // Must assign on the host to avoid segfaults
       auto tracer_adds_mass_host = tracer_adds_mass.createHostCopy();
       auto tracer_positive_host  = tracer_positive .createHostCopy();
+
+      int idWV;
 
       auto tracer_names = coupler.get_tracer_names();  // Get a list of tracer names
       for (int tr=0; tr < num_tracers; tr++) {
@@ -1567,7 +1567,6 @@ namespace modules {
       real constexpr T_top  = 213;
       real constexpr p_0    = 100000;
 
-      YAKL_SCOPE( idWV                , this->idWV                );
       YAKL_SCOPE( gll_pts             , this->gll_pts             );
       YAKL_SCOPE( gll_wts             , this->gll_wts             );
 
@@ -1586,6 +1585,7 @@ namespace modules {
       auto grav        = coupler.get_option<real>("grav"   );
       auto gamma       = coupler.get_option<real>("gamma_d");
       auto C0          = coupler.get_option<real>("C0"     );
+      auto idWV        = coupler.get_option<int >("idWV");
       auto num_tracers = coupler.get_num_tracers();
       auto i_beg       = coupler.get_i_beg();
       auto j_beg       = coupler.get_j_beg();
@@ -1766,7 +1766,6 @@ namespace modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      YAKL_SCOPE( idWV                , this->idWV                );
       YAKL_SCOPE( tracer_adds_mass    , this->tracer_adds_mass    );
 
       auto nens        = coupler.get_nens();
@@ -1777,6 +1776,7 @@ namespace modules {
       auto R_v         = coupler.get_option<real>("R_v"    );
       auto gamma       = coupler.get_option<real>("gamma_d");
       auto C0          = coupler.get_option<real>("C0"     );
+      auto idWV        = coupler.get_option<int >("idWV");
       auto num_tracers = coupler.get_num_tracers();
 
       auto &dm = coupler.get_data_manager_readwrite();
@@ -1828,7 +1828,6 @@ namespace modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      YAKL_SCOPE( idWV                , this->idWV                );
       YAKL_SCOPE( tracer_adds_mass    , this->tracer_adds_mass    );
 
       auto nens        = coupler.get_nens();
@@ -1839,6 +1838,7 @@ namespace modules {
       auto R_v         = coupler.get_option<real>("R_v"    );
       auto gamma       = coupler.get_option<real>("gamma_d");
       auto C0          = coupler.get_option<real>("C0"     );
+      auto idWV        = coupler.get_option<int >("idWV");
       auto num_tracers = coupler.get_num_tracers();
 
       auto &dm = coupler.get_data_manager_readonly();

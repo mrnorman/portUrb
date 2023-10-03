@@ -519,9 +519,9 @@ namespace modules {
       // Compute tendencies as the flux divergence + gravity source term
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l = 0; l < num_state; l++) {
-          state_tend  (l,k,j,i,iens) = -( state_flux_x  (l,k  ,j  ,i+1,iens) - state_flux_x  (l,k,j,i,iens) ) / dx
-                                       -( state_flux_y  (l,k  ,j+1,i  ,iens) - state_flux_y  (l,k,j,i,iens) ) / dy
-                                       -( state_flux_z  (l,k+1,j  ,i  ,iens) - state_flux_z  (l,k,j,i,iens) ) / dz;
+          state_tend(l,k,j,i,iens) = -( state_flux_x(l,k  ,j  ,i+1,iens) - state_flux_x(l,k,j,i,iens) ) / dx
+                                     -( state_flux_y(l,k  ,j+1,i  ,iens) - state_flux_y(l,k,j,i,iens) ) / dy
+                                     -( state_flux_z(l,k+1,j  ,i  ,iens) - state_flux_z(l,k,j,i,iens) ) / dz;
           if (l == idW && enable_gravity) state_tend(l,k,j,i,iens) += -grav * state(idR,hs+k,hs+j,hs+i,iens);
           if (l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
           if (l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
@@ -604,9 +604,14 @@ namespace modules {
       realHost5d halo_recv_buf_N_host("halo_recv_buf_N_host",npack,nz,hs,nx,nens);
       realHost5d halo_recv_buf_W_host("halo_recv_buf_W_host",npack,nz,ny,hs,nens);
       realHost5d halo_recv_buf_E_host("halo_recv_buf_E_host",npack,nz,ny,hs,nens);
-
-      real5d halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs,nens);
-      real5d halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs,nens);
+      real5d     halo_send_buf_W     ("halo_send_buf_W"     ,npack,nz,ny,hs,nens);
+      real5d     halo_send_buf_E     ("halo_send_buf_E"     ,npack,nz,ny,hs,nens);
+      real5d     halo_send_buf_S     ("halo_send_buf_S"     ,npack,nz,hs,nx,nens);
+      real5d     halo_send_buf_N     ("halo_send_buf_N"     ,npack,nz,hs,nx,nens);
+      real5d     halo_recv_buf_W     ("halo_recv_buf_W"     ,npack,nz,ny,hs,nens);
+      real5d     halo_recv_buf_E     ("halo_recv_buf_E"     ,npack,nz,ny,hs,nens);
+      real5d     halo_recv_buf_S     ("halo_recv_buf_S"     ,npack,nz,hs,nx,nens);
+      real5d     halo_recv_buf_N     ("halo_recv_buf_N"     ,npack,nz,hs,nx,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
                                         YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
@@ -618,9 +623,6 @@ namespace modules {
           halo_send_buf_E(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,nx+ii,iens);
         }
       });
-
-      real5d halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx,nens);
-      real5d halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx,nens);
 
       if (!sim2d) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
@@ -637,11 +639,6 @@ namespace modules {
 
       yakl::fence();
       yakl::timer_start("halo_exchange_mpi");
-
-      real5d halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs,nens);
-      real5d halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
-      real5d halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx,nens);
-      real5d halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx,nens);
 
       MPI_Request sReq[4];
       MPI_Request rReq[4];
@@ -855,17 +852,22 @@ namespace modules {
 
       int npack = num_state + num_tracers;
 
-      realHost4d edge_send_buf_S_host("edge_send_buf_S_host",num_state+num_tracers,nz,nx,nens);
-      realHost4d edge_send_buf_N_host("edge_send_buf_N_host",num_state+num_tracers,nz,nx,nens);
-      realHost4d edge_send_buf_W_host("edge_send_buf_W_host",num_state+num_tracers,nz,ny,nens);
-      realHost4d edge_send_buf_E_host("edge_send_buf_E_host",num_state+num_tracers,nz,ny,nens);
-      realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",num_state+num_tracers,nz,nx,nens);
-      realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",num_state+num_tracers,nz,nx,nens);
-      realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",num_state+num_tracers,nz,ny,nens);
-      realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",num_state+num_tracers,nz,ny,nens);
-
-      real4d edge_send_buf_W("edge_send_buf_W",npack,nz,ny,nens);
-      real4d edge_send_buf_E("edge_send_buf_E",npack,nz,ny,nens);
+      realHost4d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx,nens);
+      realHost4d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx,nens);
+      realHost4d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny,nens);
+      realHost4d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny,nens);
+      realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx,nens);
+      realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx,nens);
+      realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny,nens);
+      realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny,nens);
+      real4d     edge_send_buf_W     ("edge_send_buf_W"     ,npack,nz,ny,nens);
+      real4d     edge_send_buf_E     ("edge_send_buf_E"     ,npack,nz,ny,nens);
+      real4d     edge_send_buf_S     ("edge_send_buf_S"     ,npack,nz,nx,nens);
+      real4d     edge_send_buf_N     ("edge_send_buf_N"     ,npack,nz,nx,nens);
+      real4d     edge_recv_buf_W     ("edge_recv_buf_W"     ,npack,nz,ny,nens);
+      real4d     edge_recv_buf_E     ("edge_recv_buf_E"     ,npack,nz,ny,nens);
+      real4d     edge_recv_buf_S     ("edge_recv_buf_S"     ,npack,nz,nx,nens);
+      real4d     edge_recv_buf_N     ("edge_recv_buf_N"     ,npack,nz,nx,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) , YAKL_LAMBDA (int v, int k, int j, int iens) {
         if (v < num_state) {
@@ -876,9 +878,6 @@ namespace modules {
           edge_send_buf_E(v,k,j,iens) = tracers_limits_x(v-num_state,0,k,j,nx,iens);
         }
       });
-
-      real4d edge_send_buf_S("edge_send_buf_S",npack,nz,nx,nens);
-      real4d edge_send_buf_N("edge_send_buf_N",npack,nz,nx,nens);
 
       if (!sim2d) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) , YAKL_LAMBDA (int v, int k, int i, int iens) {
@@ -894,11 +893,6 @@ namespace modules {
 
       yakl::fence();
       yakl::timer_start("edge_exchange_mpi");
-
-      real4d edge_recv_buf_W("edge_recv_buf_W",npack,nz,ny,nens);
-      real4d edge_recv_buf_E("edge_recv_buf_E",npack,nz,ny,nens);
-      real4d edge_recv_buf_S("edge_recv_buf_S",npack,nz,nx,nens);
-      real4d edge_recv_buf_N("edge_recv_buf_N",npack,nz,nx,nens);
 
       MPI_Request sReq[4];
       MPI_Request rReq[4];

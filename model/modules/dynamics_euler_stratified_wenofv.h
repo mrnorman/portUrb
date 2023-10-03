@@ -53,9 +53,6 @@ namespace modules {
     int         num_out;       // Number of outputs produced thus far
     int         init_data_int; // Integer representation of the type of initial data to use (test case)
 
-    bool1d      tracer_adds_mass;  // Whether a tracer adds mass to the full density
-    bool1d      tracer_positive;   // Whether a tracer needs to remain non-negative
-
     SArray<real,1,ord>            gll_pts;          // GLL point locations in domain [-0.5 , 0.5]
     SArray<real,1,ord>            gll_wts;          // GLL weights normalized to sum to 1
     SArray<real,2,ord,2  >        coefs_to_gll;     // Matrix to convert ord poly coefs to two GLL points
@@ -79,13 +76,12 @@ namespace modules {
       using yakl::intrinsics::maxval;
       using yakl::intrinsics::abs;
 
-      YAKL_SCOPE( tracer_positive , this->tracer_positive );
-
-      auto num_tracers = coupler.get_num_tracers();
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
+      auto num_tracers     = coupler.get_num_tracers();
+      auto nens            = coupler.get_nens();
+      auto nx              = coupler.get_nx();
+      auto ny              = coupler.get_ny();
+      auto nz              = coupler.get_nz();
+      auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
 
       // Create arrays to hold state and tracers with halos on the left and right of the domain
       // Cells [0:hs-1] are the left halos, and cells [nx+hs:nx+2*hs-1] are the right halos
@@ -231,8 +227,9 @@ namespace modules {
       auto immersed_proportion = dm.get<real,4>("immersed_proportion");
 
       // A slew of things to bring from class scope into local scope so that lambdas copy them by value to the GPU
-      YAKL_SCOPE( tracer_positive            , this->tracer_positive            );
       YAKL_SCOPE( coefs_to_gll               , this->coefs_to_gll               );
+
+      auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
 
       // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
       // more accurate reconstructions of tracer concentrations
@@ -1253,14 +1250,13 @@ namespace modules {
 
       // Create arrays to determine whether we should add mass for a tracer or whether it should remain non-negative
       num_tracers = coupler.get_num_tracers();
-      tracer_adds_mass = bool1d("tracer_adds_mass",num_tracers);
-      tracer_positive  = bool1d("tracer_positive" ,num_tracers);
+      bool1d tracer_adds_mass("tracer_adds_mass",num_tracers);
+      bool1d tracer_positive ("tracer_positive" ,num_tracers);
+      int    idWV;
 
       // Must assign on the host to avoid segfaults
       auto tracer_adds_mass_host = tracer_adds_mass.createHostCopy();
       auto tracer_positive_host  = tracer_positive .createHostCopy();
-
-      int idWV;
 
       auto tracer_names = coupler.get_tracer_names();  // Get a list of tracer names
       for (int tr=0; tr < num_tracers; tr++) {
@@ -1278,9 +1274,14 @@ namespace modules {
       out_freq       = coupler.get_option<real       >("out_freq" );
 
       coupler.set_option<int>("idWV",idWV);
+
       dm.register_and_allocate<bool>("tracer_adds_mass","",{num_tracers});
       auto dm_tracer_adds_mass = dm.get<bool,1>("tracer_adds_mass");
       tracer_adds_mass.deep_copy_to(dm_tracer_adds_mass);
+
+      dm.register_and_allocate<bool>("tracer_positive","",{num_tracers});
+      auto dm_tracer_positive = dm.get<bool,1>("tracer_positive");
+      tracer_positive.deep_copy_to(dm_tracer_positive);
 
       // Set an integer version of the input_data so we can test it inside GPU kernels
       if      (init_data == "thermal"  ) { init_data_int = DATA_THERMAL;   }
@@ -1766,8 +1767,6 @@ namespace modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      YAKL_SCOPE( tracer_adds_mass    , this->tracer_adds_mass    );
-
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();
       auto ny          = coupler.get_ny();
@@ -1787,6 +1786,7 @@ namespace modules {
       auto dm_vvel  = dm.get<real,4>("vvel"       );
       auto dm_wvel  = dm.get<real,4>("wvel"       );
       auto dm_temp  = dm.get<real,4>("temp"       );
+      auto tracer_adds_mass = dm.get<bool const,1>("tracer_adds_mass");
 
       // Get tracers from the coupler
       core::MultiField<real,4> dm_tracers;
@@ -1828,8 +1828,6 @@ namespace modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      YAKL_SCOPE( tracer_adds_mass    , this->tracer_adds_mass    );
-
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();
       auto ny          = coupler.get_ny();
@@ -1849,6 +1847,7 @@ namespace modules {
       auto dm_vvel  = dm.get<real const,4>("vvel"       );
       auto dm_wvel  = dm.get<real const,4>("wvel"       );
       auto dm_temp  = dm.get<real const,4>("temp"       );
+      auto tracer_adds_mass = dm.get<bool const,1>("tracer_adds_mass");
 
       // Get the coupler's tracers (as const because it's read-only)
       core::MultiField<real const,4> dm_tracers;

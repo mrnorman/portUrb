@@ -44,9 +44,9 @@ namespace modules {
     int  static constexpr BC_OPEN     = 1;
     int  static constexpr BC_WALL     = 2;
     // Class data (not use inside parallel_for)
-    real etime;         // Elapsed time
-    real out_freq;      // Frequency out file output
-    int  num_out;       // Number of outputs produced thus far
+    real etime;    // Elapsed time
+    real out_freq; // Frequency out file output
+    int  num_out;  // Number of outputs produced thus far
 
 
     // Compute the maximum stable time step using very conservative assumptions about max wind speed
@@ -64,8 +64,6 @@ namespace modules {
     void time_step(core::Coupler &coupler, real &dt_phys) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      using yakl::intrinsics::maxval;
-      using yakl::intrinsics::abs;
 
       auto num_tracers     = coupler.get_num_tracers();
       auto nens            = coupler.get_nens();
@@ -102,7 +100,7 @@ namespace modules {
                                           YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
           tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens);
         });
-        compute_tendencies( coupler , state     , state_tend , tracers     , tracers_tend , dt_dyn );
+        compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dyn );
         // Apply tendencies
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int l = 0; l < num_state  ; l++) {
@@ -181,14 +179,21 @@ namespace modules {
         num_out++;
         // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
         auto &dm = coupler.get_data_manager_readonly();
-        real maxw_loc = maxval(abs(dm.get_collapsed<real const>("wvel")));
-        real maxw;
+        auto u = dm.get_collapsed<real const>("uvel");
+        auto v = dm.get_collapsed<real const>("vvel");
+        auto w = dm.get_collapsed<real const>("wvel");
+        auto mag = u.createDeviceObject();
+        parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
+          mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
+        });
+        real wind_mag_loc = yakl::intrinsics::maxval(mag);
+        real wind_mag;
         auto mpi_data_type = coupler.get_mpi_data_type();
-        MPI_Reduce( &maxw_loc , &maxw , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
+        MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
         if (coupler.is_mainproc()) {
-          std::cout << "Etime , dtphys, maxw: " << std::scientific << std::setw(10) << etime   << " , " 
-                                                << std::scientific << std::setw(10) << dt_phys << " , "
-                                                << std::scientific << std::setw(10) << maxw    << std::endl;
+          std::cout << "Etime , dtphys, wind_mag: " << std::scientific << std::setw(10) << etime    << " , " 
+                                                    << std::scientific << std::setw(10) << dt_phys  << " , "
+                                                    << std::scientific << std::setw(10) << wind_mag << std::endl;
         }
       }
     }

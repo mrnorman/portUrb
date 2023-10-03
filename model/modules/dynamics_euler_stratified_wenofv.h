@@ -537,13 +537,14 @@ namespace modules {
         }
         if (use_immersed_boundaries) {
           // Determine the time scale of damping
-          real tau = 1.e3*dt;
+          real tau  = 1.e3*dt;
+          real mult = -std::min(1._fp,dt/tau);
           // Compute immersed material tendencies (zero velocity, reference density & temperature)
-          real imm_tend_idR = -std::min(1._fp,dt/tau)*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells      (k,iens))/dt;
-          real imm_tend_idU = -std::min(1._fp,dt/tau)*(state(idU,hs+k,hs+j,hs+i,iens)                              )/dt;
-          real imm_tend_idV = -std::min(1._fp,dt/tau)*(state(idV,hs+k,hs+j,hs+i,iens)                              )/dt;
-          real imm_tend_idW = -std::min(1._fp,dt/tau)*(state(idW,hs+k,hs+j,hs+i,iens)                              )/dt;
-          real imm_tend_idT = -std::min(1._fp,dt/tau)*(state(idT,hs+k,hs+j,hs+i,iens) - hy_dens_theta_cells(k,iens))/dt;
+          real imm_tend_idR = mult*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells      (k,iens))/dt;
+          real imm_tend_idU = mult*(state(idU,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idV = mult*(state(idV,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idW = mult*(state(idW,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idT = mult*(state(idT,hs+k,hs+j,hs+i,iens) - hy_dens_theta_cells(k,iens))/dt;
           // immersed proportion has immersed tendnecies. Other proportion has free tendencies
           real prop = immersed_proportion(k,j,i,iens);
           state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);

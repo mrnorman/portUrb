@@ -27,7 +27,7 @@ dt_phys: 0.
 # Output frequency in seconds
 out_freq: 5.
 
-enable_gravity: true
+enable_gravity: false
 
 file_per_process: false
 

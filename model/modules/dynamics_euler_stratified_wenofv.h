@@ -1302,7 +1302,7 @@ namespace modules {
         coupler.add_option<int>("bc_z",BC_WALL    );
         coupler.add_option<real>("latitude",0);
         // Define quadrature weights and points for 3-point rules
-        const int nqpoints = 3;
+        const int nqpoints = 9;
         SArray<real,1,nqpoints> qpoints;
         SArray<real,1,nqpoints> qweights;
 
@@ -1553,7 +1553,8 @@ namespace modules {
       real constexpr T_top  = 213;
       real constexpr p_0    = 100000;
 
-      SArray<real,1,ord> gll_pts, gll_wts;
+      int constexpr nqpoints = 9;
+      SArray<real,1,nqpoints> gll_pts, gll_wts;
       TransformMatrices::get_gll_points (gll_pts);
       TransformMatrices::get_gll_weights(gll_wts);
 
@@ -1583,29 +1584,29 @@ namespace modules {
       real2d hy_dens_theta_edges("hy_dens_theta_edges",nz+1,nens);
 
       // Temporary arrays used to compute the initial state for high-CAPE supercell conditions
-      real3d quad_temp       ("quad_temp"       ,nz,ord-1,ord);
-      real2d hyDensGLL       ("hyDensGLL"       ,nz,ord);
-      real2d hyDensThetaGLL  ("hyDensThetaGLL"  ,nz,ord);
-      real2d hyDensVapGLL    ("hyDensVapGLL"    ,nz,ord);
-      real2d hyPressureGLL   ("hyPressureGLL"   ,nz,ord);
+      real3d quad_temp       ("quad_temp"       ,nz,nqpoints-1,nqpoints);
+      real2d hyDensGLL       ("hyDensGLL"       ,nz,nqpoints);
+      real2d hyDensThetaGLL  ("hyDensThetaGLL"  ,nz,nqpoints);
+      real2d hyDensVapGLL    ("hyDensVapGLL"    ,nz,nqpoints);
+      real2d hyPressureGLL   ("hyPressureGLL"   ,nz,nqpoints);
       real1d hyDensCells     ("hyDensCells"     ,nz);
       real1d hyDensThetaCells("hyDensThetaCells",nz);
 
       real ztop = coupler.get_zlen();
 
       // Compute quadrature term to integrate to get pressure at GLL points
-      parallel_for( YAKL_AUTO_LABEL() , Bounds<3>(nz,ord-1,ord) ,
+      parallel_for( YAKL_AUTO_LABEL() , Bounds<3>(nz,nqpoints-1,nqpoints) ,
                     YAKL_LAMBDA (int k, int kk, int kkk) {
         // Middle of this cell
         real cellmid   = (k+0.5_fp) * dz;
-        // Bottom, top, and middle of the space between these two ord GLL points
-        real ord_b    = cellmid + gll_pts(kk  )*dz;
-        real ord_t    = cellmid + gll_pts(kk+1)*dz;
-        real ord_m    = 0.5_fp * (ord_b + ord_t);
-        // Compute grid spacing between these ord GLL points
-        real ord_dz   = dz * ( gll_pts(kk+1) - gll_pts(kk) );
-        // Compute the locate of this GLL point within the ord GLL points
-        real zloc      = ord_m + ord_dz * gll_pts(kkk);
+        // Bottom, top, and middle of the space between these two nqpoints GLL points
+        real nqpoints_b    = cellmid + gll_pts(kk  )*dz;
+        real nqpoints_t    = cellmid + gll_pts(kk+1)*dz;
+        real nqpoints_m    = 0.5_fp * (nqpoints_b + nqpoints_t);
+        // Compute grid spacing between these nqpoints GLL points
+        real nqpoints_dz   = dz * ( gll_pts(kk+1) - gll_pts(kk) );
+        // Compute the locate of this GLL point within the nqpoints GLL points
+        real zloc      = nqpoints_m + nqpoints_dz * gll_pts(kkk);
         // Compute full density at this location
         real temp      = init_supercell_temperature (zloc, z_0, z_trop, ztop, T_0, T_trop, T_top);
         real press_dry = init_supercell_pressure_dry(zloc, z_0, z_trop, ztop, T_0, T_trop, T_top, p_0, R_d, grav);
@@ -1620,22 +1621,22 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , 1 , YAKL_LAMBDA (int dummy) {
         hyPressureGLL(0,0) = p_0;
         for (int k=0; k < nz; k++) {
-          for (int kk=0; kk < ord-1; kk++) {
+          for (int kk=0; kk < nqpoints-1; kk++) {
             real tot = 0;
-            for (int kkk=0; kkk < ord; kkk++) {
+            for (int kkk=0; kkk < nqpoints; kkk++) {
               tot += quad_temp(k,kk,kkk) * gll_wts(kkk);
             }
             tot *= dz * ( gll_pts(kk+1) - gll_pts(kk) );
             hyPressureGLL(k,kk+1) = hyPressureGLL(k,kk) * exp( tot );
-            if (kk == ord-2 && k < nz-1) {
-              hyPressureGLL(k+1,0) = hyPressureGLL(k,ord-1);
+            if (kk == nqpoints-2 && k < nz-1) {
+              hyPressureGLL(k+1,0) = hyPressureGLL(k,nqpoints-1);
             }
           }
         }
       });
 
       // Compute hydrostatic background state at GLL points
-      parallel_for( YAKL_AUTO_LABEL() , Bounds<2>(nz,ord) , YAKL_LAMBDA (int k, int kk) {
+      parallel_for( YAKL_AUTO_LABEL() , Bounds<2>(nz,nqpoints) , YAKL_LAMBDA (int k, int kk) {
         real zloc = (k+0.5_fp)*dz + gll_pts(kk)*dz;
         real temp       = init_supercell_temperature (zloc, z_0, z_trop, ztop, T_0, T_trop, T_top);
         real press_tmp  = init_supercell_pressure_dry(zloc, z_0, z_trop, ztop, T_0, T_trop, T_top, p_0, R_d, grav);
@@ -1657,7 +1658,7 @@ namespace modules {
             hy_dens_theta_edges(k,iens) = dens_theta;
           }
         }
-        if (k == nz-1 && kk == ord-1) {
+        if (k == nz-1 && kk == nqpoints-1) {
           for (int iens=0; iens < nens; iens++) {
             hy_dens_edges      (k+1,iens) = dens;
             hy_dens_theta_edges(k+1,iens) = dens_theta;
@@ -1671,7 +1672,7 @@ namespace modules {
         real dens_tot       = 0;
         real dens_vap_tot   = 0;
         real dens_theta_tot = 0;
-        for (int kk=0; kk < ord; kk++) {
+        for (int kk=0; kk < nqpoints; kk++) {
           press_tot      += hyPressureGLL (k,kk) * gll_wts(kk);
           dens_tot       += hyDensGLL     (k,kk) * gll_wts(kk);
           dens_vap_tot   += hyDensVapGLL  (k,kk) * gll_wts(kk);
@@ -1708,9 +1709,9 @@ namespace modules {
         state(idW,hs+k,hs+j,hs+i,iens) = 0;
         state(idT,hs+k,hs+j,hs+i,iens) = 0;
         for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) = 0; }
-        for (int kk=0; kk < ord; kk++) {
-          for (int jj=0; jj < ord; jj++) {
-            for (int ii=0; ii < ord; ii++) {
+        for (int kk=0; kk < nqpoints; kk++) {
+          for (int jj=0; jj < nqpoints; jj++) {
+            for (int ii=0; ii < nqpoints; ii++) {
               real xloc = (i+i_beg+0.5_fp)*dx + gll_pts(ii)*dx;
               real yloc = (j+j_beg+0.5_fp)*dy + gll_pts(jj)*dy;
               real zloc = (k      +0.5_fp)*dz + gll_pts(kk)*dz;

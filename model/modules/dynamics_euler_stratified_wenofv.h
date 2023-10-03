@@ -207,20 +207,11 @@ namespace modules {
       auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
       auto num_tracers             = coupler.get_num_tracers();
 
-      // The store a single values flux at cell edges
-      auto &dm = coupler.get_data_manager_readwrite();
-      auto state_flux_x        = dm.get<real,5>("state_flux_x"  );
-      auto state_flux_y        = dm.get<real,5>("state_flux_y"  );
-      auto state_flux_z        = dm.get<real,5>("state_flux_z"  );
-      auto tracers_flux_x      = dm.get<real,5>("tracers_flux_x");
-      auto tracers_flux_y      = dm.get<real,5>("tracers_flux_y");
-      auto tracers_flux_z      = dm.get<real,5>("tracers_flux_z");
-      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
-
       SArray<real,2,ord,2> coefs_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
 
-      auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
+      auto tracer_positive     = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
+      auto immersed_proportion = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
 
       // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
       // more accurate reconstructions of tracer concentrations
@@ -362,6 +353,13 @@ namespace modules {
       edge_exchange( coupler , state_limits_x , tracers_limits_x ,
                                state_limits_y , tracers_limits_y ,
                                state_limits_z , tracers_limits_z );
+
+      real5d state_flux_x  ("state_flux_x"  ,num_state  ,nz  ,ny  ,nx+1,nens);
+      real5d state_flux_y  ("state_flux_y"  ,num_state  ,nz  ,ny+1,nx  ,nens);
+      real5d state_flux_z  ("state_flux_z"  ,num_state  ,nz+1,ny  ,nx  ,nens);
+      real5d tracers_flux_x("tracers_flux_x",num_tracers,nz  ,ny  ,nx+1,nens);
+      real5d tracers_flux_y("tracers_flux_y",num_tracers,nz  ,ny+1,nx  ,nens);
+      real5d tracers_flux_z("tracers_flux_z",num_tracers,nz+1,ny  ,nx  ,nens);
 
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz+1,ny+1,nx+1,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -1525,20 +1523,6 @@ namespace modules {
 
       // Output the initial state
       if (out_freq >= 0. ) output( coupler , etime );
-
-      // Register the tracers in the coupler so the user has access if they want (and init to zero)
-      dm.register_and_allocate<real>("state_flux_x"  ,"state_flux_x"  ,{num_state  ,nz  ,ny  ,nx+1,nens},{"num_state"  ,"z"  ,"y"  ,"xp1","nens"});
-      dm.register_and_allocate<real>("state_flux_y"  ,"state_flux_y"  ,{num_state  ,nz  ,ny+1,nx  ,nens},{"num_state"  ,"z"  ,"yp1","x"  ,"nens"});
-      dm.register_and_allocate<real>("state_flux_z"  ,"state_flux_z"  ,{num_state  ,nz+1,ny  ,nx  ,nens},{"num_state"  ,"zp1","y"  ,"x"  ,"nens"});
-      dm.register_and_allocate<real>("tracers_flux_x","tracers_flux_x",{num_tracers,nz  ,ny  ,nx+1,nens},{"num_tracers","z"  ,"y"  ,"xp1","nens"});
-      dm.register_and_allocate<real>("tracers_flux_y","tracers_flux_y",{num_tracers,nz  ,ny+1,nx  ,nens},{"num_tracers","z"  ,"yp1","x"  ,"nens"});
-      dm.register_and_allocate<real>("tracers_flux_z","tracers_flux_z",{num_tracers,nz+1,ny  ,nx  ,nens},{"num_tracers","zp1","y"  ,"x"  ,"nens"});
-      dm.get<real,5>("state_flux_x"  ) = 0;
-      dm.get<real,5>("state_flux_y"  ) = 0;
-      dm.get<real,5>("state_flux_z"  ) = 0;
-      dm.get<real,5>("tracers_flux_x") = 0;
-      dm.get<real,5>("tracers_flux_y") = 0;
-      dm.get<real,5>("tracers_flux_z") = 0;
     }
 
 

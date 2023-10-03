@@ -228,8 +228,10 @@ namespace modules {
       SArray<real,2,ord,2> coefs_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
 
-      auto tracer_positive     = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
+      auto tracer_positive     = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive"    );
       auto immersed_proportion = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
+      auto hy_dens_cells       = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
+      auto hy_dens_theta_cells = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
 
       // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
       // more accurate reconstructions of tracer concentrations
@@ -537,18 +539,18 @@ namespace modules {
           // Determine the time scale of damping
           real tau = 1.e3*dt;
           // Compute immersed material tendencies (zero velocity, reference density & temperature)
-          real imm_tend_idR = -std::min(1._fp,dt/tau)*state(idR,hs+k,hs+j,hs+i,iens)/dt;
-          real imm_tend_idU = -std::min(1._fp,dt/tau)*state(idU,hs+k,hs+j,hs+i,iens)/dt;
-          real imm_tend_idV = -std::min(1._fp,dt/tau)*state(idV,hs+k,hs+j,hs+i,iens)/dt;
-          real imm_tend_idW = -std::min(1._fp,dt/tau)*state(idW,hs+k,hs+j,hs+i,iens)/dt;
-          real imm_tend_idT = -std::min(1._fp,dt/tau)*state(idT,hs+k,hs+j,hs+i,iens)/dt;
+          real imm_tend_idR = -std::min(1._fp,dt/tau)*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells      (k,iens))/dt;
+          real imm_tend_idU = -std::min(1._fp,dt/tau)*(state(idU,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idV = -std::min(1._fp,dt/tau)*(state(idV,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idW = -std::min(1._fp,dt/tau)*(state(idW,hs+k,hs+j,hs+i,iens)                              )/dt;
+          real imm_tend_idT = -std::min(1._fp,dt/tau)*(state(idT,hs+k,hs+j,hs+i,iens) - hy_dens_theta_cells(k,iens))/dt;
           // immersed proportion has immersed tendnecies. Other proportion has free tendencies
           real prop = immersed_proportion(k,j,i,iens);
-          // state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);
+          state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);
           state_tend(idU,k,j,i,iens) = prop*imm_tend_idU + (1-prop)*state_tend(idU,k,j,i,iens);
           state_tend(idV,k,j,i,iens) = prop*imm_tend_idV + (1-prop)*state_tend(idV,k,j,i,iens);
           state_tend(idW,k,j,i,iens) = prop*imm_tend_idW + (1-prop)*state_tend(idW,k,j,i,iens);
-          // state_tend(idT,k,j,i,iens) = prop*imm_tend_idT + (1-prop)*state_tend(idT,k,j,i,iens);
+          state_tend(idT,k,j,i,iens) = prop*imm_tend_idT + (1-prop)*state_tend(idT,k,j,i,iens);
         }
       });
     }
@@ -1491,6 +1493,11 @@ namespace modules {
       real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
 
+      dm.register_and_allocate<real>("hy_dens_cells"      ,"",{nz,nens});
+      dm.register_and_allocate<real>("hy_dens_theta_cells","",{nz,nens});
+      auto hy_dens_cells       = dm.get<real,2>("hy_dens_cells"      );
+      auto hy_dens_theta_cells = dm.get<real,2>("hy_dens_theta_cells");
+
       if (init_data_int == DATA_SUPERCELL) {
 
         coupler.add_option<int>("bc_x",BC_PERIODIC);
@@ -1549,6 +1556,10 @@ namespace modules {
                 for (int tr=0; tr < num_tracers; tr++) {
                   if (tr == idWV) { tracers(tr,hs+k,hs+j,hs+i,iens) += rho_v * wt; }
                   else            { tracers(tr,hs+k,hs+j,hs+i,iens) += 0     * wt; }
+                }
+                if (i == 0 && ii == 0 && j == 0 && jj == 0) {
+                  hy_dens_cells      (k,iens) = hr;
+                  hy_dens_theta_cells(k,iens) = hr*ht;
                 }
               }
             }
@@ -1635,6 +1646,10 @@ namespace modules {
                   if (tr == idWV) { tracers(tr,hs+k,hs+j,hs+i,iens) += rho_v * wt; }
                   else            { tracers(tr,hs+k,hs+j,hs+i,iens) += 0     * wt; }
                 }
+                if (i == 0 && ii == 0 && j == 0 && jj == 0) {
+                  hy_dens_cells      (k,iens) = hr;
+                  hy_dens_theta_cells(k,iens) = hr*ht;
+                }
               }
             }
           }
@@ -1707,6 +1722,10 @@ namespace modules {
                   if (tr == idWV) { tracers(tr,hs+k,hs+j,hs+i,iens) += rho_v * wt; }
                   else            { tracers(tr,hs+k,hs+j,hs+i,iens) += 0     * wt; }
                 }
+                if (i == 0 && ii == 0 && j == 0 && jj == 0) {
+                  hy_dens_cells      (k,iens) = hr;
+                  hy_dens_theta_cells(k,iens) = hr*ht;
+                }
               }
             }
           }
@@ -1768,8 +1787,8 @@ namespace modules {
       auto i_beg       = coupler.get_i_beg();
       auto j_beg       = coupler.get_j_beg();
 
-      real2d hy_dens_cells      ("hy_dens_cells"      ,nz  ,nens);
-      real2d hy_dens_theta_cells("hy_dens_theta_cells",nz  ,nens);
+      auto hy_dens_cells       = coupler.get_data_manager_readwrite().get<real,2>("hy_dens_cells"      );
+      auto hy_dens_theta_cells = coupler.get_data_manager_readwrite().get<real,2>("hy_dens_theta_cells");
       real2d hy_dens_edges      ("hy_dens_edges"      ,nz+1,nens);
       real2d hy_dens_theta_edges("hy_dens_theta_edges",nz+1,nens);
 

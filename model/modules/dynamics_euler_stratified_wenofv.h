@@ -27,35 +27,26 @@ namespace modules {
       int  static constexpr ord = MW_ORD;
     #endif
     int  static constexpr hs  = (ord-1)/2; // Number of halo cells ("hs" == "halo size")
-
     int  static constexpr num_state = 5;
-
     // IDs for the variables in the state vector
     int  static constexpr idR = 0;  // Density
     int  static constexpr idU = 1;  // u-momentum
     int  static constexpr idV = 2;  // v-momentum
     int  static constexpr idW = 3;  // w-momentum
     int  static constexpr idT = 4;  // Density * potential temperature
-
     // IDs for the test cases
     int  static constexpr DATA_THERMAL   = 0;
     int  static constexpr DATA_SUPERCELL = 1;
     int  static constexpr DATA_CITY      = 2;
     int  static constexpr DATA_BUILDING  = 3;
-
+    // IDs for boundary conditions
     int  static constexpr BC_PERIODIC = 0;
     int  static constexpr BC_OPEN     = 1;
     int  static constexpr BC_WALL     = 2;
-
-    // Hydrostatic background profiles for density and potential temperature as cell averages and cell edge values
-    real        etime;         // Elapsed time
-    real        out_freq;      // Frequency out file output
-    int         num_out;       // Number of outputs produced thus far
-    int         init_data_int; // Integer representation of the type of initial data to use (test case)
-
-    SArray<real,1,ord>            gll_pts;          // GLL point locations in domain [-0.5 , 0.5]
-    SArray<real,1,ord>            gll_wts;          // GLL weights normalized to sum to 1
-    SArray<real,2,ord,2  >        coefs_to_gll;     // Matrix to convert ord poly coefs to two GLL points
+    // Class data (not use inside parallel_for)
+    real etime;         // Elapsed time
+    real out_freq;      // Frequency out file output
+    int  num_out;       // Number of outputs produced thus far
 
 
     // Compute the maximum stable time step using very conservative assumptions about max wind speed
@@ -226,8 +217,8 @@ namespace modules {
       auto tracers_flux_z      = dm.get<real,5>("tracers_flux_z");
       auto immersed_proportion = dm.get<real,4>("immersed_proportion");
 
-      // A slew of things to bring from class scope into local scope so that lambdas copy them by value to the GPU
-      YAKL_SCOPE( coefs_to_gll               , this->coefs_to_gll               );
+      SArray<real,2,ord,2> coefs_to_gll;
+      TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
 
       auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
 
@@ -1178,8 +1169,6 @@ namespace modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      YAKL_SCOPE( init_data_int       , this->init_data_int       );
-
       // Set class data from # grid points, grid spacing, domain sizes, whether it's 2-D, and physical constants
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();
@@ -1243,11 +1232,6 @@ namespace modules {
       gamma = coupler.get_option<real>("gamma_d");
       C0    = coupler.get_option<real>("C0"     );
 
-      // Use TransformMatrices class to create matrices & GLL points to convert degrees of freedom as needed
-      TransformMatrices::get_gll_points          (gll_pts         );
-      TransformMatrices::get_gll_weights         (gll_wts         );
-      TransformMatrices::coefs_to_gll_lower      (coefs_to_gll    );
-
       // Create arrays to determine whether we should add mass for a tracer or whether it should remain non-negative
       num_tracers = coupler.get_num_tracers();
       bool1d tracer_adds_mass("tracer_adds_mass",num_tracers);
@@ -1284,6 +1268,7 @@ namespace modules {
       tracer_positive.deep_copy_to(dm_tracer_positive);
 
       // Set an integer version of the input_data so we can test it inside GPU kernels
+      int init_data_int;
       if      (init_data == "thermal"  ) { init_data_int = DATA_THERMAL;   }
       else if (init_data == "supercell") { init_data_int = DATA_SUPERCELL; }
       else if (init_data == "city"     ) { init_data_int = DATA_CITY;      }
@@ -1568,8 +1553,9 @@ namespace modules {
       real constexpr T_top  = 213;
       real constexpr p_0    = 100000;
 
-      YAKL_SCOPE( gll_pts             , this->gll_pts             );
-      YAKL_SCOPE( gll_wts             , this->gll_wts             );
+      SArray<real,1,ord> gll_pts, gll_wts;
+      TransformMatrices::get_gll_points (gll_pts);
+      TransformMatrices::get_gll_weights(gll_wts);
 
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();

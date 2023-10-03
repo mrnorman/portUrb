@@ -215,7 +215,7 @@ namespace modules {
       auto tracers_flux_x      = dm.get<real,5>("tracers_flux_x");
       auto tracers_flux_y      = dm.get<real,5>("tracers_flux_y");
       auto tracers_flux_z      = dm.get<real,5>("tracers_flux_z");
-      auto immersed_proportion = dm.get<real,4>("immersed_proportion");
+      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
 
       SArray<real,2,ord,2> coefs_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);

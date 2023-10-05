@@ -22,7 +22,7 @@ namespace modules {
 
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 5;
+      int  static constexpr ord = 3;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -55,7 +55,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 80;
-      real cfl = 0.6;
+      real cfl = 0.4;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -88,84 +88,107 @@ namespace modules {
       dt_dyn = dt_phys / ncycles;
 
       for (int icycle = 0; icycle < ncycles; icycle++) {
-        // SSPRK3 requires temporary arrays to hold intermediate state and tracers arrays
-        real5d state_tmp   ("state_tmp"   ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
-        real5d state_tend  ("state_tend"  ,num_state  ,nz     ,ny     ,nx     ,nens);
-        real5d tracers_tmp ("tracers_tmp" ,num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
-        real5d tracers_tend("tracers_tend",num_tracers,nz     ,ny     ,nx     ,nens);
-        //////////////
-        // Stage 1
-        //////////////
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
-          tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens);
-        });
-        compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dyn );
-        // Apply tendencies
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int l = 0; l < num_state  ; l++) {
-            state_tmp  (l,hs+k,hs+j,hs+i,iens) = state  (l,hs+k,hs+j,hs+i,iens) + dt_dyn * state_tend  (l,k,j,i,iens);
-          }
-          for (int l = 0; l < num_tracers; l++) {
-            tracers_tmp(l,hs+k,hs+j,hs+i,iens) = tracers(l,hs+k,hs+j,hs+i,iens) + dt_dyn * tracers_tend(l,k,j,i,iens);
-            // For machine precision negative values after FCT-enforced positivity application
-            if (tracer_positive(l)) {
-              tracers_tmp(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i,iens) );
+        if (ord == 1) {
+          real5d state_tend  ("state_tend"  ,num_state  ,nz     ,ny     ,nx     ,nens);
+          real5d tracers_tend("tracers_tend",num_tracers,nz     ,ny     ,nx     ,nens);
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                            YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+            tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens);
+          });
+          compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dyn );
+          // Apply tendencies
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+            for (int l = 0; l < num_state  ; l++) {
+              state  (l,hs+k,hs+j,hs+i,iens) = state  (l,hs+k,hs+j,hs+i,iens) + dt_dyn * state_tend  (l,k,j,i,iens);
             }
-          }
-        });
-        //////////////
-        // Stage 2
-        //////////////
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
-          tracers_tend(tr,k,j,i,iens) = (3._fp/4._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
-                                        (1._fp/4._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
-        });
-        compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (1._fp/4._fp) * dt_dyn );
-        // Apply tendencies
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int l = 0; l < num_state  ; l++) {
-            state_tmp  (l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * state      (l,hs+k,hs+j,hs+i,iens) + 
-                                                 (1._fp/4._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
-                                                 (1._fp/4._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
-          }
-          for (int l = 0; l < num_tracers; l++) {
-            tracers_tmp(l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) + 
-                                                 (1._fp/4._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
-                                                 (1._fp/4._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
-            // For machine precision negative values after FCT-enforced positivity application
-            if (tracer_positive(l)) {
-              tracers_tmp(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i,iens) );
+            for (int l = 0; l < num_tracers; l++) {
+              tracers(l,hs+k,hs+j,hs+i,iens) = tracers(l,hs+k,hs+j,hs+i,iens) + dt_dyn * tracers_tend(l,k,j,i,iens);
+              // For machine precision negative values after FCT-enforced positivity application
+              if (tracer_positive(l)) {
+                tracers(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers(l,hs+k,hs+j,hs+i,iens) );
+              }
             }
-          }
-        });
-        //////////////
-        // Stage 3
-        //////////////
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
-          tracers_tend(tr,k,j,i,iens) = (1._fp/3._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
-                                        (2._fp/3._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
-        });
-        compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (2._fp/3._fp) * dt_dyn );
-        // Apply tendencies
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int l = 0; l < num_state  ; l++) {
-            state  (l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * state      (l,hs+k,hs+j,hs+i,iens) +
-                                             (2._fp/3._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
-                                             (2._fp/3._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
-          }
-          for (int l = 0; l < num_tracers; l++) {
-            tracers(l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) +
-                                             (2._fp/3._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
-                                             (2._fp/3._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
-            // For machine precision negative values after FCT-enforced positivity application
-            if (tracer_positive(l)) {
-              tracers(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers(l,hs+k,hs+j,hs+i,iens) );
+          });
+        } else {
+          // SSPRK3 requires temporary arrays to hold intermediate state and tracers arrays
+          real5d state_tmp   ("state_tmp"   ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+          real5d state_tend  ("state_tend"  ,num_state  ,nz     ,ny     ,nx     ,nens);
+          real5d tracers_tmp ("tracers_tmp" ,num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+          real5d tracers_tend("tracers_tend",num_tracers,nz     ,ny     ,nx     ,nens);
+          //////////////
+          // Stage 1
+          //////////////
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                            YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+            tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens);
+          });
+          compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dyn );
+          // Apply tendencies
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+            for (int l = 0; l < num_state  ; l++) {
+              state_tmp  (l,hs+k,hs+j,hs+i,iens) = state  (l,hs+k,hs+j,hs+i,iens) + dt_dyn * state_tend  (l,k,j,i,iens);
             }
-          }
-        });
+            for (int l = 0; l < num_tracers; l++) {
+              tracers_tmp(l,hs+k,hs+j,hs+i,iens) = tracers(l,hs+k,hs+j,hs+i,iens) + dt_dyn * tracers_tend(l,k,j,i,iens);
+              // For machine precision negative values after FCT-enforced positivity application
+              if (tracer_positive(l)) {
+                tracers_tmp(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i,iens) );
+              }
+            }
+          });
+          //////////////
+          // Stage 2
+          //////////////
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                            YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+            tracers_tend(tr,k,j,i,iens) = (3._fp/4._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
+                                          (1._fp/4._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
+          });
+          compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (1._fp/4._fp) * dt_dyn );
+          // Apply tendencies
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+            for (int l = 0; l < num_state  ; l++) {
+              state_tmp  (l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * state      (l,hs+k,hs+j,hs+i,iens) + 
+                                                   (1._fp/4._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
+                                                   (1._fp/4._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
+            }
+            for (int l = 0; l < num_tracers; l++) {
+              tracers_tmp(l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) + 
+                                                   (1._fp/4._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
+                                                   (1._fp/4._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
+              // For machine precision negative values after FCT-enforced positivity application
+              if (tracer_positive(l)) {
+                tracers_tmp(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i,iens) );
+              }
+            }
+          });
+          //////////////
+          // Stage 3
+          //////////////
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
+                                            YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+            tracers_tend(tr,k,j,i,iens) = (1._fp/3._fp) * tracers    (tr,hs+k,hs+j,hs+i,iens) + 
+                                          (2._fp/3._fp) * tracers_tmp(tr,hs+k,hs+j,hs+i,iens);
+          });
+          compute_tendencies( coupler , state_tmp , state_tend , tracers_tmp , tracers_tend , (2._fp/3._fp) * dt_dyn );
+          // Apply tendencies
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+            for (int l = 0; l < num_state  ; l++) {
+              state  (l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * state      (l,hs+k,hs+j,hs+i,iens) +
+                                               (2._fp/3._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
+                                               (2._fp/3._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
+            }
+            for (int l = 0; l < num_tracers; l++) {
+              tracers(l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) +
+                                               (2._fp/3._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
+                                               (2._fp/3._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
+              // For machine precision negative values after FCT-enforced positivity application
+              if (tracer_positive(l)) {
+                tracers(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers(l,hs+k,hs+j,hs+i,iens) );
+              }
+            }
+          });
+        }
       }
 
       // Convert the dycore's state back to the coupler's state
@@ -253,18 +276,18 @@ namespace modules {
         for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens); }
       });
 
-      halo_exchange( coupler , state , tracers , pressure );
+      if (ord > 1) halo_exchange( coupler , state , tracers , pressure );
 
       // These arrays store high-order-accurate samples of the state and tracers at cell edges after cell-centered recon
-      real6d state_limits_x   ("state_limits_x"   ,num_state  ,2,nz  ,ny  ,nx+1,nens);
-      real6d state_limits_y   ("state_limits_y"   ,num_state  ,2,nz  ,ny+1,nx  ,nens);
-      real6d state_limits_z   ("state_limits_z"   ,num_state  ,2,nz+1,ny  ,nx  ,nens);
-      real6d tracers_limits_x ("tracers_limits_x" ,num_tracers,2,nz  ,ny  ,nx+1,nens);
-      real6d tracers_limits_y ("tracers_limits_y" ,num_tracers,2,nz  ,ny+1,nx  ,nens);
-      real6d tracers_limits_z ("tracers_limits_z" ,num_tracers,2,nz+1,ny  ,nx  ,nens);
-      real5d pressure_limits_x("pressure_limits_x"            ,2,nz  ,ny  ,nx+1,nens);
-      real5d pressure_limits_y("pressure_limits_y"            ,2,nz  ,ny+1,nx  ,nens);
-      real5d pressure_limits_z("pressure_limits_z"            ,2,nz+1,ny  ,nx  ,nens);
+      real6d state_limits_x   ("state_limits_x"   ,num_state  ,2,nz  ,ny  ,nx+1,nens);  state_limits_x    = 0;
+      real6d state_limits_y   ("state_limits_y"   ,num_state  ,2,nz  ,ny+1,nx  ,nens);  state_limits_y    = 0;
+      real6d state_limits_z   ("state_limits_z"   ,num_state  ,2,nz+1,ny  ,nx  ,nens);  state_limits_z    = 0;
+      real6d tracers_limits_x ("tracers_limits_x" ,num_tracers,2,nz  ,ny  ,nx+1,nens);  tracers_limits_x  = 0;
+      real6d tracers_limits_y ("tracers_limits_y" ,num_tracers,2,nz  ,ny+1,nx  ,nens);  tracers_limits_y  = 0;
+      real6d tracers_limits_z ("tracers_limits_z" ,num_tracers,2,nz+1,ny  ,nx  ,nens);  tracers_limits_z  = 0;
+      real5d pressure_limits_x("pressure_limits_x"            ,2,nz  ,ny  ,nx+1,nens);  pressure_limits_x = 0;
+      real5d pressure_limits_y("pressure_limits_y"            ,2,nz  ,ny+1,nx  ,nens);  pressure_limits_y = 0;
+      real5d pressure_limits_z("pressure_limits_z"            ,2,nz+1,ny  ,nx  ,nens);  pressure_limits_z = 0;
 
       weno::WenoLimiter<ord> limiter;
 
@@ -618,6 +641,7 @@ namespace modules {
         }
       });
     }
+
 
 
     // ord stencil cell averages to two GLL point values via high-order reconstruction and WENO limiting

@@ -1882,56 +1882,62 @@ namespace modules {
 
       }
 
-      // Compute forcing due to pressure gradient only in the vertical direction
-      coupler.set_option<bool>("save_pressure_z",true);
-      dm.register_and_allocate<real>("pressure_z","",{nz+1,ny,nx,nens});
-      dm.register_and_allocate<real>("pressure_mult","",{nz+1,nens});
-      auto pressure_z = dm.get<real,4>("pressure_z");
-      auto pressure_mult = dm.get<real,2>("pressure_mult");
-      pressure_mult = 1;
-      real dt_dummy = 1.;
-      real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
-      real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
-      compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dummy );
-      real3d vars_loc("vars_loc",2,nz+1,nens);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
-        real tot1 = 0;
-        real tot2 = 0;
-        for (int j=0; j < ny; j++) {
-          for (int i=0; i < nx; i++) {
-            tot1 += pressure_z(k,j,i,iens);
-            if (k < nz) tot2 += state(idR,hs+k,hs+j,hs+i,iens);
+      if (enable_gravity) {
+        // Compute forcing due to pressure gradient only in the vertical direction
+        coupler.set_option<bool>("save_pressure_z",true);
+        dm.register_and_allocate<real>("pressure_z","",{nz+1,ny,nx,nens});
+        dm.register_and_allocate<real>("pressure_mult","",{nz+1,nens});
+        auto pressure_z = dm.get<real,4>("pressure_z");
+        auto pressure_mult = dm.get<real,2>("pressure_mult");
+        pressure_mult = 1;
+        real dt_dummy = 1.;
+        real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
+        real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
+        compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dummy );
+        real3d vars_loc("vars_loc",2,nz+1,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
+          real tot1 = 0;
+          real tot2 = 0;
+          for (int j=0; j < ny; j++) {
+            for (int i=0; i < nx; i++) {
+              tot1 += pressure_z(k,j,i,iens);
+              if (k < nz) tot2 += state(idR,hs+k,hs+j,hs+i,iens);
+            }
+          }
+          vars_loc(0,k,iens) = tot1;
+          vars_loc(1,k,iens) = tot2;
+        });
+        auto vars_loc_host = vars_loc.createHostCopy();
+        auto vars_host     = vars_loc.createHostCopy();
+        MPI_Allreduce( vars_loc_host.data()        ,  // sendbuf
+                       vars_host.data()            ,  // recvbuf
+                       vars_loc_host.size()        ,  // count
+                       coupler.get_mpi_data_type() ,  // type
+                       MPI_SUM                     ,  // operation
+                       MPI_COMM_WORLD              ); // communicator
+        realHost2d pressure_mult_host("pressure_mult",nz+1,nens);
+        real r_nx_ny = 1./(nx_glob*ny_glob);
+        for (int iens=0; iens < nens; iens++) { pressure_mult_host(0,iens) = 1; }
+        for (int k=1; k < nz+1; k++) {
+          for (int iens=0; iens < nens; iens++) {
+            real dens_k        = vars_host(1,k-1,iens) * r_nx_ny;
+            real p_actual_km12 = vars_host(0,k-1,iens) * r_nx_ny;
+            real p_actual_kp12 = vars_host(0,k  ,iens) * r_nx_ny;
+            real p_mult_km12   = pressure_mult_host(k-1,iens);
+            real p_hydro_kp12  = p_actual_km12*p_mult_km12 - dens_k*grav*dz;
+            pressure_mult_host(k,iens) = p_hydro_kp12 / p_actual_kp12;
           }
         }
-        vars_loc(0,k,iens) = tot1;
-        vars_loc(1,k,iens) = tot2;
-      });
-      auto vars_loc_host = vars_loc.createHostCopy();
-      auto vars_host     = vars_loc.createHostCopy();
-      MPI_Allreduce( vars_loc_host.data()        ,  // sendbuf
-                     vars_host.data()            ,  // recvbuf
-                     vars_loc_host.size()        ,  // count
-                     coupler.get_mpi_data_type() ,  // type
-                     MPI_SUM                     ,  // operation
-                     MPI_COMM_WORLD              ); // communicator
-      realHost2d pressure_mult_host("pressure_mult",nz+1,nens);
-      real r_nx_ny = 1./(nx_glob*ny_glob);
-      for (int iens=0; iens < nens; iens++) { pressure_mult_host(0,iens) = 1; }
-      for (int k=1; k < nz+1; k++) {
-        for (int iens=0; iens < nens; iens++) {
-          real dens_k        = vars_host(1,k-1,iens) * r_nx_ny;
-          real p_actual_km12 = vars_host(0,k-1,iens) * r_nx_ny;
-          real p_actual_kp12 = vars_host(0,k  ,iens) * r_nx_ny;
-          real p_mult_km12   = pressure_mult_host(k-1,iens);
-          real p_hydro_kp12  = p_actual_km12*p_mult_km12 - dens_k*grav*dz;
-          pressure_mult_host(k,iens) = p_hydro_kp12 / p_actual_kp12;
-        }
+        pressure_mult_host.deep_copy_to(pressure_mult);
+        coupler.set_option<bool>("save_pressure_z",false);
+        using yakl::componentwise::operator-;
+        using yakl::componentwise::operator/;
+        std::cout << std::scientific << (pressure_mult_host-1);
+      } else {
+        dm.register_and_allocate<real>("pressure_mult","",{nz+1,nens});
+        auto pressure_mult = dm.get<real,2>("pressure_mult");
+        pressure_mult = 1;
       }
-      pressure_mult_host.deep_copy_to(pressure_mult);
-      coupler.set_option<bool>("save_pressure_z",false);
-      using yakl::componentwise::operator-;
-      using yakl::componentwise::operator/;
-      std::cout << std::scientific << (pressure_mult_host-1);
 
       // Convert the initialized state and tracers arrays back to the coupler state
       convert_dynamics_to_coupler( coupler , state , tracers );

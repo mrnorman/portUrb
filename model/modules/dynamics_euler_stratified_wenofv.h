@@ -238,7 +238,7 @@ namespace modules {
       auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
       auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
-      auto grav_var            = dm.get<real const,2>("variable_gravity"   );
+      auto pressure_mult       = dm.get<real const,2>("pressure_mult"      );
 
       real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
 
@@ -508,6 +508,7 @@ namespace modules {
           real w2 = 0.5_fp * (p_L+cs*rw_L);
           real p_upw  = w1 + w2;
           real rw_upw = (w2-w1)/cs;
+          p_upw *= pressure_mult(k,iens);
           // Advectively upwind everything else
           int ind = rw_L+rw_R > 0 ? 0 : 1;
           real r_upw = state_limits_z(idR,ind,k,j,i,iens);
@@ -584,7 +585,7 @@ namespace modules {
           state_tend(l,k,j,i,iens) = -( state_flux_x(l,k  ,j  ,i+1,iens) - state_flux_x(l,k,j,i,iens) ) / dx
                                      -( state_flux_y(l,k  ,j+1,i  ,iens) - state_flux_y(l,k,j,i,iens) ) / dy
                                      -( state_flux_z(l,k+1,j  ,i  ,iens) - state_flux_z(l,k,j,i,iens) ) / dz;
-          if (l == idW && enable_gravity) state_tend(l,k,j,i,iens) += -grav_var(k,iens) * state(idR,hs+k,hs+j,hs+i,iens);
+          if (l == idW && enable_gravity) state_tend(l,k,j,i,iens) += -grav * state(idR,hs+k,hs+j,hs+i,iens);
           if (l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
           if (l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
           if (l == idV && sim2d) state_tend(l,k,j,i,iens) = 0;
@@ -1884,41 +1885,53 @@ namespace modules {
       // Compute forcing due to pressure gradient only in the vertical direction
       coupler.set_option<bool>("save_pressure_z",true);
       dm.register_and_allocate<real>("pressure_z","",{nz+1,ny,nx,nens});
-      dm.register_and_allocate<real>("variable_gravity","",{nz,nens});
+      dm.register_and_allocate<real>("pressure_mult","",{nz+1,nens});
       auto pressure_z = dm.get<real,4>("pressure_z");
-      auto grav_var   = dm.get<real,2>("variable_gravity");
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        if (j == 0 && i == 0) grav_var(k,iens) = grav;
-      });
+      auto pressure_mult = dm.get<real,2>("pressure_mult");
+      pressure_mult = 1;
       real dt_dummy = 1.;
       real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
       real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
       compute_tendencies( coupler , state , state_tend , tracers , tracers_tend , dt_dummy );
-      auto grav_sum_loc = grav_var.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
-        real tot = 0;
+      real3d vars_loc("vars_loc",2,nz+1,nens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
+        real tot1 = 0;
+        real tot2 = 0;
         for (int j=0; j < ny; j++) {
           for (int i=0; i < nx; i++) {
-            tot += -(pressure_z(k+1,j,i,iens) - pressure_z(k,j,i,iens)) / (state(idR,hs+k,hs+j,hs+i,iens)*dz);
+            tot1 += pressure_z(k,j,i,iens);
+            if (k < nz) tot2 += state(idR,hs+k,hs+j,hs+i,iens);
           }
         }
-        grav_sum_loc(k,iens) = tot;
+        vars_loc(0,k,iens) = tot1;
+        vars_loc(1,k,iens) = tot2;
       });
-      auto grav_sum_loc_host = grav_sum_loc.createHostCopy();
-      auto grav_var_host     = grav_var    .createHostCopy();
-      MPI_Allreduce( grav_sum_loc_host.data()    ,  // sendbuf
-                     grav_var_host.data()        ,  // recvbuf
-                     grav_sum_loc.size()         ,  // count
+      auto vars_loc_host = vars_loc.createHostCopy();
+      auto vars_host     = vars_loc.createHostCopy();
+      MPI_Allreduce( vars_loc_host.data()        ,  // sendbuf
+                     vars_host.data()            ,  // recvbuf
+                     vars_loc_host.size()        ,  // count
                      coupler.get_mpi_data_type() ,  // type
                      MPI_SUM                     ,  // operation
                      MPI_COMM_WORLD              ); // communicator
-      grav_var_host.deep_copy_to(grav_var);
+      realHost2d pressure_mult_host("pressure_mult",nz+1,nens);
       real r_nx_ny = 1./(nx_glob*ny_glob);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
-        grav_var(k,iens) *= r_nx_ny;
-      });
+      for (int iens=0; iens < nens; iens++) { pressure_mult_host(0,iens) = 1; }
+      for (int k=1; k < nz+1; k++) {
+        for (int iens=0; iens < nens; iens++) {
+          real dens_k        = vars_host(1,k-1,iens) * r_nx_ny;
+          real p_actual_km12 = vars_host(0,k-1,iens) * r_nx_ny;
+          real p_actual_kp12 = vars_host(0,k  ,iens) * r_nx_ny;
+          real p_mult_km12   = pressure_mult_host(k-1,iens);
+          real p_hydro_kp12  = p_actual_km12*p_mult_km12 - dens_k*grav*dz;
+          pressure_mult_host(k,iens) = p_hydro_kp12 / p_actual_kp12;
+        }
+      }
+      pressure_mult_host.deep_copy_to(pressure_mult);
       coupler.set_option<bool>("save_pressure_z",false);
-      std::cout << grav_var;
+      using yakl::componentwise::operator-;
+      using yakl::componentwise::operator/;
+      std::cout << std::scientific << (pressure_mult_host-1);
 
       // Convert the initialized state and tracers arrays back to the coupler state
       convert_dynamics_to_coupler( coupler , state , tracers );

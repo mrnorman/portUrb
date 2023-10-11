@@ -22,7 +22,7 @@ namespace modules {
 
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 3;
+      int  static constexpr ord = 1;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -623,7 +623,7 @@ namespace modules {
         }
         if (use_immersed_boundaries) {
           // Determine the time scale of damping
-          real tau  = 1.e3*dt;
+          real tau  = dt;
           real mult = -std::min(1._fp,dt/tau);
           // Compute immersed material tendencies (zero velocity, reference density & temperature)
           real imm_tend_idR = mult*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells      (k,iens))/dt;
@@ -1822,9 +1822,9 @@ namespace modules {
                ( jnorm >= 0 && jnorm < nblocks_y*9 && jnorm%9 < 8 ) ) {
             if ( k <= std::ceil( building_heights(jnorm,inorm) / dz ) ) {
               immersed_proportion(k,j,i,iens) = 1;
-              // state(idU,hs+k,hs+j,hs+i,iens) = 0;
-              // state(idV,hs+k,hs+j,hs+i,iens) = 0;
-              // state(idW,hs+k,hs+j,hs+i,iens) = 0;
+              state(idU,hs+k,hs+j,hs+i,iens) = 0;
+              state(idV,hs+k,hs+j,hs+i,iens) = 0;
+              state(idW,hs+k,hs+j,hs+i,iens) = 0;
             }
           }
         });
@@ -1898,9 +1898,9 @@ namespace modules {
           real yr = 0.05*ny_glob;
           if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && k <= 0.2*nz ) {
             immersed_proportion(k,j,i,iens) = 1;
-            // state(idU,hs+k,hs+j,hs+i,iens) = 0;
-            // state(idV,hs+k,hs+j,hs+i,iens) = 0;
-            // state(idW,hs+k,hs+j,hs+i,iens) = 0;
+            state(idU,hs+k,hs+j,hs+i,iens) = 0;
+            state(idV,hs+k,hs+j,hs+i,iens) = 0;
+            state(idW,hs+k,hs+j,hs+i,iens) = 0;
           }
         });
 

@@ -22,7 +22,7 @@ namespace modules {
 
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 1;
+      int  static constexpr ord = 3;
     #else
       int  static constexpr ord = MW_ORD;
     #endif

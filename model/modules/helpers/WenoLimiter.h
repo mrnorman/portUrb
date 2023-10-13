@@ -23,10 +23,10 @@ namespace weno {
   template <> struct WenoLimiter<3> {
     real cutoff, idl_L, idl_R, idl_H;
 
-    YAKL_INLINE WenoLimiter(real cutoff_in = 0.0,
+    YAKL_INLINE WenoLimiter(real cutoff_in = 0.105,
                             real idl_L_in  = 1,
                             real idl_R_in  = 1,
-                            real idl_H_in  = 5.e2) {
+                            real idl_H_in  = 264) {
       cutoff = cutoff_in;
       idl_L  = idl_L_in;
       idl_R  = idl_R_in;

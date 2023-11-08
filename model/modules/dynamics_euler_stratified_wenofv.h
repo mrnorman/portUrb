@@ -296,18 +296,45 @@ namespace modules {
       // Compute samples of state and tracers at cell edges using cell-centered reconstructions at high-order with WENO
       // At the end of this, we will have two samples per cell edge in each dimension, one from each adjacent cell.
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real cs = 350;
+        real u  = state(idU,hs+k,hs+j,hs+i,iens);
+        real v  = state(idV,hs+k,hs+j,hs+i,iens);
+        real w  = state(idW,hs+k,hs+j,hs+i,iens);
+        real t  = state(idT,hs+k,hs+j,hs+i,iens);
         ////////////////////////////////////////////////////////
         // X-direction
         ////////////////////////////////////////////////////////
         // State
-        for (int l=0; l < num_state; l++) {
-          // Gather the stencil of cell averages, and use WENO to compute values at the cell edges (i.e., 2 GLL points)
+        {
           SArray<real,1,ord> stencil;
-          SArray<real,1,2>   gll;
-          for (int s=0; s < ord; s++) { stencil(s) = state(l,hs+k,hs+j,i+s,iens); }
-          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          state_limits_x(l,1,k,j,i  ,iens) = gll(0);
-          state_limits_x(l,0,k,j,i+1,iens) = gll(1);
+          SArray<real,1,2  > g1, g2, g3, g4, g5;
+          for (int ii=0; ii < ord; ii++) { stencil(ii) =  u*state(idR,hs+k,hs+j,i+ii,iens)/(2*cs) -
+                                                            state(idU,hs+k,hs+j,i+ii,iens)/(2*cs) +
+                                                            state(idT,hs+k,hs+j,i+ii,iens)/(2*t ); }
+          reconstruct_gll_values(stencil,g1,coefs_to_gll,limiter);
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = -u*state(idR,hs+k,hs+j,i+ii,iens)/(2*cs) +
+                                                            state(idU,hs+k,hs+j,i+ii,iens)/(2*cs) +
+                                                            state(idT,hs+k,hs+j,i+ii,iens)/(2*t ); }
+          reconstruct_gll_values(stencil,g2,coefs_to_gll,limiter);
+          for (int ii=0; ii < ord; ii++) { stencil(ii) =   state(idR,hs+k,hs+j,i+ii,iens) -
+                                                           state(idT,hs+k,hs+j,i+ii,iens)/t; }
+          reconstruct_gll_values(stencil,g3,coefs_to_gll,limiter);
+          for (int ii=0; ii < ord; ii++) { stencil(ii) =   state(idV,hs+k,hs+j,i+ii,iens) -
+                                                         v*state(idT,hs+k,hs+j,i+ii,iens)/t; }
+          reconstruct_gll_values(stencil,g4,coefs_to_gll,limiter);
+          for (int ii=0; ii < ord; ii++) { stencil(ii) =   state(idW,hs+k,hs+j,i+ii,iens) -
+                                                         w*state(idT,hs+k,hs+j,i+ii,iens)/t; }
+          reconstruct_gll_values(stencil,g5,coefs_to_gll,limiter);
+          state_limits_x(idR,1,k,j,i  ,iens) = g1(0)        + g2(0)        + g3(0)                  ;
+          state_limits_x(idR,0,k,j,i+1,iens) = g1(1)        + g2(1)        + g3(1)                  ;
+          state_limits_x(idU,1,k,j,i  ,iens) = g1(0)*(u-cs) + g2(0)*(u+cs) + g3(0)*u                ;
+          state_limits_x(idU,0,k,j,i+1,iens) = g1(1)*(u-cs) + g2(1)*(u+cs) + g3(1)*u                ;
+          state_limits_x(idV,1,k,j,i  ,iens) = g1(0)*v      + g2(0)*v                + g4(0)        ;
+          state_limits_x(idV,0,k,j,i+1,iens) = g1(1)*v      + g2(1)*v                + g4(1)        ;
+          state_limits_x(idW,1,k,j,i  ,iens) = g1(0)*w      + g2(0)*w                        + g5(0);
+          state_limits_x(idW,0,k,j,i+1,iens) = g1(1)*w      + g2(1)*w                        + g5(1);
+          state_limits_x(idT,1,k,j,i  ,iens) = g1(0)*t      + g2(0)*t                               ;
+          state_limits_x(idT,0,k,j,i+1,iens) = g1(1)*t      + g2(1)*t                               ;
         }
         // Tracers
         for (int l=0; l < num_tracers; l++) {
@@ -326,14 +353,36 @@ namespace modules {
         // If we're simulating in only 2-D, then do not compute y-direction tendencies
         if (!sim2d) {
           // State
-          for (int l=0; l < num_state; l++) {
-            // Gather the stencil of cell averages, and use WENO to compute values at the cell edges (i.e., 2 GLL points)
+          {
             SArray<real,1,ord> stencil;
-            SArray<real,1,2>   gll;
-            for (int s=0; s < ord; s++) { stencil(s) = state(l,hs+k,j+s,hs+i,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            state_limits_y(l,1,k,j  ,i,iens) = gll(0);
-            state_limits_y(l,0,k,j+1,i,iens) = gll(1);
+            SArray<real,1,2  > g1, g2, g3, g4, g5;
+            for (int jj=0; jj < ord; jj++) { stencil(jj) =  v*state(idR,hs+k,j+jj,hs+i,iens)/(2*cs) -
+                                                              state(idV,hs+k,j+jj,hs+i,iens)/(2*cs) +
+                                                              state(idT,hs+k,j+jj,hs+i,iens)/(2*t ); }
+            reconstruct_gll_values(stencil,g1,coefs_to_gll,limiter);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = -v*state(idR,hs+k,j+jj,hs+i,iens)/(2*cs) +
+                                                              state(idV,hs+k,j+jj,hs+i,iens)/(2*cs) +
+                                                              state(idT,hs+k,j+jj,hs+i,iens)/(2*t ); }
+            reconstruct_gll_values(stencil,g2,coefs_to_gll,limiter);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) =   state(idR,hs+k,j+jj,hs+i,iens) -
+                                                             state(idT,hs+k,j+jj,hs+i,iens)/t; }
+            reconstruct_gll_values(stencil,g3,coefs_to_gll,limiter);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) =   state(idU,hs+k,j+jj,hs+i,iens) -
+                                                           u*state(idT,hs+k,j+jj,hs+i,iens)/t; }
+            reconstruct_gll_values(stencil,g4,coefs_to_gll,limiter);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) =   state(idW,hs+k,j+jj,hs+i,iens) -
+                                                           w*state(idT,hs+k,j+jj,hs+i,iens)/t; }
+            reconstruct_gll_values(stencil,g5,coefs_to_gll,limiter);
+            state_limits_y(idR,1,k,j  ,i,iens) = g1(0)        + g2(0)        + g3(0)                  ;
+            state_limits_y(idR,0,k,j+1,i,iens) = g1(1)        + g2(1)        + g3(1)                  ;
+            state_limits_y(idU,1,k,j  ,i,iens) = g1(0)*u      + g2(0)*u                + g4(0)        ;
+            state_limits_y(idU,0,k,j+1,i,iens) = g1(1)*u      + g2(1)*u                + g4(1)        ;
+            state_limits_y(idV,1,k,j  ,i,iens) = g1(0)*(v-cs) + g2(0)*(v+cs) + g3(0)*v                ;
+            state_limits_y(idV,0,k,j+1,i,iens) = g1(1)*(v-cs) + g2(1)*(v+cs) + g3(1)*v                ;
+            state_limits_y(idW,1,k,j  ,i,iens) = g1(0)*w      + g2(0)*w                        + g5(0);
+            state_limits_y(idW,0,k,j+1,i,iens) = g1(1)*w      + g2(1)*w                        + g5(1);
+            state_limits_y(idT,1,k,j  ,i,iens) = g1(0)*t      + g2(0)*t                               ;
+            state_limits_y(idT,0,k,j+1,i,iens) = g1(1)*t      + g2(1)*t                               ;
           }
           // Tracers
           for (int l=0; l < num_tracers; l++) {
@@ -360,14 +409,36 @@ namespace modules {
         // Z-direction
         ////////////////////////////////////////////////////////
         // State
-        for (int l=0; l < num_state; l++) {
-          // Gather the stencil of cell averages, and use WENO to compute values at the cell edges (i.e., 2 GLL points)
+        {
           SArray<real,1,ord> stencil;
-          SArray<real,1,2>   gll;
-          for (int s=0; s < ord; s++) { stencil(s) = state(l,k+s,hs+j,hs+i,iens); }
-          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          state_limits_z(l,1,k  ,j,i,iens) = gll(0);
-          state_limits_z(l,0,k+1,j,i,iens) = gll(1);
+          SArray<real,1,2  > g1, g2, g3, g4, g5;
+          for (int kk=0; kk < ord; kk++) { stencil(kk) =  w*state(idR,k+kk,hs+j,hs+i,iens)/(2*cs) -
+                                                            state(idW,k+kk,hs+j,hs+i,iens)/(2*cs) +
+                                                            state(idT,k+kk,hs+j,hs+i,iens)/(2*t ); }
+          reconstruct_gll_values(stencil,g1,coefs_to_gll,limiter);
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = -w*state(idR,k+kk,hs+j,hs+i,iens)/(2*cs) +
+                                                            state(idW,k+kk,hs+j,hs+i,iens)/(2*cs) +
+                                                            state(idT,k+kk,hs+j,hs+i,iens)/(2*t ); }
+          reconstruct_gll_values(stencil,g2,coefs_to_gll,limiter);
+          for (int kk=0; kk < ord; kk++) { stencil(kk) =   state(idR,k+kk,hs+j,hs+i,iens) -
+                                                           state(idT,k+kk,hs+j,hs+i,iens)/t; }
+          reconstruct_gll_values(stencil,g3,coefs_to_gll,limiter);
+          for (int kk=0; kk < ord; kk++) { stencil(kk) =   state(idU,k+kk,hs+j,hs+i,iens) -
+                                                         u*state(idT,k+kk,hs+j,hs+i,iens)/t; }
+          reconstruct_gll_values(stencil,g4,coefs_to_gll,limiter);
+          for (int kk=0; kk < ord; kk++) { stencil(kk) =   state(idV,k+kk,hs+j,hs+i,iens) -
+                                                         v*state(idT,k+kk,hs+j,hs+i,iens)/t; }
+          reconstruct_gll_values(stencil,g5,coefs_to_gll,limiter);
+          state_limits_z(idR,1,k  ,j,i,iens) = g1(0)        + g2(0)        + g3(0)                  ;
+          state_limits_z(idR,0,k+1,j,i,iens) = g1(1)        + g2(1)        + g3(1)                  ;
+          state_limits_z(idU,1,k  ,j,i,iens) = g1(0)*u      + g2(0)*u                + g4(0)        ;
+          state_limits_z(idU,0,k+1,j,i,iens) = g1(1)*u      + g2(1)*u                + g4(1)        ;
+          state_limits_z(idV,1,k  ,j,i,iens) = g1(0)*v      + g2(0)*v                        + g5(0);
+          state_limits_z(idV,0,k+1,j,i,iens) = g1(1)*v      + g2(1)*v                        + g5(1);
+          state_limits_z(idW,1,k  ,j,i,iens) = g1(0)*(w-cs) + g2(0)*(w+cs) + g3(0)*w                ;
+          state_limits_z(idW,0,k+1,j,i,iens) = g1(1)*(w-cs) + g2(1)*(w+cs) + g3(1)*w                ;
+          state_limits_z(idT,1,k  ,j,i,iens) = g1(0)*t      + g2(0)*t                               ;
+          state_limits_z(idT,0,k+1,j,i,iens) = g1(1)*t      + g2(1)*t                               ;
         }
         // Tracers
         for (int l=0; l < num_tracers; l++) {

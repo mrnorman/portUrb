@@ -63,9 +63,9 @@ namespace weno {
 
     YAKL_INLINE WenoLimiter(real cutoff_in = 0,
                             real idl_L_in  = 1,
-                            real idl_C_in  = 2,
+                            real idl_C_in  = 1,
                             real idl_R_in  = 1,
-                            real idl_H_in  = 1.e3) {
+                            real idl_H_in  = 1000) {
       cutoff = cutoff_in;
       idl_L  = idl_L_in;
       idl_C  = idl_C_in;

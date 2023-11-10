@@ -20,7 +20,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 3;
+      int  static constexpr ord = 5;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -64,7 +64,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 80;
-      real cfl = 0.4;
+      real cfl = 0.8;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -73,11 +73,11 @@ namespace modules {
     void time_step(core::Coupler &coupler, real dt_phys) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto num_tracers = coupler.get_num_tracers();
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
+      auto num_tracers             = coupler.get_num_tracers();
+      auto nens                    = coupler.get_nens();
+      auto nx                      = coupler.get_nx();
+      auto ny                      = coupler.get_ny();
+      auto nz                      = coupler.get_nz();
       real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       convert_coupler_to_dynamics( coupler , state , tracers );
@@ -137,6 +137,21 @@ namespace modules {
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
+      auto use_immersed_boundaries = coupler.get_option<bool>("use_immersed_boundaries");
+      auto immersed_proportion     = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
+      auto hy_dens_cells           = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
+      auto hy_dens_theta_cells     = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
+      if (use_immersed_boundaries) {
+        real tau = dt_dyn;
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+          real mult = immersed_proportion(k,j,i,iens)*std::min(1._fp,dt_dyn/tau);
+          state(idR,hs+k,hs+j,hs+i,iens) = mult*hy_dens_cells      (k,iens) + (1-mult)*state(idR,hs+k,hs+j,hs+i,iens);
+          state(idU,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idU,hs+k,hs+j,hs+i,iens);
+          state(idV,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idV,hs+k,hs+j,hs+i,iens);
+          state(idW,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idW,hs+k,hs+j,hs+i,iens);
+          state(idT,hs+k,hs+j,hs+i,iens) = mult*hy_dens_theta_cells(k,iens) + (1-mult)*state(idT,hs+k,hs+j,hs+i,iens);
+        });
+      }
       real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
       real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
@@ -200,19 +215,10 @@ namespace modules {
 
       auto &dm = coupler.get_data_manager_readonly();
       auto tracer_positive     = dm.get<bool const,1>("tracer_positive"    );
-      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
       auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
 
-      real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-
-      // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
-      // more accurate reconstructions of tracer concentrations
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        pressure(hs+k,hs+j,hs+i,iens) = C0 * std::pow( state(idT,hs+k,hs+j,hs+i,iens) , gamma );
-      });
-
-      if (ord > 1) halo_exchange_x( coupler , state , tracers , pressure );
+      if (ord > 1) halo_exchange_x( coupler , state , tracers );
 
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny,nx+1,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny,nx+1,nens);
@@ -227,8 +233,7 @@ namespace modules {
         SArray<real,2,tord,tord> r, ru;
         {
           // Compute GLL points for zeroth-order time derivative
-          SArray<real,2,tord,tord> rv, rw, rt, ruu, ruv, ruw, rut, p;
-          r = 0; ru = 0; rv = 0; rw = 0; rt = 0; p = 0;
+          SArray<real,2,tord,tord> rv, rw, rt, ruu, ruv, ruw, rut, rt_gamma;
           SArray<real,1,ord> stencil;
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values(stencil,r ,coefs_to_gll,limiter);
@@ -240,22 +245,22 @@ namespace modules {
           reconstruct_gll_values(stencil,rw,coefs_to_gll,limiter);
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure( hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,p ,coefs_to_gll,limiter);
           // Compute non-linears for zeroth-order time derivative
           for (int ii=0; ii < tord; ii++) {
-            ruu(0,ii) = ru(0,ii)*ru(0,ii)/r(0,ii);
-            ruv(0,ii) = ru(0,ii)*rv(0,ii)/r(0,ii);
-            ruw(0,ii) = ru(0,ii)*rw(0,ii)/r(0,ii);
-            rut(0,ii) = ru(0,ii)*rt(0,ii)/r(0,ii);
+            ruu     (0,ii) = ru(0,ii)*ru(0,ii)/r(0,ii);
+            ruv     (0,ii) = ru(0,ii)*rv(0,ii)/r(0,ii);
+            ruw     (0,ii) = ru(0,ii)*rw(0,ii)/r(0,ii);
+            rut     (0,ii) = ru(0,ii)*rt(0,ii)/r(0,ii);
+            rt_gamma(0,ii) = std::pow(rt(0,ii),gamma);
           }
           // Initialize non-linears to zero for higher-order time derivatives
           for (int kt=1; kt < tord; kt++) {
             for (int ii=0; ii < tord; ii++) {
-              ruu(kt,ii) = 0;
-              ruv(kt,ii) = 0;
-              ruw(kt,ii) = 0;
-              rut(kt,ii) = 0;
+              ruu     (kt,ii) = 0;
+              ruv     (kt,ii) = 0;
+              ruw     (kt,ii) = 0;
+              rut     (kt,ii) = 0;
+              rt_gamma(kt,ii) = 0;
             }
           }
           // Compute higher-order time derivatives for state & non-linears
@@ -268,18 +273,17 @@ namespace modules {
               real der_ruw   = 0;
               real der_rut   = 0;
               for (int s=0; s < tord; s++) {
-                der_ru    += g2d2g(s,ii)*(ru (kt,s)          );
-                der_ruu_p += g2d2g(s,ii)*(ruu(kt,s) + p(kt,s));
-                der_ruv   += g2d2g(s,ii)*(ruv(kt,s)          );
-                der_ruw   += g2d2g(s,ii)*(ruw(kt,s)          );
-                der_rut   += g2d2g(s,ii)*(rut(kt,s)          );
+                der_ru    += g2d2g(s,ii)*(ru (kt,s)                                                    );
+                der_ruu_p += g2d2g(s,ii)*(ruu(kt,s) + (kt==0 ? C0*rt_gamma(kt,s) : C0*rt_gamma(kt,s)/2));
+                der_ruv   += g2d2g(s,ii)*(ruv(kt,s)                                                    );
+                der_ruw   += g2d2g(s,ii)*(ruw(kt,s)                                                    );
+                der_rut   += g2d2g(s,ii)*(rut(kt,s)                                                    );
               }
               r (kt+1,ii) = -der_ru   /(kt+1);
               ru(kt+1,ii) = -der_ruu_p/(kt+1);
               rv(kt+1,ii) = -der_ruv  /(kt+1);
               rw(kt+1,ii) = -der_ruw  /(kt+1);
               rt(kt+1,ii) = -der_rut  /(kt+1);
-              p (kt+1,ii) = -der_ru   /(kt+1)*cs2;
             }
             // Compute non-linear fluxes based off of new state data
             for (int ii=0; ii < tord; ii++) {
@@ -297,6 +301,12 @@ namespace modules {
               ruv(kt+1,ii) = tot_ruv / r(0,ii);
               ruw(kt+1,ii) = tot_ruw / r(0,ii);
               rut(kt+1,ii) = tot_rut / r(0,ii);
+
+              real tot_rt_gamma = 0;
+              for (int ir=0; ir<=kt; ir++) {
+                tot_rt_gamma += (kt+1._fp -ir) * ( gamma*rt_gamma(ir,ii)*rt(kt+1-ir,ii) - rt(ir,ii)*rt_gamma(kt+1-ir,ii) );
+              }
+              rt_gamma(kt+1,ii) = ( gamma*rt_gamma(0,ii)*rt(kt+1,ii) + tot_rt_gamma / (kt+1._fp) ) / rt(0,ii);
             }
           }
           // Compute time average for all terms except r and ru, which are needed later
@@ -370,38 +380,52 @@ namespace modules {
       
       edge_exchange_x( coupler , state_limits , tracers_limits );
 
-      pressure = real4d();
-
       real5d state_flux  ("state_flux"  ,num_state  ,nz,ny,nx+1,nens);
       real5d tracers_flux("tracers_flux",num_tracers,nz,ny,nx+1,nens);
       real5d tracers_mult("tracers_mult",num_tracers,nz,ny,nx+1,nens);
 
-      // auto save_pressure_z = coupler.get_option<bool>("save_pressure_z",false);
-      // real4d pressure_z;
-      // if (save_pressure_z) pressure_z = coupler.get_data_manager_readwrite().get<real,4>("pressure_z");
-
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx+1,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        // Acoustically upwind mass flux and pressure
-        real ru_L = state_limits(idU,0,k,j,i,iens);   real ru_R = state_limits(idU,1,k,j,i,iens);
-        real rt_L = state_limits(idT,0,k,j,i,iens);   real rt_R = state_limits(idT,1,k,j,i,iens);
-        real p_L  = C0*std::pow(rt_L,gamma)       ;   real p_R  = C0*std::pow(rt_R,gamma)       ;
-        real constexpr cs = 350;
-        real w1 = 0.5_fp * (p_R-cs*ru_R);
-        real w2 = 0.5_fp * (p_L+cs*ru_L);
-        real p_upw  = w1 + w2;
-        real ru_upw = (w2-w1)/cs;
-        // Advectively upwind everything else
-        int ind = ru_L+ru_R > 0 ? 0 : 1;
-        real r_upw = state_limits(idR,ind,k,j,i,iens);
+        real r_L = state_limits(idR,0,k,j,i,iens)    ;    real r_R = state_limits(idR,1,k,j,i,iens)    ;
+        real u_L = state_limits(idU,0,k,j,i,iens)/r_L;    real u_R = state_limits(idU,1,k,j,i,iens)/r_R;
+        real v_L = state_limits(idV,0,k,j,i,iens)/r_L;    real v_R = state_limits(idV,1,k,j,i,iens)/r_R;
+        real w_L = state_limits(idW,0,k,j,i,iens)/r_L;    real w_R = state_limits(idW,1,k,j,i,iens)/r_R;
+        real t_L = state_limits(idT,0,k,j,i,iens)/r_L;    real t_R = state_limits(idT,1,k,j,i,iens)/r_R;
+        real p_L = C0*std::pow(r_L*t_L,gamma)        ;    real p_R = C0*std::pow(r_R*t_R,gamma)        ;
+        real r = 0.5_fp*(r_L+r_R);
+        real u = 0.5_fp*(u_L+u_R);
+        real v = 0.5_fp*(v_L+v_R);
+        real w = 0.5_fp*(w_L+w_R);
+        real t = 0.5_fp*(t_L+t_R);
+        real p = 0.5_fp*(p_L+p_R);
+        real cs2 = gamma*p/r;
+        real cs  = std::sqrt(cs2);
+        real w1 =  u*(r_R)/(2*cs) - (r_R*u_R)/(2*cs) + (r_R*t_R)/(2*t);
+        real w2 = -u*(r_L)/(2*cs) + (r_L*u_L)/(2*cs) + (r_L*t_L)/(2*t);
+        real w3, w4, w5;
+        if (u > 0) {
+          w3 = (r_L)     -   (r_L*t_L)/t;
+          w4 = (r_L*v_L) - v*(r_L*t_L)/t;
+          w5 = (r_L*w_L) - w*(r_L*t_L)/t;
+        } else {
+          w3 = (r_R)     -   (r_R*t_R)/t;
+          w4 = (r_R*v_R) - v*(r_R*t_R)/t;
+          w5 = (r_R*w_R) - w*(r_R*t_R)/t;
+        }
+        real r_upw  = w1        + w2        + w3            ;
+        real ru_upw = w1*(u-cs) + w2*(u+cs) + w3*u          ;
+        real rv_upw = w1*v      + w2*v             + w4     ;
+        real rw_upw = w1*w      + w2*w                  + w5;
+        real rt_upw = w1*t      + w2*t                      ;
         state_flux(idR,k,j,i,iens) = ru_upw;
-        state_flux(idU,k,j,i,iens) = ru_upw*state_limits(idU,ind,k,j,i,iens)/r_upw + p_upw;
-        state_flux(idV,k,j,i,iens) = ru_upw*state_limits(idV,ind,k,j,i,iens)/r_upw;
-        state_flux(idW,k,j,i,iens) = ru_upw*state_limits(idW,ind,k,j,i,iens)/r_upw;
-        state_flux(idT,k,j,i,iens) = ru_upw*state_limits(idT,ind,k,j,i,iens)/r_upw;
+        state_flux(idU,k,j,i,iens) = ru_upw*ru_upw/r_upw + C0*std::pow(rt_upw,gamma);
+        state_flux(idV,k,j,i,iens) = ru_upw*rv_upw/r_upw;
+        state_flux(idW,k,j,i,iens) = ru_upw*rw_upw/r_upw;
+        state_flux(idT,k,j,i,iens) = ru_upw*rt_upw/r_upw;
+        int uind = u > 0 ? 0 : 1;
+        r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
-          tracers_flux(tr,k,j,i,iens) = ru_upw*tracers_limits(tr,ind,k,j,i,iens)/r_upw;
-          tracers_mult(tr,k,j,i,iens) = 1;
+          tracers_flux(tr,k,j,i,iens) = ru_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
         }
       });
 
@@ -437,36 +461,6 @@ namespace modules {
         for (int l = 0; l < num_tracers; l++) {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k,j,i+1,iens)*tracers_mult(l,k,j,i+1,iens) -
                                           tracers_flux(l,k,j,i  ,iens)*tracers_mult(l,k,j,i  ,iens) ) / dx;
-        }
-        if (use_immersed_boundaries) {
-          // Determine the time scale of damping
-          real tau  = 3*dt;
-          real mult = -std::min(1._fp,dt/tau);
-          // Compute immersed material tendencies (zero velocity, reference density & temperature)
-          real r  = state(idR,hs+k,hs+j,hs+i,iens)+state_tend(idR,k,j,i,iens)*dt;
-          real ru = state(idU,hs+k,hs+j,hs+i,iens)+state_tend(idU,k,j,i,iens)*dt;
-          real rv = state(idV,hs+k,hs+j,hs+i,iens)+state_tend(idV,k,j,i,iens)*dt;
-          real rw = state(idW,hs+k,hs+j,hs+i,iens)+state_tend(idW,k,j,i,iens)*dt;
-          real rt = state(idT,hs+k,hs+j,hs+i,iens)+state_tend(idT,k,j,i,iens)*dt;
-          real imm_tend_idR = mult*(r -hy_dens_cells      (k,iens))/dt;
-          real imm_tend_idU = mult*(ru                            )/dt;
-          real imm_tend_idV = mult*(rv                            )/dt;
-          real imm_tend_idW = mult*(rw                            )/dt;
-          real imm_tend_idT = mult*(rt-hy_dens_theta_cells(k,iens))/dt;
-          // immersed proportion has immersed tendnecies. Other proportion has free tendencies
-          real prop = immersed_proportion(k,j,i,iens);
-          // state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);
-          // state_tend(idU,k,j,i,iens) = prop*imm_tend_idU + (1-prop)*state_tend(idU,k,j,i,iens);
-          // state_tend(idV,k,j,i,iens) = prop*imm_tend_idV + (1-prop)*state_tend(idV,k,j,i,iens);
-          // state_tend(idW,k,j,i,iens) = prop*imm_tend_idW + (1-prop)*state_tend(idW,k,j,i,iens);
-          // state_tend(idT,k,j,i,iens) = prop*imm_tend_idT + (1-prop)*state_tend(idT,k,j,i,iens);
-          if (prop > 0) {
-            state_tend(idR,k,j,i,iens) = 0;
-            state_tend(idU,k,j,i,iens) = 0;
-            state_tend(idV,k,j,i,iens) = 0;
-            state_tend(idW,k,j,i,iens) = 0;
-            state_tend(idT,k,j,i,iens) = 0;
-          }
         }
       });
     }
@@ -514,19 +508,10 @@ namespace modules {
 
       auto &dm = coupler.get_data_manager_readonly();
       auto tracer_positive     = dm.get<bool const,1>("tracer_positive"    );
-      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
       auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
 
-      real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-
-      // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
-      // more accurate reconstructions of tracer concentrations
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        pressure(hs+k,hs+j,hs+i,iens) = C0 * std::pow( state(idT,hs+k,hs+j,hs+i,iens) , gamma );
-      });
-
-      if (ord > 1) halo_exchange_y( coupler , state , tracers , pressure );
+      if (ord > 1) halo_exchange_y( coupler , state , tracers );
 
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny+1,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny+1,nx,nens);
@@ -541,7 +526,7 @@ namespace modules {
         SArray<real,2,tord,tord> r, rv;
         {
           // Compute GLL points for zeroth-order time derivative
-          SArray<real,2,tord,tord> ru, rw, rt, rvu, rvv, rvw, rvt, p;
+          SArray<real,2,tord,tord> ru, rw, rt, rvu, rvv, rvw, rvt, rt_gamma;
           SArray<real,1,ord> stencil;
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
           reconstruct_gll_values(stencil,r ,coefs_to_gll,limiter);
@@ -553,22 +538,22 @@ namespace modules {
           reconstruct_gll_values(stencil,rw,coefs_to_gll,limiter);
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
           reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure( hs+k,j+jj,hs+i,iens); }
-          reconstruct_gll_values(stencil,p ,coefs_to_gll,limiter);
           // Compute non-linears for zeroth-order time derivative
           for (int jj=0; jj < tord; jj++) {
-            rvu(0,jj) = rv(0,jj)*ru(0,jj)/r(0,jj);
-            rvv(0,jj) = rv(0,jj)*rv(0,jj)/r(0,jj);
-            rvw(0,jj) = rv(0,jj)*rw(0,jj)/r(0,jj);
-            rvt(0,jj) = rv(0,jj)*rt(0,jj)/r(0,jj);
+            rvu     (0,jj) = rv(0,jj)*ru(0,jj)/r(0,jj);
+            rvv     (0,jj) = rv(0,jj)*rv(0,jj)/r(0,jj);
+            rvw     (0,jj) = rv(0,jj)*rw(0,jj)/r(0,jj);
+            rvt     (0,jj) = rv(0,jj)*rt(0,jj)/r(0,jj);
+            rt_gamma(0,jj) = std::pow(rt(0,jj),gamma);
           }
           // Initialize non-linears to zero for higher-order time derivatives
           for (int kt=1; kt < tord; kt++) {
             for (int jj=0; jj < tord; jj++) {
-              rvu(kt,jj) = 0;
-              rvv(kt,jj) = 0;
-              rvw(kt,jj) = 0;
-              rvt(kt,jj) = 0;
+              rvu     (kt,jj) = 0;
+              rvv     (kt,jj) = 0;
+              rvw     (kt,jj) = 0;
+              rvt     (kt,jj) = 0;
+              rt_gamma(kt,jj) = 0;
             }
           }
           // Compute higher-order time derivatives for state & non-linears
@@ -581,18 +566,17 @@ namespace modules {
               real der_rvw   = 0;
               real der_rvt   = 0;
               for (int s=0; s < tord; s++) {
-                der_rv    += g2d2g(s,jj)*(rv (kt,s)          );
-                der_rvu   += g2d2g(s,jj)*(rvu(kt,s)          );
-                der_rvv_p += g2d2g(s,jj)*(rvv(kt,s) + p(kt,s));
-                der_rvw   += g2d2g(s,jj)*(rvw(kt,s)          );
-                der_rvt   += g2d2g(s,jj)*(rvt(kt,s)          );
+                der_rv    += g2d2g(s,jj)*(rv (kt,s)                                                    );
+                der_rvu   += g2d2g(s,jj)*(rvu(kt,s)                                                    );
+                der_rvv_p += g2d2g(s,jj)*(rvv(kt,s) + (kt==0 ? C0*rt_gamma(kt,s) : C0*rt_gamma(kt,s)/2));
+                der_rvw   += g2d2g(s,jj)*(rvw(kt,s)                                                    );
+                der_rvt   += g2d2g(s,jj)*(rvt(kt,s)                                                    );
               }
               r (kt+1,jj) = -der_rv   /(kt+1);
               ru(kt+1,jj) = -der_rvu  /(kt+1);
               rv(kt+1,jj) = -der_rvv_p/(kt+1);
               rw(kt+1,jj) = -der_rvw  /(kt+1);
               rt(kt+1,jj) = -der_rvt  /(kt+1);
-              p (kt+1,jj) = -der_rv   /(kt+1)*cs2;
             }
             // Compute non-linear fluxes based off of new state data
             for (int jj=0; jj < tord; jj++) {
@@ -610,6 +594,12 @@ namespace modules {
               rvv(kt+1,jj) = tot_rvv / r(0,jj);
               rvw(kt+1,jj) = tot_rvw / r(0,jj);
               rvt(kt+1,jj) = tot_rvt / r(0,jj);
+
+              real tot_rt_gamma = 0;
+              for (int ir=0; ir<=kt; ir++) {
+                tot_rt_gamma += (kt+1._fp -ir) * ( gamma*rt_gamma(ir,jj)*rt(kt+1-ir,jj) - rt(ir,jj)*rt_gamma(kt+1-ir,jj) );
+              }
+              rt_gamma(kt+1,jj) = ( gamma*rt_gamma(0,jj)*rt(kt+1,jj) + tot_rt_gamma / (kt+1._fp) ) / rt(0,jj);
             }
           }
           // Compute time average for all terms except r and ru, which are needed later
@@ -683,38 +673,52 @@ namespace modules {
       
       edge_exchange_y( coupler , state_limits , tracers_limits );
 
-      pressure = real4d();
-
       real5d state_flux  ("state_flux"  ,num_state  ,nz,ny+1,nx,nens);
       real5d tracers_flux("tracers_flux",num_tracers,nz,ny+1,nx,nens);
       real5d tracers_mult("tracers_mult",num_tracers,nz,ny+1,nx,nens);
 
-      // auto save_pressure_z = coupler.get_option<bool>("save_pressure_z",false);
-      // real4d pressure_z;
-      // if (save_pressure_z) pressure_z = coupler.get_data_manager_readwrite().get<real,4>("pressure_z");
-
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny+1,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        // Acoustically upwind mass flux and pressure
-        real rv_L = state_limits(idV,0,k,j,i,iens);   real rv_R = state_limits(idV,1,k,j,i,iens);
-        real rt_L = state_limits(idT,0,k,j,i,iens);   real rt_R = state_limits(idT,1,k,j,i,iens);
-        real p_L  = C0*std::pow(rt_L,gamma)       ;   real p_R  = C0*std::pow(rt_R,gamma)       ;
-        real constexpr cs = 350;
-        real w1 = 0.5_fp * (p_R-cs*rv_R);
-        real w2 = 0.5_fp * (p_L+cs*rv_L);
-        real p_upw  = w1 + w2;
-        real rv_upw = (w2-w1)/cs;
-        // Advectively upwind everything else
-        int ind = rv_L+rv_R > 0 ? 0 : 1;
-        real r_upw = state_limits(idR,ind,k,j,i,iens);
+        real r_L = state_limits(idR,0,k,j,i,iens)    ;    real r_R = state_limits(idR,1,k,j,i,iens)    ;
+        real u_L = state_limits(idU,0,k,j,i,iens)/r_L;    real u_R = state_limits(idU,1,k,j,i,iens)/r_R;
+        real v_L = state_limits(idV,0,k,j,i,iens)/r_L;    real v_R = state_limits(idV,1,k,j,i,iens)/r_R;
+        real w_L = state_limits(idW,0,k,j,i,iens)/r_L;    real w_R = state_limits(idW,1,k,j,i,iens)/r_R;
+        real t_L = state_limits(idT,0,k,j,i,iens)/r_L;    real t_R = state_limits(idT,1,k,j,i,iens)/r_R;
+        real p_L = C0*std::pow(r_L*t_L,gamma)        ;    real p_R = C0*std::pow(r_R*t_R,gamma)        ;
+        real r = 0.5_fp*(r_L+r_R);
+        real u = 0.5_fp*(u_L+u_R);
+        real v = 0.5_fp*(v_L+v_R);
+        real w = 0.5_fp*(w_L+w_R);
+        real t = 0.5_fp*(t_L+t_R);
+        real p = 0.5_fp*(p_L+p_R);
+        real cs2 = gamma*p/r;
+        real cs  = std::sqrt(cs2);
+        real w1 =  v*(r_R)/(2*cs) - (r_R*v_R)/(2*cs) + (r_R*t_R)/(2*t);
+        real w2 = -v*(r_L)/(2*cs) + (r_L*v_L)/(2*cs) + (r_L*t_L)/(2*t);
+        real w3, w4, w5;
+        if (v > 0) {
+          w3 = (r_L)     -   (r_L*t_L)/t;
+          w4 = (r_L*u_L) - u*(r_L*t_L)/t;
+          w5 = (r_L*w_L) - w*(r_L*t_L)/t;
+        } else {
+          w3 = (r_R)     -   (r_R*t_R)/t;
+          w4 = (r_R*u_R) - u*(r_R*t_R)/t;
+          w5 = (r_R*w_R) - w*(r_R*t_R)/t;
+        }
+        real r_upw  = w1        + w2        + w3            ;
+        real ru_upw = w1*u      + w2*u             + w4     ;
+        real rv_upw = w1*(v-cs) + w2*(v+cs) + w3*v          ;
+        real rw_upw = w1*w      + w2*w                  + w5;
+        real rt_upw = w1*t      + w2*t                      ;
         state_flux(idR,k,j,i,iens) = rv_upw;
-        state_flux(idU,k,j,i,iens) = rv_upw*state_limits(idU,ind,k,j,i,iens)/r_upw;
-        state_flux(idV,k,j,i,iens) = rv_upw*state_limits(idV,ind,k,j,i,iens)/r_upw + p_upw;
-        state_flux(idW,k,j,i,iens) = rv_upw*state_limits(idW,ind,k,j,i,iens)/r_upw;
-        state_flux(idT,k,j,i,iens) = rv_upw*state_limits(idT,ind,k,j,i,iens)/r_upw;
+        state_flux(idU,k,j,i,iens) = rv_upw*ru_upw/r_upw;
+        state_flux(idV,k,j,i,iens) = rv_upw*rv_upw/r_upw + C0*std::pow(rt_upw,gamma);
+        state_flux(idW,k,j,i,iens) = rv_upw*rw_upw/r_upw;
+        state_flux(idT,k,j,i,iens) = rv_upw*rt_upw/r_upw;
+        int uind = v > 0 ? 0 : 1;
+        r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
-          tracers_flux(tr,k,j,i,iens) = rv_upw*tracers_limits(tr,ind,k,j,i,iens)/r_upw;
-          tracers_mult(tr,k,j,i,iens) = 1;
+          tracers_flux(tr,k,j,i,iens) = rv_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
         }
       });
 
@@ -749,36 +753,6 @@ namespace modules {
         for (int l = 0; l < num_tracers; l++) {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k,j+1,i,iens)*tracers_mult(l,k,j+1,i,iens) -
                                           tracers_flux(l,k,j  ,i,iens)*tracers_mult(l,k,j  ,i,iens) ) / dy;
-        }
-        if (use_immersed_boundaries) {
-          // Determine the time scale of damping
-          real tau  = 3*dt;
-          real mult = -std::min(1._fp,dt/tau);
-          // Compute immersed material tendencies (zero velocity, reference density & temperature)
-          real r  = state(idR,hs+k,hs+j,hs+i,iens)+state_tend(idR,k,j,i,iens)*dt;
-          real ru = state(idU,hs+k,hs+j,hs+i,iens)+state_tend(idU,k,j,i,iens)*dt;
-          real rv = state(idV,hs+k,hs+j,hs+i,iens)+state_tend(idV,k,j,i,iens)*dt;
-          real rw = state(idW,hs+k,hs+j,hs+i,iens)+state_tend(idW,k,j,i,iens)*dt;
-          real rt = state(idT,hs+k,hs+j,hs+i,iens)+state_tend(idT,k,j,i,iens)*dt;
-          real imm_tend_idR = mult*(r -hy_dens_cells      (k,iens))/dt;
-          real imm_tend_idU = mult*(ru                            )/dt;
-          real imm_tend_idV = mult*(rv                            )/dt;
-          real imm_tend_idW = mult*(rw                            )/dt;
-          real imm_tend_idT = mult*(rt-hy_dens_theta_cells(k,iens))/dt;
-          // immersed proportion has immersed tendnecies. Other proportion has free tendencies
-          real prop = immersed_proportion(k,j,i,iens);
-          // state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);
-          // state_tend(idU,k,j,i,iens) = prop*imm_tend_idU + (1-prop)*state_tend(idU,k,j,i,iens);
-          // state_tend(idV,k,j,i,iens) = prop*imm_tend_idV + (1-prop)*state_tend(idV,k,j,i,iens);
-          // state_tend(idW,k,j,i,iens) = prop*imm_tend_idW + (1-prop)*state_tend(idW,k,j,i,iens);
-          // state_tend(idT,k,j,i,iens) = prop*imm_tend_idT + (1-prop)*state_tend(idT,k,j,i,iens);
-          if (prop > 0) {
-            state_tend(idR,k,j,i,iens) = 0;
-            state_tend(idU,k,j,i,iens) = 0;
-            state_tend(idV,k,j,i,iens) = 0;
-            state_tend(idW,k,j,i,iens) = 0;
-            state_tend(idT,k,j,i,iens) = 0;
-          }
         }
       });
     }
@@ -826,16 +800,12 @@ namespace modules {
 
       auto &dm = coupler.get_data_manager_readonly();
       auto tracer_positive     = dm.get<bool const,1>("tracer_positive"    );
-      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
       auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
-
-      real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
 
       // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
       // more accurate reconstructions of tracer concentrations
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        pressure(hs+k,hs+j,hs+i,iens) = C0 * std::pow( state(idT,hs+k,hs+j,hs+i,iens) , gamma );
         state(idU,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
         state(idV,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
         state(idW,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
@@ -843,7 +813,7 @@ namespace modules {
         for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens); }
       });
 
-      if (ord > 1) halo_exchange_z( coupler , state , tracers , pressure );
+      if (ord > 1) halo_exchange_z( coupler , state , tracers );
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+2*hs,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         state(idU,k,hs+j,hs+i,iens) *= state(idR,k,hs+j,hs+i,iens);
@@ -866,7 +836,7 @@ namespace modules {
         SArray<real,2,tord,tord> r, rw;
         {
           // Compute GLL points for zeroth-order time derivative
-          SArray<real,2,tord,tord> ru, rv, rt, rwu, rwv, rww, rwt, p;
+          SArray<real,2,tord,tord> ru, rv, rt, rwu, rwv, rww, rwt, rt_gamma;
           SArray<real,1,ord> stencil;
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
           reconstruct_gll_values(stencil,r ,coefs_to_gll,limiter);
@@ -878,24 +848,24 @@ namespace modules {
           reconstruct_gll_values(stencil,rw,coefs_to_gll,limiter);
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
           reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure( k+kk,hs+j,hs+i,iens); }
-          reconstruct_gll_values(stencil,p ,coefs_to_gll,limiter);
-          if (k == 0   ) rw(0,0     ) = 0;
-          if (k == nz-1) rw(0,tord-1) = 0;
+          if (k == 0   ) { ru(0,0     ) = 0;  rv(0,0     ) = 0;  rw(0,0     ) = 0; }
+          if (k == nz-1) { ru(0,tord-1) = 0;  rv(0,tord-1) = 0;  rw(0,tord-1) = 0; }
           // Compute non-linears for zeroth-order time derivative
           for (int kk=0; kk < tord; kk++) {
-            rwu(0,kk) = rw(0,kk)*ru(0,kk)/r(0,kk);
-            rwv(0,kk) = rw(0,kk)*rv(0,kk)/r(0,kk);
-            rww(0,kk) = rw(0,kk)*rw(0,kk)/r(0,kk);
-            rwt(0,kk) = rw(0,kk)*rt(0,kk)/r(0,kk);
+            rwu     (0,kk) = rw(0,kk)*ru(0,kk)/r(0,kk);
+            rwv     (0,kk) = rw(0,kk)*rv(0,kk)/r(0,kk);
+            rww     (0,kk) = rw(0,kk)*rw(0,kk)/r(0,kk);
+            rwt     (0,kk) = rw(0,kk)*rt(0,kk)/r(0,kk);
+            rt_gamma(0,kk) = std::pow(rt(0,kk),gamma);
           }
           // Initialize non-linears to zero for higher-order time derivatives
           for (int kt=1; kt < tord; kt++) {
             for (int kk=0; kk < tord; kk++) {
-              rwu(kt,kk) = 0;
-              rwv(kt,kk) = 0;
-              rww(kt,kk) = 0;
-              rwt(kt,kk) = 0;
+              rwu     (kt,kk) = 0;
+              rwv     (kt,kk) = 0;
+              rww     (kt,kk) = 0;
+              rwt     (kt,kk) = 0;
+              rt_gamma(kt,kk) = 0;
             }
           }
           // Compute higher-order time derivatives for state & non-linears
@@ -908,21 +878,20 @@ namespace modules {
               real der_rww_p = 0;
               real der_rwt   = 0;
               for (int s=0; s < tord; s++) {
-                der_rw    += g2d2g(s,kk)*(rw (kt,s)          );
-                der_rwu   += g2d2g(s,kk)*(rwu(kt,s)          );
-                der_rwv   += g2d2g(s,kk)*(rwv(kt,s)          );
-                der_rww_p += g2d2g(s,kk)*(rww(kt,s) + p(kt,s));
-                der_rwt   += g2d2g(s,kk)*(rwt(kt,s)          );
+                der_rw    += g2d2g(s,kk)*(rw (kt,s)                                                    );
+                der_rwu   += g2d2g(s,kk)*(rwu(kt,s)                                                    );
+                der_rwv   += g2d2g(s,kk)*(rwv(kt,s)                                                    );
+                der_rww_p += g2d2g(s,kk)*(rww(kt,s) + (kt==0 ? C0*rt_gamma(kt,s) : C0*rt_gamma(kt,s)/2));
+                der_rwt   += g2d2g(s,kk)*(rwt(kt,s)                                                    );
               }
               r (kt+1,kk) = -der_rw   /(kt+1);
               ru(kt+1,kk) = -der_rwu  /(kt+1);
               rv(kt+1,kk) = -der_rwv  /(kt+1);
               rw(kt+1,kk) = -der_rww_p/(kt+1);
               rt(kt+1,kk) = -der_rwt  /(kt+1);
-              p (kt+1,kk) = -der_rw   /(kt+1)*cs2;
             }
-            if (k == 0   ) rw(kt+1,0     ) = 0;
-            if (k == nz-1) rw(kt+1,tord-1) = 0;
+            if (k == 0   ) { ru(kt+1,0     ) = 0;  rv(kt+1,0     ) = 0;  rw(kt+1,0     ) = 0; }
+            if (k == nz-1) { ru(kt+1,tord-1) = 0;  rv(kt+1,tord-1) = 0;  rw(kt+1,tord-1) = 0; }
             // Compute non-linear fluxes based off of new state data
             for (int kk=0; kk < tord; kk++) {
               real tot_rwu = 0;
@@ -939,6 +908,12 @@ namespace modules {
               rwv(kt+1,kk) = tot_rwv / r(0,kk);
               rww(kt+1,kk) = tot_rww / r(0,kk);
               rwt(kt+1,kk) = tot_rwt / r(0,kk);
+
+              real tot_rt_gamma = 0;
+              for (int ir=0; ir<=kt; ir++) {
+                tot_rt_gamma += (kt+1._fp -ir) * ( gamma*rt_gamma(ir,kk)*rt(kt+1-ir,kk) - rt(ir,kk)*rt_gamma(kt+1-ir,kk) );
+              }
+              rt_gamma(kt+1,kk) = ( gamma*rt_gamma(0,kk)*rt(kt+1,kk) + tot_rt_gamma / (kt+1._fp) ) / rt(0,kk);
             }
           }
           // Compute time average for all terms except r and ru, which are needed later
@@ -1004,8 +979,6 @@ namespace modules {
           rw(0,tord-1) += mult * rw(kt,tord-1) / (kt+1);
           mult *= dt;
         }
-        if (k == 0   ) rw(0,0     ) = 0;
-        if (k == nz-1) rw(0,tord-1) = 0;
         state_limits(idR,1,k  ,j,i,iens) = r (0,0     );
         state_limits(idW,1,k  ,j,i,iens) = rw(0,0     );
         state_limits(idR,0,k+1,j,i,iens) = r (0,tord-1);
@@ -1013,8 +986,6 @@ namespace modules {
       });
       
       edge_exchange_z( coupler , state_limits , tracers_limits );
-
-      pressure = real4d();
 
       real5d state_flux  ("state_flux"  ,num_state  ,nz+1,ny,nx,nens);
       real5d tracers_flux("tracers_flux",num_tracers,nz+1,ny,nx,nens);
@@ -1026,26 +997,46 @@ namespace modules {
 
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        // Acoustically upwind mass flux and pressure
-        real rw_L = state_limits(idW,0,k,j,i,iens);   real rw_R = state_limits(idW,1,k,j,i,iens);
-        real rt_L = state_limits(idT,0,k,j,i,iens);   real rt_R = state_limits(idT,1,k,j,i,iens);
-        real p_L  = C0*std::pow(rt_L,gamma)       ;   real p_R  = C0*std::pow(rt_R,gamma)       ;
-        real constexpr cs = 350;
-        real w1 = 0.5_fp * (p_R-cs*rw_R);
-        real w2 = 0.5_fp * (p_L+cs*rw_L);
-        real p_upw  = w1 + w2;
-        real rw_upw = (w2-w1)/cs;
-        // Advectively upwind everything else
-        int ind = rw_L+rw_R > 0 ? 0 : 1;
-        real r_upw = state_limits(idR,ind,k,j,i,iens);
+        real r_L = state_limits(idR,0,k,j,i,iens)    ;    real r_R = state_limits(idR,1,k,j,i,iens)    ;
+        real u_L = state_limits(idU,0,k,j,i,iens)/r_L;    real u_R = state_limits(idU,1,k,j,i,iens)/r_R;
+        real v_L = state_limits(idV,0,k,j,i,iens)/r_L;    real v_R = state_limits(idV,1,k,j,i,iens)/r_R;
+        real w_L = state_limits(idW,0,k,j,i,iens)/r_L;    real w_R = state_limits(idW,1,k,j,i,iens)/r_R;
+        real t_L = state_limits(idT,0,k,j,i,iens)/r_L;    real t_R = state_limits(idT,1,k,j,i,iens)/r_R;
+        real p_L = C0*std::pow(r_L*t_L,gamma)          ;    real p_R = C0*std::pow(r_R*t_R,gamma)          ;
+        real r = 0.5_fp*(r_L+r_R);
+        real u = 0.5_fp*(u_L+u_R);
+        real v = 0.5_fp*(v_L+v_R);
+        real w = 0.5_fp*(w_L+w_R);
+        real t = 0.5_fp*(t_L+t_R);
+        real p = 0.5_fp*(p_L+p_R);
+        real cs2 = gamma*p/r;
+        real cs  = std::sqrt(cs2);
+        real w1 =  w*(r_R)/(2*cs) - (r_R*w_R)/(2*cs) + (r_R*t_R)/(2*t);
+        real w2 = -w*(r_L)/(2*cs) + (r_L*w_L)/(2*cs) + (r_L*t_L)/(2*t);
+        real w3, w4, w5;
+        if (w > 0) {
+          w3 = (r_L)     -   (r_L*t_L)/t;
+          w4 = (r_L*u_L) - u*(r_L*t_L)/t;
+          w5 = (r_L*v_L) - v*(r_L*t_L)/t;
+        } else {
+          w3 = (r_R)     -   (r_R*t_R)/t;
+          w4 = (r_R*u_R) - u*(r_R*t_R)/t;
+          w5 = (r_R*v_R) - v*(r_R*t_R)/t;
+        }
+        real r_upw  = w1        + w2        + w3            ;
+        real ru_upw = w1*u      + w2*u             + w4     ;
+        real rv_upw = w1*v      + w2*v                  + w5;
+        real rw_upw = w1*(w-cs) + w2*(w+cs) + w3*w          ;
+        real rt_upw = w1*t      + w2*t                      ;
         state_flux(idR,k,j,i,iens) = rw_upw;
-        state_flux(idU,k,j,i,iens) = rw_upw*state_limits(idU,ind,k,j,i,iens)/r_upw;
-        state_flux(idV,k,j,i,iens) = rw_upw*state_limits(idV,ind,k,j,i,iens)/r_upw;
-        state_flux(idW,k,j,i,iens) = rw_upw*state_limits(idW,ind,k,j,i,iens)/r_upw + p_upw;
-        state_flux(idT,k,j,i,iens) = rw_upw*state_limits(idT,ind,k,j,i,iens)/r_upw;
+        state_flux(idU,k,j,i,iens) = rw_upw*ru_upw/r_upw;
+        state_flux(idV,k,j,i,iens) = rw_upw*rv_upw/r_upw;
+        state_flux(idW,k,j,i,iens) = rw_upw*rw_upw/r_upw + C0*std::pow(rt_upw,gamma);
+        state_flux(idT,k,j,i,iens) = rw_upw*rt_upw/r_upw;
+        int uind = w > 0 ? 0 : 1;
+        r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
-          tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(tr,ind,k,j,i,iens)/r_upw;
-          tracers_mult(tr,k,j,i,iens) = 1;
+          tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
         }
       });
 
@@ -1081,36 +1072,6 @@ namespace modules {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k+1,j,i,iens)*tracers_mult(l,k+1,j,i,iens) -
                                           tracers_flux(l,k  ,j,i,iens)*tracers_mult(l,k  ,j,i,iens) ) / dz;
         }
-        if (use_immersed_boundaries) {
-          // Determine the time scale of damping
-          real tau  = 3*dt;
-          real mult = -std::min(1._fp,dt/tau);
-          // Compute immersed material tendencies (zero velocity, reference density & temperature)
-          real r  = state(idR,hs+k,hs+j,hs+i,iens)+state_tend(idR,k,j,i,iens)*dt;
-          real ru = state(idU,hs+k,hs+j,hs+i,iens)+state_tend(idU,k,j,i,iens)*dt;
-          real rv = state(idV,hs+k,hs+j,hs+i,iens)+state_tend(idV,k,j,i,iens)*dt;
-          real rw = state(idW,hs+k,hs+j,hs+i,iens)+state_tend(idW,k,j,i,iens)*dt;
-          real rt = state(idT,hs+k,hs+j,hs+i,iens)+state_tend(idT,k,j,i,iens)*dt;
-          real imm_tend_idR = mult*(r -hy_dens_cells      (k,iens))/dt;
-          real imm_tend_idU = mult*(ru                            )/dt;
-          real imm_tend_idV = mult*(rv                            )/dt;
-          real imm_tend_idW = mult*(rw                            )/dt;
-          real imm_tend_idT = mult*(rt-hy_dens_theta_cells(k,iens))/dt;
-          // immersed proportion has immersed tendnecies. Other proportion has free tendencies
-          real prop = immersed_proportion(k,j,i,iens);
-          // state_tend(idR,k,j,i,iens) = prop*imm_tend_idR + (1-prop)*state_tend(idR,k,j,i,iens);
-          // state_tend(idU,k,j,i,iens) = prop*imm_tend_idU + (1-prop)*state_tend(idU,k,j,i,iens);
-          // state_tend(idV,k,j,i,iens) = prop*imm_tend_idV + (1-prop)*state_tend(idV,k,j,i,iens);
-          // state_tend(idW,k,j,i,iens) = prop*imm_tend_idW + (1-prop)*state_tend(idW,k,j,i,iens);
-          // state_tend(idT,k,j,i,iens) = prop*imm_tend_idT + (1-prop)*state_tend(idT,k,j,i,iens);
-          if (prop > 0) {
-            state_tend(idR,k,j,i,iens) = 0;
-            state_tend(idU,k,j,i,iens) = 0;
-            state_tend(idV,k,j,i,iens) = 0;
-            state_tend(idW,k,j,i,iens) = 0;
-            state_tend(idT,k,j,i,iens) = 0;
-          }
-        }
       });
     }
 
@@ -1137,8 +1098,7 @@ namespace modules {
 
     void halo_exchange_x( core::Coupler const & coupler  ,
                           real5d        const & state    ,
-                          real5d        const & tracers  ,
-                          real4d        const & pressure ) const {
+                          real5d        const & tracers  ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
@@ -1151,7 +1111,7 @@ namespace modules {
       auto nproc_x     = coupler.get_nproc_x();
       auto bc_x        = coupler.get_option<int >("bc_x");
 
-      int npack = num_state + num_tracers + 1;
+      int npack = num_state + num_tracers;
 
       realHost5d halo_send_buf_W_host("halo_send_buf_W_host",npack,nz,ny,hs,nens);
       realHost5d halo_send_buf_E_host("halo_send_buf_E_host",npack,nz,ny,hs,nens);
@@ -1170,9 +1130,6 @@ namespace modules {
         } else if (v < num_state + num_tracers) {
           halo_send_buf_W(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,hs+ii,iens);
           halo_send_buf_E(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,nx+ii,iens);
-        } else {
-          halo_send_buf_W(v,k,j,ii,iens) = pressure(hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(v,k,j,ii,iens) = pressure(hs+k,hs+j,nx+ii,iens);
         }
       });
 
@@ -1220,9 +1177,6 @@ namespace modules {
         } else if (v < num_state + num_tracers) {
           tracers(v-num_state,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
           tracers(v-num_state,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-        } else {
-          pressure(hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-          pressure(hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
         }
       });
       if (bc_x == BC_WALL || bc_x == BC_OPEN) {
@@ -1234,7 +1188,6 @@ namespace modules {
               else                             { state(l,hs+k,hs+j,ii,iens) = state(l,hs+k,hs+j,hs+0,iens); }
             }
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,ii,iens) = tracers(l,hs+k,hs+j,hs+0,iens); }
-            pressure(hs+k,hs+j,ii,iens) = pressure(hs+k,hs+j,hs+0,iens);
           });
         }
         if (px == nproc_x-1) {
@@ -1245,7 +1198,6 @@ namespace modules {
               else                             { state(l,hs+k,hs+j,hs+nx+ii,iens) = state(l,hs+k,hs+j,hs+nx-1,iens); }
             }
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+nx+ii,iens) = tracers(l,hs+k,hs+j,hs+nx-1,iens); }
-            pressure(hs+k,hs+j,hs+nx+ii,iens) = pressure(hs+k,hs+j,hs+nx-1,iens);
           });
         }
       }
@@ -1255,8 +1207,7 @@ namespace modules {
 
     void halo_exchange_y( core::Coupler const & coupler  ,
                           real5d        const & state    ,
-                          real5d        const & tracers  ,
-                          real4d        const & pressure ) const {
+                          real5d        const & tracers  ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
@@ -1269,7 +1220,7 @@ namespace modules {
       auto nproc_y     = coupler.get_nproc_y();
       auto bc_y        = coupler.get_option<int>("bc_y");
 
-      int npack = num_state + num_tracers + 1;
+      int npack = num_state + num_tracers;
 
       realHost5d halo_send_buf_S_host("halo_send_buf_S_host",npack,nz,hs,nx,nens);
       realHost5d halo_send_buf_N_host("halo_send_buf_N_host",npack,nz,hs,nx,nens);
@@ -1288,9 +1239,6 @@ namespace modules {
         } else if (v < num_state + num_tracers) {
           halo_send_buf_S(v,k,jj,i,iens) = tracers(v-num_state,hs+k,hs+jj,hs+i,iens);
           halo_send_buf_N(v,k,jj,i,iens) = tracers(v-num_state,hs+k,ny+jj,hs+i,iens);
-        } else {
-          halo_send_buf_S(v,k,jj,i,iens) = pressure(hs+k,hs+jj,hs+i,iens);
-          halo_send_buf_N(v,k,jj,i,iens) = pressure(hs+k,ny+jj,hs+i,iens);
         }
       });
 
@@ -1338,9 +1286,6 @@ namespace modules {
         } else if (v < num_state + num_tracers) {
           tracers(v-num_state,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
           tracers(v-num_state,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-        } else {
-          pressure(hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-          pressure(hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
         }
       });
       if (bc_y == BC_WALL || bc_y == BC_OPEN) {
@@ -1352,7 +1297,6 @@ namespace modules {
               else                             { state(l,hs+k,jj,hs+i,iens) = state(l,hs+k,hs+0,hs+i,iens); }
             }
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,jj,hs+i,iens) = tracers(l,hs+k,hs+0,hs+i,iens); }
-            pressure(hs+k,jj,hs+i,iens) = pressure(hs+k,hs+0,hs+i,iens);
           });
         }
         if (py == nproc_y-1) {
@@ -1363,7 +1307,6 @@ namespace modules {
               else                             { state(l,hs+k,hs+ny+jj,hs+i,iens) = state(l,hs+k,hs+ny-1,hs+i,iens); }
             }
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+ny+jj,hs+i,iens) = tracers(l,hs+k,hs+ny-1,hs+i,iens); }
-            pressure(hs+k,hs+ny+jj,hs+i,iens) = pressure(hs+k,hs+ny-1,hs+i,iens);
           });
         }
       }
@@ -1372,8 +1315,7 @@ namespace modules {
 
     void halo_exchange_z( core::Coupler const & coupler  ,
                           real5d        const & state    ,
-                          real5d        const & tracers  ,
-                          real4d        const & pressure ) const {
+                          real5d        const & tracers  ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
@@ -1398,8 +1340,6 @@ namespace modules {
             tracers(l,      kk,hs+j,hs+i,iens) = tracers(l,      kk+nz,hs+j,hs+i,iens);
             tracers(l,hs+nz+kk,hs+j,hs+i,iens) = tracers(l,hs+nz+kk-nz,hs+j,hs+i,iens);
           }
-          pressure(      kk,hs+j,hs+i,iens) = pressure(      kk+nz,hs+j,hs+i,iens);
-          pressure(hs+nz+kk,hs+j,hs+i,iens) = pressure(hs+nz+kk-nz,hs+j,hs+i,iens);
         });
       } else if (bc_z == BC_WALL || bc_z == BC_OPEN) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
@@ -1418,10 +1358,6 @@ namespace modules {
             tracers(l,      kk,hs+j,hs+i,iens) = tracers(l,hs+0   ,hs+j,hs+i,iens);
             tracers(l,hs+nz+kk,hs+j,hs+i,iens) = tracers(l,hs+nz-1,hs+j,hs+i,iens);
           }
-          if (grav == 0) {
-            pressure(      kk,hs+j,hs+i,iens) = pressure(hs+0   ,hs+j,hs+i,iens);
-            pressure(hs+nz+kk,hs+j,hs+i,iens) = pressure(hs+nz-1,hs+j,hs+i,iens);
-          }
           if (grav > 0) {
             {
               int  k0       = hs;
@@ -1432,7 +1368,6 @@ namespace modules {
               real theta0_g = std::pow(theta0,gamma  );
               state(idR,k,hs+j,hs+i,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
                                                       1._fp/(gamma-1) );
-              pressure(k,hs+j,hs+i,iens) = C0 * std::pow( state(idR,k,hs+j,hs+i,iens)*theta0 , gamma );
             }
             {
               int  k0       = hs+nz-1;
@@ -1443,7 +1378,6 @@ namespace modules {
               real theta0_g = std::pow(theta0,gamma  );
               state(idR,k,hs+j,hs+i,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
                                                       1._fp/(gamma-1) );
-              pressure(k,hs+j,hs+i,iens) = C0 * std::pow( state(idR,k,hs+j,hs+i,iens)*theta0 , gamma );
             }
           }
         });

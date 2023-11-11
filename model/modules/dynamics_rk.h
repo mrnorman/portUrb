@@ -324,8 +324,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny,nx+1,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny,nx+1,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.1,1,2,1,1.e5);
-      weno::WenoLimiter<ord> limiter_scalars(0.1,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {
@@ -337,7 +337,6 @@ namespace modules {
           state_limits(l,1,k,j,i  ,iens) = gll(0);
           state_limits(l,0,k,j,i+1,iens) = gll(1);
         }
-        // Tracers
         for (int l=0; l < num_tracers; l++) {
           SArray<real,1,ord> stencil;
           SArray<real,1,2  > gll;
@@ -469,8 +468,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny+1,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny+1,nx,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.1,1,2,1,1.e5);
-      weno::WenoLimiter<ord> limiter_scalars(0.1,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {
@@ -620,8 +619,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz+1,ny,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz+1,ny,nx,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.1,1,2,1,1.e5);
-      weno::WenoLimiter<ord> limiter_scalars(0.1,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {

@@ -1,9 +1,9 @@
 ---
 # Simulation time in seconds
-sim_time: 200.  # 86400
+sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
-nens   : 2
+nens   : 1
 nx_glob: 400
 ny_glob: 400
 nz     : 60
@@ -16,7 +16,7 @@ zlen: 300
 init_data: city
 
 # Output filename
-out_prefix: test.nc
+out_prefix: test
 
 # GCM time step
 dt_gcm: 900
@@ -25,8 +25,9 @@ dt_gcm: 900
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 100.
 
 enable_gravity: false
 
+file_per_process: true
 

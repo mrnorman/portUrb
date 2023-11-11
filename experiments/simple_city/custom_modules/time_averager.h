@@ -91,7 +91,14 @@ namespace custom_modules {
       auto &dm = coupler.get_data_manager_readonly();
 
       yakl::SimplePNetCDF nc;
-      nc.create("time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA);
+
+      MPI_Info info;
+      MPI_Info_create(&info);
+      MPI_Info_set(info, "romio_no_indep_rw",    "true");
+      MPI_Info_set(info, "nc_header_align_size", "1048576");
+      MPI_Info_set(info, "nc_var_align_size",    "1048576");
+
+      nc.create("time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
 
       nc.create_dim( "x" , nx_glob );
       nc.create_dim( "y" , ny_glob );

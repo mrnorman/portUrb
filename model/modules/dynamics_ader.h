@@ -50,11 +50,12 @@ namespace modules {
     real etime;    // Elapsed time
     real out_freq; // Frequency out file output
     int  num_out;  // Number of outputs produced thus far
+    int  file_counter;
     bool dim_switch;
 
 
 
-    Dynamics_Euler_Stratified_WenoFV() { dim_switch = true; num_out = 0; etime = 0; }
+    Dynamics_Euler_Stratified_WenoFV() { dim_switch = true; num_out = 0; etime = 0; file_counter = 0; }
 
 
 
@@ -2717,7 +2718,7 @@ namespace modules {
 
 
     // Perform file output
-    void output( core::Coupler const &coupler , real etime ) const {
+    void output( core::Coupler const &coupler , real etime ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       yakl::timer_start("output");
@@ -2734,154 +2735,79 @@ namespace modules {
       int j_beg = coupler.get_j_beg();
       int iens = 0;
 
-      if (coupler.get_option<bool>("file_per_process",false)) {
+      yakl::SimplePNetCDF nc;
+      MPI_Offset ulIndex = 0; // Unlimited dimension index to place this data at
 
-        yakl::SimpleNetCDF nc;
-        MPI_Offset ulIndex = 0; // Unlimited dimension index to place this data at
+      std::stringstream fname;
+      fname << coupler.get_option<std::string>("out_prefix") << "_" << std::setw(8) << std::setfill('0')
+            << file_counter << ".nc";
 
-        
-        std::stringstream fname;
-        fname << coupler.get_option<std::string>("out_prefix") << "_" << std::setw(8) << std::setfill('0')
-              << coupler.get_myrank() << ".nc";
+      MPI_Info info;
+      MPI_Info_create(&info);
+      MPI_Info_set(info, "romio_no_indep_rw",    "true");
+      MPI_Info_set(info, "nc_header_align_size", "1048576");
+      MPI_Info_set(info, "nc_var_align_size",    "1048576");
 
-        if (etime == 0) {
-          nc.create( fname.str() , yakl::NETCDF_MODE_REPLACE );
+      nc.create(fname.str() , NC_CLOBBER | NC_64BIT_DATA , info );
 
-          nc.createDim( "x" , coupler.get_nx() );
-          nc.createDim( "y" , coupler.get_ny() );
-          nc.createDim( "z" , nz );
-          nc.createDim( "t" );
+      nc.create_dim( "x" , coupler.get_nx_glob() );
+      nc.create_dim( "y" , coupler.get_ny_glob() );
+      nc.create_dim( "z" , nz );
+      nc.create_unlim_dim( "t" );
 
-          // x-coordinate
-          real1d xloc("xloc",nx);
-          parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
-          nc.write( xloc , "x" , {"x"} );
+      nc.create_var<real>( "x" , {"x"} );
+      nc.create_var<real>( "y" , {"y"} );
+      nc.create_var<real>( "z" , {"z"} );
+      nc.create_var<real>( "t" , {"t"} );
+      nc.create_var<real>( "density_dry" , {"t","z","y","x"} );
+      nc.create_var<real>( "uvel"        , {"t","z","y","x"} );
+      nc.create_var<real>( "vvel"        , {"t","z","y","x"} );
+      nc.create_var<real>( "wvel"        , {"t","z","y","x"} );
+      nc.create_var<real>( "temp"        , {"t","z","y","x"} );
+      auto tracer_names = coupler.get_tracer_names();
+      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , {"t","z","y","x"} ); }
 
-          // y-coordinate
-          real1d yloc("yloc",ny);
-          parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
-          nc.write( yloc , "y" , {"y"} );
+      nc.enddef();
 
-          // z-coordinate
-          real1d zloc("zloc",nz);
-          parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
-          nc.write( zloc , "z" , {"z"} );
-          nc.write1( 0._fp , "t" , 0 , "t" );
+      // x-coordinate
+      real1d xloc("xloc",nx);
+      parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
+      nc.write_all( xloc.createHostCopy() , "x" , {i_beg} );
 
-        } else {
+      // y-coordinate
+      real1d yloc("yloc",ny);
+      parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
+      nc.write_all( yloc.createHostCopy() , "y" , {j_beg} );
 
-          nc.open( fname.str() , yakl::NETCDF_MODE_WRITE );
-          ulIndex = nc.getDimSize("t");
+      // z-coordinate
+      real1d zloc("zloc",nz);
+      parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
+      nc.begin_indep_data();
+      if (coupler.is_mainproc()) {
+        nc.write( zloc.createHostCopy() , "z" );
+        nc.write1( 0._fp , "t" , 0 , "t" );
+      }
+      nc.end_indep_data();
 
-          // Write the elapsed time
-          nc.write1(etime,"t",ulIndex,"t");
+      std::vector<std::string> varnames(num_state+num_tracers);
+      varnames[0] = "density_dry";
+      varnames[1] = "uvel";
+      varnames[2] = "vvel";
+      varnames[3] = "wvel";
+      varnames[4] = "temp";
+      for (int tr=0; tr < num_tracers; tr++) { varnames[num_state+tr] = tracer_names[tr]; }
 
-        }
+      auto &dm = coupler.get_data_manager_readonly();
+      real3d data("data",nz,ny,nx);
+      for (int i=0; i < varnames.size(); i++) {
+        auto var = dm.get<real const,4>(varnames[i]);
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) { data(k,j,i) = var(k,j,i,iens); });
+        nc.write1_all(data.createHostCopy(),varnames[i],ulIndex,{0,j_beg,i_beg},"t");
+      }
 
-        std::vector<std::string> varnames(num_state+num_tracers);
-        varnames[0] = "density_dry";
-        varnames[1] = "uvel";
-        varnames[2] = "vvel";
-        varnames[3] = "wvel";
-        varnames[4] = "temp";
-        auto tracer_names = coupler.get_tracer_names();
-        for (int tr=0; tr < num_tracers; tr++) { varnames[num_state+tr] = tracer_names[tr]; }
+      nc.close();
 
-        auto &dm = coupler.get_data_manager_readonly();
-        real3d data("data",nz,ny,nx);
-        for (int i=0; i < varnames.size(); i++) {
-          auto var = dm.get<real const,4>(varnames[i]);
-          parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) { data(k,j,i) = var(k,j,i,iens); });
-          nc.write1(data,varnames[i],{"z","y","x"},ulIndex,"t");
-        }
-
-        nc.close();
-
-      } else { // if file_per_process
-
-        yakl::SimplePNetCDF nc;
-        MPI_Offset ulIndex = 0; // Unlimited dimension index to place this data at
-
-        std::stringstream fname;
-        fname << coupler.get_option<std::string>("out_prefix") << ".nc";
-        if (etime == 0) {
-          nc.create(fname.str() , NC_CLOBBER | NC_64BIT_DATA);
-
-          nc.create_dim( "x" , coupler.get_nx_glob() );
-          nc.create_dim( "y" , coupler.get_ny_glob() );
-          nc.create_dim( "z" , nz );
-          nc.create_unlim_dim( "t" );
-
-          nc.create_var<real>( "x" , {"x"} );
-          nc.create_var<real>( "y" , {"y"} );
-          nc.create_var<real>( "z" , {"z"} );
-          nc.create_var<real>( "t" , {"t"} );
-          nc.create_var<real>( "density_dry" , {"t","z","y","x"} );
-          nc.create_var<real>( "uvel"        , {"t","z","y","x"} );
-          nc.create_var<real>( "vvel"        , {"t","z","y","x"} );
-          nc.create_var<real>( "wvel"        , {"t","z","y","x"} );
-          nc.create_var<real>( "temp"        , {"t","z","y","x"} );
-          auto tracer_names = coupler.get_tracer_names();
-          for (int tr = 0; tr < num_tracers; tr++) {
-            nc.create_var<real>( tracer_names[tr] , {"t","z","y","x"} );
-          }
-
-          nc.enddef();
-
-          // x-coordinate
-          real1d xloc("xloc",nx);
-          parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
-          nc.write_all( xloc.createHostCopy() , "x" , {i_beg} );
-
-          // y-coordinate
-          real1d yloc("yloc",ny);
-          parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
-          nc.write_all( yloc.createHostCopy() , "y" , {j_beg} );
-
-          // z-coordinate
-          real1d zloc("zloc",nz);
-          parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
-          nc.begin_indep_data();
-          if (coupler.is_mainproc()) {
-            nc.write( zloc.createHostCopy() , "z" );
-            nc.write1( 0._fp , "t" , 0 , "t" );
-          }
-          nc.end_indep_data();
-
-        } else {
-
-          nc.open(fname.str());
-          ulIndex = nc.get_dim_size("t");
-
-          // Write the elapsed time
-          nc.begin_indep_data();
-          if (coupler.is_mainproc()) {
-            nc.write1(etime,"t",ulIndex,"t");
-          }
-          nc.end_indep_data();
-
-        }
-
-        std::vector<std::string> varnames(num_state+num_tracers);
-        varnames[0] = "density_dry";
-        varnames[1] = "uvel";
-        varnames[2] = "vvel";
-        varnames[3] = "wvel";
-        varnames[4] = "temp";
-        auto tracer_names = coupler.get_tracer_names();
-        for (int tr=0; tr < num_tracers; tr++) { varnames[num_state+tr] = tracer_names[tr]; }
-
-        auto &dm = coupler.get_data_manager_readonly();
-        real3d data("data",nz,ny,nx);
-        for (int i=0; i < varnames.size(); i++) {
-          auto var = dm.get<real const,4>(varnames[i]);
-          parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) { data(k,j,i) = var(k,j,i,iens); });
-          nc.write1_all(data.createHostCopy(),varnames[i],ulIndex,{0,j_beg,i_beg},"t");
-        }
-
-        nc.close();
-
-      } // if file_per_process
+      file_counter++;
 
       yakl::timer_stop("output");
     }

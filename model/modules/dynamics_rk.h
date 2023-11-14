@@ -63,8 +63,8 @@ namespace modules {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      real constexpr maxwave = 350 + 40;
-      real cfl = 0.9;
+      real constexpr maxwave = 350 + 35;
+      real cfl = 0.3;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -141,14 +141,18 @@ namespace modules {
       auto hy_dens_cells           = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells     = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
       if (use_immersed_boundaries) {
-        real tau = dt_dyn;
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real mult = immersed_proportion(k,j,i,iens)*std::min(1._fp,dt_dyn/tau);
-          state(idR,hs+k,hs+j,hs+i,iens) = mult*hy_dens_cells      (k,iens) + (1-mult)*state(idR,hs+k,hs+j,hs+i,iens);
-          state(idU,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idU,hs+k,hs+j,hs+i,iens);
-          state(idV,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idV,hs+k,hs+j,hs+i,iens);
-          state(idW,hs+k,hs+j,hs+i,iens) = mult*0                           + (1-mult)*state(idW,hs+k,hs+j,hs+i,iens);
-          state(idT,hs+k,hs+j,hs+i,iens) = mult*hy_dens_theta_cells(k,iens) + (1-mult)*state(idT,hs+k,hs+j,hs+i,iens);
+          real prop = immersed_proportion(k,j,i,iens);
+          if (prop > 0) {
+            real r_prop = 1._fp / std::max( prop , 1.e-6_fp );
+            real mult_s = 1._fp / (1.e1  + r_prop*r_prop*r_prop);
+            real mult_w = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
+            state(idR,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_cells      (k,iens) + (1-mult_s)*state(idR,hs+k,hs+j,hs+i,iens);
+            state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
+            state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
+            state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
+            state(idT,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_theta_cells(k,iens) + (1-mult_s)*state(idT,hs+k,hs+j,hs+i,iens);
+          }
         });
       }
     }
@@ -169,8 +173,9 @@ namespace modules {
       auto nz          = coupler.get_nz();
       auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
 
+      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
+
       if (ord == 1) {
-        enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
         real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
         real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
@@ -202,7 +207,6 @@ namespace modules {
         //////////////
         // Stage 1
         //////////////
-        enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int tr=0; tr < num_tracers; tr++) {
@@ -228,7 +232,7 @@ namespace modules {
         //////////////
         // Stage 2
         //////////////
-        enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
+        // enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int tr=0; tr < num_tracers; tr++) {
@@ -259,7 +263,7 @@ namespace modules {
         //////////////
         // Stage 3
         //////////////
-        enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
+        // enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int tr=0; tr < num_tracers; tr++) {
@@ -288,6 +292,7 @@ namespace modules {
           }
         });
       }
+
       enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
     }
 
@@ -325,8 +330,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny,nx+1,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny,nx+1,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
-      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,1,1,1.e3);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,1,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {
@@ -387,6 +392,11 @@ namespace modules {
         real rv_upw = w1*v      + w2*v             + w4     ;
         real rw_upw = w1*w      + w2*w                  + w5;
         real rt_upw = w1*t      + w2*t                      ;
+
+
+        ru_upw = 0.5_fp * (r_L*u_L + r_R*u_R - (std::abs(u)+cs)*(r_R-r_L));
+
+
         state_flux(idR,k,j,i,iens) = ru_upw;
         state_flux(idU,k,j,i,iens) = ru_upw*ru_upw/r_upw + C0*std::pow(rt_upw,gamma);
         state_flux(idV,k,j,i,iens) = ru_upw*rv_upw/r_upw;
@@ -469,8 +479,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny+1,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny+1,nx,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
-      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,1,1,1.e3);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,1,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {
@@ -531,6 +541,11 @@ namespace modules {
         real rv_upw = w1*(v-cs) + w2*(v+cs) + w3*v          ;
         real rw_upw = w1*w      + w2*w                  + w5;
         real rt_upw = w1*t      + w2*t                      ;
+
+
+        rv_upw = 0.5_fp * (r_L*v_L + r_R*v_R - (std::abs(v)+cs)*(r_R-r_L));
+
+
         state_flux(idR,k,j,i,iens) = rv_upw;
         state_flux(idU,k,j,i,iens) = rv_upw*ru_upw/r_upw;
         state_flux(idV,k,j,i,iens) = rv_upw*rv_upw/r_upw + C0*std::pow(rt_upw,gamma);
@@ -620,8 +635,8 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz+1,ny,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz+1,ny,nx,nens);
 
-      weno::WenoLimiter<ord> limiter_winds  (0.0,1,2,1,1.e4);
-      weno::WenoLimiter<ord> limiter_scalars(0.0,1,2,1,1.e3);
+      weno::WenoLimiter<ord> limiter_winds  (0.0,1,1,1,1.e3);
+      weno::WenoLimiter<ord> limiter_scalars(0.0,1,1,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l=0; l < num_state; l++) {
@@ -700,6 +715,11 @@ namespace modules {
         real rv_upw = w1*v      + w2*v                  + w5;
         real rw_upw = w1*(w-cs) + w2*(w+cs) + w3*w          ;
         real rt_upw = w1*t      + w2*t                      ;
+
+
+        rw_upw = 0.5_fp * (r_L*w_L + r_R*w_R - (std::abs(w)+cs)*(r_R-r_L));
+
+
         state_flux(idR,k,j,i,iens) = rw_upw;
         state_flux(idU,k,j,i,iens) = rw_upw*ru_upw/r_upw;
         state_flux(idV,k,j,i,iens) = rw_upw*rv_upw/r_upw;
@@ -2382,7 +2402,7 @@ namespace modules {
 
 
     // Perform file output
-    void output( core::Coupler const &coupler , real etime ) {
+    void output( core::Coupler &coupler , real etime ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       yakl::timer_start("output");
@@ -2395,6 +2415,9 @@ namespace modules {
       auto dy          = coupler.get_dy();
       auto dz          = coupler.get_dz();
       auto num_tracers = coupler.get_num_tracers();
+      auto C0          = coupler.get_option<real>("C0");
+      auto R_d         = coupler.get_option<real>("R_d");
+      auto gamma       = coupler.get_option<real>("gamma_d");
       int i_beg = coupler.get_i_beg();
       int j_beg = coupler.get_j_beg();
       int iens = 0;
@@ -2423,11 +2446,19 @@ namespace modules {
       nc.create_var<real>( "y" , {"y"} );
       nc.create_var<real>( "z" , {"z"} );
       nc.create_var<real>( "t" , {"t"} );
+      nc.create_var<real>( "density_dry_masked" , {"t","z","y","x"} );
+      nc.create_var<real>( "uvel_masked"        , {"t","z","y","x"} );
+      nc.create_var<real>( "vvel_masked"        , {"t","z","y","x"} );
+      nc.create_var<real>( "wvel_masked"        , {"t","z","y","x"} );
+      nc.create_var<real>( "temperature_masked" , {"t","z","y","x"} );
+      nc.create_var<real>( "theta_masked"       , {"t","z","y","x"} );
       nc.create_var<real>( "density_dry" , {"t","z","y","x"} );
       nc.create_var<real>( "uvel"        , {"t","z","y","x"} );
       nc.create_var<real>( "vvel"        , {"t","z","y","x"} );
       nc.create_var<real>( "wvel"        , {"t","z","y","x"} );
-      nc.create_var<real>( "temp"        , {"t","z","y","x"} );
+      nc.create_var<real>( "temperature" , {"t","z","y","x"} );
+      nc.create_var<real>( "theta"       , {"t","z","y","x"} );
+      nc.create_var<real>( "immersed"    , {"t","z","y","x"} );
       auto tracer_names = coupler.get_tracer_names();
       for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , {"t","z","y","x"} ); }
 
@@ -2453,20 +2484,97 @@ namespace modules {
       }
       nc.end_indep_data();
 
-      std::vector<std::string> varnames(num_state+num_tracers);
-      varnames[0] = "density_dry";
-      varnames[1] = "uvel";
-      varnames[2] = "vvel";
-      varnames[3] = "wvel";
-      varnames[4] = "temp";
-      for (int tr=0; tr < num_tracers; tr++) { varnames[num_state+tr] = tracer_names[tr]; }
-
       auto &dm = coupler.get_data_manager_readonly();
       real3d data("data",nz,ny,nx);
-      for (int i=0; i < varnames.size(); i++) {
-        auto var = dm.get<real const,4>(varnames[i]);
+
+      auto immersed_proportion = dm.get<real const,4>("immersed_proportion");
+      parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        data(k,j,i) = immersed_proportion(k,j,i,iens);
+      });
+      nc.write1_all(data.createHostCopy(),"immersed",ulIndex,{0,j_beg,i_beg},"t");
+
+      {
+        auto var           = dm.get<real const,4>("density_dry");
+        auto hy_dens_cells = dm.get<real const,2>("hy_dens_cells"      );
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? hy_dens_cells(k,iens) : var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"density_dry_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"density_dry",ulIndex,{0,j_beg,i_beg},"t");
+      }
+      {
+        auto var = dm.get<real const,4>("uvel");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"uvel_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"uvel",ulIndex,{0,j_beg,i_beg},"t");
+      }
+      {
+        auto var = dm.get<real const,4>("vvel");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"vvel_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"vvel",ulIndex,{0,j_beg,i_beg},"t");
+      }
+      {
+        auto var = dm.get<real const,4>("wvel");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"wvel_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"wvel",ulIndex,{0,j_beg,i_beg},"t");
+      }
+      {
+        auto var                 = dm.get<real const,4>("temp"               );
+        auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
+        auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          real hy_p = C0*std::pow(hy_dens_theta_cells(k,iens),gamma);
+          real hy_temp = hy_p / R_d / hy_dens_cells(k,iens);
+          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? hy_temp : var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"temperature_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = var(k,j,i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"temperature",ulIndex,{0,j_beg,i_beg},"t");
+      }
+
+      {
+        real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        convert_coupler_to_dynamics( coupler , state , tracers );
+        auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
+        auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = state(idT,hs+k,hs+j,hs+i,iens) / state(idR,hs+k,hs+j,hs+i,iens);
+          if (immersed_proportion(k,j,i,iens) > 0) data(k,j,i) = hy_dens_theta_cells(k,iens)/hy_dens_cells(k,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"theta_masked",ulIndex,{0,j_beg,i_beg},"t");
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = state(idT,hs+k,hs+j,hs+i,iens) / state(idR,hs+k,hs+j,hs+i,iens);
+        });
+        nc.write1_all(data.createHostCopy(),"theta",ulIndex,{0,j_beg,i_beg},"t");
+      }
+
+      for (int i=0; i < tracer_names.size(); i++) {
+        auto var = dm.get<real const,4>(tracer_names[i]);
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) { data(k,j,i) = var(k,j,i,iens); });
-        nc.write1_all(data.createHostCopy(),varnames[i],ulIndex,{0,j_beg,i_beg},"t");
+        nc.write1_all(data.createHostCopy(),tracer_names[i],ulIndex,{0,j_beg,i_beg},"t");
       }
 
       nc.close();

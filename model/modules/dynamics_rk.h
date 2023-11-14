@@ -65,7 +65,7 @@ namespace modules {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      real constexpr maxwave = 350 + 35;
+      real constexpr maxwave = 350 + 40;
       real cfl = 0.45;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
@@ -153,9 +153,9 @@ namespace modules {
             state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
             state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
             state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
-            state(idT,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_theta_cells(k,iens) + (1-mult_s)*state(idT,hs+k,hs+j,hs+i,iens);
+            state(idT,hs+k,hs+j,hs+i,iens) = mult_w*hy_dens_theta_cells(k,iens) + (1-mult_w)*state(idT,hs+k,hs+j,hs+i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_s*0 + (1-mult_s)*tracers(tr,hs+k,hs+j,hs+i,iens);
+              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_w*0 + (1-mult_w)*tracers(tr,hs+k,hs+j,hs+i,iens);
             }
           }
         });
@@ -345,8 +345,8 @@ namespace modules {
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny,nx+1,nens);
       real5d umom_limits   ("umom_limits"               ,2,nz,ny,nx+1,nens);
 
-      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e3);
-      limiter::WenoLimiter<ord> limiter_umom(0.1,1,2,1,1.e3);
+      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e4);
+      limiter::WenoLimiter<ord> limiter_umom(0.1,1,2,1,1.e4);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
@@ -443,11 +443,6 @@ namespace modules {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k,j,i+1,iens)*tracers_mult(l,k,j,i+1,iens) -
                                           tracers_flux(l,k,j,i  ,iens)*tracers_mult(l,k,j,i  ,iens) ) / dx;
         }
-        // if (immersed_proportion(k,j,i,iens) > 0) {
-        //   state_tend(idR,k,j,i,iens) += 0.5_fp * (   state(idR,hs+k,hs+j,hs+i-1,iens) -
-        //                                            2*state(idR,hs+k,hs+j,hs+i  ,iens) +
-        //                                              state(idR,hs+k,hs+j,hs+i+1,iens) );
-        // }
       });
     }
 
@@ -495,8 +490,8 @@ namespace modules {
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny+1,nx,nens);
       real5d vmom_limits   ("vmom_limits"               ,2,nz,ny+1,nx,nens);
 
-      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e3);
-      limiter::WenoLimiter<ord> limiter_vmom(0.1,1,2,1,1.e3);
+      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e4);
+      limiter::WenoLimiter<ord> limiter_vmom(0.1,1,2,1,1.e4);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
@@ -592,11 +587,6 @@ namespace modules {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k,j+1,i,iens)*tracers_mult(l,k,j+1,i,iens) -
                                           tracers_flux(l,k,j  ,i,iens)*tracers_mult(l,k,j  ,i,iens) ) / dy;
         }
-        // if (immersed_proportion(k,j,i,iens) > 0) {
-        //   state_tend(idR,k,j,i,iens) += 0.5_fp * (   state(idR,hs+k,hs+j-1,hs+i,iens) -
-        //                                            2*state(idR,hs+k,hs+j  ,hs+i,iens) +
-        //                                              state(idR,hs+k,hs+j+1,hs+i,iens) );
-        // }
       });
     }
 
@@ -644,8 +634,8 @@ namespace modules {
       real6d tracers_limits("tracers_limits",num_tracers,2,nz+1,ny,nx,nens);
       real5d wmom_limits   ("wmom_limits"               ,2,nz+1,ny,nx,nens);
 
-      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e3);
-      limiter::WenoLimiter<ord> limiter_wmom(0.1,1,2,1,1.e3);
+      limiter::WenoLimiter<ord> limiter     (0.1,1,2,1,1.e4);
+      limiter::WenoLimiter<ord> limiter_wmom(0.1,1,2,1,1.e4);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
@@ -747,11 +737,6 @@ namespace modules {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k+1,j,i,iens)*tracers_mult(l,k+1,j,i,iens) -
                                           tracers_flux(l,k  ,j,i,iens)*tracers_mult(l,k  ,j,i,iens) ) / dz;
         }
-        // if (immersed_proportion(k,j,i,iens) > 0) {
-        //   state_tend(idR,k,j,i,iens) += 0.5_fp * (   state(idR,hs+k-1,hs+j,hs+i,iens) -
-        //                                            2*state(idR,hs+k  ,hs+j,hs+i,iens) +
-        //                                              state(idR,hs+k+1,hs+j,hs+i,iens) );
-        // }
       });
     }
 

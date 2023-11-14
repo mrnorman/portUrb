@@ -65,8 +65,8 @@ namespace modules {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      real constexpr maxwave = 350 + 80;
-      real cfl = 0.9;
+      real constexpr maxwave = 350 + 40;
+      real cfl = 0.45;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -153,9 +153,9 @@ namespace modules {
             state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
             state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
             state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
-            state(idT,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_theta_cells(k,iens) + (1-mult_s)*state(idT,hs+k,hs+j,hs+i,iens);
+            state(idT,hs+k,hs+j,hs+i,iens) = mult_w*hy_dens_theta_cells(k,iens) + (1-mult_w)*state(idT,hs+k,hs+j,hs+i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_s*0 + (1-mult_s)*tracers(tr,hs+k,hs+j,hs+i,iens);
+              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_w*0 + (1-mult_w)*tracers(tr,hs+k,hs+j,hs+i,iens);
             }
           }
         });

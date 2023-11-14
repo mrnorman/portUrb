@@ -320,13 +320,14 @@ namespace core {
     }
 
     
-    void add_tracer( std::string tracer_name , std::string tracer_desc , bool positive , bool adds_mass ) {
+    int add_tracer( std::string tracer_name , std::string tracer_desc , bool positive , bool adds_mass ) {
       int nz   = get_nz();
       int ny   = get_ny();
       int nx   = get_nx();
       int nens = get_nens();
       dm.register_and_allocate<real>( tracer_name , tracer_desc , {nz,ny,nx,nens} , {"z","y","x","nens"} );
       tracers.push_back( { tracer_name , tracer_desc , positive , adds_mass } );
+      return tracers.size()-1;
     }
 
     

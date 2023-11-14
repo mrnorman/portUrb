@@ -4,7 +4,7 @@
 #include "main_header.h"
 
 
-namespace ppm {
+namespace limiter {
 
   template <yakl::index_t ord>
   YAKL_INLINE void compute_high_order_edges( yakl::SArray<real,1,ord> const &s , real &L , real &R ) {

@@ -102,10 +102,11 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      auto nens = coupler.get_nens();
-      auto nx   = coupler.get_nx();
-      auto ny   = coupler.get_ny();
-      auto nz   = coupler.get_nz();
+      auto nens  = coupler.get_nens();
+      auto nx    = coupler.get_nx();
+      auto ny    = coupler.get_ny();
+      auto nz    = coupler.get_nz();
+      auto j_beg = coupler.get_j_beg();
 
       real R_d   = coupler.get_option<real>("R_d" );
       real cp_d  = coupler.get_option<real>("cp_d");
@@ -122,6 +123,7 @@ namespace custom_modules {
       auto wvel  = dm.get<real,4>("wvel");
       auto temp  = dm.get<real,4>("temp");
       auto rho_v = dm.get<real,4>("water_vapor");
+      auto poll1 = dm.get<real,4>("pollution1");
 
       YAKL_SCOPE( sponge_cells , this->sponge_cells );
       YAKL_SCOPE( time_scale   , this->time_scale   );
@@ -146,6 +148,16 @@ namespace custom_modules {
           wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
           temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
           rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          if ((j_beg+j == ny/2-(3*ny)/8  ||
+               j_beg+j == ny/2-(2*ny)/8  ||
+               j_beg+j == ny/2-(1*ny)/8  ||
+               j_beg+j == ny/2-(1*ny)/16 ||
+               j_beg+j == ny/2-(0*ny)/8  ||
+               j_beg+j == ny/2+(1*ny)/16 ||
+               j_beg+j == ny/2+(1*ny)/8  ||
+               j_beg+j == ny/2+(2*ny)/8  ||
+               j_beg+j == ny/2+(3*ny)/8  ) && k < nz/6) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
+          else                                          { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
         });
       }
       if (coupler.get_px() == coupler.get_nproc_x()-1 && x2) {

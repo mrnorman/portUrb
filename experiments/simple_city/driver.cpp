@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_rk.h"
+#include "dynamics_ader.h"
 #include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
@@ -52,8 +52,10 @@ int main(int argc, char** argv) {
     custom_modules::Horizontal_Sponge          horiz_sponge;
     custom_modules::Time_Averager              time_averager;
 
-    coupler.add_tracer("water_vapor","water_vapor",true,true);
+    coupler.add_tracer("water_vapor","water_vapor",true,true );
+    coupler.add_tracer("pollution1" , ""          ,true,false);
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
+    coupler.get_data_manager_readwrite().get<real,4>("pollution1" ) = 0;
 
     // Run the initialization modules
     dycore       .init( coupler ); // Dycore should initialize its own state here

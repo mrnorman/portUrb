@@ -5,6 +5,7 @@
 #include "MultipleFields.h"
 #include "TransformMatrices.h"
 #include "PPM_Limiter.h"
+#include "WenoLimiter.h"
 #include <random>
 #include <sstream>
 
@@ -65,7 +66,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 80;
-      real cfl = 0.45;
+      real cfl = 0.9;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -146,13 +147,16 @@ namespace modules {
           real prop = immersed_proportion(k,j,i,iens);
           if (prop > 0) {
             real r_prop = 1._fp / std::max( prop , 1.e-6_fp );
-            real mult_s = 1._fp / (10     + r_prop*r_prop*r_prop);
-            real mult_w = 1._fp / (1.e-10 + r_prop*r_prop*r_prop);
+            real mult_s = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
+            real mult_w = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
             state(idR,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_cells      (k,iens) + (1-mult_s)*state(idR,hs+k,hs+j,hs+i,iens);
             state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
             state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
             state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
             state(idT,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_theta_cells(k,iens) + (1-mult_s)*state(idT,hs+k,hs+j,hs+i,iens);
+            for (int tr=0; tr < num_tracers; tr++) {
+              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_s*0 + (1-mult_s)*tracers(tr,hs+k,hs+j,hs+i,iens);
+            }
           }
         });
       }
@@ -246,7 +250,7 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny,nx+1,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny,nx+1,nens);
 
-      ppm::PPM_Limiter<ord> limiter;
+      limiter::WenoLimiter<ord> limiter(0.0,1,2,1,1.e3);
 
       // Compute samples of state and tracers at cell edges using cell-centered reconstructions at high-order with WENO
       // At the end of this, we will have two samples per cell edge in each dimension, one from each adjacent cell.
@@ -449,6 +453,7 @@ namespace modules {
         r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = ru_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
+          tracers_mult(tr,k,j,i,iens) = 1;
         }
       });
 
@@ -539,7 +544,7 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz,ny+1,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz,ny+1,nx,nens);
 
-      ppm::PPM_Limiter<ord> limiter;
+      limiter::WenoLimiter<ord> limiter(0.0,1,2,1,1.e3);
 
       // Compute samples of state and tracers at cell edges using cell-centered reconstructions at high-order with WENO
       // At the end of this, we will have two samples per cell edge in each dimension, one from each adjacent cell.
@@ -742,6 +747,7 @@ namespace modules {
         r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = rv_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
+          tracers_mult(tr,k,j,i,iens) = 1;
         }
       });
 
@@ -841,7 +847,7 @@ namespace modules {
       real6d state_limits  ("state_limits"  ,num_state  ,2,nz+1,ny,nx,nens);
       real6d tracers_limits("tracers_limits",num_tracers,2,nz+1,ny,nx,nens);
 
-      ppm::PPM_Limiter<ord> limiter;
+      limiter::WenoLimiter<ord> limiter(0.0,1,2,1,1.e3);
 
       // Compute samples of state and tracers at cell edges using cell-centered reconstructions at high-order with WENO
       // At the end of this, we will have two samples per cell edge in each dimension, one from each adjacent cell.
@@ -1067,6 +1073,7 @@ namespace modules {
         r_upw = state_limits(idR,uind,k,j,i,iens);
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(tr,uind,k,j,i,iens)/r_upw;
+          tracers_mult(tr,k,j,i,iens) = 1;
         }
       });
 
@@ -1108,10 +1115,11 @@ namespace modules {
 
 
     // ord stencil cell averages to two GLL point values via high-order reconstruction and WENO limiting
+    template <class LIMITER>
     YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>       const & stencil      ,
                                                     SArray<real,2,tord,tord>       & gll          ,
                                                     SArray<real,2,ord ,tord> const & coefs_to_gll ,
-                                                    ppm::PPM_Limiter<ord>    const & limiter    ) {
+                                                    LIMITER                  const & limiter    ) {
       // Reconstruct values
       SArray<real,1,ord> wenoCoefs;
       limiter.compute_limited_coefs( stencil , wenoCoefs );

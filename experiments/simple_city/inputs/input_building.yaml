@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 1000.  # 86400
+sim_time: 86400.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
@@ -25,9 +25,7 @@ dt_gcm: 900
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 100.
 
 enable_gravity: false
-
-file_per_process: false
 

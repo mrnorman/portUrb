@@ -322,14 +322,6 @@ namespace modules {
       if (ord > 1) halo_exchange_y( coupler , state , tracers );
       if (ord > 1) halo_exchange_z( coupler , state , tracers );
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idV,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idW,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idT,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens); }
-      });
-
       real6d state_limits_x  ("state_limits_x"  ,num_state  ,2,nz,ny,nx+1,nens);
       real6d tracers_limits_x("tracers_limits_x",num_tracers,2,nz,ny,nx+1,nens);
       real6d state_limits_y  ("state_limits_y"  ,num_state  ,2,nz,ny+1,nx,nens);
@@ -371,6 +363,14 @@ namespace modules {
           tracers_limits_z(l,0,k+1,j,i,iens) = gll(1);
         }
       });
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idV,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idW,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idT,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens); }
+      });
       
       edge_exchange_x( coupler , state_limits_x , tracers_limits_x );
       edge_exchange_y( coupler , state_limits_y , tracers_limits_y );
@@ -392,72 +392,80 @@ namespace modules {
 
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny+1,nx+1,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        real constexpr cs = 350;
         if (j < ny && k < nz) {
           // Acoustically upwind mass flux and pressure
-          real ru_L = state_limits_x(idU,0,k,j,i,iens);   real ru_R = state_limits_x(idU,1,k,j,i,iens);
-          real rt_L = state_limits_x(idT,0,k,j,i,iens);   real rt_R = state_limits_x(idT,1,k,j,i,iens);
-          real p_L  = C0*std::pow(rt_L,gamma)         ;   real p_R  = C0*std::pow(rt_R,gamma)         ;
-          real w1 = 0.5_fp * (p_R-cs*ru_R);
-          real w2 = 0.5_fp * (p_L+cs*ru_L);
+          real r_L = state_limits_x(idR,0,k,j,i,iens);   real r_R = state_limits_x(idR,1,k,j,i,iens);
+          real u_L = state_limits_x(idU,0,k,j,i,iens);   real u_R = state_limits_x(idU,1,k,j,i,iens);
+          real t_L = state_limits_x(idT,0,k,j,i,iens);   real t_R = state_limits_x(idT,1,k,j,i,iens);
+          real p_L = C0*std::pow(r_L*t_L,gamma)      ;   real p_R = C0*std::pow(r_R*t_R,gamma)      ;
+          real r = 0.5_fp * (r_L + r_R);
+          real p = 0.5_fp * (p_L + p_R);
+          real cs = std::sqrt(gamma*p/r);
+          real w1 = 0.5_fp * (p_R-cs*r_R*u_R);
+          real w2 = 0.5_fp * (p_L+cs*r_L*u_L);
           real p_upw  = w1 + w2;
           real ru_upw = (w2-w1)/cs;
           // Advectively upwind everything else
-          int ind = ru_L+ru_R > 0 ? 0 : 1;
-          real r_upw = state_limits_x(idR,ind,k,j,i,iens);
+          int ind = ru_upw > 0 ? 0 : 1;
           state_flux_x(idR,k,j,i,iens) = ru_upw;
-          state_flux_x(idU,k,j,i,iens) = ru_upw*state_limits_x(idU,ind,k,j,i,iens)/r_upw + p_upw;
-          state_flux_x(idV,k,j,i,iens) = ru_upw*state_limits_x(idV,ind,k,j,i,iens)/r_upw;
-          state_flux_x(idW,k,j,i,iens) = ru_upw*state_limits_x(idW,ind,k,j,i,iens)/r_upw;
-          state_flux_x(idT,k,j,i,iens) = ru_upw*state_limits_x(idT,ind,k,j,i,iens)/r_upw;
+          state_flux_x(idU,k,j,i,iens) = ru_upw*state_limits_x(idU,ind,k,j,i,iens) + p_upw;
+          state_flux_x(idV,k,j,i,iens) = ru_upw*state_limits_x(idV,ind,k,j,i,iens);
+          state_flux_x(idW,k,j,i,iens) = ru_upw*state_limits_x(idW,ind,k,j,i,iens);
+          state_flux_x(idT,k,j,i,iens) = ru_upw*state_limits_x(idT,ind,k,j,i,iens);
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_x(tr,k,j,i,iens) = ru_upw*tracers_limits_x(tr,ind,k,j,i,iens)/r_upw;
+            tracers_flux_x(tr,k,j,i,iens) = ru_upw*tracers_limits_x(tr,ind,k,j,i,iens);
             tracers_mult_x(tr,k,j,i,iens) = 1;
           }
         }
         if (i < nx && k < nz && !sim2d) {
           // Acoustically upwind mass flux and pressure
-          real rv_L = state_limits_y(idV,0,k,j,i,iens);   real rv_R = state_limits_y(idV,1,k,j,i,iens);
-          real rt_L = state_limits_y(idT,0,k,j,i,iens);   real rt_R = state_limits_y(idT,1,k,j,i,iens);
-          real p_L  = C0*std::pow(rt_L,gamma)         ;   real p_R  = C0*std::pow(rt_R,gamma)         ;
-          real w1 = 0.5_fp * (p_R-cs*rv_R);
-          real w2 = 0.5_fp * (p_L+cs*rv_L);
+          real r_L = state_limits_y(idR,0,k,j,i,iens);   real r_R = state_limits_y(idR,1,k,j,i,iens);
+          real v_L = state_limits_y(idV,0,k,j,i,iens);   real v_R = state_limits_y(idV,1,k,j,i,iens);
+          real t_L = state_limits_y(idT,0,k,j,i,iens);   real t_R = state_limits_y(idT,1,k,j,i,iens);
+          real p_L = C0*std::pow(r_L*t_L,gamma)      ;   real p_R = C0*std::pow(r_R*t_R,gamma)      ;
+          real r = 0.5_fp * (r_L + r_R);
+          real p = 0.5_fp * (p_L + p_R);
+          real cs = std::sqrt(gamma*p/r);
+          real w1 = 0.5_fp * (p_R-cs*r_R*v_R);
+          real w2 = 0.5_fp * (p_L+cs*r_L*v_L);
           real p_upw  = w1 + w2;
           real rv_upw = (w2-w1)/cs;
           // Advectively upwind everything else
-          int ind = rv_L+rv_R > 0 ? 0 : 1;
-          real r_upw = state_limits_y(idR,ind,k,j,i,iens);
+          int ind = rv_upw > 0 ? 0 : 1;
           state_flux_y(idR,k,j,i,iens) = rv_upw;
-          state_flux_y(idU,k,j,i,iens) = rv_upw*state_limits_y(idU,ind,k,j,i,iens)/r_upw;
-          state_flux_y(idV,k,j,i,iens) = rv_upw*state_limits_y(idV,ind,k,j,i,iens)/r_upw + p_upw;
-          state_flux_y(idW,k,j,i,iens) = rv_upw*state_limits_y(idW,ind,k,j,i,iens)/r_upw;
-          state_flux_y(idT,k,j,i,iens) = rv_upw*state_limits_y(idT,ind,k,j,i,iens)/r_upw;
+          state_flux_y(idU,k,j,i,iens) = rv_upw*state_limits_y(idU,ind,k,j,i,iens);
+          state_flux_y(idV,k,j,i,iens) = rv_upw*state_limits_y(idV,ind,k,j,i,iens) + p_upw;
+          state_flux_y(idW,k,j,i,iens) = rv_upw*state_limits_y(idW,ind,k,j,i,iens);
+          state_flux_y(idT,k,j,i,iens) = rv_upw*state_limits_y(idT,ind,k,j,i,iens);
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_y(tr,k,j,i,iens) = rv_upw*tracers_limits_y(tr,ind,k,j,i,iens)/r_upw;
+            tracers_flux_y(tr,k,j,i,iens) = rv_upw*tracers_limits_y(tr,ind,k,j,i,iens);
             tracers_mutl_y(tr,k,j,i,iens) = 1;
           }
         }
         if (i < nx && j < ny) {
           // Acoustically upwind mass flux and pressure
-          real rw_L = state_limits_z(idW,0,k,j,i,iens);   real rw_R = state_limits_z(idW,1,k,j,i,iens);
-          real rt_L = state_limits_z(idT,0,k,j,i,iens);   real rt_R = state_limits_z(idT,1,k,j,i,iens);
-          real p_L  = C0*std::pow(rt_L,gamma)         ;   real p_R  = C0*std::pow(rt_R,gamma)         ;
-          real w1 = 0.5_fp * (p_R-cs*rw_R);
-          real w2 = 0.5_fp * (p_L+cs*rw_L);
+          real r_L = state_limits_z(idR,0,k,j,i,iens);   real r_R = state_limits_z(idR,1,k,j,i,iens);
+          real w_L = state_limits_z(idW,0,k,j,i,iens);   real w_R = state_limits_z(idW,1,k,j,i,iens);
+          real t_L = state_limits_z(idT,0,k,j,i,iens);   real t_R = state_limits_z(idT,1,k,j,i,iens);
+          real p_L = C0*std::pow(r_L*t_L,gamma)      ;   real p_R = C0*std::pow(r_R*t_R,gamma)      ;
+          real r = 0.5_fp * (r_L + r_R);
+          real p = 0.5_fp * (p_L + p_R);
+          real cs = std::sqrt(gamma*p/r);
+          real w1 = 0.5_fp * (p_R-cs*r_R*w_R);
+          real w2 = 0.5_fp * (p_L+cs*r_L*w_L);
           real p_upw  = w1 + w2;
           real rw_upw = (w2-w1)/cs;
           // p_upw *= pressure_mult(k,iens);
           // Advectively upwind everything else
-          int ind = rw_L+rw_R > 0 ? 0 : 1;
-          real r_upw = state_limits_z(idR,ind,k,j,i,iens);
+          int ind = rw_upw > 0 ? 0 : 1;
           state_flux_z(idR,k,j,i,iens) = rw_upw;
-          state_flux_z(idU,k,j,i,iens) = rw_upw*state_limits_z(idU,ind,k,j,i,iens)/r_upw;
-          state_flux_z(idV,k,j,i,iens) = rw_upw*state_limits_z(idV,ind,k,j,i,iens)/r_upw;
-          state_flux_z(idW,k,j,i,iens) = rw_upw*state_limits_z(idW,ind,k,j,i,iens)/r_upw + p_upw;
-          state_flux_z(idT,k,j,i,iens) = rw_upw*state_limits_z(idT,ind,k,j,i,iens)/r_upw;
+          state_flux_z(idU,k,j,i,iens) = rw_upw*state_limits_z(idU,ind,k,j,i,iens);
+          state_flux_z(idV,k,j,i,iens) = rw_upw*state_limits_z(idV,ind,k,j,i,iens);
+          state_flux_z(idW,k,j,i,iens) = rw_upw*state_limits_z(idW,ind,k,j,i,iens) + p_upw;
+          state_flux_z(idT,k,j,i,iens) = rw_upw*state_limits_z(idT,ind,k,j,i,iens);
           // if (save_pressure) pressure(k,j,i,iens) = p_upw;
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_z(tr,k,j,i,iens) = rw_upw*tracers_limits_z(tr,ind,k,j,i,iens)/r_upw;
+            tracers_flux_z(tr,k,j,i,iens) = rw_upw*tracers_limits_z(tr,ind,k,j,i,iens);
             tracers_mult_z(tr,k,j,i,iens) = 1;
           }
         }
@@ -1141,21 +1149,21 @@ namespace modules {
 
       #ifdef MW_GPU_AWARE_MPI
         yakl::fence();
-        MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
+        MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
+        MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
+        MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
+        MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
         MPI_Waitall(2, sReq, sStat);
         MPI_Waitall(2, rReq, rStat);
         yakl::timer_stop("edge_exchange_mpi");
       #else
-        MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
+        MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
+        MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
         edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
         edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
         yakl::fence();
-        MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
+        MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
+        MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
         MPI_Waitall(2, sReq, sStat);
         MPI_Waitall(2, rReq, rStat);
         yakl::timer_stop("edge_exchange_mpi");
@@ -1216,21 +1224,21 @@ namespace modules {
 
       #ifdef MW_GPU_AWARE_MPI
         yakl::fence();
-        MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
+        MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
+        MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
+        MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
+        MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
         MPI_Waitall(2, sReq, sStat);
         MPI_Waitall(2, rReq, rStat);
         yakl::timer_stop("edge_exchange_mpi");
       #else
-        MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
+        MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
+        MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
         edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
         edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
         yakl::fence();
-        MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
+        MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
+        MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
         MPI_Waitall(2, sReq, sStat);
         MPI_Waitall(2, rReq, rStat);
         yakl::timer_stop("edge_exchange_mpi");

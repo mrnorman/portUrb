@@ -376,7 +376,9 @@ namespace modules {
             // Compute non-linear fluxes based off of new state data
             for (int ii=0; ii < tord; ii++) {
               real tot_rut = 0;
-              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) { tot_rut += ru(ind_rt,ii)*rt(kt+1-ind_rt,ii)-r(ind_rt,ii)*rut(kt+1-ind_rt,ii); }
+              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
+                tot_rut += ru(ind_rt,ii)*rt(kt+1-ind_rt,ii)-r(ind_rt,ii)*rut(kt+1-ind_rt,ii);
+              }
               rut(kt+1,ii) = tot_rut / r(0,ii);
             }
           }
@@ -649,7 +651,9 @@ namespace modules {
             // Compute non-linear fluxes based off of new state data
             for (int jj=0; jj < tord; jj++) {
               real tot_rvt = 0;
-              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) { tot_rvt += rv(ind_rt,jj)*rt(kt+1-ind_rt,jj)-r(ind_rt,jj)*rvt(kt+1-ind_rt,jj); }
+              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
+                tot_rvt += rv(ind_rt,jj)*rt(kt+1-ind_rt,jj)-r(ind_rt,jj)*rvt(kt+1-ind_rt,jj);
+              }
               rvt(kt+1,jj) = tot_rvt / r(0,jj);
             }
           }
@@ -767,9 +771,13 @@ namespace modules {
       auto dz                      = coupler.get_dz();
       auto sim2d                   = coupler.is_sim2d();
       auto C0                      = coupler.get_option<real>("C0"     );
+      auto grav                    = coupler.get_option<real>("grav"   );
       auto gamma                   = coupler.get_option<real>("gamma_d");
+      auto save_pressure_z         = coupler.get_option<bool>("save_pressure_z",false);
+      auto enable_gravity          = coupler.get_option<bool>("enable_gravity");
+      auto pressure_mult           = coupler.get_data_manager_readonly().get<real const,2>("pressure_mult");
+      auto tracer_positive         = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
       auto num_tracers             = coupler.get_num_tracers();
-
       SArray<real,2,ord,tord> coefs_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
       SArray<real,2,tord,tord> g2d2g;
@@ -785,11 +793,8 @@ namespace modules {
         g2d2g = matmul_cr( c2g , matmul_cr( c2d , g2c ) ) / dz;
       }
       real r_dz = 1./dz;
-
-      auto &dm = coupler.get_data_manager_readonly();
-      auto tracer_positive     = dm.get<bool const,1>("tracer_positive"    );
-      auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
-      auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
+      real4d pressure_z;
+      if (save_pressure_z) pressure_z = coupler.get_data_manager_readwrite().get<real,4>("pressure_z");
 
       // Since tracers are full mass, it's helpful before reconstruction to remove the background density for potentially
       // more accurate reconstructions of tracer concentrations
@@ -870,6 +875,7 @@ namespace modules {
                 der_rww_p += g2d2g(s,kk)*(rww(kt,s) + p(kt,s));
                 der_rwt   += g2d2g(s,kk)*(rwt(kt,s)          );
               }
+              if (enable_gravity) der_rww_p += grav*r(kt,kk);
               r (kt+1,kk) = -der_rw   *r_ktp1;
               ru(kt+1,kk) = -der_rwu  *r_ktp1;
               rv(kt+1,kk) = -der_rwv  *r_ktp1;
@@ -943,7 +949,9 @@ namespace modules {
             // Compute non-linear fluxes based off of new state data
             for (int kk=0; kk < tord; kk++) {
               real tot_rwt = 0;
-              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) { tot_rwt += rw(ind_rt,kk)*rt(kt+1-ind_rt,kk)-r(ind_rt,kk)*rwt(kt+1-ind_rt,kk); }
+              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
+                tot_rwt += rw(ind_rt,kk)*rt(kt+1-ind_rt,kk)-r(ind_rt,kk)*rwt(kt+1-ind_rt,kk);
+              }
               rwt(kt+1,kk) = tot_rwt / r(0,kk);
             }
           }
@@ -981,10 +989,6 @@ namespace modules {
       auto tracers_flux = tracers_limits.slice<5>(0,COLON,COLON,COLON,COLON,COLON);
       auto tracers_mult = tracers_limits.slice<5>(1,COLON,COLON,COLON,COLON,COLON);
 
-      // auto save_pressure_z = coupler.get_option<bool>("save_pressure_z",false);
-      // real4d pressure_z;
-      // if (save_pressure_z) pressure_z = coupler.get_data_manager_readwrite().get<real,4>("pressure_z");
-
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real constexpr cs   = 350.;
@@ -997,7 +1001,7 @@ namespace modules {
         real w2 = 0.5_fp * (p_L+cs*rw_L);
         real p_upw  = w1 + w2;
         real rw_upw = (w2-w1)*r_cs;
-        // p_upw *= pressure_mult(k,iens);
+        p_upw *= pressure_mult(k,iens);
         // Advectively upwind everything else
         int ind = rw_upw > 0 ? 0 : 1;
         real r_rupw = 1._fp / state_limits(ind,idR,k,j,i,iens);
@@ -1006,7 +1010,7 @@ namespace modules {
         state_flux(idV,k,j,i,iens) = rw_upw*state_limits(ind,idV,k,j,i,iens)*r_rupw;
         state_flux(idW,k,j,i,iens) = rw_upw*state_limits(ind,idW,k,j,i,iens)*r_rupw + p_upw;
         state_flux(idT,k,j,i,iens) = rw_upw*state_limits(ind,idT,k,j,i,iens)*r_rupw;
-        // if (save_pressure) pressure(k,j,i,iens) = p_upw;
+        if (save_pressure_z) pressure_z(k,j,i,iens) = p_upw;
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(ind,tr,k,j,i,iens)*r_rupw;
           tracers_mult(tr,k,j,i,iens) = 1;
@@ -1043,6 +1047,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         for (int l = 0; l < num_state; l++) {
           state_tend(l,k,j,i,iens) = -( state_flux(l,k+1,j,i,iens) - state_flux(l,k,j,i,iens) ) * r_dz;
+          if (enable_gravity && l == idW) state_tend(l,k,j,i,iens) += -grav*state(idR,hs+k,hs+j,hs+i,iens);
         }
         for (int l = 0; l < num_tracers; l++) {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k+1,j,i,iens)*tracers_mult(l,k+1,j,i,iens) -

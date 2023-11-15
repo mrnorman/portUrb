@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_ader.h"
+#include "dynamics_rk.h"
 #include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"

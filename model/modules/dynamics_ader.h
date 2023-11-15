@@ -1846,6 +1846,19 @@ namespace modules {
     }
 
 
+    YAKL_INLINE static void hydro_const_bvf( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
+                                             real &r, real &t ) {
+      const real theta0 = 300.;  //Background potential temperature
+      const real bvf    = 1.e-2; //Brunt-Vaisaila Frequency
+      const real exner0 = 1.;    //Surface-level Exner pressure
+      t = theta0 * std::exp(bvf*bvf/grav*z);            //Potential temperature at z
+      real exner = exner0 - grav*grav/(cp*bvf*bvf)*(t-theta0)/(t*theta0); //Exner pressure at z
+      real p = p0 * std::pow(exner,(cp/rd));            //Pressure at z
+      real rt = std::pow((p / C0),(1._fp / gamma));     //rho*theta at z
+      r = rt / t;                                       //Density at z
+    }
+
+
     // Samples a 3-D ellipsoid at a point in space
     YAKL_INLINE static real sample_ellipse_cosine(real amp, real x   , real y   , real z   ,
                                                             real x0  , real y0  , real z0  ,
@@ -2251,7 +2264,7 @@ namespace modules {
                 real rho, u, v, w, theta, rho_v, hr, ht;
 
                 if (enable_gravity) {
-                  hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
+                  hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
                 } else {
                   hr = 1.15;
                   ht = 300;
@@ -2736,12 +2749,6 @@ namespace modules {
       nc.create_var<real>( "y" , {"y"} );
       nc.create_var<real>( "z" , {"z"} );
       nc.create_var<real>( "t" , {"t"} );
-      nc.create_var<real>( "density_dry_masked" , {"t","z","y","x"} );
-      nc.create_var<real>( "uvel_masked"        , {"t","z","y","x"} );
-      nc.create_var<real>( "vvel_masked"        , {"t","z","y","x"} );
-      nc.create_var<real>( "wvel_masked"        , {"t","z","y","x"} );
-      nc.create_var<real>( "temperature_masked" , {"t","z","y","x"} );
-      nc.create_var<real>( "theta_masked"       , {"t","z","y","x"} );
       nc.create_var<real>( "density_dry" , {"t","z","y","x"} );
       nc.create_var<real>( "uvel"        , {"t","z","y","x"} );
       nc.create_var<real>( "vvel"        , {"t","z","y","x"} );
@@ -2785,11 +2792,6 @@ namespace modules {
 
       {
         auto var           = dm.get<real const,4>("density_dry");
-        auto hy_dens_cells = dm.get<real const,2>("hy_dens_cells"      );
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? hy_dens_cells(k,iens) : var(k,j,i,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"density_dry_masked",ulIndex,{0,j_beg,i_beg},"t");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = var(k,j,i,iens);
         });
@@ -2798,20 +2800,12 @@ namespace modules {
       {
         auto var = dm.get<real const,4>("uvel");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"uvel_masked",ulIndex,{0,j_beg,i_beg},"t");
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = var(k,j,i,iens);
         });
         nc.write1_all(data.createHostCopy(),"uvel",ulIndex,{0,j_beg,i_beg},"t");
       }
       {
         auto var = dm.get<real const,4>("vvel");
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"vvel_masked",ulIndex,{0,j_beg,i_beg},"t");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = var(k,j,i,iens);
         });
@@ -2820,24 +2814,12 @@ namespace modules {
       {
         auto var = dm.get<real const,4>("wvel");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? 0 : var(k,j,i,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"wvel_masked",ulIndex,{0,j_beg,i_beg},"t");
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = var(k,j,i,iens);
         });
         nc.write1_all(data.createHostCopy(),"wvel",ulIndex,{0,j_beg,i_beg},"t");
       }
       {
         auto var                 = dm.get<real const,4>("temp"               );
-        auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
-        auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          real hy_p = C0*std::pow(hy_dens_theta_cells(k,iens),gamma);
-          real hy_temp = hy_p / R_d / hy_dens_cells(k,iens);
-          data(k,j,i) = immersed_proportion(k,j,i,iens) > 0 ? hy_temp : var(k,j,i,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"temperature_masked",ulIndex,{0,j_beg,i_beg},"t");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = var(k,j,i,iens);
         });
@@ -2848,13 +2830,6 @@ namespace modules {
         real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
         real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
         convert_coupler_to_dynamics( coupler , state , tracers );
-        auto hy_dens_cells       = dm.get<real const,2>("hy_dens_cells"      );
-        auto hy_dens_theta_cells = dm.get<real const,2>("hy_dens_theta_cells");
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          data(k,j,i) = state(idT,hs+k,hs+j,hs+i,iens) / state(idR,hs+k,hs+j,hs+i,iens);
-          if (immersed_proportion(k,j,i,iens) > 0) data(k,j,i) = hy_dens_theta_cells(k,iens)/hy_dens_cells(k,iens);
-        });
-        nc.write1_all(data.createHostCopy(),"theta_masked",ulIndex,{0,j_beg,i_beg},"t");
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           data(k,j,i) = state(idT,hs+k,hs+j,hs+i,iens) / state(idR,hs+k,hs+j,hs+i,iens);
         });

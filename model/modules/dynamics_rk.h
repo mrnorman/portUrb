@@ -1548,6 +1548,19 @@ namespace modules {
     }
 
 
+    YAKL_INLINE static void hydro_const_bvf( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
+                                             real &r, real &t ) {
+      const real theta0 = 300.;  //Background potential temperature
+      const real bvf    = 1.e-2; //Brunt-Vaisaila Frequency
+      const real exner0 = 1.;    //Surface-level Exner pressure
+      t = theta0 * std::exp(bvf*bvf/grav*z);            //Potential temperature at z
+      real exner = exner0 - grav*grav/(cp*bvf*bvf)*(t-theta0)/(t*theta0); //Exner pressure at z
+      real p = p0 * std::pow(exner,(cp/rd));            //Pressure at z
+      real rt = std::pow((p / C0),(1._fp / gamma));     //rho*theta at z
+      r = rt / t;                                       //Density at z
+    }
+
+
     // Computes a hydrostatic background density and potential temperature using c constant potential temperature
     // backgrounda for a single vertical location
     YAKL_INLINE static void hydro_const_theta( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
@@ -1967,7 +1980,7 @@ namespace modules {
                 real rho, u, v, w, theta, rho_v, hr, ht;
 
                 if (enable_gravity) {
-                  hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
+                  hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
                 } else {
                   hr = 1.15;
                   ht = 300;

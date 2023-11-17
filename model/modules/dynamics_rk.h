@@ -585,9 +585,7 @@ namespace modules {
         for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= rdens; }
       });
 
-      if (ord > 1) halo_exchange_x( coupler , state , tracers );
-      if (ord > 1) halo_exchange_y( coupler , state , tracers );
-      if (ord > 1) halo_exchange_z( coupler , state , tracers );
+      if (ord > 1) halo_exchange( coupler , state , tracers );
 
       real6d state_limits_x  ("state_limits_x"  ,2,num_state  ,nz,ny,nx+1,nens);
       real6d tracers_limits_x("tracers_limits_x",2,num_tracers,nz,ny,nx+1,nens);
@@ -631,9 +629,9 @@ namespace modules {
         }
       });
       
-      edge_exchange_x( coupler , state_limits_x , tracers_limits_x );
-      edge_exchange_y( coupler , state_limits_y , tracers_limits_y );
-      edge_exchange_z( coupler , state_limits_z , tracers_limits_z );
+      edge_exchange( coupler , state_limits_x , tracers_limits_x ,
+                               state_limits_y , tracers_limits_y ,
+                               state_limits_z , tracers_limits_z );
 
       using yakl::COLON;
       auto state_flux_x   = state_limits_x  .slice<5>(0,COLON,COLON,COLON,COLON,COLON);
@@ -751,9 +749,7 @@ namespace modules {
         }
       });
 
-      fct_mult_exchange_x( coupler , tracers_mult_x );
-      fct_mult_exchange_y( coupler , tracers_mult_y );
-      fct_mult_exchange_z( coupler , tracers_mult_z );
+      fct_mult_exchange( coupler , tracers_mult_x , tracers_mult_y , tracers_mult_z );
 
       // Compute tendencies as the flux divergence + gravity source term
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -796,89 +792,150 @@ namespace modules {
 
 
 
-    void halo_exchange_x( core::Coupler const & coupler  ,
-                          real5d        const & state    ,
-                          real5d        const & tracers  ) const {
+    void halo_exchange( core::Coupler const & coupler  ,
+                        real5d        const & state    ,
+                        real5d        const & tracers  ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
-      auto px          = coupler.get_px();
-      auto nproc_x     = coupler.get_nproc_x();
-      auto bc_x        = coupler.get_option<int >("bc_x");
-
-      int npack = num_state + num_tracers;
-
-      realHost5d halo_send_buf_W_host("halo_send_buf_W_host",npack,nz,ny,hs,nens);
-      realHost5d halo_send_buf_E_host("halo_send_buf_E_host",npack,nz,ny,hs,nens);
-      realHost5d halo_recv_buf_W_host("halo_recv_buf_W_host",npack,nz,ny,hs,nens);
-      realHost5d halo_recv_buf_E_host("halo_recv_buf_E_host",npack,nz,ny,hs,nens);
-      real5d     halo_send_buf_W     ("halo_send_buf_W"     ,npack,nz,ny,hs,nens);
-      real5d     halo_send_buf_E     ("halo_send_buf_E"     ,npack,nz,ny,hs,nens);
-      real5d     halo_recv_buf_W     ("halo_recv_buf_W"     ,npack,nz,ny,hs,nens);
-      real5d     halo_recv_buf_E     ("halo_recv_buf_E"     ,npack,nz,ny,hs,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-        if        (v < num_state) {
-          halo_send_buf_W(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,nx+ii,iens);
-        } else if (v < num_state + num_tracers) {
-          halo_send_buf_W(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,nx+ii,iens);
-        }
-      });
-
-      yakl::fence();
-      yakl::timer_start("halo_exchange_mpi");
-
+      auto nens           = coupler.get_nens();
+      auto nx             = coupler.get_nx();
+      auto ny             = coupler.get_ny();
+      auto nz             = coupler.get_nz();
+      auto dz             = coupler.get_dz();
+      auto num_tracers    = coupler.get_num_tracers();
+      auto px             = coupler.get_px();
+      auto py             = coupler.get_py();
+      auto nproc_x        = coupler.get_nproc_x();
+      auto nproc_y        = coupler.get_nproc_y();
+      auto bc_x           = coupler.get_option<int >("bc_x");
+      auto bc_y           = coupler.get_option<int>("bc_y");
+      auto bc_z           = coupler.get_option<int >("bc_z");
+      auto &neigh         = coupler.get_neighbor_rankid_matrix();
+      auto dtype          = coupler.get_mpi_data_type();
+      auto enable_gravity = coupler.get_option<bool>("enable_gravity");
+      auto grav           = coupler.get_option<real>("grav");
+      auto gamma          = coupler.get_option<real>("gamma_d");
+      auto C0             = coupler.get_option<real>("C0");
       MPI_Request sReq [2];
       MPI_Request rReq [2];
       MPI_Status  sStat[2];
       MPI_Status  rStat[2];
-
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
       auto comm = MPI_COMM_WORLD;
+      int npack = num_state + num_tracers;
 
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_E.data() , halo_recv_buf_E.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-        MPI_Isend( halo_send_buf_W.data() , halo_send_buf_W.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("halo_exchange_mpi");
-      #else
-        MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-        halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
-        halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
-        yakl::fence();
-        MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("halo_exchange_mpi");
-        halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
-        halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
-      #endif
+      // x-direction exchanges
+      {
+        real5d halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs,nens);
+        real5d halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs,nens);
+        real5d halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs,nens);
+        real5d halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
+          if        (v < num_state) {
+            halo_send_buf_W(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,hs+ii,iens);
+            halo_send_buf_E(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,nx+ii,iens);
+          } else if (v < num_state + num_tracers) {
+            halo_send_buf_W(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,hs+ii,iens);
+            halo_send_buf_E(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,nx+ii,iens);
+          }
+        });
+        yakl::timer_start("halo_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_E.data() , halo_recv_buf_E.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
+          MPI_Isend( halo_send_buf_W.data() , halo_send_buf_W.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("halo_exchange_mpi");
+        #else
+          realHost5d halo_send_buf_W_host("halo_send_buf_W_host",npack,nz,ny,hs,nens);
+          realHost5d halo_send_buf_E_host("halo_send_buf_E_host",npack,nz,ny,hs,nens);
+          realHost5d halo_recv_buf_W_host("halo_recv_buf_W_host",npack,nz,ny,hs,nens);
+          realHost5d halo_recv_buf_E_host("halo_recv_buf_E_host",npack,nz,ny,hs,nens);
+          MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
+          halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
+          halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
+          yakl::fence();
+          MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("halo_exchange_mpi");
+          halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
+          halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
+          if        (v < num_state) {
+            state  (v          ,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
+            state  (v          ,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
+          } else if (v < num_state + num_tracers) {
+            tracers(v-num_state,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
+            tracers(v-num_state,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
+          }
+        });
+      }
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-        if        (v < num_state) {
-          state  (v          ,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-          state  (v          ,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-        } else if (v < num_state + num_tracers) {
-          tracers(v-num_state,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-          tracers(v-num_state,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-        }
-      });
+      // y-direction exchanges
+      {
+        real5d halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx,nens);
+        real5d halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx,nens);
+        real5d halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx,nens);
+        real5d halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
+          if        (v < num_state) {
+            halo_send_buf_S(v,k,jj,i,iens) = state  (v          ,hs+k,hs+jj,hs+i,iens);
+            halo_send_buf_N(v,k,jj,i,iens) = state  (v          ,hs+k,ny+jj,hs+i,iens);
+          } else if (v < num_state + num_tracers) {
+            halo_send_buf_S(v,k,jj,i,iens) = tracers(v-num_state,hs+k,hs+jj,hs+i,iens);
+            halo_send_buf_N(v,k,jj,i,iens) = tracers(v-num_state,hs+k,ny+jj,hs+i,iens);
+          }
+        });
+        yakl::timer_start("halo_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_N.data() , halo_recv_buf_N.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
+          MPI_Isend( halo_send_buf_S.data() , halo_send_buf_S.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("halo_exchange_mpi");
+        #else
+          realHost5d halo_send_buf_S_host("halo_send_buf_S_host",npack,nz,hs,nx,nens);
+          realHost5d halo_send_buf_N_host("halo_send_buf_N_host",npack,nz,hs,nx,nens);
+          realHost5d halo_recv_buf_S_host("halo_recv_buf_S_host",npack,nz,hs,nx,nens);
+          realHost5d halo_recv_buf_N_host("halo_recv_buf_N_host",npack,nz,hs,nx,nens);
+          MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
+          halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
+          halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
+          yakl::fence();
+          MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("halo_exchange_mpi");
+          halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
+          halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
+          if        (v < num_state) {
+            state  (v          ,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
+            state  (v          ,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
+          } else if (v < num_state + num_tracers) {
+            tracers(v-num_state,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
+            tracers(v-num_state,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
+          }
+        });
+      }
+
+      // x-direction non-periodic BC's
       if (bc_x == BC_WALL || bc_x == BC_OPEN) {
         if (px == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
@@ -902,92 +959,7 @@ namespace modules {
         }
       }
 
-    }
-
-
-    void halo_exchange_y( core::Coupler const & coupler  ,
-                          real5d        const & state    ,
-                          real5d        const & tracers  ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
-      auto py          = coupler.get_py();
-      auto nproc_y     = coupler.get_nproc_y();
-      auto bc_y        = coupler.get_option<int>("bc_y");
-
-      int npack = num_state + num_tracers;
-
-      realHost5d halo_send_buf_S_host("halo_send_buf_S_host",npack,nz,hs,nx,nens);
-      realHost5d halo_send_buf_N_host("halo_send_buf_N_host",npack,nz,hs,nx,nens);
-      realHost5d halo_recv_buf_S_host("halo_recv_buf_S_host",npack,nz,hs,nx,nens);
-      realHost5d halo_recv_buf_N_host("halo_recv_buf_N_host",npack,nz,hs,nx,nens);
-      real5d     halo_send_buf_S     ("halo_send_buf_S"     ,npack,nz,hs,nx,nens);
-      real5d     halo_send_buf_N     ("halo_send_buf_N"     ,npack,nz,hs,nx,nens);
-      real5d     halo_recv_buf_S     ("halo_recv_buf_S"     ,npack,nz,hs,nx,nens);
-      real5d     halo_recv_buf_N     ("halo_recv_buf_N"     ,npack,nz,hs,nx,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-        if        (v < num_state) {
-          halo_send_buf_S(v,k,jj,i,iens) = state  (v          ,hs+k,hs+jj,hs+i,iens);
-          halo_send_buf_N(v,k,jj,i,iens) = state  (v          ,hs+k,ny+jj,hs+i,iens);
-        } else if (v < num_state + num_tracers) {
-          halo_send_buf_S(v,k,jj,i,iens) = tracers(v-num_state,hs+k,hs+jj,hs+i,iens);
-          halo_send_buf_N(v,k,jj,i,iens) = tracers(v-num_state,hs+k,ny+jj,hs+i,iens);
-        }
-      });
-
-      yakl::fence();
-      yakl::timer_start("halo_exchange_mpi");
-
-      MPI_Request sReq [2];
-      MPI_Request rReq [2];
-      MPI_Status  sStat[2];
-      MPI_Status  rStat[2];
-
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
-      auto comm = MPI_COMM_WORLD;
-
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_N.data() , halo_recv_buf_N.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-        MPI_Isend( halo_send_buf_S.data() , halo_send_buf_S.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("halo_exchange_mpi");
-      #else
-        MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-        halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
-        halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
-        yakl::fence();
-        MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("halo_exchange_mpi");
-        halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
-        halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
-      #endif
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-        if        (v < num_state) {
-          state  (v          ,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-          state  (v          ,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-        } else if (v < num_state + num_tracers) {
-          tracers(v-num_state,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-          tracers(v-num_state,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-        }
-      });
+      //y-direction non-periodic BC's
       if (bc_y == BC_WALL || bc_y == BC_OPEN) {
         if (py == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx,nens) ,
@@ -1010,26 +982,8 @@ namespace modules {
           });
         }
       }
-    }
 
-
-    void halo_exchange_z( core::Coupler const & coupler  ,
-                          real5d        const & state    ,
-                          real5d        const & tracers  ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens           = coupler.get_nens();
-      auto nx             = coupler.get_nx();
-      auto ny             = coupler.get_ny();
-      auto nz             = coupler.get_nz();
-      auto dz             = coupler.get_dz();
-      auto num_tracers    = coupler.get_num_tracers();
-      auto enable_gravity = coupler.get_option<bool>("enable_gravity");
-      auto bc_z           = coupler.get_option<int >("bc_z");
-      auto grav           = coupler.get_option<real>("grav");
-      auto gamma          = coupler.get_option<real>("gamma_d");
-      auto C0             = coupler.get_option<real>("C0");
+      // z-direction BC's
       if (bc_z == BC_PERIODIC) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
@@ -1090,245 +1044,204 @@ namespace modules {
 
 
 
-    void edge_exchange_x( core::Coupler const & coupler         ,
-                          real6d        const & state_limits    ,
-                          real6d        const & tracers_limits  ) const {
+    void edge_exchange( core::Coupler const & coupler           ,
+                        real6d        const & state_limits_x    ,
+                        real6d        const & tracers_limits_x  ,
+                        real6d        const & state_limits_y    ,
+                        real6d        const & tracers_limits_y  ,
+                        real6d        const & state_limits_z    ,
+                        real6d        const & tracers_limits_z  ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto num_tracers = coupler.get_num_tracers();
       auto px          = coupler.get_px();
+      auto py          = coupler.get_py();
       auto nproc_x     = coupler.get_nproc_x();
+      auto nproc_y     = coupler.get_nproc_y();
       auto bc_x        = coupler.get_option<int>("bc_x");
-
+      auto bc_y        = coupler.get_option<int>("bc_y");
+      auto bc_z        = coupler.get_option<int>("bc_z");
+      auto &neigh      = coupler.get_neighbor_rankid_matrix();
+      auto dtype       = coupler.get_mpi_data_type();
+      auto comm        = MPI_COMM_WORLD;
       int npack = num_state + num_tracers;
-
-      realHost4d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny,nens);
-      realHost4d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny,nens);
-      realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny,nens);
-      realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny,nens);
-      real4d     edge_send_buf_W     ("edge_send_buf_W"     ,npack,nz,ny,nens);
-      real4d     edge_send_buf_E     ("edge_send_buf_E"     ,npack,nz,ny,nens);
-      real4d     edge_recv_buf_W     ("edge_recv_buf_W"     ,npack,nz,ny,nens);
-      real4d     edge_recv_buf_E     ("edge_recv_buf_E"     ,npack,nz,ny,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) , YAKL_LAMBDA (int v, int k, int j, int iens) {
-        if        (v < num_state) {
-          edge_send_buf_W(v,k,j,iens) = state_limits  (1,v          ,k,j,0 ,iens);
-          edge_send_buf_E(v,k,j,iens) = state_limits  (0,v          ,k,j,nx,iens);
-        } else if (v < num_state + num_tracers) {                    
-          edge_send_buf_W(v,k,j,iens) = tracers_limits(1,v-num_state,k,j,0 ,iens);
-          edge_send_buf_E(v,k,j,iens) = tracers_limits(0,v-num_state,k,j,nx,iens);
-        }
-      });
-
-      yakl::fence();
-      yakl::timer_start("edge_exchange_mpi");
-
       MPI_Request sReq [2];
       MPI_Request rReq [2];
       MPI_Status  sStat[2];
       MPI_Status  rStat[2];
 
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
-      auto comm = MPI_COMM_WORLD;
+      // x-exchange
+      {
+        real4d edge_send_buf_W("edge_send_buf_W",npack,nz,ny,nens);
+        real4d edge_send_buf_E("edge_send_buf_E",npack,nz,ny,nens);
+        real4d edge_recv_buf_W("edge_recv_buf_W",npack,nz,ny,nens);
+        real4d edge_recv_buf_E("edge_recv_buf_E",npack,nz,ny,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) , YAKL_LAMBDA (int v, int k, int j, int iens) {
+          if        (v < num_state) {
+            edge_send_buf_W(v,k,j,iens) = state_limits_x  (1,v          ,k,j,0 ,iens);
+            edge_send_buf_E(v,k,j,iens) = state_limits_x  (0,v          ,k,j,nx,iens);
+          } else if (v < num_state + num_tracers) {                    
+            edge_send_buf_W(v,k,j,iens) = tracers_limits_x(1,v-num_state,k,j,0 ,iens);
+            edge_send_buf_E(v,k,j,iens) = tracers_limits_x(0,v-num_state,k,j,nx,iens);
+          }
+        });
+        yakl::timer_start("edge_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
+          MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+        #else
+          realHost4d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny,nens);
+          realHost4d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny,nens);
+          realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny,nens);
+          realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny,nens);
+          MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
+          edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
+          edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
+          yakl::fence();
+          MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+          edge_recv_buf_W_host.deep_copy_to(edge_recv_buf_W);
+          edge_recv_buf_E_host.deep_copy_to(edge_recv_buf_E);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int iens) {
+          if        (v < num_state) {
+            state_limits_x  (0,v          ,k,j,0 ,iens) = edge_recv_buf_W(v,k,j,iens);
+            state_limits_x  (1,v          ,k,j,nx,iens) = edge_recv_buf_E(v,k,j,iens);
+          } else if (v < num_state + num_tracers) {
+            tracers_limits_x(0,v-num_state,k,j,0 ,iens) = edge_recv_buf_W(v,k,j,iens);
+            tracers_limits_x(1,v-num_state,k,j,nx,iens) = edge_recv_buf_E(v,k,j,iens);
+          }
+        });
+      }
 
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-      #else
-        MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
-        edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
-        edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-        edge_recv_buf_W_host.deep_copy_to(edge_recv_buf_W);
-        edge_recv_buf_E_host.deep_copy_to(edge_recv_buf_E);
-      #endif
+      // y-direction exchange
+      {
+        real4d edge_send_buf_S("edge_send_buf_S",npack,nz,nx,nens);
+        real4d edge_send_buf_N("edge_send_buf_N",npack,nz,nx,nens);
+        real4d edge_recv_buf_S("edge_recv_buf_S",npack,nz,nx,nens);
+        real4d edge_recv_buf_N("edge_recv_buf_N",npack,nz,nx,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int i, int iens) {
+          if        (v < num_state) {
+            edge_send_buf_S(v,k,i,iens) = state_limits_y  (1,v          ,k,0 ,i,iens);
+            edge_send_buf_N(v,k,i,iens) = state_limits_y  (0,v          ,k,ny,i,iens);
+          } else if (v < num_state + num_tracers) {                    
+            edge_send_buf_S(v,k,i,iens) = tracers_limits_y(1,v-num_state,k,0 ,i,iens);
+            edge_send_buf_N(v,k,i,iens) = tracers_limits_y(0,v-num_state,k,ny,i,iens);
+          }
+        });
+        yakl::timer_start("edge_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
+          MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+        #else
+          realHost4d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx,nens);
+          realHost4d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx,nens);
+          realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx,nens);
+          realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx,nens);
+          MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
+          edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
+          edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
+          yakl::fence();
+          MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+          edge_recv_buf_S_host.deep_copy_to(edge_recv_buf_S);
+          edge_recv_buf_N_host.deep_copy_to(edge_recv_buf_N);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int i, int iens) {
+          if        (v < num_state) {
+            state_limits_y  (0,v          ,k,0 ,i,iens) = edge_recv_buf_S(v,k,i,iens);
+            state_limits_y  (1,v          ,k,ny,i,iens) = edge_recv_buf_N(v,k,i,iens);
+          } else if (v < num_state + num_tracers) {
+            tracers_limits_y(0,v-num_state,k,0 ,i,iens) = edge_recv_buf_S(v,k,i,iens);
+            tracers_limits_y(1,v-num_state,k,ny,i,iens) = edge_recv_buf_N(v,k,i,iens);
+          }
+        });
+      }
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int j, int iens) {
-        if        (v < num_state) {
-          state_limits  (0,v          ,k,j,0 ,iens) = edge_recv_buf_W(v,k,j,iens);
-          state_limits  (1,v          ,k,j,nx,iens) = edge_recv_buf_E(v,k,j,iens);
-        } else if (v < num_state + num_tracers) {
-          tracers_limits(0,v-num_state,k,j,0 ,iens) = edge_recv_buf_W(v,k,j,iens);
-          tracers_limits(1,v-num_state,k,j,nx,iens) = edge_recv_buf_E(v,k,j,iens);
-        }
-      });
-
+      // x-direction non-periodic BC's
       if (bc_x == BC_WALL || bc_x == BC_OPEN) {
         if (px == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nens) ,
                                             YAKL_LAMBDA (int k, int j, int iens) {
             for (int l=0; l < num_state; l++) {
-              if (l == idU && bc_x == BC_WALL) { state_limits(0,l,k,j,0,iens) = 0; state_limits(1,l,k,j,0,iens) = 0; }
-              else                             { state_limits(0,l,k,j,0,iens) = state_limits(1,l,k,j,0,iens); }
+              if (l == idU && bc_x == BC_WALL) { state_limits_x(0,l,k,j,0,iens) = 0; state_limits_x(1,l,k,j,0,iens) = 0; }
+              else                             { state_limits_x(0,l,k,j,0,iens) = state_limits_x(1,l,k,j,0,iens); }
             }
-            for (int l=0; l < num_tracers; l++) { tracers_limits(0,l,k,j,0,iens) = tracers_limits(1,l,k,j,0,iens); }
+            for (int l=0; l < num_tracers; l++) { tracers_limits_x(0,l,k,j,0,iens) = tracers_limits_x(1,l,k,j,0,iens); }
           });
         } else if (px == nproc_x-1) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nens) ,
                                             YAKL_LAMBDA (int k, int j, int iens) {
             for (int l=0; l < num_state; l++) {
-              if (l == idU && bc_x == BC_WALL) { state_limits(0,l,k,j,nx,iens) = 0; state_limits(1,l,k,j,nx,iens) = 0; }
-              else                             { state_limits(1,l,k,j,nx,iens) = state_limits(0,l,k,j,nx,iens); }
+              if (l == idU && bc_x == BC_WALL) { state_limits_x(0,l,k,j,nx,iens) = 0; state_limits_x(1,l,k,j,nx,iens) = 0; }
+              else                             { state_limits_x(1,l,k,j,nx,iens) = state_limits_x(0,l,k,j,nx,iens); }
             }
-            for (int l=0; l < num_tracers; l++) { tracers_limits(1,l,k,j,nx,iens) = tracers_limits(0,l,k,j,nx,iens); }
+            for (int l=0; l < num_tracers; l++) { tracers_limits_x(1,l,k,j,nx,iens) = tracers_limits_x(0,l,k,j,nx,iens); }
           });
         }
       }
-    }
 
-
-
-    void edge_exchange_y( core::Coupler const & coupler         ,
-                          real6d        const & state_limits    ,
-                          real6d        const & tracers_limits  ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
-      auto py          = coupler.get_py();
-      auto nproc_y     = coupler.get_nproc_y();
-      auto bc_y        = coupler.get_option<int>("bc_y");
-
-      int npack = num_state + num_tracers;
-
-      realHost4d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx,nens);
-      realHost4d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx,nens);
-      realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx,nens);
-      realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx,nens);
-      real4d     edge_send_buf_S     ("edge_send_buf_S"     ,npack,nz,nx,nens);
-      real4d     edge_send_buf_N     ("edge_send_buf_N"     ,npack,nz,nx,nens);
-      real4d     edge_recv_buf_S     ("edge_recv_buf_S"     ,npack,nz,nx,nens);
-      real4d     edge_recv_buf_N     ("edge_recv_buf_N"     ,npack,nz,nx,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int i, int iens) {
-        if        (v < num_state) {
-          edge_send_buf_S(v,k,i,iens) = state_limits  (1,v          ,k,0 ,i,iens);
-          edge_send_buf_N(v,k,i,iens) = state_limits  (0,v          ,k,ny,i,iens);
-        } else if (v < num_state + num_tracers) {                    
-          edge_send_buf_S(v,k,i,iens) = tracers_limits(1,v-num_state,k,0 ,i,iens);
-          edge_send_buf_N(v,k,i,iens) = tracers_limits(0,v-num_state,k,ny,i,iens);
-        }
-      });
-
-      yakl::fence();
-      yakl::timer_start("edge_exchange_mpi");
-
-      MPI_Request sReq [2];
-      MPI_Request rReq [2];
-      MPI_Status  sStat[2];
-      MPI_Status  rStat[2];
-
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
-      auto comm = MPI_COMM_WORLD;
-
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-      #else
-        MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
-        edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
-        edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-        edge_recv_buf_S_host.deep_copy_to(edge_recv_buf_S);
-        edge_recv_buf_N_host.deep_copy_to(edge_recv_buf_N);
-      #endif
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int i, int iens) {
-        if        (v < num_state) {
-          state_limits  (0,v          ,k,0 ,i,iens) = edge_recv_buf_S(v,k,i,iens);
-          state_limits  (1,v          ,k,ny,i,iens) = edge_recv_buf_N(v,k,i,iens);
-        } else if (v < num_state + num_tracers) {
-          tracers_limits(0,v-num_state,k,0 ,i,iens) = edge_recv_buf_S(v,k,i,iens);
-          tracers_limits(1,v-num_state,k,ny,i,iens) = edge_recv_buf_N(v,k,i,iens);
-        }
-      });
-
+      // y-direction non-periodic BC's
       if (bc_y == BC_WALL || bc_y == BC_OPEN) {
         if (py == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,nx,nens) ,
                                             YAKL_LAMBDA (int k, int i, int iens) {
             for (int l=0; l < num_state; l++) {
-              if (l == idV && bc_y == BC_WALL) { state_limits(0,l,k,0,i,iens) = 0; state_limits(1,l,k,0,i,iens) = 0; }
-              else                             { state_limits(0,l,k,0,i,iens) = state_limits(1,l,k,0,i,iens); }
+              if (l == idV && bc_y == BC_WALL) { state_limits_y(0,l,k,0,i,iens) = 0; state_limits_y(1,l,k,0,i,iens) = 0; }
+              else                             { state_limits_y(0,l,k,0,i,iens) = state_limits_y(1,l,k,0,i,iens); }
             }
-            for (int l=0; l < num_tracers; l++) { tracers_limits(0,l,k,0,i,iens) = tracers_limits(1,l,k,0,i,iens); }
+            for (int l=0; l < num_tracers; l++) { tracers_limits_y(0,l,k,0,i,iens) = tracers_limits_y(1,l,k,0,i,iens); }
           });
         } else if (py == nproc_y-1) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,nx,nens) ,
                                             YAKL_LAMBDA (int k, int i, int iens) {
             for (int l=0; l < num_state; l++) {
-              if (l == idV && bc_y == BC_WALL) { state_limits(0,l,k,ny,i,iens) = 0; state_limits(1,l,k,ny,i,iens) = 0; }
-              else                             { state_limits(1,l,k,ny,i,iens) = state_limits(0,l,k,ny,i,iens); }
+              if (l == idV && bc_y == BC_WALL) { state_limits_y(0,l,k,ny,i,iens) = 0; state_limits_y(1,l,k,ny,i,iens) = 0; }
+              else                             { state_limits_y(1,l,k,ny,i,iens) = state_limits_y(0,l,k,ny,i,iens); }
             }
-            for (int l=0; l < num_tracers; l++) { tracers_limits(1,l,k,ny,i,iens) = tracers_limits(0,l,k,ny,i,iens); }
+            for (int l=0; l < num_tracers; l++) { tracers_limits_y(1,l,k,ny,i,iens) = tracers_limits_y(0,l,k,ny,i,iens); }
           });
         }
       }
-    }
 
-
-
-    void edge_exchange_z( core::Coupler const & coupler         ,
-                          real6d        const & state_limits    ,
-                          real6d        const & tracers_limits  ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
-      auto bc_z        = coupler.get_option<int>("bc_z");
+      // z-direction BC's
       if (bc_z == BC_PERIODIC) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(ny,nx,nens) ,
                                           YAKL_LAMBDA (int j, int i, int iens) {
           for (int l=0; l < num_state; l++) {
-            state_limits(0,l,0 ,j,i,iens) = state_limits(0,l,nz,j,i,iens);
-            state_limits(1,l,nz,j,i,iens) = state_limits(1,l,0 ,j,i,iens);
+            state_limits_z(0,l,0 ,j,i,iens) = state_limits_z(0,l,nz,j,i,iens);
+            state_limits_z(1,l,nz,j,i,iens) = state_limits_z(1,l,0 ,j,i,iens);
           }
           for (int l=0; l < num_tracers; l++) {
-            tracers_limits(0,l,0 ,j,i,iens) = tracers_limits(0,l,nz,j,i,iens);
-            tracers_limits(1,l,nz,j,i,iens) = tracers_limits(1,l,0 ,j,i,iens);
+            tracers_limits_z(0,l,0 ,j,i,iens) = tracers_limits_z(0,l,nz,j,i,iens);
+            tracers_limits_z(1,l,nz,j,i,iens) = tracers_limits_z(1,l,0 ,j,i,iens);
           }
         });
       } else if (bc_z == BC_WALL || bc_z == BC_OPEN) {
@@ -1336,16 +1249,16 @@ namespace modules {
                                           YAKL_LAMBDA (int j, int i, int iens) {
           for (int l=0; l < num_state; l++) {
             if ((l==idW || l==idV || l==idU) && bc_z == BC_WALL) {
-              state_limits(0,l,0 ,j,i,iens) = 0;  state_limits(1,l,0 ,j,i,iens) = 0;
-              state_limits(0,l,nz,j,i,iens) = 0;  state_limits(1,l,nz,j,i,iens) = 0;
+              state_limits_z(0,l,0 ,j,i,iens) = 0;  state_limits_z(1,l,0 ,j,i,iens) = 0;
+              state_limits_z(0,l,nz,j,i,iens) = 0;  state_limits_z(1,l,nz,j,i,iens) = 0;
             } else {
-              state_limits(0,l,0 ,j,i,iens) = state_limits(1,l,0 ,j,i,iens);
-              state_limits(1,l,nz,j,i,iens) = state_limits(0,l,nz,j,i,iens);
+              state_limits_z(0,l,0 ,j,i,iens) = state_limits_z(1,l,0 ,j,i,iens);
+              state_limits_z(1,l,nz,j,i,iens) = state_limits_z(0,l,nz,j,i,iens);
             }
           }
           for (int l=0; l < num_tracers; l++) {
-            tracers_limits(0,l,0 ,j,i,iens) = tracers_limits(1,l,0 ,j,i,iens);
-            tracers_limits(1,l,nz,j,i,iens) = tracers_limits(0,l,nz,j,i,iens);
+            tracers_limits_z(0,l,0 ,j,i,iens) = tracers_limits_z(1,l,0 ,j,i,iens);
+            tracers_limits_z(1,l,nz,j,i,iens) = tracers_limits_z(0,l,nz,j,i,iens);
           }
         });
       }
@@ -1353,167 +1266,126 @@ namespace modules {
 
 
 
-    void fct_mult_exchange_x( core::Coupler const &coupler ,
-                              real5d const &tracers_mult_x ) const {
+    void fct_mult_exchange( core::Coupler const &coupler ,
+                            real5d const &tracers_mult_x ,
+                            real5d const &tracers_mult_y ,
+                            real5d const &tracers_mult_z ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-
       auto nens        = coupler.get_nens();
       auto nx          = coupler.get_nx();
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto num_tracers = coupler.get_num_tracers();
       auto px          = coupler.get_px();
-      auto nproc_x     = coupler.get_nproc_x();
-      auto bc_x        = coupler.get_option<int>("bc_x");
-
-      int npack = num_tracers;
-      realHost4d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny,nens);
-      realHost4d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny,nens);
-      realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny,nens);
-      realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny,nens);
-      real4d     edge_send_buf_W     ("edge_send_buf_W"     ,npack,nz,ny,nens);
-      real4d     edge_send_buf_E     ("edge_send_buf_E"     ,npack,nz,ny,nens);
-      real4d     edge_recv_buf_W     ("edge_recv_buf_W"     ,npack,nz,ny,nens);
-      real4d     edge_recv_buf_E     ("edge_recv_buf_E"     ,npack,nz,ny,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int j, int iens) {
-        edge_send_buf_W(v,k,j,iens) = tracers_mult_x(v,k,j,0 ,iens);
-        edge_send_buf_E(v,k,j,iens) = tracers_mult_x(v,k,j,nx,iens);
-      });
-
-      yakl::fence();
-      yakl::timer_start("edge_exchange_mpi");
-
-      MPI_Request sReq [2];
-      MPI_Request rReq [2];
-      MPI_Status  sStat[2];
-      MPI_Status  rStat[2];
-
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
-      auto comm = MPI_COMM_WORLD;
-
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-      #else
-        MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
-        edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
-        edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-        edge_recv_buf_W_host.deep_copy_to(edge_recv_buf_W);
-        edge_recv_buf_E_host.deep_copy_to(edge_recv_buf_E);
-      #endif
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int j, int iens) {
-        tracers_mult_x(v,k,j,0 ,iens) = std::min( edge_recv_buf_W(v,k,j,iens) , tracers_mult_x(v,k,j,0 ,iens) );
-        tracers_mult_x(v,k,j,nx,iens) = std::min( edge_recv_buf_E(v,k,j,iens) , tracers_mult_x(v,k,j,nx,iens) );
-      });
-    }
-
-
-
-    void fct_mult_exchange_y( core::Coupler const &coupler ,
-                              real5d const &tracers_mult_y ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
       auto py          = coupler.get_py();
+      auto nproc_x     = coupler.get_nproc_x();
       auto nproc_y     = coupler.get_nproc_y();
+      auto bc_x        = coupler.get_option<int>("bc_x");
       auto bc_y        = coupler.get_option<int>("bc_y");
-
+      auto bc_z        = coupler.get_option<int>("bc_z");
+      auto &neigh      = coupler.get_neighbor_rankid_matrix();
+      auto dtype       = coupler.get_mpi_data_type();
+      auto comm = MPI_COMM_WORLD;
       int npack = num_tracers;
-      realHost4d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx,nens);
-      realHost4d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx,nens);
-      realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx,nens);
-      realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx,nens);
-      real4d     edge_send_buf_S     ("edge_send_buf_S"     ,npack,nz,nx,nens);
-      real4d     edge_send_buf_N     ("edge_send_buf_N"     ,npack,nz,nx,nens);
-      real4d     edge_recv_buf_S     ("edge_recv_buf_S"     ,npack,nz,nx,nens);
-      real4d     edge_recv_buf_N     ("edge_recv_buf_N"     ,npack,nz,nx,nens);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int i, int iens) {
-        edge_send_buf_S(v,k,i,iens) = tracers_mult_y(v,k,0 ,i,iens);
-        edge_send_buf_N(v,k,i,iens) = tracers_mult_y(v,k,ny,i,iens);
-      });
-
-      yakl::fence();
-      yakl::timer_start("edge_exchange_mpi");
-
       MPI_Request sReq [2];
       MPI_Request rReq [2];
       MPI_Status  sStat[2];
       MPI_Status  rStat[2];
 
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype = coupler.get_mpi_data_type();
-      auto comm = MPI_COMM_WORLD;
+      // x-direction exchange
+      {
+        real4d     edge_send_buf_W     ("edge_send_buf_W"     ,npack,nz,ny,nens);
+        real4d     edge_send_buf_E     ("edge_send_buf_E"     ,npack,nz,ny,nens);
+        real4d     edge_recv_buf_W     ("edge_recv_buf_W"     ,npack,nz,ny,nens);
+        real4d     edge_recv_buf_E     ("edge_recv_buf_E"     ,npack,nz,ny,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int iens) {
+          edge_send_buf_W(v,k,j,iens) = tracers_mult_x(v,k,j,0 ,iens);
+          edge_send_buf_E(v,k,j,iens) = tracers_mult_x(v,k,j,nx,iens);
+        });
+        yakl::timer_start("edge_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
+          MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+        #else
+          realHost4d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny,nens);
+          realHost4d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny,nens);
+          realHost4d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny,nens);
+          realHost4d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny,nens);
+          MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 8 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 9 , comm , &rReq[1] );
+          edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
+          edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
+          yakl::fence();
+          MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 9 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 8 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+          edge_recv_buf_W_host.deep_copy_to(edge_recv_buf_W);
+          edge_recv_buf_E_host.deep_copy_to(edge_recv_buf_E);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int iens) {
+          tracers_mult_x(v,k,j,0 ,iens) = std::min( edge_recv_buf_W(v,k,j,iens) , tracers_mult_x(v,k,j,0 ,iens) );
+          tracers_mult_x(v,k,j,nx,iens) = std::min( edge_recv_buf_E(v,k,j,iens) , tracers_mult_x(v,k,j,nx,iens) );
+        });
+      }
 
-      #ifdef MW_GPU_AWARE_MPI
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-      #else
-        MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
-        edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
-        edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi");
-        edge_recv_buf_S_host.deep_copy_to(edge_recv_buf_S);
-        edge_recv_buf_N_host.deep_copy_to(edge_recv_buf_N);
-      #endif
+      // y-direction exchange
+      {
+        real4d     edge_send_buf_S     ("edge_send_buf_S"     ,npack,nz,nx,nens);
+        real4d     edge_send_buf_N     ("edge_send_buf_N"     ,npack,nz,nx,nens);
+        real4d     edge_recv_buf_S     ("edge_recv_buf_S"     ,npack,nz,nx,nens);
+        real4d     edge_recv_buf_N     ("edge_recv_buf_N"     ,npack,nz,nx,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int i, int iens) {
+          edge_send_buf_S(v,k,i,iens) = tracers_mult_y(v,k,0 ,i,iens);
+          edge_send_buf_N(v,k,i,iens) = tracers_mult_y(v,k,ny,i,iens);
+        });
+        yakl::timer_start("edge_exchange_mpi");
+        #ifdef MW_GPU_AWARE_MPI
+          yakl::fence();
+          MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
+          MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+        #else
+          realHost4d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx,nens);
+          realHost4d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx,nens);
+          realHost4d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx,nens);
+          realHost4d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx,nens);
+          MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 10 , comm , &rReq[0] );
+          MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 11 , comm , &rReq[1] );
+          edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
+          edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
+          yakl::fence();
+          MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 11 , comm , &sReq[0] );
+          MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 10 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          yakl::timer_stop("edge_exchange_mpi");
+          edge_recv_buf_S_host.deep_copy_to(edge_recv_buf_S);
+          edge_recv_buf_N_host.deep_copy_to(edge_recv_buf_N);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int i, int iens) {
+          tracers_mult_y(v,k,0 ,i,iens) = std::min( edge_recv_buf_S(v,k,i,iens) , tracers_mult_y(v,k,0 ,i,iens) );
+          tracers_mult_y(v,k,ny,i,iens) = std::min( edge_recv_buf_N(v,k,i,iens) , tracers_mult_y(v,k,ny,i,iens) );
+        });
+      }
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,nx,nens) ,
-                                        YAKL_LAMBDA (int v, int k, int i, int iens) {
-        tracers_mult_y(v,k,0 ,i,iens) = std::min( edge_recv_buf_S(v,k,i,iens) , tracers_mult_y(v,k,0 ,i,iens) );
-        tracers_mult_y(v,k,ny,i,iens) = std::min( edge_recv_buf_N(v,k,i,iens) , tracers_mult_y(v,k,ny,i,iens) );
-      });
-    }
-
-
-
-    void fct_mult_exchange_z( core::Coupler const &coupler ,
-                              real5d const &tracers_mult_z ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto num_tracers = coupler.get_num_tracers();
-      auto bc_z        = coupler.get_option<int>("bc_z");
+      // z-direwciton exchange
       if (bc_z == BC_PERIODIC) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(ny,nx,nens) ,
                                           YAKL_LAMBDA (int j, int i, int iens) {
@@ -1525,6 +1397,7 @@ namespace modules {
         });
       }
     }
+
 
 
     // Creates initial data at a point in space for the rising moist thermal test case
@@ -1548,6 +1421,7 @@ namespace modules {
     }
 
 
+
     YAKL_INLINE static void hydro_const_bvf( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
                                              real &r, real &t ) {
       const real theta0 = 300.;  //Background potential temperature
@@ -1559,6 +1433,7 @@ namespace modules {
       real rt = std::pow((p / C0),(1._fp / gamma));     //rho*theta at z
       r = rt / t;                                       //Density at z
     }
+
 
 
     // Computes a hydrostatic background density and potential temperature using c constant potential temperature
@@ -1573,6 +1448,7 @@ namespace modules {
       real rt = std::pow((p / C0),(1._fp / gamma));     //rho*theta at z
       r = rt / t;                                       //Density at z
     }
+
 
 
     // Samples a 3-D ellipsoid at a point in space
@@ -1592,10 +1468,12 @@ namespace modules {
     }
 
 
+
     YAKL_INLINE static real saturation_vapor_pressure(real temp) {
       real tc = temp - 273.15;
       return 610.94 * std::exp( 17.625*tc / (243.04+tc) );
     }
+
 
 
     // Compute supercell temperature profile at a vertical location
@@ -1609,6 +1487,7 @@ namespace modules {
         return T_trop - lapse * (z - z_trop);
       }
     }
+
 
 
     // Compute supercell dry pressure profile at a vertical location
@@ -1635,6 +1514,7 @@ namespace modules {
     }
 
     
+
     // Compute supercell relative humidity profile at a vertical location
     YAKL_INLINE static real init_supercell_relhum(real z, real z_0, real z_trop) {
       if (z <= z_trop) {
@@ -1645,10 +1525,12 @@ namespace modules {
     }
 
 
+
     // Computes dry saturation mixing ratio
     YAKL_INLINE static real init_supercell_sat_mix_dry( real press , real T ) {
       return 380/(press) * exp( 17.27_fp * (T-273)/(T-36) );
     }
+
 
 
     // Initialize the class data as well as the state and tracers arrays and convert them back into the coupler state
@@ -2091,6 +1973,7 @@ namespace modules {
     }
 
 
+
     // Initialize the supercell test case
     void init_supercell( core::Coupler &coupler , real5d &state , real5d &tracers ) {
       using yakl::c::parallel_for;
@@ -2298,6 +2181,7 @@ namespace modules {
     }
 
 
+
     // Convert dynamics state and tracers arrays to the coupler state and write to the coupler's data
     void convert_dynamics_to_coupler( core::Coupler &coupler , realConst5d state , realConst5d tracers ) const {
       using yakl::c::parallel_for;
@@ -2359,6 +2243,7 @@ namespace modules {
     }
 
 
+
     // Convert coupler's data to state and tracers arrays
     void convert_coupler_to_dynamics( core::Coupler const &coupler , real5d &state , real5d &tracers ) const {
       using yakl::c::parallel_for;
@@ -2418,6 +2303,7 @@ namespace modules {
         }
       });
     }
+
 
 
     // Perform file output

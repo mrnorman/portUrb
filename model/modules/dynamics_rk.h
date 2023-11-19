@@ -1614,8 +1614,8 @@ namespace modules {
       auto tracer_names = coupler.get_tracer_names();  // Get a list of tracer names
       for (int tr=0; tr < num_tracers; tr++) {
         std::string tracer_desc;
-        bool        tracer_found, positive, adds_mass;
-        coupler.get_tracer_info( tracer_names[tr] , tracer_desc, tracer_found , positive , adds_mass);
+        bool        tracer_found, positive, adds_mass, diffuse;
+        coupler.get_tracer_info( tracer_names[tr] , tracer_desc, tracer_found , positive , adds_mass , diffuse );
         tracer_positive_host (tr) = positive;
         tracer_adds_mass_host(tr) = adds_mass;
         if (tracer_names[tr] == "water_vapor") idWV = tr;  // Be sure to track which index belongs to water vapor

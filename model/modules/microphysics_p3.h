@@ -104,16 +104,16 @@ namespace modules {
       int nz   = coupler.get_nz();
 
       // Register tracers in the coupler
-      //                 name                description            positive   adds mass
-      coupler.add_tracer("cloud_water"     , "Cloud Water Mass"   , true     , true );
-      coupler.add_tracer("cloud_water_num" , "Cloud Water Number" , true     , false);
-      coupler.add_tracer("rain"            , "Rain Water Mass"    , true     , true );
-      coupler.add_tracer("rain_num"        , "Rain Water Number"  , true     , false);
-      coupler.add_tracer("ice"             , "Ice Mass"           , true     , true );
-      coupler.add_tracer("ice_num"         , "Ice Number"         , true     , false);
-      coupler.add_tracer("ice_rime"        , "Ice-Rime Mass"      , true     , false);
-      coupler.add_tracer("ice_rime_vol"    , "Ice-Rime Volume"    , true     , false);
-      coupler.add_tracer("water_vapor"     , "Water Vapor"        , true     , true );
+      //                 name                description            positive   adds mass    diffuse
+      coupler.add_tracer("cloud_water"     , "Cloud Water Mass"   , true     , true       , true);
+      coupler.add_tracer("cloud_water_num" , "Cloud Water Number" , true     , false      , true);
+      coupler.add_tracer("rain"            , "Rain Water Mass"    , true     , true       , true);
+      coupler.add_tracer("rain_num"        , "Rain Water Number"  , true     , false      , true);
+      coupler.add_tracer("ice"             , "Ice Mass"           , true     , true       , true);
+      coupler.add_tracer("ice_num"         , "Ice Number"         , true     , false      , true);
+      coupler.add_tracer("ice_rime"        , "Ice-Rime Mass"      , true     , false      , true);
+      coupler.add_tracer("ice_rime_vol"    , "Ice-Rime Volume"    , true     , false      , true);
+      coupler.add_tracer("water_vapor"     , "Water Vapor"        , true     , true       , true);
 
       auto &dm = coupler.get_data_manager_readwrite();
 

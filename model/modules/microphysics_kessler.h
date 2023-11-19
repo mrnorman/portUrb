@@ -58,10 +58,10 @@ namespace modules {
       int nz   = coupler.get_nz();
 
       // Register tracers in the coupler
-      //                 name              description       positive   adds mass
-      coupler.add_tracer("water_vapor"   , "Water Vapor"   , true     , true);
-      coupler.add_tracer("cloud_liquid"  , "Cloud liquid"  , true     , true);
-      coupler.add_tracer("precip_liquid" , "precip_liquid" , true     , true);
+      //                 name              description       positive   adds mass    diffuse
+      coupler.add_tracer("water_vapor"   , "Water Vapor"   , true     , true       , true);
+      coupler.add_tracer("cloud_liquid"  , "Cloud liquid"  , true     , true       , true);
+      coupler.add_tracer("precip_liquid" , "precip_liquid" , true     , true       , true);
 
       auto &dm = coupler.get_data_manager_readwrite();
 

@@ -52,8 +52,8 @@ int main(int argc, char** argv) {
     custom_modules::Horizontal_Sponge          horiz_sponge;
     custom_modules::Time_Averager              time_averager;
 
-    coupler.add_tracer("water_vapor","water_vapor",true,true );
-    coupler.add_tracer("pollution1" , ""          ,true,false);
+    coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
+    coupler.add_tracer("pollution1" , ""          ,true,false,true);
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
     coupler.get_data_manager_readwrite().get<real,4>("pollution1" ) = 0;
 

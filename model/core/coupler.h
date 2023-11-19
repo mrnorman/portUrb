@@ -50,6 +50,7 @@ namespace core {
       std::string desc;
       bool        positive;
       bool        adds_mass;
+      bool        diffuse;
     };
     std::vector<Tracer> tracers;
 
@@ -320,13 +321,17 @@ namespace core {
     }
 
     
-    int add_tracer( std::string tracer_name , std::string tracer_desc , bool positive , bool adds_mass ) {
+    int add_tracer( std::string tracer_name      ,
+                    std::string tracer_desc = "" ,
+                    bool positive  = true        ,
+                    bool adds_mass = false       ,
+                    bool diffuse   = true        ) {
       int nz   = get_nz();
       int ny   = get_ny();
       int nx   = get_nx();
       int nens = get_nens();
       dm.register_and_allocate<real>( tracer_name , tracer_desc , {nz,ny,nx,nens} , {"z","y","x","nens"} );
-      tracers.push_back( { tracer_name , tracer_desc , positive , adds_mass } );
+      tracers.push_back( { tracer_name , tracer_desc , positive , adds_mass , diffuse } );
       return tracers.size()-1;
     }
 
@@ -339,13 +344,14 @@ namespace core {
 
     
     void get_tracer_info(std::string tracer_name , std::string &tracer_desc, bool &tracer_found ,
-                         bool &positive , bool &adds_mass) const {
+                         bool &positive , bool &adds_mass, bool &diffuse) const {
       std::vector<std::string> ret;
       for (int i=0; i < tracers.size(); i++) {
         if (tracer_name == tracers[i].name) {
-          positive     = tracers[i].positive ;
-          tracer_desc  = tracers[i].desc     ;
-          adds_mass    = tracers[i].adds_mass;
+          positive    = tracers[i].positive ;
+          tracer_desc = tracers[i].desc     ;
+          adds_mass   = tracers[i].adds_mass;
+          diffuse     = tracers[i].diffuse  ;
           tracer_found = true;
           return;
         }

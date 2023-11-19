@@ -1,9 +1,11 @@
 
 #include "coupler.h"
-#include "dynamics_rk.h"
+#include "dynamics_ader.h"
 #include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
+#include "sc_init.h"
+#include "sc_output.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -30,6 +32,7 @@ int main(int argc, char** argv) {
     auto ylen      = config["ylen"    ].as<real>();
     auto zlen      = config["zlen"    ].as<real>();
     auto dtphys_in = config["dt_phys" ].as<real>();
+    auto out_freq  = config["out_freq"].as<real>();
 
     coupler.set_option<std::string>( "out_prefix"      , config["out_prefix"      ].as<std::string>() );
     coupler.set_option<std::string>( "init_data"       , config["init_data"       ].as<std::string>() );
@@ -57,12 +60,17 @@ int main(int argc, char** argv) {
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
     coupler.get_data_manager_readwrite().get<real,4>("pollution1" ) = 0;
 
+    real etime = 0;   // Elapsed time
+    int num_out = 0;
+    int file_counter = 0;
+
+    custom_modules::sc_init  ( coupler );
+    custom_modules::sc_output( coupler , etime , file_counter );
+
     // Run the initialization modules
     dycore       .init( coupler ); // Dycore should initialize its own state here
     horiz_sponge .init( coupler , 10 , 1. );
     time_averager.init( coupler );
-
-    real etime = 0;   // Elapsed time
 
     real dtphys = dtphys_in;
     while (etime < sim_time) {
@@ -77,6 +85,29 @@ int main(int argc, char** argv) {
       time_averager.accumulate( coupler , dtphys );
 
       etime += dtphys; // Advance elapsed time
+
+      if (out_freq >= 0. && etime / out_freq >= num_out+1) {
+        custom_modules::sc_output( coupler , etime , file_counter );
+        num_out++;
+        // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
+        auto &dm = coupler.get_data_manager_readonly();
+        auto u = dm.get_collapsed<real const>("uvel");
+        auto v = dm.get_collapsed<real const>("vvel");
+        auto w = dm.get_collapsed<real const>("wvel");
+        auto mag = u.createDeviceObject();
+        yakl::c::parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
+          mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
+        });
+        real wind_mag_loc = yakl::intrinsics::maxval(mag);
+        real wind_mag;
+        auto mpi_data_type = coupler.get_mpi_data_type();
+        MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
+        if (coupler.is_mainproc()) {
+          std::cout << "Etime , dtphys, wind_mag: " << std::scientific << std::setw(10) << etime    << " , " 
+                                                    << std::scientific << std::setw(10) << dtphys   << " , "
+                                                    << std::scientific << std::setw(10) << wind_mag << std::endl;
+        }
+      }
     }
 
     time_averager.finalize( coupler );

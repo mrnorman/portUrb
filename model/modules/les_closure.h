@@ -11,35 +11,14 @@ namespace modules {
     int static constexpr num_state = 5;
 
 
-    void init( core::Coupler &coupler , real dt ) {
+    void init( core::Coupler &coupler ) {
       coupler.add_tracer( "TKE" , "mass-weighted TKE" , true , false , false );
       coupler.get_data_manager_readwrite().get<real,4>("TKE") = 0;
-      if (! coupler.option_exists("R_d" )) coupler.set_option<real>("R_d" ,287. );
-      if (! coupler.option_exists("cp_d")) coupler.set_option<real>("cp_d",1003.);
-      if (! coupler.option_exists("R_v" )) coupler.set_option<real>("R_v" ,461. );
-      if (! coupler.option_exists("cp_v")) coupler.set_option<real>("cp_v",1859 );
-      if (! coupler.option_exists("p0"  )) coupler.set_option<real>("p0"  ,1.e5 );
-      if (! coupler.option_exists("grav")) coupler.set_option<real>("grav",9.81 );
-      auto R_d  = coupler.get_option<real>("R_d" );
-      auto cp_d = coupler.get_option<real>("cp_d");
-      auto R_v  = coupler.get_option<real>("R_v" );
-      auto cp_v = coupler.get_option<real>("cp_v");
-      auto p0   = coupler.get_option<real>("p0"  );
-      auto grav = coupler.get_option<real>("grav");
-      if (! coupler.option_exists("cv_d"   )) coupler.set_option<real>("cv_d"   ,cp_d - R_d );
-      auto cv_d = coupler.get_option<real>("cv_d");
-      if (! coupler.option_exists("gamma_d")) coupler.set_option<real>("gamma_d",cp_d / cv_d);
-      if (! coupler.option_exists("kappa_d")) coupler.set_option<real>("kappa_d",R_d  / cp_d);
-      if (! coupler.option_exists("cv_v"   )) coupler.set_option<real>("cv_v"   ,R_v - cp_v );
-      auto gamma = coupler.get_option<real>("gamma_d");
-      auto kappa = coupler.get_option<real>("kappa_d");
-      if (! coupler.option_exists("C0")) coupler.set_option<real>("C0" , pow( R_d * pow( p0 , -kappa ) , gamma ));
-      auto C0    = coupler.get_option<real>("C0");
     }
 
 
 
-    void apply( core::Coupler &coupler ) {
+    void apply( core::Coupler &coupler , real dtphys ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       auto nx    = coupler.get_nx  ();
@@ -74,21 +53,25 @@ namespace modules {
 
       halo_exchange( coupler , state , tracers , tke );
 
-      real4d flux_ru_x     ("flux_ru_x"                 ,nz,ny,nx+1,nens);
-      real4d flux_rv_x     ("flux_rv_x"                 ,nz,ny,nx+1,nens);
-      real4d flux_rw_x     ("flux_rw_x"                 ,nz,ny,nx+1,nens);
-      real4d flux_rt_x     ("flux_rt_x"                 ,nz,ny,nx+1,nens);
-      real5d flux_tracers_x("flux_tracers_x",num_tracers,nz,ny,nx+1,nens);
-      real4d flux_ru_y     ("flux_ru_y"                 ,nz,ny+1,nx,nens);
-      real4d flux_rv_y     ("flux_rv_y"                 ,nz,ny+1,nx,nens);
-      real4d flux_rw_y     ("flux_rw_y"                 ,nz,ny+1,nx,nens);
-      real4d flux_rt_y     ("flux_rt_y"                 ,nz,ny+1,nx,nens);
-      real5d flux_tracers_y("flux_tracers_y",num_tracers,nz,ny+1,nx,nens);
-      real4d flux_ru_z     ("flux_ru_z"                 ,nz+1,ny,nx,nens);
-      real4d flux_rv_z     ("flux_rv_z"                 ,nz+1,ny,nx,nens);
-      real4d flux_rw_z     ("flux_rw_z"                 ,nz+1,ny,nx,nens);
-      real4d flux_rt_z     ("flux_rt_z"                 ,nz+1,ny,nx,nens);
-      real5d flux_tracers_z("flux_tracers_z",num_tracers,nz+1,ny,nx,nens);
+      real4d flux_ru_x     ("flux_ru_x"                 ,nz  ,ny  ,nx+1,nens);
+      real4d flux_rv_x     ("flux_rv_x"                 ,nz  ,ny  ,nx+1,nens);
+      real4d flux_rw_x     ("flux_rw_x"                 ,nz  ,ny  ,nx+1,nens);
+      real4d flux_rt_x     ("flux_rt_x"                 ,nz  ,ny  ,nx+1,nens);
+      real4d flux_tke_x    ("flux_tke_x"                ,nz  ,ny  ,nx+1,nens);
+      real5d flux_tracers_x("flux_tracers_x",num_tracers,nz  ,ny  ,nx+1,nens);
+      real4d flux_ru_y     ("flux_ru_y"                 ,nz  ,ny+1,nx  ,nens);
+      real4d flux_rv_y     ("flux_rv_y"                 ,nz  ,ny+1,nx  ,nens);
+      real4d flux_rw_y     ("flux_rw_y"                 ,nz  ,ny+1,nx  ,nens);
+      real4d flux_rt_y     ("flux_rt_y"                 ,nz  ,ny+1,nx  ,nens);
+      real4d flux_tke_y    ("flux_tke_y"                ,nz  ,ny+1,nx  ,nens);
+      real5d flux_tracers_y("flux_tracers_y",num_tracers,nz  ,ny+1,nx  ,nens);
+      real4d flux_ru_z     ("flux_ru_z"                 ,nz+1,ny  ,nx  ,nens);
+      real4d flux_rv_z     ("flux_rv_z"                 ,nz+1,ny  ,nx  ,nens);
+      real4d flux_rw_z     ("flux_rw_z"                 ,nz+1,ny  ,nx  ,nens);
+      real4d flux_rt_z     ("flux_rt_z"                 ,nz+1,ny  ,nx  ,nens);
+      real4d flux_tke_z    ("flux_tke_z"                ,nz+1,ny  ,nx  ,nens);
+      real5d flux_tracers_z("flux_tracers_z",num_tracers,nz+1,ny  ,nx  ,nens);
+      real4d tke_source    ("tke_source"                ,nz  ,ny  ,nx  ,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny+1,nx+1,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -101,7 +84,7 @@ namespace modules {
           real N     = grav/t*dt_dz;
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
-          real Pr    = 1+2*ell/delta;
+          real Pr    = delta / (1+2*ell);
           real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1) - state(idU,hs+k,hs+j-1,hs+i-1))/(2*dy) +
                                   (state(idU,hs+k,hs+j+1,hs+i  ) - state(idU,hs+k,hs+j-1,hs+i  ))/(2*dy) );
           real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1) - state(idU,hs+k-1,hs+j,hs+i-1))/(2*dz) +
@@ -110,10 +93,12 @@ namespace modules {
           real dv_dx = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j,hs+i-1))/dx;
           real dw_dx = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j,hs+i-1))/dx;
           real dt_dx = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j,hs+i-1))/dx;
-          flux_ru_x(k,j,i,iens) = -rho*km   *(du_dx + du_dx);
-          flux_rv_x(k,j,i,iens) = -rho*km   *(dv_dx + du_dy);
-          flux_rw_x(k,j,i,iens) = -rho*km   *(dw_dx + du_dz);
-          flux_rt_x(k,j,i,iens) = -rho*km/Pr* dt_dx;
+          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j,hs+i-1))/dx;
+          flux_ru_x (k,j,i,iens) = -rho*km   *(du_dx + du_dx);
+          flux_rv_x (k,j,i,iens) = -rho*km   *(dv_dx + du_dy);
+          flux_rw_x (k,j,i,iens) = -rho*km   *(dw_dx + du_dz);
+          flux_rt_x (k,j,i,iens) = -rho*km/Pr*dt_dx;
+          flux_tke_x(k,j,i,iens) = -rho*km*2* dK_dx;
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dx = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j,hs+i-1))/dx;
             flux_tracers_x(tr,k,j,i,iens) = -rho*km/Pr*dt_dx;
@@ -128,7 +113,7 @@ namespace modules {
           real N     = grav/t*dt_dz;
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
-          real Pr    = 1+2*ell/delta;
+          real Pr    = delta / (1+2*ell);
           real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1) - state(idV,hs+k,hs+j-1,hs+i-1))/(2*dx) +
                                   (state(idV,hs+k,hs+j  ,hs+i+1) - state(idV,hs+k,hs+j  ,hs+i-1))/(2*dx) );
           real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i) - state(idV,hs+k-1,hs+j-1,hs+i))/(2*dz) +
@@ -137,10 +122,12 @@ namespace modules {
           real dv_dy = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j-1,hs+i))/dy;
           real dw_dy = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j-1,hs+i))/dy;
           real dt_dy = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j-1,hs+i))/dy;
-          flux_ru_y(k,j,i,iens) = -rho*km   *(du_dy + dv_dx);
-          flux_rv_y(k,j,i,iens) = -rho*km   *(dv_dy + dv_dy);
-          flux_rw_y(k,j,i,iens) = -rho*km   *(dw_dy + dv_dz);
-          flux_rt_y(k,j,i,iens) = -rho*km/Pr* dt_dy;
+          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j-1,hs+i))/dy;
+          flux_ru_y (k,j,i,iens) = -rho*km   *(du_dy + dv_dx);
+          flux_rv_y (k,j,i,iens) = -rho*km   *(dv_dy + dv_dy);
+          flux_rw_y (k,j,i,iens) = -rho*km   *(dw_dy + dv_dz);
+          flux_rt_y (k,j,i,iens) = -rho*km/Pr*dt_dy;
+          flux_tke_y(k,j,i,iens) = -rho*km*2 *dK_dy;
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dy = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j-1,hs+i))/dy;
             flux_tracers_y(tr,k,j,i,iens) = -rho*km/Pr*dt_dy;
@@ -154,7 +141,7 @@ namespace modules {
           real N     = grav/t*dt_dz;
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
-          real Pr    = 1+2*ell/delta;
+          real Pr    = delta / (1+2*ell);
           real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1) - state(idW,hs+k-1,hs+j,hs+i-1))/(2*dx) +
                                   (state(idW,hs+k  ,hs+j,hs+i+1) - state(idW,hs+k  ,hs+j,hs+i-1))/(2*dx) );
           real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i) - state(idW,hs+k-1,hs+j-1,hs+i))/(2*dy) +
@@ -162,29 +149,96 @@ namespace modules {
           real du_dz = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i))/dz;
           real dv_dz = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i))/dz;
           real dw_dz = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i))/dz;
-          flux_ru_z(k,j,i,iens) = -rho*km   *(du_dz + dw_dx);
-          flux_rv_z(k,j,i,iens) = -rho*km   *(dv_dz + dw_dy);
-          flux_rw_z(k,j,i,iens) = -rho*km   *(dw_dz + dw_dz);
-          flux_rt_z(k,j,i,iens) = -rho*km/Pr* dt_dz;
+          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k-1,hs+j,hs+i))/dz;
+          flux_ru_z (k,j,i,iens) = -rho*km   *(du_dz + dw_dx);
+          flux_rv_z (k,j,i,iens) = -rho*km   *(dv_dz + dw_dy);
+          flux_rw_z (k,j,i,iens) = -rho*km   *(dw_dz + dw_dz);
+          flux_rt_z (k,j,i,iens) = -rho*km/Pr*dt_dz;
+          flux_tke_z(k,j,i,iens) = -rho*km*2 *dK_dz;
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dz = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k-1,hs+j,hs+i))/dz;
             flux_tracers_z(tr,k,j,i,iens) = -rho*km/Pr*dt_dz;
           }
         }
+        if (i < nx && j < ny && k < nz) {
+          real rho   = state(idR,hs+k,hs+j,hs+i,iens);
+          real K     = tke      (hs+k,hs+j,hs+i,iens);
+          real t     = state(idT,hs+k,hs+j,hs+i,iens);
+          real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
+          real N     = grav/t*dt_dz;
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
+          real km    = 0.1_fp * ell * std::sqrt(K);
+          real Pr    = delta / (1+2*ell);
+          // Compute tke cell-averaged source
+          // Buoyancy source
+          real dK_dz = ( tke(hs+k+1,hs+j,hs+i,iens) - tke(hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          tke_source(k,j,i,iens) = -(grav*rho*km)/(t*Pr)*dK_dz;
+          // TKE dissipation
+          tke_source(k,j,i,iens) -= rho*(0.19_fp+0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+          // SGS diffusion of TKE (turbulent transport)
+          real du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1) - state(idU,hs+k,hs+j,hs+i-1) ) / (2*dx);
+          real du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1) - state(idV,hs+k,hs+j,hs+i-1) ) / (2*dx);
+          real du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1) - state(idW,hs+k,hs+j,hs+i-1) ) / (2*dx);
+          real du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i) - state(idU,hs+k,hs+j-1,hs+i) ) / (2*dy);
+          real du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i) - state(idV,hs+k,hs+j-1,hs+i) ) / (2*dy);
+          real du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i) - state(idW,hs+k,hs+j-1,hs+i) ) / (2*dy);
+          real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i) ) / (2*dz);
+          real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i) ) / (2*dz);
+          real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i) ) / (2*dz);
+          real term_j1 = (du1_dx1+du1_dx1 + du2_dx1+du1_dx2 + du3_dx1+du1_dx3)*du1_dx1;
+          real term_j2 = (du1_dx2+du2_dx1 + du2_dx2+du2_dx2 + du3_dx2+du2_dx3)*du2_dx2;
+          real term_j3 = (du1_dx3+du3_dx1 + du2_dx3+du3_dx2 + du3_dx3+du3_dx3)*du3_dx3;
+          tke_source(k,j,i,iens) += rho*km*(term_j1 + term_j2 + term_j3);
+        }
       });
+
+      real4d tend_ru     ("tend_ru"                 ,nz,ny,nx,nens);
+      real4d tend_rv     ("tend_rv"                 ,nz,ny,nx,nens);
+      real4d tend_rw     ("tend_rw"                 ,nz,ny,nx,nens);
+      real4d tend_rt     ("tend_rt"                 ,nz,ny,nx,nens);
+      real4d tend_tke    ("tend_tke"                ,nz,ny,nx,nens);
+      real5d tend_tracers("tend_tracers",num_tracers,nz,ny,nx,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real tend_ru  = -(flux_ru_x (k,j,i+1,iens) - flux_ru_x (k,j,i,iens)) / dx -
+                         (flux_ru_y (k,j+1,i,iens) - flux_ru_y (k,j,i,iens)) / dy -
+                         (flux_ru_z (k+1,j,i,iens) - flux_ru_z (k,j,i,iens)) / dz;
+        real tend_rv  = -(flux_rv_x (k,j,i+1,iens) - flux_rv_x (k,j,i,iens)) / dx -
+                         (flux_rv_y (k,j+1,i,iens) - flux_rv_y (k,j,i,iens)) / dy -
+                         (flux_rv_z (k+1,j,i,iens) - flux_rv_z (k,j,i,iens)) / dz;
+        real tend_rw  = -(flux_rw_x (k,j,i+1,iens) - flux_rw_x (k,j,i,iens)) / dx -
+                         (flux_rw_y (k,j+1,i,iens) - flux_rw_y (k,j,i,iens)) / dy -
+                         (flux_rw_z (k+1,j,i,iens) - flux_rw_z (k,j,i,iens)) / dz;
+        real tend_rt  = -(flux_rt_x (k,j,i+1,iens) - flux_rt_x (k,j,i,iens)) / dx -
+                         (flux_rt_y (k,j+1,i,iens) - flux_rt_y (k,j,i,iens)) / dy -
+                         (flux_rt_z (k+1,j,i,iens) - flux_rt_z (k,j,i,iens)) / dz;
+        real tend_tke = -(flux_tke_x(k,j,i+1,iens) - flux_tke_x(k,j,i,iens)) / dx -
+                         (flux_tke_y(k,j+1,i,iens) - flux_tke_y(k,j,i,iens)) / dy -
+                         (flux_tke_z(k+1,j,i,iens) - flux_tke_z(k,j,i,iens)) / dz + tke_source(k,j,i,iens);
+
         state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idU,hs+k,hs+j,hs+i,iens) += dtpys * tend_ru ;
+
         state(idV,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idV,hs+k,hs+j,hs+i,iens) += dtpys * tend_rv ;
+
         state(idW,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idW,hs+k,hs+j,hs+i,iens) += dtpys * tend_rw ;
+
         state(idT,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+        state(idT,hs+k,hs+j,hs+i,iens) += dtpys * tend_rt ;
+
         tke      (hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens); }
+        tke      (hs+k,hs+j,hs+i,iens) += dtpys * tend_tke;
+
+        for (int tr=0; tr < num_tracers; tr++) {
+          real tend_tracer = -(flux_tracers_x(tr,k,j,i+1,iens) - flux_tracers_x(tr,k,j,i,iens)) / dx -
+                              (flux_tracers_y(tr,k,j+1,i,iens) - flux_tracers_y(tr,k,j,i,iens)) / dy -
+                              (flux_tracers_z(tr,k+1,j,i,iens) - flux_tracers_z(tr,k,j,i,iens)) / dz;
+          tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
+          tracers(tr,hs+k,hs+j,hs+i,iens) += dtphys * tend_tracer;
+        }
       });
-
-
-
-
 
       convert_dynamics_to_coupler( coupler , state , tracers , tke );
     }

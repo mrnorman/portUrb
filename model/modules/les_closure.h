@@ -9,6 +9,11 @@ namespace modules {
   struct LES_Closure {
     int static constexpr hs        = 1;
     int static constexpr num_state = 5;
+    int static constexpr idR = 0;
+    int static constexpr idU = 1;
+    int static constexpr idV = 2;
+    int static constexpr idW = 3;
+    int static constexpr idT = 4;
 
 
     void init( core::Coupler &coupler ) {
@@ -41,15 +46,6 @@ namespace modules {
       real4d tke;
       convert_coupler_to_dynamics( coupler , state , tracers , tke );
       auto num_tracers = tracers.extent(0);
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        state(idU,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idV,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idW,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idT,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
-        tke      (hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens);
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) /= state(idR,hs+k,hs+j,hs+i,iens); }
-      });
 
       halo_exchange( coupler , state , tracers , tke );
 
@@ -85,22 +81,22 @@ namespace modules {
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1) - state(idU,hs+k,hs+j-1,hs+i-1))/(2*dy) +
-                                  (state(idU,hs+k,hs+j+1,hs+i  ) - state(idU,hs+k,hs+j-1,hs+i  ))/(2*dy) );
-          real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1) - state(idU,hs+k-1,hs+j,hs+i-1))/(2*dz) +
-                                  (state(idU,hs+k+1,hs+j,hs+i  ) - state(idU,hs+k-1,hs+j,hs+i  ))/(2*dz) );
-          real du_dx = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j,hs+i-1))/dx;
-          real dv_dx = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j,hs+i-1))/dx;
-          real dw_dx = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j,hs+i-1))/dx;
-          real dt_dx = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j,hs+i-1))/dx;
-          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j,hs+i-1))/dx;
+          real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1,iens) - state(idU,hs+k,hs+j-1,hs+i-1,iens))/(2*dy) +
+                                  (state(idU,hs+k,hs+j+1,hs+i  ,iens) - state(idU,hs+k,hs+j-1,hs+i  ,iens))/(2*dy) );
+          real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1,iens) - state(idU,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
+                                  (state(idU,hs+k+1,hs+j,hs+i  ,iens) - state(idU,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+          real du_dx = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dv_dx = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dw_dx = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dt_dx = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dK_dx = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k,hs+j,hs+i-1,iens))/dx;
           flux_ru_x (k,j,i,iens) = -rho*km   *(du_dx + du_dx);
           flux_rv_x (k,j,i,iens) = -rho*km   *(dv_dx + du_dy);
           flux_rw_x (k,j,i,iens) = -rho*km   *(dw_dx + du_dz);
           flux_rt_x (k,j,i,iens) = -rho*km/Pr*dt_dx;
           flux_tke_x(k,j,i,iens) = -rho*km*2* dK_dx;
           for (int tr=0; tr < num_tracers; tr++) {
-            dt_dx = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j,hs+i-1))/dx;
+            dt_dx = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j,hs+i-1,iens))/dx;
             flux_tracers_x(tr,k,j,i,iens) = -rho*km/Pr*dt_dx;
           }
         }
@@ -114,22 +110,22 @@ namespace modules {
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1) - state(idV,hs+k,hs+j-1,hs+i-1))/(2*dx) +
-                                  (state(idV,hs+k,hs+j  ,hs+i+1) - state(idV,hs+k,hs+j  ,hs+i-1))/(2*dx) );
-          real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i) - state(idV,hs+k-1,hs+j-1,hs+i))/(2*dz) +
-                                  (state(idV,hs+k+1,hs+j  ,hs+i) - state(idV,hs+k-1,hs+j  ,hs+i))/(2*dz) );
-          real du_dy = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j-1,hs+i))/dy;
-          real dv_dy = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j-1,hs+i))/dy;
-          real dw_dy = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j-1,hs+i))/dy;
-          real dt_dy = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j-1,hs+i))/dy;
-          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j-1,hs+i))/dy;
+          real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1,iens) - state(idV,hs+k,hs+j-1,hs+i-1,iens))/(2*dx) +
+                                  (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(2*dx) );
+          real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i,iens) - state(idV,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
+                                  (state(idV,hs+k+1,hs+j  ,hs+i,iens) - state(idV,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+          real du_dy = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dv_dy = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dw_dy = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dt_dy = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dK_dy = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k,hs+j-1,hs+i,iens))/dy;
           flux_ru_y (k,j,i,iens) = -rho*km   *(du_dy + dv_dx);
           flux_rv_y (k,j,i,iens) = -rho*km   *(dv_dy + dv_dy);
           flux_rw_y (k,j,i,iens) = -rho*km   *(dw_dy + dv_dz);
           flux_rt_y (k,j,i,iens) = -rho*km/Pr*dt_dy;
           flux_tke_y(k,j,i,iens) = -rho*km*2 *dK_dy;
           for (int tr=0; tr < num_tracers; tr++) {
-            dt_dy = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j-1,hs+i))/dy;
+            dt_dy = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j-1,hs+i,iens))/dy;
             flux_tracers_y(tr,k,j,i,iens) = -rho*km/Pr*dt_dy;
           }
         }
@@ -142,21 +138,21 @@ namespace modules {
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1) - state(idW,hs+k-1,hs+j,hs+i-1))/(2*dx) +
-                                  (state(idW,hs+k  ,hs+j,hs+i+1) - state(idW,hs+k  ,hs+j,hs+i-1))/(2*dx) );
-          real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i) - state(idW,hs+k-1,hs+j-1,hs+i))/(2*dy) +
-                                  (state(idW,hs+k  ,hs+j+1,hs+i) - state(idW,hs+k  ,hs+j-1,hs+i))/(2*dy) );
-          real du_dz = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i))/dz;
-          real dv_dz = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i))/dz;
-          real dw_dz = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i))/dz;
-          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k-1,hs+j,hs+i))/dz;
+          real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1,iens) - state(idW,hs+k-1,hs+j,hs+i-1,iens))/(2*dx) +
+                                  (state(idW,hs+k  ,hs+j,hs+i+1,iens) - state(idW,hs+k  ,hs+j,hs+i-1,iens))/(2*dx) );
+          real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i,iens) - state(idW,hs+k-1,hs+j-1,hs+i,iens))/(2*dy) +
+                                  (state(idW,hs+k  ,hs+j+1,hs+i,iens) - state(idW,hs+k  ,hs+j-1,hs+i,iens))/(2*dy) );
+          real du_dz = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens))/dz;
+          real dv_dz = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens))/dz;
+          real dw_dz = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens))/dz;
+          real dK_dz = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k-1,hs+j,hs+i,iens))/dz;
           flux_ru_z (k,j,i,iens) = -rho*km   *(du_dz + dw_dx);
           flux_rv_z (k,j,i,iens) = -rho*km   *(dv_dz + dw_dy);
           flux_rw_z (k,j,i,iens) = -rho*km   *(dw_dz + dw_dz);
           flux_rt_z (k,j,i,iens) = -rho*km/Pr*dt_dz;
           flux_tke_z(k,j,i,iens) = -rho*km*2 *dK_dz;
           for (int tr=0; tr < num_tracers; tr++) {
-            dt_dz = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k-1,hs+j,hs+i))/dz;
+            dt_dz = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k-1,hs+j,hs+i,iens))/dz;
             flux_tracers_z(tr,k,j,i,iens) = -rho*km/Pr*dt_dz;
           }
         }
@@ -174,17 +170,17 @@ namespace modules {
           real dK_dz = ( tke(hs+k+1,hs+j,hs+i,iens) - tke(hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
           tke_source(k,j,i,iens) = -(grav*rho*km)/(t*Pr)*dK_dz;
           // TKE dissipation
-          tke_source(k,j,i,iens) -= rho*(0.19_fp+0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+          tke_source(k,j,i,iens) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
           // SGS diffusion of TKE (turbulent transport)
-          real du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1) - state(idU,hs+k,hs+j,hs+i-1) ) / (2*dx);
-          real du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1) - state(idV,hs+k,hs+j,hs+i-1) ) / (2*dx);
-          real du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1) - state(idW,hs+k,hs+j,hs+i-1) ) / (2*dx);
-          real du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i) - state(idU,hs+k,hs+j-1,hs+i) ) / (2*dy);
-          real du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i) - state(idV,hs+k,hs+j-1,hs+i) ) / (2*dy);
-          real du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i) - state(idW,hs+k,hs+j-1,hs+i) ) / (2*dy);
-          real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i) ) / (2*dz);
-          real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i) ) / (2*dz);
-          real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i) ) / (2*dz);
+          real du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
           real term_j1 = (du1_dx1+du1_dx1 + du2_dx1+du1_dx2 + du3_dx1+du1_dx3)*du1_dx1;
           real term_j2 = (du1_dx2+du2_dx1 + du2_dx2+du2_dx2 + du3_dx2+du2_dx3)*du2_dx2;
           real term_j3 = (du1_dx3+du3_dx1 + du2_dx3+du3_dx2 + du3_dx3+du3_dx3)*du3_dx3;
@@ -217,19 +213,19 @@ namespace modules {
                          (flux_tke_z(k+1,j,i,iens) - flux_tke_z(k,j,i,iens)) / dz + tke_source(k,j,i,iens);
 
         state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idU,hs+k,hs+j,hs+i,iens) += dtpys * tend_ru ;
+        state(idU,hs+k,hs+j,hs+i,iens) += dtphys * tend_ru ;
 
         state(idV,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idV,hs+k,hs+j,hs+i,iens) += dtpys * tend_rv ;
+        state(idV,hs+k,hs+j,hs+i,iens) += dtphys * tend_rv ;
 
         state(idW,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idW,hs+k,hs+j,hs+i,iens) += dtpys * tend_rw ;
+        state(idW,hs+k,hs+j,hs+i,iens) += dtphys * tend_rw ;
 
         state(idT,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        state(idT,hs+k,hs+j,hs+i,iens) += dtpys * tend_rt ;
+        state(idT,hs+k,hs+j,hs+i,iens) += dtphys * tend_rt ;
 
         tke      (hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-        tke      (hs+k,hs+j,hs+i,iens) += dtpys * tend_tke;
+        tke      (hs+k,hs+j,hs+i,iens) += dtphys * tend_tke;
 
         for (int tr=0; tr < num_tracers; tr++) {
           real tend_tracer = -(flux_tracers_x(tr,k,j,i+1,iens) - flux_tracers_x(tr,k,j,i,iens)) / dx -
@@ -267,15 +263,16 @@ namespace modules {
       auto dm_vvel      = dm.get<real const,4>("vvel"       );
       auto dm_wvel      = dm.get<real const,4>("wvel"       );
       auto dm_temp      = dm.get<real const,4>("temp"       );
-      // Gather all tracer, set idTKE, and set tracer_adds_mass
       int idTKE = -1;
       core::MultiField<real const,4> dm_tracers;
       for (int tr=0; tr < tracer_names.size(); tr++) {
         std::string tracer_desc;
         bool        tracer_found, positive, adds_mass, diffuse;
         coupler.get_tracer_info( tracer_names[tr] , tracer_desc, tracer_found , positive , adds_mass , diffuse );
-        if (diffuse) dm_diffuse_tracers.add_field( dm.get<real const,4>(tracer_names[tr]) );
-        if (tracers[tr] == "TKE") idTKE = tr;
+        if (diffuse) {
+          dm_tracers.add_field( dm.get<real const,4>(tracer_names[tr]) );
+        }
+        if (tracer_names[tr] == "TKE") idTKE = dm_tracers.size()-1;
       }
       auto num_tracers = dm_tracers.size();
       state   = real5d("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
@@ -284,12 +281,12 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real rho_d = dm_rho_d(k,j,i,iens);
         state(idR,hs+k,hs+j,hs+i,iens) = rho_d;
-        state(idU,hs+k,hs+j,hs+i,iens) = rho_d * dm_uvel (k,j,i,iens);
-        state(idV,hs+k,hs+j,hs+i,iens) = rho_d * dm_vvel (k,j,i,iens);
-        state(idW,hs+k,hs+j,hs+i,iens) = rho_d * dm_wvel (k,j,i,iens);
-        state(idT,hs+k,hs+j,hs+i,iens) = rho_d * pow( rho_d*R_d*dm_temp(k,j,i,iens)/C0 , 1._fp / gamma ) / rho_d;
-        tke      (hs+k,hs+j,hs+i,iens) = dm_tracers(idTKE,k,j,i,iens);
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) = dm_tracers(tr,k,j,i,iens); }
+        state(idU,hs+k,hs+j,hs+i,iens) = dm_uvel (k,j,i,iens);
+        state(idV,hs+k,hs+j,hs+i,iens) = dm_vvel (k,j,i,iens);
+        state(idW,hs+k,hs+j,hs+i,iens) = dm_wvel (k,j,i,iens);
+        state(idT,hs+k,hs+j,hs+i,iens) = pow( rho_d*R_d*dm_temp(k,j,i,iens)/C0 , 1._fp / gamma ) / rho_d;
+        tke      (hs+k,hs+j,hs+i,iens) = dm_tracers(idTKE,k,j,i,iens)/rho_d;
+        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) = dm_tracers(tr,k,j,i,iens)/rho_d; }
       });
     }
 
@@ -317,15 +314,16 @@ namespace modules {
       auto dm_vvel      = dm.get<real,4>("vvel"       );
       auto dm_wvel      = dm.get<real,4>("wvel"       );
       auto dm_temp      = dm.get<real,4>("temp"       );
-      // Gather all tracer, set idTKE, and set tracer_adds_mass
       int idTKE = -1;
       core::MultiField<real,4> dm_tracers;
       for (int tr=0; tr < tracer_names.size(); tr++) {
         std::string tracer_desc;
         bool        tracer_found, positive, adds_mass, diffuse;
         coupler.get_tracer_info( tracer_names[tr] , tracer_desc, tracer_found , positive , adds_mass , diffuse );
-        if (diffuse) dm_diffuse_tracers.add_field( dm.get<real,4>(tracer_names[tr]) );
-        if (tracers[tr] == "TKE") idTKE = tr;
+        if (diffuse) {
+          dm_tracers.add_field( dm.get<real,4>(tracer_names[tr]) );
+        }
+        if (tracer_names[tr] == "TKE") idTKE = dm_tracers.size()-1;
       }
       auto num_tracers = dm_tracers.size();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -353,14 +351,11 @@ namespace modules {
       auto ny             = coupler.get_ny();
       auto nz             = coupler.get_nz();
       auto dz             = coupler.get_dz();
-      auto num_tracers    = coupler.get_num_tracers();
+      auto num_tracers    = tracers.extent(0);
       auto px             = coupler.get_px();
       auto py             = coupler.get_py();
       auto nproc_x        = coupler.get_nproc_x();
       auto nproc_y        = coupler.get_nproc_y();
-      auto bc_x           = coupler.get_option<int >("bc_x");
-      auto bc_y           = coupler.get_option<int>("bc_y");
-      auto bc_z           = coupler.get_option<int >("bc_z");
       auto &neigh         = coupler.get_neighbor_rankid_matrix();
       auto dtype          = coupler.get_mpi_data_type();
       auto enable_gravity = coupler.get_option<bool>("enable_gravity");
@@ -499,63 +494,73 @@ namespace modules {
       }
 
       // x-direction non-periodic BC's
-      if (bc_x == BC_WALL || bc_x == BC_OPEN) {
+      auto bc_x = coupler.get_option<std::string>("bc_x");
+      bool wall = bc_x == "wall";
+      bool open = bc_x == "open";
+      if (wall || open) {
         if (px == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
                                             YAKL_LAMBDA (int k, int j, int ii, int iens) {
-            state(idR,hs+k,hs+j,ii,iens) =                     state(idR,hs+k,hs+j,hs+0,iens);
-            state(idU,hs+k,hs+j,ii,iens) = bc_x==BC_WALL ? 0 : state(idU,hs+k,hs+j,hs+0,iens);
-            state(idV,hs+k,hs+j,ii,iens) = bc_x==BC_WALL ? 0 : state(idV,hs+k,hs+j,hs+0,iens);
-            state(idW,hs+k,hs+j,ii,iens) = bc_x==BC_WALL ? 0 : state(idW,hs+k,hs+j,hs+0,iens);
-            state(idT,hs+k,hs+j,ii,iens) =                     state(idT,hs+k,hs+j,hs+0,iens);
-            tke      (hs+k,hs+j,ii,iens) = bc_x==BC_WALL ? 0 : tke      (hs+k,hs+j,hs+0,iens);
+            state(idR,hs+k,hs+j,ii,iens) =            state(idR,hs+k,hs+j,hs+0,iens);
+            state(idU,hs+k,hs+j,ii,iens) = wall ? 0 : state(idU,hs+k,hs+j,hs+0,iens);
+            state(idV,hs+k,hs+j,ii,iens) = wall ? 0 : state(idV,hs+k,hs+j,hs+0,iens);
+            state(idW,hs+k,hs+j,ii,iens) = wall ? 0 : state(idW,hs+k,hs+j,hs+0,iens);
+            state(idT,hs+k,hs+j,ii,iens) =            state(idT,hs+k,hs+j,hs+0,iens);
+            tke      (hs+k,hs+j,ii,iens) = wall ? 0 : tke      (hs+k,hs+j,hs+0,iens);
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,ii,iens) = tracers(l,hs+k,hs+j,hs+0,iens); }
           });
         }
         if (px == nproc_x-1) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
                                             YAKL_LAMBDA (int k, int j, int ii, int iens) {
-            state(idR,hs+k,hs+j,hs+nx+ii,iens) =                     state(idR,hs+k,hs+j,hs+nx-1,iens);
-            state(idU,hs+k,hs+j,hs+nx+ii,iens) = bc_x==BC_WALL ? 0 : state(idU,hs+k,hs+j,hs+nx-1,iens);
-            state(idV,hs+k,hs+j,hs+nx+ii,iens) = bc_x==BC_WALL ? 0 : state(idV,hs+k,hs+j,hs+nx-1,iens);
-            state(idW,hs+k,hs+j,hs+nx+ii,iens) = bc_x==BC_WALL ? 0 : state(idW,hs+k,hs+j,hs+nx-1,iens);
-            state(idT,hs+k,hs+j,hs+nx+ii,iens) =                     state(idT,hs+k,hs+j,hs+nx-1,iens);
-            tke      (hs+k,hs+j,hs+nx+ii,iens) = bc_x==BC_WALL ? 0 : tke      (hs+k,hs+j,hs+nx-1,iens);
+            state(idR,hs+k,hs+j,hs+nx+ii,iens) =            state(idR,hs+k,hs+j,hs+nx-1,iens);
+            state(idU,hs+k,hs+j,hs+nx+ii,iens) = wall ? 0 : state(idU,hs+k,hs+j,hs+nx-1,iens);
+            state(idV,hs+k,hs+j,hs+nx+ii,iens) = wall ? 0 : state(idV,hs+k,hs+j,hs+nx-1,iens);
+            state(idW,hs+k,hs+j,hs+nx+ii,iens) = wall ? 0 : state(idW,hs+k,hs+j,hs+nx-1,iens);
+            state(idT,hs+k,hs+j,hs+nx+ii,iens) =            state(idT,hs+k,hs+j,hs+nx-1,iens);
+            tke      (hs+k,hs+j,hs+nx+ii,iens) = wall ? 0 : tke      (hs+k,hs+j,hs+nx-1,iens);
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+nx+ii,iens) = tracers(l,hs+k,hs+j,hs+nx-1,iens); }
           });
         }
       }
 
       //y-direction non-periodic BC's
-      if (bc_y == BC_WALL || bc_y == BC_OPEN) {
+      auto bc_y = coupler.get_option<std::string>("bc_y");
+      wall = bc_y == "wall";
+      open = bc_y == "open";
+      if (wall || open) {
         if (py == 0) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
                                             YAKL_LAMBDA (int k, int jj, int i, int iens) {
-            state(idR,hs+k,jj,i,iens) =                     state(idR,hs+k,hs+0,i,iens);
-            state(idU,hs+k,jj,i,iens) = bc_y==BC_WALL ? 0 : state(idU,hs+k,hs+0,i,iens);
-            state(idV,hs+k,jj,i,iens) = bc_y==BC_WALL ? 0 : state(idV,hs+k,hs+0,i,iens);
-            state(idW,hs+k,jj,i,iens) = bc_y==BC_WALL ? 0 : state(idW,hs+k,hs+0,i,iens);
-            state(idT,hs+k,jj,i,iens) =                     state(idT,hs+k,hs+0,i,iens);
-            tke      (hs+k,jj,i,iens) = bc_y==BC_WALL ? 0 : tke      (hs+k,hs+0,i,iens);
+            state(idR,hs+k,jj,i,iens) =            state(idR,hs+k,hs+0,i,iens);
+            state(idU,hs+k,jj,i,iens) = wall ? 0 : state(idU,hs+k,hs+0,i,iens);
+            state(idV,hs+k,jj,i,iens) = wall ? 0 : state(idV,hs+k,hs+0,i,iens);
+            state(idW,hs+k,jj,i,iens) = wall ? 0 : state(idW,hs+k,hs+0,i,iens);
+            state(idT,hs+k,jj,i,iens) =            state(idT,hs+k,hs+0,i,iens);
+            tke      (hs+k,jj,i,iens) = wall ? 0 : tke      (hs+k,hs+0,i,iens);
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,jj,i,iens) = tracers(l,hs+k,hs+0,i,iens); }
           });
         }
         if (py == nproc_y-1) {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
                                             YAKL_LAMBDA (int k, int jj, int i, int iens) {
-            state(idR,hs+k,hs+ny+jj,i,iens) =                     state(idR,hs+k,hs+ny-1,i,iens);
-            state(idU,hs+k,hs+ny+jj,i,iens) = bc_y==BC_WALL ? 0 : state(idU,hs+k,hs+ny-1,i,iens);
-            state(idV,hs+k,hs+ny+jj,i,iens) = bc_y==BC_WALL ? 0 : state(idV,hs+k,hs+ny-1,i,iens);
-            state(idW,hs+k,hs+ny+jj,i,iens) = bc_y==BC_WALL ? 0 : state(idW,hs+k,hs+ny-1,i,iens);
-            state(idT,hs+k,hs+ny+jj,i,iens) =                     state(idT,hs+k,hs+ny-1,i,iens);
-            tke      (hs+k,hs+ny+jj,i,iens) = bc_y==BC_WALL ? 0 : tke      (hs+k,hs+ny-1,i,iens);
+            state(idR,hs+k,hs+ny+jj,i,iens) =            state(idR,hs+k,hs+ny-1,i,iens);
+            state(idU,hs+k,hs+ny+jj,i,iens) = wall ? 0 : state(idU,hs+k,hs+ny-1,i,iens);
+            state(idV,hs+k,hs+ny+jj,i,iens) = wall ? 0 : state(idV,hs+k,hs+ny-1,i,iens);
+            state(idW,hs+k,hs+ny+jj,i,iens) = wall ? 0 : state(idW,hs+k,hs+ny-1,i,iens);
+            state(idT,hs+k,hs+ny+jj,i,iens) =            state(idT,hs+k,hs+ny-1,i,iens);
+            tke      (hs+k,hs+ny+jj,i,iens) = wall ? 0 : tke      (hs+k,hs+ny-1,i,iens);
             for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+ny+jj,i,iens) = tracers(l,hs+k,hs+ny-1,i,iens); }
           });
         }
       }
 
       // z-direction BC's
-      if (bc_z == BC_PERIODIC) {
+      auto bc_z = coupler.get_option<std::string>("bc_z");
+      bool periodic = bc_z == "periodic";
+      wall     = bc_z == "wall";
+      open     = bc_z == "open";
+      if (periodic) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
           for (int l=0; l < num_state; l++) {
@@ -569,19 +574,19 @@ namespace modules {
             tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+nz+kk-nz,j,i,iens);
           }
         });
-      } else if (bc_z == BC_WALL || bc_z == BC_OPEN) {
+      } else if (wall || open) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
-          state(idU,      kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idU,hs+0   ,j,i,iens);
-          state(idV,      kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idV,hs+0   ,j,i,iens);
-          state(idW,      kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idW,hs+0   ,j,i,iens);
-          state(idT,      kk,j,i,iens) =                     state(idT,hs+0   ,j,i,iens);
-          tke  (          kk,j,i,iens) = bc_z==BC_WALL ? 0 : tke  (    hs+0   ,j,i,iens);
-          state(idU,hs+nz+kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idU,hs+nz-1,j,i,iens);
-          state(idV,hs+nz+kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idV,hs+nz-1,j,i,iens);
-          state(idW,hs+nz+kk,j,i,iens) = bc_z==BC_WALL ? 0 : state(idW,hs+nz-1,j,i,iens);
-          state(idT,hs+nz+kk,j,i,iens) =                     state(idT,hs+nz-1,j,i,iens);
-          tke  (    hs+nz+kk,j,i,iens) = bc_z==BC_WALL ? 0 : tke  (    hs+nz-1,j,i,iens);
+          state(idU,      kk,j,i,iens) = wall ? 0 : state(idU,hs+0   ,j,i,iens);
+          state(idV,      kk,j,i,iens) = wall ? 0 : state(idV,hs+0   ,j,i,iens);
+          state(idW,      kk,j,i,iens) = wall ? 0 : state(idW,hs+0   ,j,i,iens);
+          state(idT,      kk,j,i,iens) =            state(idT,hs+0   ,j,i,iens);
+          tke  (          kk,j,i,iens) = wall ? 0 : tke  (    hs+0   ,j,i,iens);
+          state(idU,hs+nz+kk,j,i,iens) = wall ? 0 : state(idU,hs+nz-1,j,i,iens);
+          state(idV,hs+nz+kk,j,i,iens) = wall ? 0 : state(idV,hs+nz-1,j,i,iens);
+          state(idW,hs+nz+kk,j,i,iens) = wall ? 0 : state(idW,hs+nz-1,j,i,iens);
+          state(idT,hs+nz+kk,j,i,iens) =            state(idT,hs+nz-1,j,i,iens);
+          tke  (    hs+nz+kk,j,i,iens) = wall ? 0 : tke  (    hs+nz-1,j,i,iens);
           for (int l=0; l < num_tracers; l++) {
             tracers(l,      kk,j,i,iens) = tracers(l,hs+0   ,j,i,iens);
             tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+nz-1,j,i,iens);

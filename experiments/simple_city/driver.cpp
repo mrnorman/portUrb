@@ -6,6 +6,7 @@
 #include "sponge_layer.h"
 #include "sc_init.h"
 #include "sc_output.h"
+#include "les_closure.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -54,6 +55,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Horizontal_Sponge          horiz_sponge;
     custom_modules::Time_Averager              time_averager;
+    modules::LES_Closure                       les_closure;
 
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.add_tracer("pollution1" , ""          ,true,false,true);
@@ -68,6 +70,7 @@ int main(int argc, char** argv) {
     custom_modules::sc_output( coupler , etime , file_counter );
 
     // Run the initialization modules
+    les_closure  .init( coupler );
     dycore       .init( coupler ); // Dycore should initialize its own state here
     horiz_sponge .init( coupler , 10 , 1. );
     time_averager.init( coupler );
@@ -81,6 +84,7 @@ int main(int argc, char** argv) {
 
       horiz_sponge.apply      ( coupler , dtphys , true , true , false , false );
       dycore.time_step        ( coupler , dtphys );  // Move the flow forward according to the Euler equations
+      les_closure.apply       ( coupler , dtphys );
       modules::sponge_layer   ( coupler , dtphys , 1 );
       time_averager.accumulate( coupler , dtphys );
 

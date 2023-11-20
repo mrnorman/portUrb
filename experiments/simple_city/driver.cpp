@@ -1,7 +1,7 @@
 
 #include "coupler.h"
 #include "dynamics_rk.h"
-#include "horizontal_sponge.h"
+#include "domain_nudger.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
 #include "sc_init.h"
@@ -53,7 +53,6 @@ int main(int argc, char** argv) {
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
-    custom_modules::Horizontal_Sponge          horiz_sponge;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
 
@@ -70,7 +69,6 @@ int main(int argc, char** argv) {
     custom_modules::sc_init  ( coupler );
     les_closure  .init( coupler );
     dycore       .init( coupler ); // Dycore should initialize its own state here
-    horiz_sponge .init( coupler , 10 , 1. );
     time_averager.init( coupler );
 
     custom_modules::sc_output( coupler , etime , file_counter );
@@ -82,11 +80,11 @@ int main(int argc, char** argv) {
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
-      horiz_sponge.apply      ( coupler , dtphys , true , true , false , false );
-      dycore.time_step        ( coupler , dtphys );  // Move the flow forward according to the Euler equations
-      les_closure.apply       ( coupler , dtphys );
-      modules::sponge_layer   ( coupler , dtphys , 1 );
-      time_averager.accumulate( coupler , dtphys );
+      custom_modules::nudge_winds( coupler , dtphys , 20 , 0 , 1 );
+      dycore.time_step           ( coupler , dtphys );
+      les_closure.apply          ( coupler , dtphys );
+      modules::sponge_layer      ( coupler , dtphys , 1 );
+      time_averager.accumulate   ( coupler , dtphys );
 
       etime += dtphys; // Advance elapsed time
 

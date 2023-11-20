@@ -8,10 +8,12 @@ namespace custom_modules {
     real etime;
 
     void init(core::Coupler &coupler) {
-      auto nens = coupler.get_nens();
-      auto nx   = coupler.get_nx();
-      auto ny   = coupler.get_ny();
-      auto nz   = coupler.get_nz();
+      auto nens         = coupler.get_nens();
+      auto nx           = coupler.get_nx();
+      auto ny           = coupler.get_ny();
+      auto nz           = coupler.get_nz();
+      auto tracer_names = coupler.get_tracer_names();
+      int  num_tracers  = tracer_names.size();
 
       auto &dm = coupler.get_data_manager_readwrite();
 
@@ -20,14 +22,16 @@ namespace custom_modules {
       dm.register_and_allocate<real>("time_avg_vvel"       ,"",{nz,ny,nx,nens});
       dm.register_and_allocate<real>("time_avg_wvel"       ,"",{nz,ny,nx,nens});
       dm.register_and_allocate<real>("time_avg_temp"       ,"",{nz,ny,nx,nens});
-      dm.register_and_allocate<real>("time_avg_water_vapor","",{nz,ny,nx,nens});
+      for (int tr=0; tr < num_tracers; tr++) {
+        dm.register_and_allocate<real>(std::string("time_avg_")+tracer_names[tr],"",{nz,ny,nx,nens});
+      }
 
       dm.get<real,4>("time_avg_density_dry") = 0;
       dm.get<real,4>("time_avg_uvel"       ) = 0;
       dm.get<real,4>("time_avg_vvel"       ) = 0;
       dm.get<real,4>("time_avg_wvel"       ) = 0;
       dm.get<real,4>("time_avg_temp"       ) = 0;
-      dm.get<real,4>("time_avg_water_vapor") = 0;
+      for (int tr=0; tr < num_tracers; tr++) { dm.get<real,4>(std::string("time_avg_")+tracer_names[tr]) = 0; }
 
       etime = 0.;
     }
@@ -36,10 +40,12 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
-      auto nens = coupler.get_nens();
-      auto nx   = coupler.get_nx();
-      auto ny   = coupler.get_ny();
-      auto nz   = coupler.get_nz();
+      auto nens         = coupler.get_nens();
+      auto nx           = coupler.get_nx();
+      auto ny           = coupler.get_ny();
+      auto nz           = coupler.get_nz();
+      auto tracer_names = coupler.get_tracer_names();
+      int  num_tracers  = tracer_names.size();
 
       auto &dm = coupler.get_data_manager_readwrite();
 
@@ -48,14 +54,20 @@ namespace custom_modules {
       auto vvel  = dm.get<real const,4>("vvel"       );
       auto wvel  = dm.get<real const,4>("wvel"       );
       auto temp  = dm.get<real const,4>("temp"       );
-      auto rho_v = dm.get<real const,4>("water_vapor");
+      core::MultiField<real const,4> tracers;
+      for (int tr=0; tr < num_tracers; tr++) {
+        tracers.add_field( dm.get<real const,4>(tracer_names[tr]) );
+      }
 
       auto tavg_rho_d = dm.get<real,4>("time_avg_density_dry");
       auto tavg_uvel  = dm.get<real,4>("time_avg_uvel"       );
       auto tavg_vvel  = dm.get<real,4>("time_avg_vvel"       );
       auto tavg_wvel  = dm.get<real,4>("time_avg_wvel"       );
       auto tavg_temp  = dm.get<real,4>("time_avg_temp"       );
-      auto tavg_rho_v = dm.get<real,4>("time_avg_water_vapor");
+      core::MultiField<real,4> tavg_tracers;
+      for (int tr=0; tr < num_tracers; tr++) {
+        tavg_tracers.add_field( dm.get<real,4>(std::string("time_avg_")+tracer_names[tr]) );
+      }
 
       double inertia = etime / (etime + dt);
 
@@ -66,7 +78,9 @@ namespace custom_modules {
         tavg_vvel (k,j,i,iens) = inertia * tavg_vvel (k,j,i,iens) + (1-inertia) * vvel (k,j,i,iens);
         tavg_wvel (k,j,i,iens) = inertia * tavg_wvel (k,j,i,iens) + (1-inertia) * wvel (k,j,i,iens);
         tavg_temp (k,j,i,iens) = inertia * tavg_temp (k,j,i,iens) + (1-inertia) * temp (k,j,i,iens);
-        tavg_rho_v(k,j,i,iens) = inertia * tavg_rho_v(k,j,i,iens) + (1-inertia) * rho_v(k,j,i,iens);
+        for (int tr=0; tr < num_tracers; tr++) {
+          tavg_tracers(tr,k,j,i,iens) = inertia * tavg_tracers(tr,k,j,i,iens) + (1-inertia) * tracers(tr,k,j,i,iens);
+        }
       });
       
       etime += dt;
@@ -76,17 +90,19 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
-      int  nx_glob = coupler.get_nx_glob();
-      int  ny_glob = coupler.get_ny_glob();
-      auto nens    = coupler.get_nens();
-      auto nx      = coupler.get_nx();
-      auto ny      = coupler.get_ny();
-      auto nz      = coupler.get_nz();
-      auto dx      = coupler.get_dx();
-      auto dy      = coupler.get_dy();
-      auto dz      = coupler.get_dz();
-      int  i_beg   = coupler.get_i_beg();
-      int  j_beg   = coupler.get_j_beg();
+      int  nx_glob      = coupler.get_nx_glob();
+      int  ny_glob      = coupler.get_ny_glob();
+      auto nens         = coupler.get_nens();
+      auto nx           = coupler.get_nx();
+      auto ny           = coupler.get_ny();
+      auto nz           = coupler.get_nz();
+      auto dx           = coupler.get_dx();
+      auto dy           = coupler.get_dy();
+      auto dz           = coupler.get_dz();
+      int  i_beg        = coupler.get_i_beg();
+      int  j_beg        = coupler.get_j_beg();
+      auto tracer_names = coupler.get_tracer_names();
+      int  num_tracers  = tracer_names.size();
 
       auto &dm = coupler.get_data_manager_readonly();
 
@@ -112,7 +128,7 @@ namespace custom_modules {
       nc.create_var<real>( "vvel"        , {"z","y","x"} );
       nc.create_var<real>( "wvel"        , {"z","y","x"} );
       nc.create_var<real>( "temp"        , {"z","y","x"} );
-      nc.create_var<real>( "water_vapor" , {"z","y","x"} );
+      for (int tr=0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , {"z","y","x"} ); }
 
       nc.enddef();
 
@@ -135,13 +151,20 @@ namespace custom_modules {
       }
       nc.end_indep_data();
 
-      std::vector<std::string> varnames = {"density_dry","uvel","vvel","wvel","temp","water_vapor"};
+      std::vector<std::string> varnames = {"density_dry","uvel","vvel","wvel","temp"};
 
-      for (int i=0; i < varnames.size(); i++) {
+      for (int l=0; l < varnames.size(); l++) {
         real3d data("data",nz,ny,nx);
-        auto var = dm.get<real const,4>(std::string("time_avg_")+varnames[i]);
+        auto var = dm.get<real const,4>(std::string("time_avg_")+varnames[l]);
         parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {  data(k,j,i) = var(k,j,i,0); });
-        nc.write_all(data.createHostCopy(),varnames[i],{0,j_beg,i_beg});
+        nc.write_all(data.createHostCopy(),varnames[l],{0,j_beg,i_beg});
+      }
+
+      for (int tr=0; tr < num_tracers; tr++) {
+        real3d data("data",nz,ny,nx);
+        auto var = dm.get<real const,4>(std::string("time_avg_")+tracer_names[tr]);
+        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {  data(k,j,i) = var(k,j,i,0); });
+        nc.write_all(data.createHostCopy(),tracer_names[tr],{0,j_beg,i_beg});
       }
 
       nc.close();

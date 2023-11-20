@@ -54,7 +54,6 @@ namespace custom_modules {
     nc.create_var<real>( "vvel"        , {"t","z","y","x"} );
     nc.create_var<real>( "wvel"        , {"t","z","y","x"} );
     nc.create_var<real>( "temperature" , {"t","z","y","x"} );
-    nc.create_var<real>( "theta"       , {"t","z","y","x"} );
     nc.create_var<real>( "immersed"    , {"t","z","y","x"} );
     auto tracer_names = coupler.get_tracer_names();
     for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , {"t","z","y","x"} ); }

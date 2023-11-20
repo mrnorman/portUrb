@@ -180,15 +180,15 @@ namespace modules {
           real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
           real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
           real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real j1_i1 = (du1_dx1 + du1_dx1)*du1_dx1;
-          real j1_i2 = (du2_dx1 + du1_dx2)*du2_dx1;
-          real j1_i3 = (du3_dx1 + du1_dx3)*du3_dx1;
-          real j2_i1 = (du1_dx2 + du2_dx1)*du1_dx2;
-          real j2_i2 = (du2_dx2 + du2_dx2)*du2_dx2;
-          real j2_i3 = (du3_dx2 + du2_dx3)*du3_dx2;
-          real j3_i1 = (du1_dx3 + du3_dx1)*du1_dx3;
-          real j3_i2 = (du2_dx3 + du3_dx2)*du2_dx3;
-          real j3_i3 = (du3_dx3 + du3_dx3)*du3_dx3;
+          real j1_i1 = (du1_dx1 + du1_dx1) * du1_dx1;
+          real j1_i2 = (du2_dx1 + du1_dx2) * du2_dx1;
+          real j1_i3 = (du3_dx1 + du1_dx3) * du3_dx1;
+          real j2_i1 = (du1_dx2 + du2_dx1) * du1_dx2;
+          real j2_i2 = (du2_dx2 + du2_dx2) * du2_dx2;
+          real j2_i3 = (du3_dx2 + du2_dx3) * du3_dx2;
+          real j3_i1 = (du1_dx3 + du3_dx1) * du1_dx3;
+          real j3_i2 = (du2_dx3 + du3_dx2) * du2_dx3;
+          real j3_i3 = (du3_dx3 + du3_dx3) * du3_dx3;
           tke_source(k,j,i,iens) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
         }
       });

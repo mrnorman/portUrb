@@ -171,19 +171,25 @@ namespace modules {
           // TKE dissipation
           tke_source(k,j,i,iens) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
           // Shear production
-          real du_dx = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real dv_dx = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real dw_dx = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real du_dy = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real dv_dy = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real dw_dy = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real du_dz = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real dv_dz = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real dw_dz = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real term_j1 = (du_dx+du_dx + dv_dx+du_dy + dw_dx+du_dz)*du_dx;
-          real term_j2 = (du_dy+dv_dx + dv_dy+dv_dy + dw_dy+dv_dz)*dv_dy;
-          real term_j3 = (du_dz+dw_dx + dv_dz+dw_dy + dw_dz+dw_dz)*dw_dz;
-          tke_source(k,j,i,iens) += rho*km*(term_j1 + term_j2 + term_j3);
+          real du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          real du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real j1_i1 = (du1_dx1 + du1_dx1)*du1_dx1;
+          real j1_i2 = (du2_dx1 + du1_dx2)*du2_dx1;
+          real j1_i3 = (du3_dx1 + du1_dx3)*du3_dx1;
+          real j2_i1 = (du1_dx2 + du2_dx1)*du1_dx2;
+          real j2_i2 = (du2_dx2 + du2_dx2)*du2_dx2;
+          real j2_i3 = (du3_dx2 + du2_dx3)*du3_dx2;
+          real j3_i1 = (du1_dx3 + du3_dx1)*du1_dx3;
+          real j3_i2 = (du2_dx3 + du3_dx2)*du2_dx3;
+          real j3_i3 = (du3_dx3 + du3_dx3)*du3_dx3;
+          tke_source(k,j,i,iens) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
         }
       });
 

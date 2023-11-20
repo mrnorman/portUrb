@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_ader.h"
+#include "dynamics_rk.h"
 #include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
@@ -66,14 +66,14 @@ int main(int argc, char** argv) {
     int num_out = 0;
     int file_counter = 0;
 
-    custom_modules::sc_init  ( coupler );
-    custom_modules::sc_output( coupler , etime , file_counter );
-
     // Run the initialization modules
+    custom_modules::sc_init  ( coupler );
     les_closure  .init( coupler );
     dycore       .init( coupler ); // Dycore should initialize its own state here
     horiz_sponge .init( coupler , 10 , 1. );
     time_averager.init( coupler );
+
+    custom_modules::sc_output( coupler , etime , file_counter );
 
     real dtphys = dtphys_in;
     while (etime < sim_time) {

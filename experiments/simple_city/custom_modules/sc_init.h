@@ -173,7 +173,7 @@ namespace custom_modules {
               real y = (j+j_beg+0.5)*dy + (qpoints(jj)-0.5)*dy;   if (sim2d) y = ylen/2;
               real z = (k      +0.5)*dz + (qpoints(kk)-0.5)*dz;
               real rho, u, v, w, theta, rho_v, hr, ht;
-              if (enable_gravity) { modules::profiles::hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
+              if (enable_gravity) { modules::profiles::hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
               else                { hr = 1.15;     ht = 300;                              }
               rho   = hr;
               u     = 20;

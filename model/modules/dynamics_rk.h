@@ -1490,8 +1490,6 @@ namespace modules {
         }
         pressure_mult_host.deep_copy_to(pressure_mult);
         coupler.set_option<bool>("save_pressure_z",false);
-        using yakl::componentwise::operator-;
-        std::cout << std::scientific << (pressure_mult_host-1);
       }
     }
 

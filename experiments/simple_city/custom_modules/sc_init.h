@@ -193,11 +193,11 @@ namespace custom_modules {
             }
           }
         }
-        real x0 = 0.3*nx_glob;
+        real x0 = 0.2*nx_glob;
         real y0 = 0.5*ny_glob;
         real xr = 0.05*ny_glob;
         real yr = 0.05*ny_glob;
-        if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && k <= 0.2*nz ) {
+        if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && k <= 0.3*nz ) {
           dm_immersed_proportion(k,j,i,iens) = 1;
           dm_uvel               (k,j,i,iens) = 0;
           dm_vvel               (k,j,i,iens) = 0;

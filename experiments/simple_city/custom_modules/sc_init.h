@@ -205,6 +205,61 @@ namespace custom_modules {
         }
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "cube") {
+
+      coupler.set_option<bool>("enable_gravity",false);
+      coupler.set_option<bool>("use_immersed_boundaries",true);
+      coupler.add_option<std::string>("bc_x","periodic");
+      coupler.add_option<std::string>("bc_y","periodic");
+      coupler.add_option<std::string>("bc_z","periodic");
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+        dm_rho_d(k,j,i,iens) = 0;
+        dm_uvel (k,j,i,iens) = 0;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = 0;
+        dm_rho_v(k,j,i,iens) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          for (int jj=0; jj<nqpoints; jj++) {
+            for (int ii=0; ii<nqpoints; ii++) {
+              real x = (i+i_beg+0.5)*dx + (qpoints(ii)-0.5)*dx;
+              real y = (j+j_beg+0.5)*dy + (qpoints(jj)-0.5)*dy;   if (sim2d) y = ylen/2;
+              real z = (k      +0.5)*dz + (qpoints(kk)-0.5)*dz;
+              real hr    = 1.15;
+              real ht    = 300;
+              real rho   = hr;
+              real u     = 10;
+              real v     = 0;
+              real w     = 0;
+              real theta = ht;
+              real rho_v = 0;
+              real T     = C0*std::pow(rho*theta,gamma)/(rho*R_d);
+              if (sim2d) v = 0;
+              real wt = qweights(ii)*qweights(jj)*qweights(kk);
+              dm_rho_d(k,j,i,iens) += rho   * wt;
+              dm_uvel (k,j,i,iens) += u     * wt;
+              dm_vvel (k,j,i,iens) += v     * wt;
+              dm_wvel (k,j,i,iens) += w     * wt;
+              dm_temp (k,j,i,iens) += T     * wt;
+              dm_rho_v(k,j,i,iens) += rho_v * wt;
+            }
+          }
+        }
+        real x0 = 0.2*nx_glob;
+        real y0 = 0.5*ny_glob;
+        real z0 = 0.5*nz;
+        real xr = 0.1*ny_glob;
+        real yr = 0.1*ny_glob;
+        real zr = 0.1*ny_glob;
+        if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && std::abs(k-z0) <= zr ) {
+          dm_immersed_proportion(k,j,i,iens) = 1;
+          dm_uvel               (k,j,i,iens) = 0;
+          dm_vvel               (k,j,i,iens) = 0;
+          dm_wvel               (k,j,i,iens) = 0;
+        }
+      });
     }
 
   }

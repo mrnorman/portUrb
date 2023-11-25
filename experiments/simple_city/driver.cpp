@@ -2,6 +2,7 @@
 #include "coupler.h"
 #include "dynamics_rk.h"
 #include "domain_nudger.h"
+#include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
 #include "sc_init.h"
@@ -55,6 +56,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
+    custom_modules::Horizontal_Sponge          horiz_sponge;
 
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.add_tracer("pollution1" , ""          ,true,false,true);
@@ -70,6 +72,7 @@ int main(int argc, char** argv) {
     les_closure  .init( coupler );
     dycore       .init( coupler ); // Dycore should initialize its own state here
     time_averager.init( coupler );
+    horiz_sponge .init( coupler );
 
     custom_modules::sc_output( coupler , etime , file_counter );
 
@@ -80,10 +83,11 @@ int main(int argc, char** argv) {
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
-      custom_modules::nudge_winds( coupler , dtphys , 20 , 0 , 1 );
+      custom_modules::nudge_winds( coupler , dtphys , 1 , 10 , 0 , 0 );
+      horiz_sponge.apply         ( coupler , dtphys , true , true , false , false );
       dycore.time_step           ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );
-      modules::sponge_layer      ( coupler , dtphys , 1 );
+      // modules::sponge_layer      ( coupler , dtphys , 1 );
       time_averager.accumulate   ( coupler , dtphys );
 
       etime += dtphys; // Advance elapsed time

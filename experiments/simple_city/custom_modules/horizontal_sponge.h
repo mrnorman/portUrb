@@ -102,11 +102,14 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
-      auto nens  = coupler.get_nens();
-      auto nx    = coupler.get_nx();
-      auto ny    = coupler.get_ny();
-      auto nz    = coupler.get_nz();
-      auto j_beg = coupler.get_j_beg();
+      auto nens    = coupler.get_nens();
+      auto nx      = coupler.get_nx();
+      auto ny      = coupler.get_ny();
+      auto nz      = coupler.get_nz();
+      auto i_beg   = coupler.get_i_beg();
+      auto j_beg   = coupler.get_j_beg();
+      auto nx_glob = coupler.get_nx_glob();
+      auto ny_glob = coupler.get_ny_glob();
 
       real R_d   = coupler.get_option<real>("R_d" );
       real cp_d  = coupler.get_option<real>("cp_d");
@@ -151,13 +154,22 @@ namespace custom_modules {
           if ((j_beg+j == ny/2-(3*ny)/8  ||
                j_beg+j == ny/2-(2*ny)/8  ||
                j_beg+j == ny/2-(1*ny)/8  ||
-               j_beg+j == ny/2-(1*ny)/16 ||
                j_beg+j == ny/2-(0*ny)/8  ||
-               j_beg+j == ny/2+(1*ny)/16 ||
                j_beg+j == ny/2+(1*ny)/8  ||
                j_beg+j == ny/2+(2*ny)/8  ||
-               j_beg+j == ny/2+(3*ny)/8  ) && k < nz/6) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
-          else                                          { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
+               j_beg+j == ny/2+(3*ny)/8  ) && 
+              (      k == nz/2-(3*nz)/8  ||
+                     k == nz/2-(2*nz)/8  ||
+                     k == nz/2-(1*nz)/8  ||
+                     k == nz/2-(0*nz)/8  ||
+                     k == nz/2+(1*nz)/8  ||
+                     k == nz/2+(2*nz)/8  ||
+                     k == nz/2+(3*nz)/8  )) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
+          else                              { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
+          yakl::Random prng(k*ny_glob*nx_glob*3 + (j_beg+j)*nx_glob*3 + (i_beg+i)*3);
+          uvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
+          vvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
+          wvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
         });
       }
       if (coupler.get_px() == coupler.get_nproc_x()-1 && x2) {

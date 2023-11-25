@@ -166,10 +166,6 @@ namespace custom_modules {
                      k == nz/2+(2*nz)/8  ||
                      k == nz/2+(3*nz)/8  )) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
           else                              { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
-          yakl::Random prng(k*ny_glob*nx_glob*3 + (j_beg+j)*nx_glob*3 + (i_beg+i)*3);
-          uvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
-          vvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
-          wvel(k,j,i,iens) += prng.genFP<real>(-5,5)*weight; 
         });
       }
       if (coupler.get_px() == coupler.get_nproc_x()-1 && x2) {

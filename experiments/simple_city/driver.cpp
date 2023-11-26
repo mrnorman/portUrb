@@ -8,11 +8,15 @@
 #include "sc_init.h"
 #include "sc_output.h"
 #include "les_closure.h"
+#include "velocity_histogram.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
   yakl::init();
   {
+    typedef std::chrono::high_resolution_clock Clock    ;
+    typedef std::chrono::duration<double>      Duration ;
+    typedef std::chrono::time_point<Clock>     TimePoint;
     using yakl::intrinsics::abs;
     using yakl::intrinsics::maxval;
     yakl::timer_start("main");
@@ -57,6 +61,7 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     custom_modules::Horizontal_Sponge          horiz_sponge;
+    custom_modules::VelocityHistogram          vel_hist;
 
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.add_tracer("pollution1" , ""          ,true,false,true);
@@ -73,10 +78,13 @@ int main(int argc, char** argv) {
     dycore       .init( coupler ); // Dycore should initialize its own state here
     time_averager.init( coupler );
     horiz_sponge .init( coupler );
+    vel_hist     .init( coupler );
 
     custom_modules::sc_output( coupler , etime , file_counter );
 
     real dtphys = dtphys_in;
+    yakl::fence();
+    auto tm = Clock::now();
     while (etime < sim_time) {
       // If dtphys <= 0, then set it to the dynamical core's max stable time step
       if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler); }
@@ -89,11 +97,18 @@ int main(int argc, char** argv) {
       les_closure.apply          ( coupler , dtphys );
       // modules::sponge_layer      ( coupler , dtphys , 1 );
       time_averager.accumulate   ( coupler , dtphys );
+      vel_hist.update            ( coupler          );
 
       etime += dtphys; // Advance elapsed time
 
       if (out_freq >= 0. && etime / out_freq >= num_out+1) {
+        yakl::fence();
+        auto t2 = Clock::now();
+        Duration dur_step = t2 - tm;
+        tm = t2;
         custom_modules::sc_output( coupler , etime , file_counter );
+        vel_hist     .dump       ( coupler );
+        time_averager.dump       ( coupler );
         num_out++;
         // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
         auto &dm = coupler.get_data_manager_readonly();
@@ -108,15 +123,18 @@ int main(int argc, char** argv) {
         real wind_mag;
         auto mpi_data_type = coupler.get_mpi_data_type();
         MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
+        t2 = Clock::now();
+        Duration dur_io = t2 - tm;
         if (coupler.is_mainproc()) {
-          std::cout << "Etime , dtphys, wind_mag: " << std::scientific << std::setw(10) << etime    << " , " 
-                                                    << std::scientific << std::setw(10) << dtphys   << " , "
-                                                    << std::scientific << std::setw(10) << wind_mag << std::endl;
+          std::cout << "Etime , Walltime_since_last_io , walltime_io , wind_mag: "
+                    << std::scientific << std::setw(10) << etime            << " , " 
+                    << std::scientific << std::setw(10) << dur_step.count() << " , "
+                    << std::scientific << std::setw(10) << dur_io  .count() << " , "
+                    << std::scientific << std::setw(10) << wind_mag         << std::endl;
         }
+        tm = t2;
       }
     }
-
-    time_averager.finalize( coupler );
 
     yakl::timer_stop("main");
   }

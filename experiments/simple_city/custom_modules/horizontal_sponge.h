@@ -151,21 +151,21 @@ namespace custom_modules {
           wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
           temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
           rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
-          if ((j_beg+j == ny/2-(3*ny)/8  ||
-               j_beg+j == ny/2-(2*ny)/8  ||
-               j_beg+j == ny/2-(1*ny)/8  ||
-               j_beg+j == ny/2-(0*ny)/8  ||
-               j_beg+j == ny/2+(1*ny)/8  ||
-               j_beg+j == ny/2+(2*ny)/8  ||
-               j_beg+j == ny/2+(3*ny)/8  ) && 
-              (      k == nz/2-(3*nz)/8  ||
-                     k == nz/2-(2*nz)/8  ||
-                     k == nz/2-(1*nz)/8  ||
-                     k == nz/2-(0*nz)/8  ||
-                     k == nz/2+(1*nz)/8  ||
-                     k == nz/2+(2*nz)/8  ||
-                     k == nz/2+(3*nz)/8  )) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
-          else                              { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
+          if ((j_beg+j == ny_glob/2-(3*ny_glob)/8  ||
+               j_beg+j == ny_glob/2-(2*ny_glob)/8  ||
+               j_beg+j == ny_glob/2-(1*ny_glob)/8  ||
+               j_beg+j == ny_glob/2-(0*ny_glob)/8  ||
+               j_beg+j == ny_glob/2+(1*ny_glob)/8  ||
+               j_beg+j == ny_glob/2+(2*ny_glob)/8  ||
+               j_beg+j == ny_glob/2+(3*ny_glob)/8  ) && 
+              (      k == nz     /2-(3*nz     )/8  ||
+                     k == nz     /2-(2*nz     )/8  ||
+                     k == nz     /2-(1*nz     )/8  ||
+                     k == nz     /2-(0*nz     )/8  ||
+                     k == nz     /2+(1*nz     )/8  ||
+                     k == nz     /2+(2*nz     )/8  ||
+                     k == nz     /2+(3*nz     )/8  )) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
+          else                                        { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
         });
       }
       if (coupler.get_px() == coupler.get_nproc_x()-1 && x2) {

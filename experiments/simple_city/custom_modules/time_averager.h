@@ -86,7 +86,7 @@ namespace custom_modules {
       etime += dt;
     }
 
-    void finalize(core::Coupler &coupler ) {
+    void dump(core::Coupler &coupler ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 

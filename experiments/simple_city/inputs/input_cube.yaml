@@ -1,12 +1,12 @@
 ---
 # Simulation time in seconds
-sim_time: 500.  # 86400
+sim_time: 3600.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 100
-ny_glob: 50
-nz     : 50
+nx_glob: 1000
+ny_glob: 500
+nz     : 500
 
 # Domain size of the CRMs
 xlen: 2000
@@ -25,7 +25,7 @@ dt_gcm: 900
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 100.
 
 enable_gravity: false
 

@@ -26,21 +26,22 @@ namespace modules {
     void apply( core::Coupler &coupler , real dtphys ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nx    = coupler.get_nx  ();
-      auto ny    = coupler.get_ny  ();
-      auto nz    = coupler.get_nz  ();
-      auto nens  = coupler.get_nens();
-      auto dx    = coupler.get_dx  ();
-      auto dy    = coupler.get_dy  ();
-      auto dz    = coupler.get_dz  ();
-      auto &dm   = coupler.get_data_manager_readwrite();
-      auto grav  = coupler.get_option<real>("grav");
-      auto r     = dm.get<real,4>("density_dry");
-      auto u     = dm.get<real,4>("uvel");
-      auto v     = dm.get<real,4>("vvel");
-      auto w     = dm.get<real,4>("wvel");
-      auto T     = dm.get<real,4>("temp");
-      real delta = std::pow( dx*dy*dz , 1._fp/3._fp );
+      auto nx             = coupler.get_nx  ();
+      auto ny             = coupler.get_ny  ();
+      auto nz             = coupler.get_nz  ();
+      auto nens           = coupler.get_nens();
+      auto dx             = coupler.get_dx  ();
+      auto dy             = coupler.get_dy  ();
+      auto dz             = coupler.get_dz  ();
+      auto grav           = coupler.get_option<real>("grav");
+      auto enable_gravity = coupler.get_option<bool>("enable_gravity");
+      auto &dm            = coupler.get_data_manager_readwrite();
+      auto r              = dm.get<real,4>("density_dry");
+      auto u              = dm.get<real,4>("uvel");
+      auto v              = dm.get<real,4>("vvel");
+      auto w              = dm.get<real,4>("wvel");
+      auto T              = dm.get<real,4>("temp");
+      real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
 
       real5d state , tracers;
       real4d tke;
@@ -166,8 +167,9 @@ namespace modules {
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
           // Compute tke cell-averaged source
+          tke_source(k,j,i,iens) = 0;
           // Buoyancy source
-          tke_source(k,j,i,iens) = -(grav*rho*km)/(t*Pr)*dt_dz;
+          if (enable_gravity) tke_source(k,j,i,iens) += -(grav*rho*km)/(t*Pr)*dt_dz;
           // TKE dissipation
           tke_source(k,j,i,iens) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
           // Shear production

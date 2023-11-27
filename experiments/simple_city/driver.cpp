@@ -8,7 +8,6 @@
 #include "sc_init.h"
 #include "sc_output.h"
 #include "les_closure.h"
-#include "velocity_histogram.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -61,7 +60,6 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     custom_modules::Horizontal_Sponge          horiz_sponge;
-    custom_modules::VelocityHistogram          vel_hist;
 
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.add_tracer("pollution1" , ""          ,true,false,true);
@@ -78,7 +76,6 @@ int main(int argc, char** argv) {
     dycore       .init( coupler ); // Dycore should initialize its own state here
     time_averager.init( coupler );
     horiz_sponge .init( coupler );
-    vel_hist     .init( coupler );
 
     custom_modules::sc_output( coupler , etime , file_counter );
 
@@ -97,7 +94,6 @@ int main(int argc, char** argv) {
       les_closure.apply          ( coupler , dtphys );
       // modules::sponge_layer      ( coupler , dtphys , 1 );
       time_averager.accumulate   ( coupler , dtphys );
-      vel_hist.update            ( coupler          );
 
       etime += dtphys; // Advance elapsed time
 
@@ -107,7 +103,6 @@ int main(int argc, char** argv) {
         Duration dur_step = t2 - tm;
         tm = t2;
         custom_modules::sc_output( coupler , etime , file_counter );
-        vel_hist     .dump       ( coupler );
         time_averager.dump       ( coupler );
         num_out++;
         // Let the user know what the max vertical velocity is to ensure the model hasn't crashed

@@ -7,166 +7,97 @@ namespace custom_modules {
   struct Time_Averager {
     real etime;
 
-    void init(core::Coupler &coupler) {
+    void init( core::Coupler &coupler ) {
       auto nens         = coupler.get_nens();
       auto nx           = coupler.get_nx();
       auto ny           = coupler.get_ny();
       auto nz           = coupler.get_nz();
-      auto tracer_names = coupler.get_tracer_names();
-      int  num_tracers  = tracer_names.size();
-
-      auto &dm = coupler.get_data_manager_readwrite();
-
-      dm.register_and_allocate<real>("time_avg_density_dry","",{nz,ny,nx,nens});
-      dm.register_and_allocate<real>("time_avg_uvel"       ,"",{nz,ny,nx,nens});
-      dm.register_and_allocate<real>("time_avg_vvel"       ,"",{nz,ny,nx,nens});
-      dm.register_and_allocate<real>("time_avg_wvel"       ,"",{nz,ny,nx,nens});
-      dm.register_and_allocate<real>("time_avg_temp"       ,"",{nz,ny,nx,nens});
-      for (int tr=0; tr < num_tracers; tr++) {
-        dm.register_and_allocate<real>(std::string("time_avg_")+tracer_names[tr],"",{nz,ny,nx,nens});
-      }
-
-      dm.get<real,4>("time_avg_density_dry") = 0;
-      dm.get<real,4>("time_avg_uvel"       ) = 0;
-      dm.get<real,4>("time_avg_vvel"       ) = 0;
-      dm.get<real,4>("time_avg_wvel"       ) = 0;
-      dm.get<real,4>("time_avg_temp"       ) = 0;
-      for (int tr=0; tr < num_tracers; tr++) { dm.get<real,4>(std::string("time_avg_")+tracer_names[tr]) = 0; }
-
+      auto &dm          = coupler.get_data_manager_readwrite();
+      dm.register_and_allocate<real>("min_uvel","",{nz,ny,nx,nens});    dm.get<real,4>("min_uvel") = 1.e10;
+      dm.register_and_allocate<real>("min_vvel","",{nz,ny,nx,nens});    dm.get<real,4>("min_vvel") = 1.e10;
+      dm.register_and_allocate<real>("min_wvel","",{nz,ny,nx,nens});    dm.get<real,4>("min_wvel") = 1.e10;
+      dm.register_and_allocate<real>("avg_uvel","",{nz,ny,nx,nens});    dm.get<real,4>("avg_uvel") = 0;
+      dm.register_and_allocate<real>("avg_vvel","",{nz,ny,nx,nens});    dm.get<real,4>("avg_vvel") = 0;
+      dm.register_and_allocate<real>("avg_wvel","",{nz,ny,nx,nens});    dm.get<real,4>("avg_wvel") = 0;
+      dm.register_and_allocate<real>("max_uvel","",{nz,ny,nx,nens});    dm.get<real,4>("max_uvel") = -1.e10;
+      dm.register_and_allocate<real>("max_vvel","",{nz,ny,nx,nens});    dm.get<real,4>("max_vvel") = -1.e10;
+      dm.register_and_allocate<real>("max_wvel","",{nz,ny,nx,nens});    dm.get<real,4>("max_wvel") = -1.e10;
       etime = 0.;
     }
 
-    void accumulate(core::Coupler &coupler , real dt) {
+    void accumulate( core::Coupler &coupler , real dt ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-
-      auto nens         = coupler.get_nens();
-      auto nx           = coupler.get_nx();
-      auto ny           = coupler.get_ny();
-      auto nz           = coupler.get_nz();
-      auto tracer_names = coupler.get_tracer_names();
-      int  num_tracers  = tracer_names.size();
-
-      auto &dm = coupler.get_data_manager_readwrite();
-
-      auto rho_d = dm.get<real const,4>("density_dry");
-      auto uvel  = dm.get<real const,4>("uvel"       );
-      auto vvel  = dm.get<real const,4>("vvel"       );
-      auto wvel  = dm.get<real const,4>("wvel"       );
-      auto temp  = dm.get<real const,4>("temp"       );
-      core::MultiField<real const,4> tracers;
-      for (int tr=0; tr < num_tracers; tr++) {
-        tracers.add_field( dm.get<real const,4>(tracer_names[tr]) );
-      }
-
-      auto tavg_rho_d = dm.get<real,4>("time_avg_density_dry");
-      auto tavg_uvel  = dm.get<real,4>("time_avg_uvel"       );
-      auto tavg_vvel  = dm.get<real,4>("time_avg_vvel"       );
-      auto tavg_wvel  = dm.get<real,4>("time_avg_wvel"       );
-      auto tavg_temp  = dm.get<real,4>("time_avg_temp"       );
-      core::MultiField<real,4> tavg_tracers;
-      for (int tr=0; tr < num_tracers; tr++) {
-        tavg_tracers.add_field( dm.get<real,4>(std::string("time_avg_")+tracer_names[tr]) );
-      }
-
+      auto nens = coupler.get_nens();
+      auto nx   = coupler.get_nx();
+      auto ny   = coupler.get_ny();
+      auto nz   = coupler.get_nz();
+      auto uvel     = coupler.get_data_manager_readonly ().get<real const,4>("uvel"    );
+      auto vvel     = coupler.get_data_manager_readonly ().get<real const,4>("vvel"    );
+      auto wvel     = coupler.get_data_manager_readonly ().get<real const,4>("wvel"    );
+      auto min_uvel = coupler.get_data_manager_readwrite().get<real      ,4>("min_uvel");
+      auto min_vvel = coupler.get_data_manager_readwrite().get<real      ,4>("min_vvel");
+      auto min_wvel = coupler.get_data_manager_readwrite().get<real      ,4>("min_wvel");
+      auto avg_uvel = coupler.get_data_manager_readwrite().get<real      ,4>("avg_uvel");
+      auto avg_vvel = coupler.get_data_manager_readwrite().get<real      ,4>("avg_vvel");
+      auto avg_wvel = coupler.get_data_manager_readwrite().get<real      ,4>("avg_wvel");
+      auto max_uvel = coupler.get_data_manager_readwrite().get<real      ,4>("max_uvel");
+      auto max_vvel = coupler.get_data_manager_readwrite().get<real      ,4>("max_vvel");
+      auto max_wvel = coupler.get_data_manager_readwrite().get<real      ,4>("max_wvel");
       double inertia = etime / (etime + dt);
-
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
-        tavg_rho_d(k,j,i,iens) = inertia * tavg_rho_d(k,j,i,iens) + (1-inertia) * rho_d(k,j,i,iens);
-        tavg_uvel (k,j,i,iens) = inertia * tavg_uvel (k,j,i,iens) + (1-inertia) * uvel (k,j,i,iens);
-        tavg_vvel (k,j,i,iens) = inertia * tavg_vvel (k,j,i,iens) + (1-inertia) * vvel (k,j,i,iens);
-        tavg_wvel (k,j,i,iens) = inertia * tavg_wvel (k,j,i,iens) + (1-inertia) * wvel (k,j,i,iens);
-        tavg_temp (k,j,i,iens) = inertia * tavg_temp (k,j,i,iens) + (1-inertia) * temp (k,j,i,iens);
-        for (int tr=0; tr < num_tracers; tr++) {
-          tavg_tracers(tr,k,j,i,iens) = inertia * tavg_tracers(tr,k,j,i,iens) + (1-inertia) * tracers(tr,k,j,i,iens);
-        }
+        min_uvel(k,j,i,iens) = std::min( min_uvel(k,j,i,iens) , uvel(k,j,i,iens) );
+        min_vvel(k,j,i,iens) = std::min( min_vvel(k,j,i,iens) , vvel(k,j,i,iens) );
+        min_wvel(k,j,i,iens) = std::min( min_wvel(k,j,i,iens) , wvel(k,j,i,iens) );
+        avg_uvel(k,j,i,iens) = inertia * avg_uvel(k,j,i,iens) + (1-inertia) * uvel(k,j,i,iens);
+        avg_vvel(k,j,i,iens) = inertia * avg_vvel(k,j,i,iens) + (1-inertia) * vvel(k,j,i,iens);
+        avg_wvel(k,j,i,iens) = inertia * avg_wvel(k,j,i,iens) + (1-inertia) * wvel(k,j,i,iens);
+        max_uvel(k,j,i,iens) = std::max( max_uvel(k,j,i,iens) , uvel(k,j,i,iens) );
+        max_vvel(k,j,i,iens) = std::max( max_vvel(k,j,i,iens) , vvel(k,j,i,iens) );
+        max_wvel(k,j,i,iens) = std::max( max_wvel(k,j,i,iens) , wvel(k,j,i,iens) );
       });
-      
       etime += dt;
     }
 
-    void dump(core::Coupler &coupler ) {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-
-      int  nx_glob      = coupler.get_nx_glob();
-      int  ny_glob      = coupler.get_ny_glob();
-      auto nens         = coupler.get_nens();
-      auto nx           = coupler.get_nx();
-      auto ny           = coupler.get_ny();
-      auto nz           = coupler.get_nz();
-      auto dx           = coupler.get_dx();
-      auto dy           = coupler.get_dy();
-      auto dz           = coupler.get_dz();
-      int  i_beg        = coupler.get_i_beg();
-      int  j_beg        = coupler.get_j_beg();
-      auto tracer_names = coupler.get_tracer_names();
-      int  num_tracers  = tracer_names.size();
-
-      auto &dm = coupler.get_data_manager_readonly();
-
+    void dump( core::Coupler &coupler ) {
+      int  nx_glob = coupler.get_nx_glob();
+      int  ny_glob = coupler.get_ny_glob();
+      auto nens    = coupler.get_nens();
+      auto nz      = coupler.get_nz();
+      int  i_beg   = coupler.get_i_beg();
+      int  j_beg   = coupler.get_j_beg();
+      auto &dm     = coupler.get_data_manager_readonly();
       yakl::SimplePNetCDF nc;
-
       MPI_Info info;
-      MPI_Info_create(&info);
-      MPI_Info_set(info, "romio_no_indep_rw",    "true");
-      MPI_Info_set(info, "nc_header_align_size", "1048576");
-      MPI_Info_set(info, "nc_var_align_size",    "1048576");
-
-      nc.create("time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
-
-      nc.create_dim( "x" , nx_glob );
-      nc.create_dim( "y" , ny_glob );
-      nc.create_dim( "z" , nz );
-
-      nc.create_var<real>( "x" , {"x"} );
-      nc.create_var<real>( "y" , {"y"} );
-      nc.create_var<real>( "z" , {"z"} );
-      nc.create_var<real>( "density_dry" , {"z","y","x"} );
-      nc.create_var<real>( "uvel"        , {"z","y","x"} );
-      nc.create_var<real>( "vvel"        , {"z","y","x"} );
-      nc.create_var<real>( "wvel"        , {"z","y","x"} );
-      nc.create_var<real>( "temp"        , {"z","y","x"} );
-      for (int tr=0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , {"z","y","x"} ); }
-
+      MPI_Info_create( &info );
+      MPI_Info_set( info , "romio_no_indep_rw"    , "true"    );
+      MPI_Info_set( info , "nc_header_align_size" , "1048576" );
+      MPI_Info_set( info , "nc_var_align_size"    , "1048576" );
+      nc.create( "time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
+      nc.create_dim( "ens" , nens );
+      nc.create_dim( "x"   , nx_glob );
+      nc.create_dim( "y"   , ny_glob );
+      nc.create_dim( "z"   , nz );
+      nc.create_var<real>( "min_uvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "min_vvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "min_wvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_uvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_vvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_wvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "max_uvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "max_vvel" , {"z","y","x","ens"} );
+      nc.create_var<real>( "max_wvel" , {"z","y","x","ens"} );
       nc.enddef();
-
-      // x-coordinate
-      real1d xloc("xloc",nx);
-      parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
-      nc.write_all( xloc.createHostCopy() , "x" , {i_beg} );
-
-      // y-coordinate
-      real1d yloc("yloc",ny);
-      parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
-      nc.write_all( yloc.createHostCopy() , "y" , {j_beg} );
-
-      // z-coordinate
-      real1d zloc("zloc",nz);
-      parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
-      nc.begin_indep_data();
-      if (coupler.is_mainproc()) {
-        nc.write( zloc.createHostCopy() , "z" );
-      }
-      nc.end_indep_data();
-
-      std::vector<std::string> varnames = {"density_dry","uvel","vvel","wvel","temp"};
-
-      for (int l=0; l < varnames.size(); l++) {
-        real3d data("data",nz,ny,nx);
-        auto var = dm.get<real const,4>(std::string("time_avg_")+varnames[l]);
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {  data(k,j,i) = var(k,j,i,0); });
-        nc.write_all(data.createHostCopy(),varnames[l],{0,j_beg,i_beg});
-      }
-
-      for (int tr=0; tr < num_tracers; tr++) {
-        real3d data("data",nz,ny,nx);
-        auto var = dm.get<real const,4>(std::string("time_avg_")+tracer_names[tr]);
-        parallel_for( SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {  data(k,j,i) = var(k,j,i,0); });
-        nc.write_all(data.createHostCopy(),tracer_names[tr],{0,j_beg,i_beg});
-      }
-
+      nc.write_all( dm.get<real const,4>("min_uvel").createHostCopy() , "min_uvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("min_vvel").createHostCopy() , "min_vvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("min_wvel").createHostCopy() , "min_wvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_uvel").createHostCopy() , "avg_uvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_vvel").createHostCopy() , "avg_vvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_wvel").createHostCopy() , "avg_wvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("max_uvel").createHostCopy() , "max_uvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("max_vvel").createHostCopy() , "max_vvel" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("max_wvel").createHostCopy() , "max_wvel" , {0,j_beg,i_beg,0} );
       nc.close();
     }
   };

@@ -208,6 +208,7 @@ namespace custom_modules {
     } else if (coupler.get_option<std::string>("init_data") == "cube") {
 
       coupler.set_option<bool>("enable_gravity",false);
+      coupler.set_option<real>("grav",0.0_fp);
       coupler.set_option<bool>("use_immersed_boundaries",true);
       coupler.add_option<std::string>("bc_x","periodic");
       coupler.add_option<std::string>("bc_y","periodic");

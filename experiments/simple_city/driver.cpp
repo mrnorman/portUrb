@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_dns_rk.h"
+#include "dynamics_rk.h"
 #include "domain_nudger.h"
 #include "horizontal_sponge.h"
 #include "time_averager.h"

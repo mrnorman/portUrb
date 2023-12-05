@@ -12,10 +12,8 @@ namespace custom_modules {
     real2d col_wvel;
     real2d col_temp;
     real2d col_rho_v;
-    int    sponge_cells;
-    real   time_scale;
 
-    inline void init( core::Coupler &coupler , int sponge_cells = 10 , real time_scale = 1 ) {
+    inline void init( core::Coupler &coupler ) {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
@@ -84,8 +82,6 @@ namespace custom_modules {
         col_temp_host .deep_copy_to(col_temp );
         col_rho_v_host.deep_copy_to(col_rho_v);
       }
-      this->sponge_cells = sponge_cells;
-      this->time_scale   = time_scale;
     }
 
 
@@ -97,7 +93,7 @@ namespace custom_modules {
     void override_rho_v(real val) { col_rho_v = val; }
 
 
-    inline void apply( core::Coupler &coupler , real dt ,
+    inline void apply( core::Coupler &coupler , real dt , real time_scale , int sponge_cells ,
                        bool x1=true , bool x2=true , bool y1=true , bool y2=true ) {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
@@ -128,8 +124,6 @@ namespace custom_modules {
       auto rho_v = dm.get<real,4>("water_vapor");
       auto poll1 = dm.get<real,4>("pollution1");
 
-      YAKL_SCOPE( sponge_cells , this->sponge_cells );
-      YAKL_SCOPE( time_scale   , this->time_scale   );
       YAKL_SCOPE( col_rho_d    , this->col_rho_d    );
       YAKL_SCOPE( col_uvel     , this->col_uvel     );
       YAKL_SCOPE( col_vvel     , this->col_vvel     );

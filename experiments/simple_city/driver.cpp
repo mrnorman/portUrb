@@ -38,14 +38,13 @@ int main(int argc, char** argv) {
     auto zlen      = config["zlen"    ].as<real>();
     auto dtphys_in = config["dt_phys" ].as<real>();
     auto out_freq  = config["out_freq"].as<real>();
-    auto reynolds  = config["reynolds"].as<real>();
 
     coupler.set_option<std::string>( "out_prefix"      , config["out_prefix"      ].as<std::string>() );
     coupler.set_option<std::string>( "init_data"       , config["init_data"       ].as<std::string>() );
     coupler.set_option<real       >( "out_freq"        , config["out_freq"        ].as<real       >() );
     coupler.set_option<bool       >( "enable_gravity"  , config["enable_gravity"  ].as<bool       >(true));
     coupler.set_option<bool       >( "file_per_process", config["file_per_process"].as<bool       >(false));
-    coupler.set_option<real       >( "dns_nu"          , 10*200/reynolds );
+    coupler.set_option<real       >( "dns_nu"          , 1.5e-5 );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!)
@@ -72,6 +71,7 @@ int main(int argc, char** argv) {
     int num_out = 0;
     int file_counter = 0;
 
+
     // Run the initialization modules
     custom_modules::sc_init  ( coupler );
     // les_closure  .init( coupler );
@@ -90,8 +90,8 @@ int main(int argc, char** argv) {
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
-      custom_modules::nudge_winds( coupler , dtphys , 1 , 10 , 0 , 0 );
-      horiz_sponge.apply         ( coupler , dtphys , true , true , false , false );
+      custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 , 0 , 0 );
+      horiz_sponge.apply         ( coupler , dtphys , dtphys*10  , 10 , true , true , false , false );
       dycore.time_step           ( coupler , dtphys );
       // les_closure.apply          ( coupler , dtphys );
       // modules::sponge_layer      ( coupler , dtphys , 1 );

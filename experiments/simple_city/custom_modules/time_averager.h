@@ -6,6 +6,7 @@ namespace custom_modules {
   
   struct Time_Averager {
     real etime;
+    int  counter;
 
     void init( core::Coupler &coupler ) {
       auto nens         = coupler.get_nens();
@@ -17,7 +18,8 @@ namespace custom_modules {
       dm.register_and_allocate<real>("avg_v","",{nz,ny,nx,nens});    dm.get<real,4>("avg_v") = 0;
       dm.register_and_allocate<real>("avg_w","",{nz,ny,nx,nens});    dm.get<real,4>("avg_w") = 0;
       dm.register_and_allocate<real>("tke"  ,"",{nz,ny,nx,nens});    dm.get<real,4>("tke"  ) = 0;
-      etime = 0.;
+      etime   = 0.;
+      counter = 1;
     }
 
     void accumulate( core::Coupler &coupler , real dt ) {
@@ -63,20 +65,24 @@ namespace custom_modules {
       MPI_Info_set( info , "nc_header_align_size" , "1048576" );
       MPI_Info_set( info , "nc_var_align_size"    , "1048576" );
       nc.create( "time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
+      std::stringstream fname;
+      fname << coupler.get_option<std::string>("out_prefix") << "_tavg_" << std::setw(8) << std::setfill('0')
+            << counter << ".nc";
       nc.create_dim( "ens" , nens    );
       nc.create_dim( "x"   , nx_glob );
       nc.create_dim( "y"   , ny_glob );
       nc.create_dim( "z"   , nz      );
-      nc.create_var<real>( "avg_uvel" , {"z","y","x","ens"} );
-      nc.create_var<real>( "avg_vvel" , {"z","y","x","ens"} );
-      nc.create_var<real>( "avg_wvel" , {"z","y","x","ens"} );
-      nc.create_var<real>( "tke"      , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_u" , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_v" , {"z","y","x","ens"} );
+      nc.create_var<real>( "avg_w" , {"z","y","x","ens"} );
+      nc.create_var<real>( "tke"   , {"z","y","x","ens"} );
       nc.enddef();
-      nc.write_all( dm.get<real const,4>("avg_uvel").createHostCopy() , "avg_uvel" , {0,j_beg,i_beg,0} );
-      nc.write_all( dm.get<real const,4>("avg_vvel").createHostCopy() , "avg_vvel" , {0,j_beg,i_beg,0} );
-      nc.write_all( dm.get<real const,4>("avg_wvel").createHostCopy() , "avg_wvel" , {0,j_beg,i_beg,0} );
-      nc.write_all( dm.get<real const,4>("tke"     ).createHostCopy() , "tke"      , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_u").createHostCopy() , "avg_u" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_v").createHostCopy() , "avg_v" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("avg_w").createHostCopy() , "avg_w" , {0,j_beg,i_beg,0} );
+      nc.write_all( dm.get<real const,4>("tke"  ).createHostCopy() , "tke"   , {0,j_beg,i_beg,0} );
       nc.close();
+      counter++;
     }
   };
 

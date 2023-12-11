@@ -5,7 +5,7 @@
 
 namespace modules {
 
-  inline void sponge_layer( core::Coupler &coupler , real dt , real time_scale = 60 ) {
+  inline void sponge_layer( core::Coupler &coupler , real dt , real time_scale , int num_layers ) {
     using yakl::c::parallel_for;
     using yakl::c::Bounds;
 
@@ -17,8 +17,6 @@ namespace modules {
     auto nens    = coupler.get_nens();
     auto zlen    = coupler.get_zlen();
     auto dz      = coupler.get_dz  ();
-
-    int num_layers = 10;  // Number of model top vertical layers that participate in the sponge relaxation
 
     int WFLD = 3; // fourth entry into "fields" is the "w velocity" field. Set the havg to zero for WFLD
 

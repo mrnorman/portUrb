@@ -119,9 +119,9 @@ namespace custom_modules {
         for (int kk=0; kk<nqpoints; kk++) {
           for (int jj=0; jj<nqpoints; jj++) {
             for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + (qpoints(ii)-0.5)*dx;
-              real y = (j+j_beg+0.5)*dy + (qpoints(jj)-0.5)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + (qpoints(kk)-0.5)*dz;
+              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
+              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
+              real z = (k      +0.5)*dz + qpoints(kk)*dz;
               real rho, u, v, w, theta, rho_v, hr, ht;
               if (enable_gravity) { modules::profiles::hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
               else                { hr = 1.15;     ht = 300;                              }
@@ -169,9 +169,9 @@ namespace custom_modules {
         for (int kk=0; kk<nqpoints; kk++) {
           for (int jj=0; jj<nqpoints; jj++) {
             for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + (qpoints(ii)-0.5)*dx;
-              real y = (j+j_beg+0.5)*dy + (qpoints(jj)-0.5)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + (qpoints(kk)-0.5)*dz;
+              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
+              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
+              real z = (k      +0.5)*dz + qpoints(kk)*dz;
               real rho, u, v, w, theta, rho_v, hr, ht;
               if (enable_gravity) { modules::profiles::hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
               else                { hr = 1.15;     ht = 300;                              }
@@ -205,6 +205,82 @@ namespace custom_modules {
         }
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
+
+      // Integrate RHS over GLL interval using GLL quadrature
+      real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
+      real3d rhs("rhs",nz,nqpoints-1,nens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,nqpoints-1,nens) ,
+                                        YAKL_LAMBDA (int k1, int k2, int iens) {
+        real z1 = (k1+0.5_fp)*dz + qpoints(k2  )*dz;
+        real z2 = (k1+0.5_fp)*dz + qpoints(k2+1)*dz;
+        rhs(k1,k2,iens) = 0;
+        for (int k3 = 0; k3 < nqpoints; k3++) {
+          real z = 0.5_fp*(z1+z2) + qpoints(k3)*(z2-z1);
+          real theta;
+          if      (z < 500)              { theta = 300;                 }
+          else if (z >= 500 && z <= 650) { theta = 300 + 0.08 *(z-500); }
+          else if (z > 650)              { theta = 312 + 0.003*(z-650); }
+          rhs(k1,k2,iens) += cst/theta * qweights(k3);
+        }
+        rhs(k1,k2,iens) *= (z2-z1);
+      });
+      auto rhs_host = rhs.createHostCopy();
+      realHost3d pressGLL_host("pressGLL",nz,nqpoints,nens);
+      // Sum the pressure using RHS, and apply the correct power. Prefix sum over low dimensions, so do on host
+      for (int iens = 0; iens < nens; iens++) { pressGLL_host(0,0,iens) = std::pow( p0 , R_d/cp_d ); }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints-1; kk++) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk+1,iens) = pressGLL_host(k,kk,iens) + rhs_host(k,kk,iens);
+          }
+        }
+        if (k < nz-1) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k+1,0,iens) = pressGLL_host(k,nqpoints-1,iens);
+          }
+        }
+      }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints; kk++) { 
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk,iens) = std::pow( pressGLL_host(k,kk,iens) , cp_d/R_d );
+          }
+        }
+      }
+      auto pressGLL = pressGLL_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+        dm_rho_d(k,j,i,iens) = 0;
+        dm_uvel (k,j,i,iens) = 0;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = 0;
+        dm_rho_v(k,j,i,iens) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          real z = (k+0.5)*dz + qpoints(kk)*dz;
+          real theta;
+          if      (z < 500)              { theta = 300;                 }
+          else if (z >= 500 && z <= 650) { theta = 300 + 0.08 *(z-500); }
+          else if (z > 650)              { theta = 312 + 0.003*(z-650); }
+          real p         = pressGLL(k,kk,iens);
+          real rho_theta = std::pow( p/C0 , 1._fp/gamma );
+          real rho       = rho_theta / theta;
+          real u         = 10;
+          real v         = 0;
+          real w         = 0;
+          real T         = p/(rho*R_d);
+          real rho_v     = 0;
+          real wt = qweights(kk);
+          dm_rho_d(k,j,i,iens) += rho   * wt;
+          dm_uvel (k,j,i,iens) += u     * wt;
+          dm_vvel (k,j,i,iens) += v     * wt;
+          dm_wvel (k,j,i,iens) += w     * wt;
+          dm_temp (k,j,i,iens) += T     * wt;
+          dm_rho_v(k,j,i,iens) += rho_v * wt;
+        }
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "cube") {
 
       coupler.set_option<bool>("enable_gravity",false);
@@ -225,9 +301,9 @@ namespace custom_modules {
         for (int kk=0; kk<nqpoints; kk++) {
           for (int jj=0; jj<nqpoints; jj++) {
             for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + (qpoints(ii)-0.5)*dx;
-              real y = (j+j_beg+0.5)*dy + (qpoints(jj)-0.5)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + (qpoints(kk)-0.5)*dz;
+              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
+              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
+              real z = (k      +0.5)*dz + qpoints(kk)*dz;
               real hr    = 1.15;
               real ht    = 300;
               real rho   = hr;

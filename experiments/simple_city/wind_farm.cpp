@@ -42,7 +42,6 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "out_prefix"      , config["out_prefix"      ].as<std::string>() );
     coupler.set_option<std::string>( "init_data"       , config["init_data"       ].as<std::string>() );
     coupler.set_option<real       >( "out_freq"        , config["out_freq"        ].as<real       >() );
-    coupler.set_option<bool       >( "enable_gravity"  , config["enable_gravity"  ].as<bool       >(true));
     coupler.set_option<bool       >( "file_per_process", config["file_per_process"].as<bool       >(false));
     coupler.set_option<real       >( "dns_nu"          , 0 );
 
@@ -91,7 +90,7 @@ int main(int argc, char** argv) {
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
       // custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 , 0 , 0 );
-      horiz_sponge.apply         ( coupler , dtphys , dtphys*10  , 10 , true , true , false , false );
+      // horiz_sponge.apply         ( coupler , dtphys , dtphys*10  , 10 , true , true , false , false );
       dycore.time_step           ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );
       modules::sponge_layer      ( coupler , dtphys , dtphys*10 , nz/20 );

@@ -24,7 +24,6 @@ namespace custom_modules {
     auto nx_glob     = coupler.get_nx_glob();
     auto ny_glob     = coupler.get_ny_glob();
     auto sim2d       = coupler.is_sim2d();
-    auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
     if (! coupler.option_exists("R_d"     )) coupler.set_option<real>("R_d"     ,287.       );
     if (! coupler.option_exists("cp_d"    )) coupler.set_option<real>("cp_d"    ,1003.      );
     if (! coupler.option_exists("R_v"     )) coupler.set_option<real>("R_v"     ,461.       );
@@ -48,13 +47,16 @@ namespace custom_modules {
     auto C0    = coupler.get_option<real>("C0");
 
     auto &dm = coupler.get_data_manager_readwrite();
-    if (! dm.entry_exists("density_dry"        )) dm.register_and_allocate<real>("density_dry"        ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("uvel"               )) dm.register_and_allocate<real>("uvel"               ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("vvel"               )) dm.register_and_allocate<real>("vvel"               ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("wvel"               )) dm.register_and_allocate<real>("wvel"               ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("temp"               )) dm.register_and_allocate<real>("temp"               ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("water_vapor"        )) dm.register_and_allocate<real>("water_vapor"        ,"",{nz,ny,nx,nens});
-    if (! dm.entry_exists("immersed_proportion")) dm.register_and_allocate<real>("immersed_proportion","",{nz,ny,nx,nens});
+    auto dims3d = {nz,ny,nx,nens};
+    auto dims2d = {   ny,nx,nens};
+    if (! dm.entry_exists("density_dry"        )) dm.register_and_allocate<real>("density_dry"        ,"",dims3d);
+    if (! dm.entry_exists("uvel"               )) dm.register_and_allocate<real>("uvel"               ,"",dims3d);
+    if (! dm.entry_exists("vvel"               )) dm.register_and_allocate<real>("vvel"               ,"",dims3d);
+    if (! dm.entry_exists("wvel"               )) dm.register_and_allocate<real>("wvel"               ,"",dims3d);
+    if (! dm.entry_exists("temp"               )) dm.register_and_allocate<real>("temp"               ,"",dims3d);
+    if (! dm.entry_exists("water_vapor"        )) dm.register_and_allocate<real>("water_vapor"        ,"",dims3d);
+    if (! dm.entry_exists("immersed_proportion")) dm.register_and_allocate<real>("immersed_proportion","",dims3d);
+    if (! dm.entry_exists("surface_temp"       )) dm.register_and_allocate<real>("surface_temp"       ,"",dims2d);
     if (! coupler.option_exists("idWV")) {
       auto tracer_names = coupler.get_tracer_names();
       int idWV = -1;
@@ -69,6 +71,7 @@ namespace custom_modules {
     auto dm_wvel                = dm.get<real,4>("wvel"               );
     auto dm_temp                = dm.get<real,4>("temp"               );
     auto dm_rho_v               = dm.get<real,4>("water_vapor"        );
+    auto dm_surface_temp        = dm.get<real,3>("surface_temp"       );
     auto dm_immersed_proportion = dm.get<real,4>("immersed_proportion");
     dm_immersed_proportion = 0;
 
@@ -123,8 +126,7 @@ namespace custom_modules {
               real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
               real z = (k      +0.5)*dz + qpoints(kk)*dz;
               real rho, u, v, w, theta, rho_v, hr, ht;
-              if (enable_gravity) { modules::profiles::hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
-              else                { hr = 1.15;     ht = 300;                              }
+              modules::profiles::hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
               rho   = hr;
               u     = 20;
               v     = 0;
@@ -143,6 +145,7 @@ namespace custom_modules {
             }
           }
         }
+        if (k == 0) dm_surface_temp(j,i,iens) = 300;
         int inorm = (static_cast<int>(i_beg)+i)/cells_per_building - buildings_pad;
         int jnorm = (static_cast<int>(j_beg)+j)/cells_per_building - buildings_pad;
         if ( ( inorm >= 0 && inorm < nblocks_x*3 && inorm%3 < 2 ) &&
@@ -173,8 +176,7 @@ namespace custom_modules {
               real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
               real z = (k      +0.5)*dz + qpoints(kk)*dz;
               real rho, u, v, w, theta, rho_v, hr, ht;
-              if (enable_gravity) { modules::profiles::hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht); }
-              else                { hr = 1.15;     ht = 300;                              }
+              modules::profiles::hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
               rho   = hr;
               u     = 20;
               v     = 0;
@@ -193,6 +195,7 @@ namespace custom_modules {
             }
           }
         }
+        if (k == 0) dm_surface_temp(j,i,iens) = 300;
         real x0 = 0.2*nx_glob;
         real y0 = 0.5*ny_glob;
         real xr = 0.05*ny_glob;
@@ -207,6 +210,12 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
+      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+        if      (z < 500)              { return 300;                 }
+        else if (z >= 500 && z <= 650) { return 300 + 0.08 *(z-500); }
+        else                           { return 312 + 0.003*(z-650); }
+      };
+
       // Integrate RHS over GLL interval using GLL quadrature
       real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
       real3d rhs("rhs",nz,nqpoints-1,nens);
@@ -217,11 +226,7 @@ namespace custom_modules {
         rhs(k1,k2,iens) = 0;
         for (int k3 = 0; k3 < nqpoints; k3++) {
           real z = 0.5_fp*(z1+z2) + qpoints(k3)*(z2-z1);
-          real theta;
-          if      (z < 500)              { theta = 300;                 }
-          else if (z >= 500 && z <= 650) { theta = 300 + 0.08 *(z-500); }
-          else if (z > 650)              { theta = 312 + 0.003*(z-650); }
-          rhs(k1,k2,iens) += cst/theta * qweights(k3);
+          rhs(k1,k2,iens) += cst/compute_theta(z) * qweights(k3);
         }
         rhs(k1,k2,iens) *= (z2-z1);
       });
@@ -258,11 +263,8 @@ namespace custom_modules {
         dm_temp (k,j,i,iens) = 0;
         dm_rho_v(k,j,i,iens) = 0;
         for (int kk=0; kk<nqpoints; kk++) {
-          real z = (k+0.5)*dz + qpoints(kk)*dz;
-          real theta;
-          if      (z < 500)              { theta = 300;                 }
-          else if (z >= 500 && z <= 650) { theta = 300 + 0.08 *(z-500); }
-          else if (z > 650)              { theta = 312 + 0.003*(z-650); }
+          real z         = (k+0.5)*dz + qpoints(kk)*dz;
+          real theta     = compute_theta(z);
           real p         = pressGLL(k,kk,iens);
           real rho_theta = std::pow( p/C0 , 1._fp/gamma );
           real rho       = rho_theta / theta;
@@ -279,66 +281,11 @@ namespace custom_modules {
           dm_temp (k,j,i,iens) += T     * wt;
           dm_rho_v(k,j,i,iens) += rho_v * wt;
         }
+        yakl::Random rand(k*ny_glob*nx_glob*nens + (j_beg+j)*nx_glob*nens + (i_beg+i)*nens + iens);
+        if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i,iens) += rand.genFP<real>(-0.25,0.25);
+        if (k == 0) dm_surface_temp(j,i,iens) = 300;
       });
 
-    } else if (coupler.get_option<std::string>("init_data") == "cube") {
-
-      coupler.set_option<bool>("enable_gravity",false);
-      coupler.set_option<real>("grav",0.0_fp);
-      coupler.set_option<bool>("use_immersed_boundaries",true);
-      coupler.add_option<std::string>("bc_x","periodic");
-      coupler.add_option<std::string>("bc_y","periodic");
-      coupler.add_option<std::string>("bc_z","periodic");
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        dm_rho_d(k,j,i,iens) = 0;
-        dm_uvel (k,j,i,iens) = 0;
-        dm_vvel (k,j,i,iens) = 0;
-        dm_wvel (k,j,i,iens) = 0;
-        dm_temp (k,j,i,iens) = 0;
-        dm_rho_v(k,j,i,iens) = 0;
-        for (int kk=0; kk<nqpoints; kk++) {
-          for (int jj=0; jj<nqpoints; jj++) {
-            for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
-              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + qpoints(kk)*dz;
-              real hr    = 1.15;
-              real ht    = 300;
-              real rho   = hr;
-              real u     = 10;
-              real v     = 0;
-              real w     = 0;
-              real theta = ht;
-              real rho_v = 0;
-              real T     = C0*std::pow(rho*theta,gamma)/(rho*R_d);
-              if (sim2d) v = 0;
-              real wt = qweights(ii)*qweights(jj)*qweights(kk);
-              dm_rho_d(k,j,i,iens) += rho   * wt;
-              dm_uvel (k,j,i,iens) += u     * wt;
-              dm_vvel (k,j,i,iens) += v     * wt;
-              dm_wvel (k,j,i,iens) += w     * wt;
-              dm_temp (k,j,i,iens) += T     * wt;
-              dm_rho_v(k,j,i,iens) += rho_v * wt;
-            }
-          }
-        }
-        real x1 = 1*nx_glob/10;
-        real y1 = 4*ny_glob/10;
-        real z1 = 4*nz     /10;
-        real x2 = 2*nx_glob/10-1;
-        real y2 = 6*ny_glob/10-1;
-        real z2 = 6*nz     /10-1;
-        if ( i_beg+i >= x1 && i_beg+i <= x2 &&
-             j_beg+j >= y1 && j_beg+j <= y2 &&
-                   k >= z1 &&       k <= z2 ) {
-          dm_immersed_proportion(k,j,i,iens) = 1;
-          dm_uvel               (k,j,i,iens) = 0;
-          dm_vvel               (k,j,i,iens) = 0;
-          dm_wvel               (k,j,i,iens) = 0;
-        }
-      });
     }
 
   }

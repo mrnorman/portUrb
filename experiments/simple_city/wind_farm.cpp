@@ -39,11 +39,11 @@ int main(int argc, char** argv) {
     auto dtphys_in = config["dt_phys" ].as<real>();
     auto out_freq  = config["out_freq"].as<real>();
 
-    coupler.set_option<std::string>( "out_prefix"      , config["out_prefix"      ].as<std::string>() );
-    coupler.set_option<std::string>( "init_data"       , config["init_data"       ].as<std::string>() );
-    coupler.set_option<real       >( "out_freq"        , config["out_freq"        ].as<real       >() );
-    coupler.set_option<bool       >( "file_per_process", config["file_per_process"].as<bool       >(false));
-    coupler.set_option<real       >( "dns_nu"          , 0 );
+    coupler.set_option<std::string>( "out_prefix"       , config["out_prefix"      ].as<std::string>()      );
+    coupler.set_option<std::string>( "init_data"        , config["init_data"       ].as<std::string>()      );
+    coupler.set_option<real       >( "out_freq"         , config["out_freq"        ].as<real       >()      );
+    coupler.set_option<bool       >( "file_per_process" , config["file_per_process"].as<bool       >(false) );
+    coupler.set_option<real       >( "latitude"         , config["latitude"        ].as<real       >(0)     );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!)
@@ -69,7 +69,6 @@ int main(int argc, char** argv) {
     real etime = 0;   // Elapsed time
     int num_out = 0;
     int file_counter = 0;
-
 
     // Run the initialization modules
     custom_modules::sc_init  ( coupler );

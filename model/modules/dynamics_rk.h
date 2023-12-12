@@ -520,6 +520,7 @@ namespace modules {
       auto C0                      = coupler.get_option<real>("C0"     );
       auto grav                    = coupler.get_option<real>("grav"   );
       auto gamma                   = coupler.get_option<real>("gamma_d");
+      auto latitude                = coupler.get_option<real>("latitude");
       auto num_tracers             = coupler.get_num_tracers();
       auto tracer_positive         = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive"    );
       auto immersed_proportion     = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
@@ -531,6 +532,7 @@ namespace modules {
       real r_dy = 1./dy;
       real r_dz = 1./dz;
       real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      real fcor = 2*7.2921e-5*std::sin(latitude/180*M_PI);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma) - hy_pressure_cells(k,iens);
@@ -686,15 +688,14 @@ namespace modules {
             tracers_mult_z(tr,k,j,i,iens) = 1;
           }
         }
-      });
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        real dens = state(idR,hs+k,hs+j,hs+i,iens);
-        state(idU,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idV,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idW,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idT,hs+k,hs+j,hs+i,iens) *= dens;
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
+        if (i < nx && j < ny && k < nz) {
+          real dens = state(idR,hs+k,hs+j,hs+i,iens);
+          state(idU,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idV,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idW,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idT,hs+k,hs+j,hs+i,iens) *= dens;
+          for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
+        }
       });
 
       // Flux Corrected Transport to enforce positivity for tracer species that must remain non-negative
@@ -730,6 +731,8 @@ namespace modules {
                                      -( state_flux_z(l,k+1,j,i,iens) - state_flux_z(l,k,j,i,iens) ) * r_dz;
           if (l == idV && sim2d) state_tend(l,k,j,i,iens) = 0;
           if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(k,iens));
+          if (latitude != 0 && !sim2d && l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
+          if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
         }
         for (int l = 0; l < num_tracers; l++) {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux_x(l,k,j,i+1,iens)*tracers_mult_x(l,k,j,i+1,iens) -

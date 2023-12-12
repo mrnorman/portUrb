@@ -24,3 +24,5 @@ dt_phys: 0.
 # Output frequency in seconds
 out_freq: 900.
 
+latitude: 54
+

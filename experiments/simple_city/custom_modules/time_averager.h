@@ -64,10 +64,10 @@ namespace custom_modules {
       MPI_Info_set( info , "romio_no_indep_rw"    , "true"    );
       MPI_Info_set( info , "nc_header_align_size" , "1048576" );
       MPI_Info_set( info , "nc_var_align_size"    , "1048576" );
-      nc.create( "time_averaged_fields.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
       std::stringstream fname;
       fname << coupler.get_option<std::string>("out_prefix") << "_tavg_" << std::setw(8) << std::setfill('0')
             << counter << ".nc";
+      nc.create( fname.str() , NC_CLOBBER | NC_64BIT_DATA , info );
       nc.create_dim( "ens" , nens    );
       nc.create_dim( "x"   , nx_glob );
       nc.create_dim( "y"   , ny_glob );

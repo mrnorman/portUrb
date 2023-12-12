@@ -923,12 +923,12 @@ namespace modules {
         state(idV,kk,hs+j,hs+i,iens) = 0;
         state(idW,kk,hs+j,hs+i,iens) = 0;
         state(idT,kk,hs+j,hs+i,iens) = surface_temp(j,i,iens);
-        pressure( kk,hs+j,hs+i,iens) = 0; // pressure(hs,hs+j,hs+i,iens);
+        pressure( kk,hs+j,hs+i,iens) = pressure(hs,hs+j,hs+i,iens);
         state(idU,hs+nz+kk,hs+j,hs+i,iens) = state(idU,hs+nz-1,hs+j,hs+i,iens);
         state(idV,hs+nz+kk,hs+j,hs+i,iens) = state(idV,hs+nz-1,hs+j,hs+i,iens);
         state(idW,hs+nz+kk,hs+j,hs+i,iens) = 0;
         state(idT,hs+nz+kk,hs+j,hs+i,iens) = state(idT,hs+nz-1,hs+j,hs+i,iens);
-        pressure( hs+nz+kk,hs+j,hs+i,iens) = 0; // pressure( hs+nz-1,hs+j,hs+i,iens);
+        pressure( hs+nz+kk,hs+j,hs+i,iens) = pressure( hs+nz-1,hs+j,hs+i,iens);
         for (int l=0; l < num_tracers; l++) {
           tracers(l,      kk,hs+j,hs+i,iens) = tracers(l,hs+0   ,hs+j,hs+i,iens);
           tracers(l,hs+nz+kk,hs+j,hs+i,iens) = tracers(l,hs+nz-1,hs+j,hs+i,iens);
@@ -1128,10 +1128,8 @@ namespace modules {
           tracers_limits_z(0,l,0 ,j,i,iens) = tracers_limits_z(1,l,0 ,j,i,iens);
           tracers_limits_z(1,l,nz,j,i,iens) = tracers_limits_z(0,l,nz,j,i,iens);
         }
-        // pressure_limits_z(0,0 ,j,i,iens) = pressure_limits_z(1,0 ,j,i,iens);
-        // pressure_limits_z(1,nz,j,i,iens) = pressure_limits_z(0,nz,j,i,iens);
-        pressure_limits_z(0,0 ,j,i,iens) = 0;  pressure_limits_z(1,0 ,j,i,iens) = 0;
-        pressure_limits_z(0,nz,j,i,iens) = 0;  pressure_limits_z(1,nz,j,i,iens) = 0;
+        pressure_limits_z(0,0 ,j,i,iens) = pressure_limits_z(1,0 ,j,i,iens);
+        pressure_limits_z(1,nz,j,i,iens) = pressure_limits_z(0,nz,j,i,iens);
       });
     }
 

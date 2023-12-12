@@ -2,9 +2,9 @@
 #SBATCH -A stf006
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
-#SBATCH -t 8:00:00
+#SBATCH -t 6:00:00
 #SBATCH -p batch
-#SBATCH -N 8
+#SBATCH -N 92
 
 cd /lustre/orion/stf006/scratch/imn/portUrb/build
 source machines/crusher/crusher_gpu.env

@@ -9,43 +9,68 @@ nx = nc.dimensions["x"].size
 x = nc.variables["x"][:]/1000.
 y = nc.variables["y"][:]/1000.
 z = nc.variables["z"][:]/1000.
-# u = nc.variables["uvel"][0,nz/5,:,:]
-# v = nc.variables["vvel"][0,nz/5,:,:]
-# w = nc.variables["wvel"][0,nz/5,:,:]
-# mag = np.sqrt( u*u + v*v + w*w )
-# 
-# nlevs = 50
+nlevs = 200
 
-# X,Y = np.meshgrid(x,y)
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,mag,nlevs, cmap="jet")
-# ax2.set_title('Wind magnitude at z=nz/5')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# cbar = fig1.colorbar(CS)
-# cbar.ax.set_ylabel('wind magnitude (m/s)')
-# plt.show()
-# plt.close()
-# 
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,u,nlevs, cmap="jet")
-# ax2.set_title('u-velocity at z=nz/5')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# cbar = fig1.colorbar(CS)
-# cbar.ax.set_ylabel('Velocity (m/s)')
-# plt.show()
-# plt.close()
-# 
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,w,nlevs, cmap="jet")
-# ax2.set_title('w-velocity at z=nz/5')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# cbar = fig1.colorbar(CS)
-# cbar.ax.set_ylabel('Velocity (m/s)')
-# plt.show()
-# plt.close()
+
+zind = int(78.6/1200.*nz)
+zloc = (zind+0.5)*(1200./nz)
+u = nc.variables["uvel"][0,zind,:,:]
+v = nc.variables["vvel"][0,zind,:,:]
+w = nc.variables["wvel"][0,zind,:,:]
+mag = np.sqrt( u*u + v*v + w*w )
+X,Y = np.meshgrid(x,y)
+fig1, ax2 = plt.subplots(layout='constrained')
+CS = ax2.contourf(X,Y,mag,nlevs, cmap="gist_rainbow")
+ax2.set_title('Wind magnitude at z = '+str(int(zloc))+' m')
+ax2.set_xlabel('$x$-location (km)')
+ax2.set_ylabel('$y$-location (km)')
+cbar = fig1.colorbar(CS)
+cbar.ax.set_ylabel('wind magnitude (m/s)')
+plt.show()
+plt.close()
+
+fig1, ax2 = plt.subplots(layout='constrained')
+CS = ax2.contourf(X,Y,u,nlevs, cmap="gist_rainbow")
+ax2.set_title('u at z = '+str(int(zloc))+' m')
+ax2.set_xlabel('$x$-location (km)')
+ax2.set_ylabel('$y$-location (km)')
+cbar = fig1.colorbar(CS)
+cbar.ax.set_ylabel('wind magnitude (m/s)')
+plt.show()
+plt.close()
+
+fig1, ax2 = plt.subplots(layout='constrained')
+CS = ax2.contourf(X,Y,u,nlevs, cmap="gist_rainbow")
+ax2.set_title('v at z = '+str(int(zloc))+' m')
+ax2.set_xlabel('$x$-location (km)')
+ax2.set_ylabel('$y$-location (km)')
+cbar = fig1.colorbar(CS)
+cbar.ax.set_ylabel('wind magnitude (m/s)')
+plt.show()
+plt.close()
+
+
+
+yind = ny/2
+yloc = (yind+0.5)*(4000./ny)
+zind2 = int(700./1200.*nz)
+u = nc.variables["uvel"][0,:zind2,yind,:]
+v = nc.variables["vvel"][0,:zind2,yind,:]
+w = nc.variables["wvel"][0,:zind2,yind,:]
+mag = np.sqrt( u*u + v*v + w*w )
+X,Z = np.meshgrid(x,z[:zind2])
+fig1, ax2 = plt.subplots(layout='constrained')
+CS = ax2.contourf(X,Z,mag,nlevs, cmap="gist_stern")
+ax2.set_title('Wind magnitude at y = '+str(int(yloc))+' m')
+ax2.set_xlabel('$x$-location (km)')
+ax2.set_ylabel('$z$-location (km)')
+ax2.set_aspect('equal')
+cbar = fig1.colorbar(CS,orientation='horizontal')
+cbar.ax.set_ylabel('wind magnitude (m/s)')
+plt.show()
+plt.close()
+
+
 
 u = nc.variables["uvel"][0,:,:,:]
 v = nc.variables["vvel"][0,:,:,:]
@@ -62,3 +87,4 @@ plt.close()
 plt.plot(np.mean(np.sqrt(u*u+v*v+w*w),(1,2)),z)
 plt.show()
 plt.close()
+

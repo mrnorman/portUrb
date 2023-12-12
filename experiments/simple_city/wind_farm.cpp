@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
-      // custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 , 0 , 0 );
+      custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 );
       // horiz_sponge.apply         ( coupler , dtphys , dtphys*10  , 10 , true , true , false , false );
       dycore.time_step           ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );

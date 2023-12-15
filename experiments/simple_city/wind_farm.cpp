@@ -2,11 +2,9 @@
 #include "coupler.h"
 #include "dynamics_rk.h"
 #include "domain_nudger.h"
-#include "horizontal_sponge.h"
 #include "time_averager.h"
 #include "sponge_layer.h"
 #include "sc_init.h"
-#include "sc_output.h"
 #include "les_closure.h"
 
 int main(int argc, char** argv) {
@@ -27,26 +25,30 @@ int main(int argc, char** argv) {
     if (argc <= 1) { endrun("ERROR: Must pass the input YAML filename as a parameter"); }
     std::string inFile(argv[1]);
     YAML::Node config = YAML::LoadFile(inFile);
-    if ( !config            ) { endrun("ERROR: Invalid YAML input file"); }
-    auto sim_time  = config["sim_time"].as<real>();
-    auto nens      = config["nens"    ].as<int>();
-    auto nx_glob   = config["nx_glob" ].as<size_t>();
-    auto ny_glob   = config["ny_glob" ].as<size_t>();
-    auto nz        = config["nz"      ].as<int>();
-    auto xlen      = config["xlen"    ].as<real>();
-    auto ylen      = config["ylen"    ].as<real>();
-    auto zlen      = config["zlen"    ].as<real>();
-    auto dtphys_in = config["dt_phys" ].as<real>();
-    auto out_freq  = config["out_freq"].as<real>();
+    if ( !config ) { endrun("ERROR: Invalid YAML input file"); }
+    auto sim_time     = config["sim_time"    ].as<real>();
+    auto nens         = config["nens"        ].as<int>();
+    auto nx_glob      = config["nx_glob"     ].as<size_t>();
+    auto ny_glob      = config["ny_glob"     ].as<size_t>();
+    auto nz           = config["nz"          ].as<int>();
+    auto xlen         = config["xlen"        ].as<real>();
+    auto ylen         = config["ylen"        ].as<real>();
+    auto zlen         = config["zlen"        ].as<real>();
+    auto dtphys_in    = config["dt_phys"     ].as<real>();
+    auto out_freq     = config["out_freq"    ].as<real>();
+    auto out_prefix   = config["out_prefix"  ].as<std::string>();
+    auto is_restart   = config["is_restart"  ].as<bool>();
+    auto restart_file = config["restart_file"].as<std::string>();
 
-    coupler.set_option<std::string>( "out_prefix"       , config["out_prefix"      ].as<std::string>()      );
-    coupler.set_option<std::string>( "init_data"        , config["init_data"       ].as<std::string>()      );
-    coupler.set_option<real       >( "out_freq"         , config["out_freq"        ].as<real       >()      );
-    coupler.set_option<bool       >( "file_per_process" , config["file_per_process"].as<bool       >(false) );
-    coupler.set_option<real       >( "latitude"         , config["latitude"        ].as<real       >(0)     );
+    coupler.set_option<std::string>( "out_prefix"   , config["out_prefix"  ].as<std::string>()      );
+    coupler.set_option<std::string>( "init_data"    , config["init_data"   ].as<std::string>()      );
+    coupler.set_option<real       >( "out_freq"     , config["out_freq"    ].as<real       >()      );
+    coupler.set_option<bool       >( "is_restart"   , config["is_restart"  ].as<bool       >(false) );
+    coupler.set_option<std::string>( "restart_file" , config["restart_file"].as<std::string>("")    );
+    coupler.set_option<real       >( "latitude"     , config["latitude"    ].as<real       >(0)     );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
-    //                   (6+) tracer masses (*not* mixing ratios!)
+    //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
     coupler.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob, nens);
 
     // Just tells the coupler how big the domain is in each dimensions
@@ -59,25 +61,26 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    custom_modules::Horizontal_Sponge          horiz_sponge;
 
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
-    coupler.add_tracer("pollution1" , ""          ,true,false,true);
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
-    coupler.get_data_manager_readwrite().get<real,4>("pollution1" ) = 0;
-
-    real etime = 0;   // Elapsed time
-    int num_out = 0;
-    int file_counter = 0;
 
     // Run the initialization modules
-    custom_modules::sc_init  ( coupler );
-    les_closure  .init( coupler );
-    dycore       .init( coupler ); // Dycore should initialize its own state here
-    time_averager.init( coupler );
-    horiz_sponge .init( coupler );
+    custom_modules::sc_init( coupler );
+    les_closure  .init     ( coupler );
+    dycore       .init     ( coupler ); // Dycore should initialize its own state here
+    time_averager.init     ( coupler );
 
-    custom_modules::sc_output( coupler , etime , file_counter );
+    real etime = coupler.get_option<real>("elapsed_time");
+    core::Counter output_counter( out_freq , etime );
+
+    if (is_restart) {
+      coupler.overwrite_with_restart();
+      etime = coupler.get_option<real>("elapsed_time");
+      output_counter = core::Counter( out_freq , etime-((int)(etime/out_freq))*out_freq );
+    } else {
+      coupler.write_output_file( out_prefix );
+    }
 
     real dtphys = dtphys_in;
     yakl::fence();
@@ -89,22 +92,21 @@ int main(int argc, char** argv) {
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
       custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 );
-      // horiz_sponge.apply         ( coupler , dtphys , dtphys*10  , 10 , true , true , false , false );
       dycore.time_step           ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );
       modules::sponge_layer      ( coupler , dtphys , dtphys*10 , nz/20 );
       time_averager.accumulate   ( coupler , dtphys );
 
       etime += dtphys; // Advance elapsed time
+      coupler.set_option<real>("elapsed_time",etime);
 
-      if (out_freq >= 0. && etime / out_freq >= num_out+1) {
+      if (out_freq >= 0. && output_counter.update_and_check(dtphys)) {
         yakl::fence();
         auto t2 = Clock::now();
         Duration dur_step = t2 - tm;
         tm = t2;
-        custom_modules::sc_output( coupler , etime , file_counter );
-        time_averager.dump       ( coupler );
-        num_out++;
+        coupler.write_output_file( out_prefix );
+        output_counter.reset();
         // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
         auto &dm = coupler.get_data_manager_readonly();
         auto u = dm.get_collapsed<real const>("uvel");

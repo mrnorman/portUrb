@@ -1331,6 +1331,13 @@ namespace modules {
         rt(k,iens) *= r_nx_ny;
         p (k,iens) *= r_nx_ny;
       });
+
+      // These are needed for a proper restart
+      coupler.register_output_variable<real>( "immersed_proportion" , core::Coupler::DIMS_3D      );
+      coupler.register_output_variable<real>( "hy_dens_cells"       , core::Coupler::DIMS_COLUMN  );
+      coupler.register_output_variable<real>( "hy_dens_theta_cells" , core::Coupler::DIMS_COLUMN  );
+      coupler.register_output_variable<real>( "hy_pressure_cells"   , core::Coupler::DIMS_COLUMN  );
+      coupler.register_output_variable<real>( "surface_temp"        , core::Coupler::DIMS_SURFACE );
     }
 
 

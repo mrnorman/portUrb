@@ -53,8 +53,6 @@ namespace modules {
 
     bool first_step;
 
-    real etime;
-
     // Indices for all of your tracer quantities
     int static constexpr ID_C  = 0;  // Local index for Cloud Water Mass  
     int static constexpr ID_NC = 1;  // Local index for Cloud Water Number
@@ -161,8 +159,6 @@ namespace modules {
       coupler.set_option<real>("cv_v"   ,cv_v   );
       coupler.set_option<real>("p0"     ,p0     );
       coupler.set_option<real>("grav"   ,grav   );
-
-      etime = 0;
     }
 
 
@@ -439,7 +435,6 @@ namespace modules {
       });
 
       first_step = false;
-      etime += dt;
     }
 
 

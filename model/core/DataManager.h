@@ -530,6 +530,11 @@ namespace core {
     }
 
 
+    Entry const & get_entry( std::string name ) const {
+      return entries[find_entry_or_error(name)];
+    }
+
+
     // INTERNAL USE: Return the C++ hash of this type. Ignore const and volatiles modifiers
     template <class T> size_t get_type_hash() const {
       return typeid(typename std::remove_cv<T>::type).hash_code();

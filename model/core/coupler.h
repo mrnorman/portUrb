@@ -42,6 +42,7 @@ namespace core {
     SArray<int,2,3,3> neigh; // List of neighboring rank IDs;  1st index: y;  2nd index: x
                              // Y: 0 = south;  1 = middle;  2 = north
                              // X: 0 = west ;  1 = center;  3 = east 
+    int    file_counter;
 
     DataManager dm;
 
@@ -54,14 +55,26 @@ namespace core {
     };
     std::vector<Tracer> tracers;
 
+    struct OutputVar {
+      std::string name;
+      int         dims;
+      size_t      type_hash;
+    };
+    std::vector<OutputVar> output_vars;
+
 
   public:
+
+    int static constexpr DIMS_COLUMN  = 1;
+    int static constexpr DIMS_SURFACE = 2;
+    int static constexpr DIMS_3D      = 3;
 
     Coupler() {
       this->xlen   = -1;
       this->ylen   = -1;
       this->zlen   = -1;
       this->dt_gcm = -1;
+      this->file_counter = 0;
     }
 
 
@@ -212,6 +225,7 @@ namespace core {
       dm.add_dimension( "x"    , nx   );
       dm.add_dimension( "y"    , ny   );
       dm.add_dimension( "z"    , nz   );
+      set_option<real>("elapsed_time",0._fp);
     }
 
 
@@ -365,6 +379,199 @@ namespace core {
         if (tracer_name == tracers[i].name) return true;
       }
       return false;
+    }
+
+
+    template <class T> size_t get_type_hash() const {
+      return typeid(typename std::remove_cv<T>::type).hash_code();
+    }
+
+
+    template <class T> void register_output_variable( std::string name , int dims ) {
+      output_vars.push_back({name,dims,get_type_hash<T>()});
+    }
+
+
+    void write_output_file( std::string prefix ) {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      typedef unsigned char uchar;
+      yakl::timer_start("output");
+      auto nens        = get_nens();
+      auto nx          = get_nx();
+      auto ny          = get_ny();
+      auto nz          = get_nz();
+      auto dx          = get_dx();
+      auto dy          = get_dy();
+      auto dz          = get_dz();
+      auto num_tracers = get_num_tracers();
+      auto C0          = get_option<real>("C0");
+      auto R_d         = get_option<real>("R_d");
+      auto gamma       = get_option<real>("gamma_d");
+      auto etime       = get_option<real>("elapsed_time");
+      int i_beg        = get_i_beg();
+      int j_beg        = get_j_beg();
+      yakl::SimplePNetCDF nc;
+      std::stringstream fname;
+      fname << prefix << "_" << std::setw(8) << std::setfill('0') << file_counter << ".nc";
+      MPI_Info info;
+      MPI_Info_create(&info);
+      MPI_Info_set(info, "romio_no_indep_rw",    "true");
+      MPI_Info_set(info, "nc_header_align_size", "1048576");
+      MPI_Info_set(info, "nc_var_align_size",    "1048576");
+      nc.create(fname.str() , NC_CLOBBER | NC_64BIT_DATA , info );
+      nc.create_dim( "ens" , nens );
+      nc.create_dim( "x"   , get_nx_glob() );
+      nc.create_dim( "y"   , get_ny_glob() );
+      nc.create_dim( "z"   , nz );
+      nc.create_dim( "t"   , 1 );
+      std::vector<std::string> dimnames_column  = {"z","ens"};
+      std::vector<std::string> dimnames_surface = {"y","x","ens"};
+      std::vector<std::string> dimnames_3d      = {"z","y","x","ens"};
+      nc.create_var<real>( "x"   , {"x"} );
+      nc.create_var<real>( "y"   , {"y"} );
+      nc.create_var<real>( "z"   , {"z"} );
+      nc.create_var<real>( "density_dry"  , dimnames_3d );
+      nc.create_var<real>( "uvel"         , dimnames_3d );
+      nc.create_var<real>( "vvel"         , dimnames_3d );
+      nc.create_var<real>( "wvel"         , dimnames_3d );
+      nc.create_var<real>( "temperature"  , dimnames_3d );
+      nc.create_var<real>( "etime"        , {"t"} );
+      nc.create_var<real>( "file_counter" , {"t"} );
+      auto tracer_names = get_tracer_names();
+      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , dimnames_3d ); }
+      for (int ivar = 0; ivar < output_vars.size(); ivar++) {
+        auto name = output_vars[ivar].name;
+        auto hash = output_vars[ivar].type_hash;
+        auto dims = output_vars[ivar].dims;
+        if        (dims == DIMS_COLUMN ) {
+          if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_column ); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_column ); }
+          else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_column ); }
+          else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_column ); }
+        } else if (dims == DIMS_SURFACE) {
+          if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_surface); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_surface); }
+          else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_surface); }
+          else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_surface); }
+        } else if (dims == DIMS_3D     ) {
+          if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_3d     ); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_3d     ); }
+          else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_3d     ); }
+          else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_3d     ); }
+        }
+      }
+      nc.enddef();
+      // x-coordinate
+      real1d xloc("xloc",nx);
+      parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
+      nc.write_all( xloc , "x" , {i_beg} );
+      // y-coordinate
+      real1d yloc("yloc",ny);
+      parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
+      nc.write_all( yloc , "y" , {j_beg} );
+      // z-coordinate
+      real1d zloc("zloc",nz);
+      parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
+      nc.begin_indep_data();
+      if (is_mainproc()) nc.write( zloc , "z" );
+      if (is_mainproc()) nc.write( etime        , "etime"        );
+      if (is_mainproc()) nc.write( file_counter , "file_counter" );
+      nc.end_indep_data();
+      auto &dm = get_data_manager_readonly();
+      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg,0};
+      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg,0};
+      nc.write_all(dm.get<real const,4>("density_dry"),"density_dry",start_3d);
+      nc.write_all(dm.get<real const,4>("uvel"       ),"uvel"       ,start_3d);
+      nc.write_all(dm.get<real const,4>("vvel"       ),"vvel"       ,start_3d);
+      nc.write_all(dm.get<real const,4>("wvel"       ),"wvel"       ,start_3d);
+      nc.write_all(dm.get<real const,4>("temp"       ),"temperature",start_3d);
+      for (int i=0; i < tracer_names.size(); i++) {
+        nc.write_all(dm.get<real const,4>(tracer_names[i]),tracer_names[i],start_3d);
+      }
+      for (int ivar = 0; ivar < output_vars.size(); ivar++) {
+        auto name = output_vars[ivar].name;
+        auto hash = output_vars[ivar].type_hash;
+        auto dims = output_vars[ivar].dims;
+        if        (dims == DIMS_COLUMN ) {
+          nc.begin_indep_data();
+          if (is_mainproc()) {
+            if      (hash == get_type_hash<float >()) { nc.write(dm.get<float  const,2>(name),name); }
+            else if (hash == get_type_hash<double>()) { nc.write(dm.get<double const,2>(name),name); }
+            else if (hash == get_type_hash<int   >()) { nc.write(dm.get<int    const,2>(name),name); }
+            else if (hash == get_type_hash<uchar >()) { nc.write(dm.get<uchar  const,2>(name),name); }
+          }
+          nc.end_indep_data();
+        } else if (dims == DIMS_SURFACE) {
+          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,3>(name),name,start_surface); }
+        } else if (dims == DIMS_3D     ) {
+          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,4>(name),name,start_3d); }
+        }
+      }
+      nc.close();
+      file_counter++;
+      yakl::timer_stop("output");
+    }
+
+
+    void overwrite_with_restart() {
+      typedef unsigned char uchar;
+      yakl::timer_start("overwrite_with_restart");
+      if (is_mainproc())  std::cout << "*** Restarting from file: "
+                                    << get_option<std::string>("restart_file") << std::endl;
+      int i_beg = get_i_beg();
+      int j_beg = get_j_beg();
+      auto tracer_names = get_tracer_names();
+      yakl::SimplePNetCDF nc;
+      nc.open( get_option<std::string>("restart_file") , NC_NOWRITE );
+      nc.begin_indep_data();
+      real etime;
+      if (is_mainproc()) nc.read( etime        , "etime"        );
+      if (is_mainproc()) nc.read( file_counter , "file_counter" );
+      set_option<real>("elapsed_time",etime);
+      nc.end_indep_data();
+      MPI_Bcast( &file_counter , 1 , MPI_INT , 0 , MPI_COMM_WORLD );
+      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg,0};
+      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg,0};
+      std::vector<MPI_Offset> start_column  = {0            ,0};
+      nc.read_all(dm.get<real,4>("density_dry"),"density_dry",start_3d);
+      nc.read_all(dm.get<real,4>("uvel"       ),"uvel"       ,start_3d);
+      nc.read_all(dm.get<real,4>("vvel"       ),"vvel"       ,start_3d);
+      nc.read_all(dm.get<real,4>("wvel"       ),"wvel"       ,start_3d);
+      nc.read_all(dm.get<real,4>("temp"       ),"temperature",start_3d);
+      for (int i=0; i < tracer_names.size(); i++) {
+        nc.read_all(dm.get<real,4>(tracer_names[i]),tracer_names[i],start_3d);
+      }
+      for (int ivar = 0; ivar < output_vars.size(); ivar++) {
+        auto name = output_vars[ivar].name;
+        auto hash = output_vars[ivar].type_hash;
+        auto dims = output_vars[ivar].dims;
+        if        (dims == DIMS_COLUMN ) {
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,2>(name),name,start_column); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,2>(name),name,start_column); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,2>(name),name,start_column); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,2>(name),name,start_column); }
+        } else if (dims == DIMS_SURFACE) {
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,3>(name),name,start_surface); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,3>(name),name,start_surface); }
+        } else if (dims == DIMS_3D     ) {
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,4>(name),name,start_3d); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,4>(name),name,start_3d); }
+        }
+      }
+      nc.close();
+      file_counter++;
+      yakl::timer_stop("overwrite_with_restart");
     }
 
   };

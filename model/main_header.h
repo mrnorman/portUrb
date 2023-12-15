@@ -4,6 +4,7 @@
 #include "mpi.h"
 #include "YAKL.h"
 #include "yaml-cpp/yaml.h"
+#include "Counter.h"
 #include <stdexcept>
 
 

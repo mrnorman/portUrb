@@ -534,9 +534,10 @@ namespace core {
       real etime;
       if (is_mainproc()) nc.read( etime        , "etime"        );
       if (is_mainproc()) nc.read( file_counter , "file_counter" );
-      set_option<real>("elapsed_time",etime);
       nc.end_indep_data();
-      MPI_Bcast( &file_counter , 1 , MPI_INT , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( &file_counter , 1 , MPI_INT             , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( &etime        , 1 , get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      set_option<real>("elapsed_time",etime);
       std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg,0};
       std::vector<MPI_Offset> start_surface = {  j_beg,i_beg,0};
       std::vector<MPI_Offset> start_column  = {0            ,0};

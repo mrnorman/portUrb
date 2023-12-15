@@ -2,7 +2,7 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 
-nc = Dataset("test_00000040.nc","r")
+nc = Dataset("test_00000008.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size
@@ -14,9 +14,9 @@ nlevs = 200
 
 zind = int(78.6/1200.*nz)
 zloc = (zind+0.5)*(1200./nz)
-u = nc.variables["uvel"][0,zind,:,:]
-v = nc.variables["vvel"][0,zind,:,:]
-w = nc.variables["wvel"][0,zind,:,:]
+u = nc.variables["uvel"][zind,:,:,0]
+v = nc.variables["vvel"][zind,:,:,0]
+w = nc.variables["wvel"][zind,:,:,0]
 mag = np.sqrt( u*u + v*v + w*w )
 X,Y = np.meshgrid(x,y)
 fig1, ax2 = plt.subplots(layout='constrained')
@@ -54,9 +54,9 @@ plt.close()
 yind = ny/2
 yloc = (yind+0.5)*(4000./ny)
 zind2 = int(700./1200.*nz)
-u = nc.variables["uvel"][0,:zind2,yind,:]
-v = nc.variables["vvel"][0,:zind2,yind,:]
-w = nc.variables["wvel"][0,:zind2,yind,:]
+u = nc.variables["uvel"][:zind2,yind,:,0]
+v = nc.variables["vvel"][:zind2,yind,:,0]
+w = nc.variables["wvel"][:zind2,yind,:,0]
 mag = np.sqrt( u*u + v*v + w*w )
 X,Z = np.meshgrid(x,z[:zind2])
 fig1, ax2 = plt.subplots(layout='constrained')
@@ -72,9 +72,9 @@ plt.close()
 
 
 
-u = nc.variables["uvel"][0,:,:,:]
-v = nc.variables["vvel"][0,:,:,:]
-w = nc.variables["wvel"][0,:,:,:]
+u = nc.variables["uvel"][:,:,:,0]
+v = nc.variables["vvel"][:,:,:,0]
+w = nc.variables["wvel"][:,:,:,0]
 
 plt.plot(np.mean(u,(1,2)),z)
 plt.show()

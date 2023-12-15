@@ -4,9 +4,9 @@ sim_time: 36000.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 80
-ny_glob: 80
-nz     : 24
+nx_glob: 800
+ny_glob: 800
+nz     : 240
 
 # Domain size of the CRMs
 xlen: 4000
@@ -22,11 +22,13 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 900.
+
+inform_freq: 10.
 
 latitude: 0.
 
 is_restart: true
 
-restart_file: test_00000003.nc
+restart_file: test_00000015.nc
 

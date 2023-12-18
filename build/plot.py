@@ -2,7 +2,7 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 
-nc = Dataset("test_00000008.nc","r")
+nc = Dataset("test_00000050.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size

@@ -6,6 +6,7 @@
 #include "sponge_layer.h"
 #include "sc_init.h"
 #include "les_closure.h"
+#include "windmill_actuators.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -62,6 +63,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
+    modules::WindmillActuators                 windmills;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -72,6 +74,7 @@ int main(int argc, char** argv) {
     les_closure  .init     ( coupler );
     dycore       .init     ( coupler ); // Dycore should initialize its own state here
     time_averager.init     ( coupler );
+    windmills    .init     ( coupler );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -101,6 +104,7 @@ int main(int argc, char** argv) {
       // Run modules
       custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 );
       dycore.time_step           ( coupler , dtphys );
+      // windmills.apply            ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );
       modules::sponge_layer      ( coupler , dtphys , dtphys*10 , nz/20 );
       time_averager.accumulate   ( coupler , dtphys );

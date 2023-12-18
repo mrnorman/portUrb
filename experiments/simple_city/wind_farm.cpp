@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
       // Run modules
       custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 );
       dycore.time_step           ( coupler , dtphys );
-      // windmills.apply            ( coupler , dtphys );
+      windmills.apply            ( coupler , dtphys );
       les_closure.apply          ( coupler , dtphys );
       modules::sponge_layer      ( coupler , dtphys , dtphys*10 , nz/20 );
       time_averager.accumulate   ( coupler , dtphys );

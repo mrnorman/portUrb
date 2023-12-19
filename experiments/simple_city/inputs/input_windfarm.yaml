@@ -22,9 +22,9 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 0.
+out_freq: 900.
 
-inform_freq: 0.
+inform_freq: 10.
 
 latitude: 0.
 

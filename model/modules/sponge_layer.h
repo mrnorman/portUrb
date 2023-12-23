@@ -9,6 +9,8 @@ namespace modules {
     using yakl::c::parallel_for;
     using yakl::c::Bounds;
 
+    num_layers = std::max(2,num_layers);
+
     auto ny_glob = coupler.get_ny_glob();
     auto nx_glob = coupler.get_nx_glob();
     auto nz      = coupler.get_nz  ();

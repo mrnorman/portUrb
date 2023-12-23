@@ -1,12 +1,11 @@
 
 #include "coupler.h"
 #include "dynamics_rk.h"
-#include "domain_nudger.h"
 #include "time_averager.h"
-#include "sponge_layer.h"
 #include "sc_init.h"
 #include "les_closure.h"
 #include "windmill_actuators.h"
+#include "EdgeSponge.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -64,6 +63,7 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     modules::WindmillActuators                 windmills;
+    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -75,6 +75,7 @@ int main(int argc, char** argv) {
     dycore       .init     ( coupler ); // Dycore should initialize its own state here
     time_averager.init     ( coupler );
     windmills    .init     ( coupler );
+    edge_sponge  .init     ( coupler );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -102,12 +103,11 @@ int main(int argc, char** argv) {
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
       // Run modules
-      custom_modules::nudge_winds( coupler , dtphys , dtphys*100 , 10 );
-      dycore.time_step           ( coupler , dtphys );
-      windmills.apply            ( coupler , dtphys );
-      les_closure.apply          ( coupler , dtphys );
-      modules::sponge_layer      ( coupler , dtphys , dtphys*10 , nz/20 );
-      time_averager.accumulate   ( coupler , dtphys );
+      edge_sponge.apply       (coupler,dtphys,dtphys*10,10,10,10,10,10);
+      dycore.time_step        (coupler,dtphys);
+      windmills.apply         (coupler,dtphys);
+      les_closure.apply       (coupler,dtphys);
+      time_averager.accumulate(coupler,dtphys);
 
       // Update time step
       etime += dtphys; // Advance elapsed time

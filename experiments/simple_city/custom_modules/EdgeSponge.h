@@ -5,7 +5,7 @@
 
 namespace custom_modules {
   
-  struct Horizontal_Sponge {
+  struct EdgeSponge {
     real2d col_rho_d;
     real2d col_uvel;
     real2d col_vvel;
@@ -93,8 +93,8 @@ namespace custom_modules {
     void override_rho_v(real val) { col_rho_v = val; }
 
 
-    inline void apply( core::Coupler &coupler , real dt , real time_scale , int sponge_cells ,
-                       bool x1=true , bool x2=true , bool y1=true , bool y2=true ) {
+    inline void apply( core::Coupler &coupler , real dt , real time_scale ,
+                       int cells_x1=0 , int cells_x2=0 , int cells_y1=0 , int cells_y2=0 , int cells_z2=0 ) {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
 
@@ -122,7 +122,6 @@ namespace custom_modules {
       auto wvel  = dm.get<real,4>("wvel");
       auto temp  = dm.get<real,4>("temp");
       auto rho_v = dm.get<real,4>("water_vapor");
-      auto poll1 = dm.get<real,4>("pollution1");
 
       YAKL_SCOPE( col_rho_d    , this->col_rho_d    );
       YAKL_SCOPE( col_uvel     , this->col_uvel     );
@@ -133,75 +132,84 @@ namespace custom_modules {
 
       real time_factor = dt / time_scale;
 
-      if (coupler.get_px() == 0 && x1) {
+      if (coupler.get_px() == 0 && cells_x1 > 0) {
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real xloc   = i / (sponge_cells-1._fp);
-          real weight = i < sponge_cells ? (cos(M_PI*xloc)+1)/2 : 0;
+          real xloc   = i / (cells_x1-1._fp);
+          real weight = i < cells_x1 ? (cos(M_PI*xloc)+1)/2 : 0;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
-          if ((j_beg+j == ny_glob/2-(3*ny_glob)/8  ||
-               j_beg+j == ny_glob/2-(2*ny_glob)/8  ||
-               j_beg+j == ny_glob/2-(1*ny_glob)/8  ||
-               j_beg+j == ny_glob/2-(0*ny_glob)/8  ||
-               j_beg+j == ny_glob/2+(1*ny_glob)/8  ||
-               j_beg+j == ny_glob/2+(2*ny_glob)/8  ||
-               j_beg+j == ny_glob/2+(3*ny_glob)/8  ) && 
-              (      k == nz     /2-(3*nz     )/8  ||
-                     k == nz     /2-(2*nz     )/8  ||
-                     k == nz     /2-(1*nz     )/8  ||
-                     k == nz     /2-(0*nz     )/8  ||
-                     k == nz     /2+(1*nz     )/8  ||
-                     k == nz     /2+(2*nz     )/8  ||
-                     k == nz     /2+(3*nz     )/8  )) { poll1(k,j,i,iens) = weight*1 + (1-weight)*poll1(k,j,i,iens); }
-          else                                        { poll1(k,j,i,iens) = weight*0 + (1-weight)*poll1(k,j,i,iens); }
+          if (weight > 0) {
+            rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
+            uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
+            vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
+            wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
+            temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
+            rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          }
         });
       }
-      if (coupler.get_px() == coupler.get_nproc_x()-1 && x2) {
+      if (coupler.get_px() == coupler.get_nproc_x()-1 && cells_x2 > 0) {
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real xloc   = (nx-1-i) / (sponge_cells-1._fp);
-          real weight = nx-1-i < sponge_cells ? (cos(M_PI*xloc)+1)/2 : 0;
+          real xloc   = (nx-1-i) / (cells_x2-1._fp);
+          real weight = nx-1-i < cells_x2 ? (cos(M_PI*xloc)+1)/2 : 0;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          if (weight > 0) {
+            rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
+            uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
+            vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
+            wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
+            temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
+            rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          }
         });
       }
-      if (coupler.get_py() == 0 && y1) {
+      if (coupler.get_py() == 0 && cells_y1 > 0) {
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real yloc   = j / (sponge_cells-1._fp);
-          real weight = j < sponge_cells ? (cos(M_PI*yloc)+1)/2 : 0;
+          real yloc   = j / (cells_y1-1._fp);
+          real weight = j < cells_y1 ? (cos(M_PI*yloc)+1)/2 : 0;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          if (weight > 0) {
+            rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
+            uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
+            vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
+            wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
+            temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
+            rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          }
         });
       }
-      if (coupler.get_py() == coupler.get_nproc_y()-1 && y2) {
+      if (coupler.get_py() == coupler.get_nproc_y()-1 && cells_y2 > 0) {
         parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real yloc   = (ny-1-j) / (sponge_cells-1._fp);
-          real weight = ny-1-j < sponge_cells ? (cos(M_PI*yloc)+1)/2 : 0;
+          real yloc   = (ny-1-j) / (cells_y2-1._fp);
+          real weight = ny-1-j < cells_y2 ? (cos(M_PI*yloc)+1)/2 : 0;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          if (weight > 0) {
+            rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
+            uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
+            vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
+            wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
+            temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
+            rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          }
+        });
+      }
+      if (cells_z2 > 0) {
+        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+          real zloc   = (nz-1-k) / (cells_z2-1._fp);
+          real weight = nz-1-k < cells_z2 ? (cos(M_PI*zloc)+1)/2 : 0;
+          weight *= time_factor;
+          if (weight > 0) {
+            rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
+            uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
+            vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
+            wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
+            temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
+            rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
+          }
         });
       }
     }

@@ -6,6 +6,7 @@
 #include "les_closure.h"
 #include "windmill_actuators.h"
 #include "EdgeSponge.h"
+#include "domain_nudger.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -103,11 +104,12 @@ int main(int argc, char** argv) {
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
       // Run modules
-      edge_sponge.apply       (coupler,dtphys,dtphys*10,10,10,10,10,10);
-      dycore.time_step        (coupler,dtphys);
-      windmills.apply         (coupler,dtphys);
-      les_closure.apply       (coupler,dtphys);
-      time_averager.accumulate(coupler,dtphys);
+      edge_sponge.apply          (coupler,dtphys,dtphys*10,0,0,0,0,20);
+      // custom_modules::nudge_winds(coupler,dtphys,dtphys*100,10);
+      dycore.time_step           (coupler,dtphys);
+      windmills.apply            (coupler,dtphys);
+      les_closure.apply          (coupler,dtphys);
+      time_averager.accumulate   (coupler,dtphys);
 
       // Update time step
       etime += dtphys; // Advance elapsed time

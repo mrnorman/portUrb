@@ -5,8 +5,9 @@
 #include "sc_init.h"
 #include "les_closure.h"
 #include "windmill_actuators.h"
-#include "EdgeSponge.h"
-#include "domain_nudger.h"
+#include "surface_flux.h"
+#include "column_nudging.h"
+#include "perturb_temperature.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -64,19 +65,20 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     modules::WindmillActuators                 windmills;
-    custom_modules::EdgeSponge                 edge_sponge;
+    modules::ColumnNudger                      column_nudger;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
 
     // Run the initialization modules
-    custom_modules::sc_init( coupler );
-    les_closure  .init     ( coupler );
-    dycore       .init     ( coupler ); // Dycore should initialize its own state here
-    time_averager.init     ( coupler );
-    windmills    .init     ( coupler );
-    edge_sponge  .init     ( coupler );
+    custom_modules::sc_init     ( coupler );
+    les_closure  .init          ( coupler );
+    dycore       .init          ( coupler ); // Dycore should initialize its own state here
+    column_nudger.set_column    ( coupler );
+    time_averager.init          ( coupler );
+    windmills    .init          ( coupler );
+    modules::perturb_temperature( coupler , false , true );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -104,12 +106,12 @@ int main(int argc, char** argv) {
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
       // Run modules
-      edge_sponge.apply          (coupler,dtphys,dtphys*10,0,0,0,0,20);
-      // custom_modules::nudge_winds(coupler,dtphys,dtphys*100,10);
-      dycore.time_step           (coupler,dtphys);
-      windmills.apply            (coupler,dtphys);
-      les_closure.apply          (coupler,dtphys);
-      time_averager.accumulate   (coupler,dtphys);
+      column_nudger.nudge_to_column(coupler,dtphys);
+      modules::apply_surface_fluxes(coupler,dtphys);
+      dycore.time_step             (coupler,dtphys);
+      windmills.apply              (coupler,dtphys);
+      les_closure.apply            (coupler,dtphys);
+      time_averager.accumulate     (coupler,dtphys);
 
       // Update time step
       etime += dtphys; // Advance elapsed time

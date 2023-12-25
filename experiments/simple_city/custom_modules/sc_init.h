@@ -286,6 +286,37 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i,iens) = 300;
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
+
+      real constexpr roughness  = 0.1;
+      real constexpr uref       = 10;   // Velocity at hub height
+      real constexpr theta0     = 300;
+      real constexpr href       = 90;   // Height of hub / center of windmills
+      real constexpr von_karman = 0.40;
+      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+      realHost1d press_host("press",nz);
+      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+      std::cout << press_host;
+      auto press = press_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real zloc = (k+0.5_fp)*dz;
+        real ustar = von_karman * uref / std::log((100+roughness)/roughness);
+        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
+        real p     = press(k);
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i,iens) = rt / theta0;
+        dm_uvel (k,j,i,iens) = u;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = T;
+        dm_rho_v(k,j,i,iens) = 0;
+        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
+      });
+
     }
 
   }

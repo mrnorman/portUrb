@@ -13,7 +13,7 @@ xlen: 10000
 ylen: 1500
 zlen: 700
 
-init_data: ABL_neutral
+init_data: ABL_neutral2
 
 # Output filename
 out_prefix: test

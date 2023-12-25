@@ -922,10 +922,10 @@ namespace modules {
       // z-direction BC's
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
                                         YAKL_LAMBDA (int kk, int j, int i, int iens) {
-        state(idU,kk,hs+j,hs+i,iens) = 0;
-        state(idV,kk,hs+j,hs+i,iens) = 0;
+        state(idU,kk,hs+j,hs+i,iens) = state(idU,hs+0,hs+j,hs+i,iens);
+        state(idV,kk,hs+j,hs+i,iens) = state(idV,hs+0,hs+j,hs+i,iens);
         state(idW,kk,hs+j,hs+i,iens) = 0;
-        state(idT,kk,hs+j,hs+i,iens) = surface_temp(j,i,iens);
+        state(idT,kk,hs+j,hs+i,iens) = state(idT,hs+0,hs+j,hs+i,iens);
         pressure( kk,hs+j,hs+i,iens) = pressure(hs,hs+j,hs+i,iens);
         state(idU,hs+nz+kk,hs+j,hs+i,iens) = state(idU,hs+nz-1,hs+j,hs+i,iens);
         state(idV,hs+nz+kk,hs+j,hs+i,iens) = state(idV,hs+nz-1,hs+j,hs+i,iens);
@@ -1118,8 +1118,8 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(ny,nx,nens) ,
                                         YAKL_LAMBDA (int j, int i, int iens) {
         state_limits_z(0,idR,0 ,j,i,iens) = state_limits_z(1,idR,0 ,j,i,iens);
-        state_limits_z(0,idU,0 ,j,i,iens) = 0;  state_limits_z(1,idU,0 ,j,i,iens) = 0;
-        state_limits_z(0,idV,0 ,j,i,iens) = 0;  state_limits_z(1,idV,0 ,j,i,iens) = 0;
+        state_limits_z(0,idU,0 ,j,i,iens) = state_limits_z(1,idU,0 ,j,i,iens);
+        state_limits_z(0,idV,0 ,j,i,iens) = state_limits_z(1,idV,0 ,j,i,iens);
         state_limits_z(0,idW,0 ,j,i,iens) = 0;  state_limits_z(1,idW,0 ,j,i,iens) = 0;
         state_limits_z(0,idT,0 ,j,i,iens) = state_limits_z(1,idT,0 ,j,i,iens);
         state_limits_z(1,idR,nz,j,i,iens) = state_limits_z(0,idR,nz,j,i,iens);

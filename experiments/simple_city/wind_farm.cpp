@@ -8,6 +8,7 @@
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"
+#include "sponge_layer.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -107,6 +108,7 @@ int main(int argc, char** argv) {
 
       // Run modules
       column_nudger.nudge_to_column(coupler,dtphys);
+      modules::sponge_layer        (coupler,dtphys,dtphys*10,10);
       modules::apply_surface_fluxes(coupler,dtphys);
       dycore.time_step             (coupler,dtphys);
       windmills.apply              (coupler,dtphys);

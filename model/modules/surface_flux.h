@@ -35,9 +35,9 @@ namespace modules {
       real lg  = std::log((dz/2+roughness)/roughness);
       real c_d = von_karman*von_karman / (lg*lg);
       real mag = std::sqrt(u*u+v*v);
-      real u_new  = u  + dt*(0-c_d*u*mag               )/dz;
-      real v_new  = v  + dt*(0-c_d*v*mag               )/dz;
-      real th_new = th + dt*(0-c_d/prandtl*(th-th0)*mag)/dz;
+      real u_new  = u  + dt*(0-c_d     *(u -0  )*mag)/dz;
+      real v_new  = v  + dt*(0-c_d     *(v -0  )*mag)/dz;
+      real th_new = th + dt*(0-c_d*cp_d*(th-th0)*mag)/dz;
       real T_new  = th_new*std::pow( p/p0 , R_d/cp_d );
       dm_u(0,j,i,iens) = u_new;
       dm_v(0,j,i,iens) = v_new;

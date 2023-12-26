@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 72000.  # 86400
+sim_time: 14400.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1

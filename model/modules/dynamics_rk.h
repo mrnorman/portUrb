@@ -95,11 +95,11 @@ namespace modules {
             real r_prop = 1._fp / std::max( prop , 1.e-6_fp );
             real mult_s = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
             real mult_w = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
-            state(idR,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_cells      (k,iens) + (1-mult_s)*state(idR,hs+k,hs+j,hs+i,iens);
-            state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
-            state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
-            state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                           + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
-            state(idT,hs+k,hs+j,hs+i,iens) = mult_w*hy_dens_theta_cells(k,iens) + (1-mult_w)*state(idT,hs+k,hs+j,hs+i,iens);
+            state(idR,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_cells      (hs+k,iens) + (1-mult_s)*state(idR,hs+k,hs+j,hs+i,iens);
+            state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
+            state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
+            state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
+            state(idT,hs+k,hs+j,hs+i,iens) = mult_w*hy_dens_theta_cells(hs+k,iens) + (1-mult_w)*state(idT,hs+k,hs+j,hs+i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
               tracers(tr,hs+k,hs+j,hs+i,iens) = mult_w*0 + (1-mult_w)*tracers(tr,hs+k,hs+j,hs+i,iens);
             }
@@ -535,7 +535,7 @@ namespace modules {
       real fcor = 2*7.2921e-5*std::sin(latitude/180*M_PI);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma) - hy_pressure_cells(k,iens);
+        pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma) - hy_pressure_cells(hs+k,iens);
         real rdens = 1._fp / state(idR,hs+k,hs+j,hs+i,iens);
         state(idU,hs+k,hs+j,hs+i,iens) *= rdens;
         state(idV,hs+k,hs+j,hs+i,iens) *= rdens;
@@ -730,7 +730,7 @@ namespace modules {
                                      -( state_flux_y(l,k,j+1,i,iens) - state_flux_y(l,k,j,i,iens) ) * r_dy
                                      -( state_flux_z(l,k+1,j,i,iens) - state_flux_z(l,k,j,i,iens) ) * r_dz;
           if (l == idV && sim2d) state_tend(l,k,j,i,iens) = 0;
-          if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(k,iens));
+          if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
           if (latitude != 0 && !sim2d && l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
           if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
         }
@@ -1268,7 +1268,6 @@ namespace modules {
       auto dz          = coupler.get_dz();
       auto nx_glob     = coupler.get_nx_glob();
       auto ny_glob     = coupler.get_ny_glob();
-      auto sim2d       = coupler.is_sim2d();
       auto num_tracers = coupler.get_num_tracers();
       auto gamma       = coupler.get_option<real>("gamma_d");
       auto C0          = coupler.get_option<real>("C0"     );
@@ -1299,19 +1298,37 @@ namespace modules {
       real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       convert_coupler_to_dynamics( coupler , state , tracers );
-
-      dm.register_and_allocate<real>("hy_dens_cells"      ,"",{nz,nens});
-      dm.register_and_allocate<real>("hy_dens_theta_cells","",{nz,nens});
-      dm.register_and_allocate<real>("hy_pressure_cells"  ,"",{nz,nens});
+      real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma);
+        real rdens = 1._fp / state(idR,hs+k,hs+j,hs+i,iens);
+        state(idU,hs+k,hs+j,hs+i,iens) *= rdens;
+        state(idV,hs+k,hs+j,hs+i,iens) *= rdens;
+        state(idW,hs+k,hs+j,hs+i,iens) *= rdens;
+        state(idT,hs+k,hs+j,hs+i,iens) *= rdens;
+        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= rdens; }
+      });
+      if (ord > 1) halo_exchange( coupler , state , tracers , pressure );
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real dens = state(idR,hs+k,hs+j,hs+i,iens);
+        state(idU,hs+k,hs+j,hs+i,iens) *= dens;
+        state(idV,hs+k,hs+j,hs+i,iens) *= dens;
+        state(idW,hs+k,hs+j,hs+i,iens) *= dens;
+        state(idT,hs+k,hs+j,hs+i,iens) *= dens;
+        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
+      });
+      dm.register_and_allocate<real>("hy_dens_cells"      ,"",{nz+2*hs,nens});
+      dm.register_and_allocate<real>("hy_dens_theta_cells","",{nz+2*hs,nens});
+      dm.register_and_allocate<real>("hy_pressure_cells"  ,"",{nz+2*hs,nens});
       auto r  = dm.get<real,2>("hy_dens_cells"      );    r  = 0;
       auto rt = dm.get<real,2>("hy_dens_theta_cells");    rt = 0;
       auto p  = dm.get<real,2>("hy_pressure_cells"  );    p  = 0;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
         for (int j = 0; j < ny; j++) {
           for (int i = 0; i < nx; i++) {
-            r (k,iens) += state(idR,hs+k,hs+j,hs+i,iens);
-            rt(k,iens) += state(idT,hs+k,hs+j,hs+i,iens);
-            p (k,iens) += C0 * std::pow( state(idT,hs+k,hs+j,hs+i,iens) , gamma );
+            r (k,iens) += state(idR,k,hs+j,hs+i,iens);
+            rt(k,iens) += state(idT,k,hs+j,hs+i,iens);
+            p (k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
           }
         }
       });
@@ -1326,7 +1343,7 @@ namespace modules {
       rt_glob.deep_copy_to(rt);
       p_glob .deep_copy_to(p );
       real r_nx_ny = 1./(nx_glob*ny_glob);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
         r (k,iens) *= r_nx_ny;
         rt(k,iens) *= r_nx_ny;
         p (k,iens) *= r_nx_ny;
@@ -1334,10 +1351,27 @@ namespace modules {
 
       // These are needed for a proper restart
       coupler.register_output_variable<real>( "immersed_proportion" , core::Coupler::DIMS_3D      );
-      coupler.register_output_variable<real>( "hy_dens_cells"       , core::Coupler::DIMS_COLUMN  );
-      coupler.register_output_variable<real>( "hy_dens_theta_cells" , core::Coupler::DIMS_COLUMN  );
-      coupler.register_output_variable<real>( "hy_pressure_cells"   , core::Coupler::DIMS_COLUMN  );
       coupler.register_output_variable<real>( "surface_temp"        , core::Coupler::DIMS_SURFACE );
+      coupler.register_write_output_module( [] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+        nc.redef();
+        nc.create_dim( "z_halo" , coupler.get_nz()+2*hs );
+        nc.create_var<real>( "hy_dens_cells"       , {"z_halo","ens"});
+        nc.create_var<real>( "hy_dens_theta_cells" , {"z_halo","ens"});
+        nc.create_var<real>( "hy_pressure_cells"   , {"z_halo","ens"});
+        nc.enddef();
+        nc.begin_indep_data();
+        auto &dm = coupler.get_data_manager_readonly();
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_dens_cells"      ) , "hy_dens_cells"       );
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_dens_theta_cells") , "hy_dens_theta_cells" );
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_pressure_cells"  ) , "hy_pressure_cells"   );
+        nc.end_indep_data();
+      } );
+      coupler.register_overwrite_with_restart_module( [] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+        auto &dm = coupler.get_data_manager_readwrite();
+        nc.read_all(dm.get<real,2>("hy_dens_cells"      ),"hy_dens_cells"      ,{0,0});
+        nc.read_all(dm.get<real,2>("hy_dens_theta_cells"),"hy_dens_theta_cells",{0,0});
+        nc.read_all(dm.get<real,2>("hy_pressure_cells"  ),"hy_pressure_cells"  ,{0,0});
+      } );
     }
 
 

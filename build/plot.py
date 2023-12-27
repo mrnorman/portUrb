@@ -2,7 +2,7 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 
-nc = Dataset("test_00000005.nc","r")
+nc = Dataset("test_00000016.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size
@@ -12,8 +12,8 @@ z = nc.variables["z"][:]/1000.
 nlevs = 200
 
 
-zind = int(90./1200.*nz)
-zloc = (zind+0.5)*(1200./nz)
+zind = int(90./700.*nz)
+zloc = (zind+0.5)*(700./nz)
 u = nc.variables["uvel"][zind,:,:,0]
 v = nc.variables["vvel"][zind,:,:,0]
 w = nc.variables["wvel"][zind,:,:,0]
@@ -24,7 +24,8 @@ CS = ax2.contourf(X,Y,mag,nlevs, cmap="gist_rainbow")
 ax2.set_title('Wind magnitude at z = '+str(int(zloc))+' m')
 ax2.set_xlabel('$x$-location (km)')
 ax2.set_ylabel('$y$-location (km)')
-cbar = fig1.colorbar(CS)
+ax2.set_aspect('equal')
+cbar = fig1.colorbar(CS,orientation='horizontal')
 cbar.ax.set_ylabel('wind magnitude (m/s)')
 plt.show()
 plt.close()
@@ -34,17 +35,30 @@ CS = ax2.contourf(X,Y,u,nlevs, cmap="gist_rainbow")
 ax2.set_title('u at z = '+str(int(zloc))+' m')
 ax2.set_xlabel('$x$-location (km)')
 ax2.set_ylabel('$y$-location (km)')
-cbar = fig1.colorbar(CS)
+ax2.set_aspect('equal')
+cbar = fig1.colorbar(CS,orientation='horizontal')
 cbar.ax.set_ylabel('wind magnitude (m/s)')
 plt.show()
 plt.close()
 
 fig1, ax2 = plt.subplots(layout='constrained')
-CS = ax2.contourf(X,Y,u,nlevs, cmap="gist_rainbow")
+CS = ax2.contourf(X,Y,v,nlevs, cmap="gist_rainbow")
 ax2.set_title('v at z = '+str(int(zloc))+' m')
 ax2.set_xlabel('$x$-location (km)')
 ax2.set_ylabel('$y$-location (km)')
-cbar = fig1.colorbar(CS)
+ax2.set_aspect('equal')
+cbar = fig1.colorbar(CS,orientation='horizontal')
+cbar.ax.set_ylabel('wind magnitude (m/s)')
+plt.show()
+plt.close()
+
+fig1, ax2 = plt.subplots(layout='constrained')
+CS = ax2.contourf(X,Y,w,nlevs, cmap="gist_rainbow")
+ax2.set_title('w at z = '+str(int(zloc))+' m')
+ax2.set_xlabel('$x$-location (km)')
+ax2.set_ylabel('$y$-location (km)')
+ax2.set_aspect('equal')
+cbar = fig1.colorbar(CS,orientation='horizontal')
 cbar.ax.set_ylabel('wind magnitude (m/s)')
 plt.show()
 plt.close()

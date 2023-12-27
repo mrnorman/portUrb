@@ -62,6 +62,9 @@ namespace core {
     };
     std::vector<OutputVar> output_vars;
 
+    std::vector<std::function<void(core::Coupler &coupler , yakl::SimplePNetCDF &nc)>> out_write_funcs;
+    std::vector<std::function<void(core::Coupler &coupler , yakl::SimplePNetCDF &nc)>> restart_read_funcs;
+
 
   public:
 
@@ -392,6 +395,18 @@ namespace core {
     }
 
 
+    void register_write_output_module( std::function<void(core::Coupler &coupler ,
+                                                          yakl::SimplePNetCDF &nc)> func ) {
+      out_write_funcs.push_back( func );
+    };
+
+
+    void register_overwrite_with_restart_module( std::function<void(core::Coupler &coupler ,
+                                                                    yakl::SimplePNetCDF &nc)> func ) {
+      restart_read_funcs.push_back( func );
+    };
+
+
     void write_output_file( std::string prefix ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
@@ -514,6 +529,7 @@ namespace core {
           else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,4>(name),name,start_3d); }
         }
       }
+      for (int i=0; i < out_write_funcs.size(); i++) { out_write_funcs[i](*this,nc); }
       nc.close();
       file_counter++;
       yakl::timer_stop("output");
@@ -570,6 +586,7 @@ namespace core {
           else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,4>(name),name,start_3d); }
         }
       }
+      for (int i=0; i < restart_read_funcs.size(); i++) { restart_read_funcs[i](*this,nc); }
       nc.close();
       file_counter++;
       yakl::timer_stop("overwrite_with_restart");

@@ -561,46 +561,55 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
         SArray<real,1,2  > gll;
-        for (int l=0; l < num_state; l++) {
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(l,hs+k,hs+j,i+ii,iens); }
+        if (immersed_proportion(k,j,i,iens) > 0) {
+          for (int l=0; l < num_state; l++) {
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(l,hs+k,hs+j,i+ii,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            state_limits_x(1,l,k,j,i  ,iens) = gll(0);
+            state_limits_x(0,l,k,j,i+1,iens) = gll(1);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = state(l,hs+k,j+jj,hs+i,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            state_limits_y(1,l,k,j  ,i,iens) = gll(0);
+            state_limits_y(0,l,k,j+1,i,iens) = gll(1);
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = state(l,k+kk,hs+j,hs+i,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            state_limits_z(1,l,k  ,j,i,iens) = gll(0);
+            state_limits_z(0,l,k+1,j,i,iens) = gll(1);
+          }
+          for (int l=0; l < num_tracers; l++) {
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
+            tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
+            tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
+            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+            tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
+            tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
+          }
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          state_limits_x(1,l,k,j,i  ,iens) = gll(0);
-          state_limits_x(0,l,k,j,i+1,iens) = gll(1);
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(l,hs+k,j+jj,hs+i,iens); }
+          pressure_limits_x(1,k,j,i  ,iens) = gll(0);
+          pressure_limits_x(0,k,j,i+1,iens) = gll(1);
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          state_limits_y(1,l,k,j  ,i,iens) = gll(0);
-          state_limits_y(0,l,k,j+1,i,iens) = gll(1);
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(l,k+kk,hs+j,hs+i,iens); }
+          pressure_limits_y(1,k,j  ,i,iens) = gll(0);
+          pressure_limits_y(0,k,j+1,i,iens) = gll(1);
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          state_limits_z(1,l,k  ,j,i,iens) = gll(0);
-          state_limits_z(0,l,k+1,j,i,iens) = gll(1);
+          pressure_limits_z(1,k  ,j,i,iens) = gll(0);
+          pressure_limits_z(0,k+1,j,i,iens) = gll(1);
+        } else {
+          // Density
+          {
+            stencil(hs) = state(idR,hs+k,hs+j,hs+i,iens);
+            for (int ii=0; ii < ord; ii++) {
+            }
+          }
         }
-        for (int l=0; l < num_tracers; l++) {
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
-          tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
-          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
-          tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
-          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
-          tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
-        }
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-        pressure_limits_x(1,k,j,i  ,iens) = gll(0);
-        pressure_limits_x(0,k,j,i+1,iens) = gll(1);
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-        pressure_limits_y(1,k,j  ,i,iens) = gll(0);
-        pressure_limits_y(0,k,j+1,i,iens) = gll(1);
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-        pressure_limits_z(1,k  ,j,i,iens) = gll(0);
-        pressure_limits_z(0,k+1,j,i,iens) = gll(1);
       });
       
       edge_exchange( coupler , state_limits_x , tracers_limits_x , pressure_limits_x ,
@@ -778,10 +787,6 @@ namespace modules {
       auto nz           = coupler.get_nz();
       auto dz           = coupler.get_dz();
       auto num_tracers  = coupler.get_num_tracers();
-      auto px           = coupler.get_px();
-      auto py           = coupler.get_py();
-      auto nproc_x      = coupler.get_nproc_x();
-      auto nproc_y      = coupler.get_nproc_y();
       auto &neigh       = coupler.get_neighbor_rankid_matrix();
       auto dtype        = coupler.get_mpi_data_type();
       auto grav         = coupler.get_option<real>("grav");
@@ -793,7 +798,7 @@ namespace modules {
       MPI_Status  sStat[2];
       MPI_Status  rStat[2];
       auto comm = MPI_COMM_WORLD;
-      int npack = num_state + num_tracers + 2;
+      int npack = num_state + num_tracers + 1;
 
       // x-direction exchanges
       {
@@ -978,10 +983,6 @@ namespace modules {
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto num_tracers = coupler.get_num_tracers();
-      auto px          = coupler.get_px();
-      auto py          = coupler.get_py();
-      auto nproc_x     = coupler.get_nproc_x();
-      auto nproc_y     = coupler.get_nproc_y();
       auto &neigh      = coupler.get_neighbor_rankid_matrix();
       auto dtype       = coupler.get_mpi_data_type();
       auto comm        = MPI_COMM_WORLD;
@@ -1149,10 +1150,6 @@ namespace modules {
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto num_tracers = coupler.get_num_tracers();
-      auto px          = coupler.get_px();
-      auto py          = coupler.get_py();
-      auto nproc_x     = coupler.get_nproc_x();
-      auto nproc_y     = coupler.get_nproc_y();
       auto &neigh      = coupler.get_neighbor_rankid_matrix();
       auto dtype       = coupler.get_mpi_data_type();
       auto comm = MPI_COMM_WORLD;
@@ -1349,6 +1346,99 @@ namespace modules {
         p (k,iens) *= r_nx_ny;
       });
 
+      auto create_immersed_proportion_halos = [] (core::Coupler &coupler) {
+        using yakl::c::parallel_for;
+        using yakl::c::SimpleBounds;;
+        auto nz   = coupler.get_nz  ();
+        auto ny   = coupler.get_ny  ();
+        auto nx   = coupler.get_nx  ();
+        auto nens = coupler.get_nens();
+        auto &neigh       = coupler.get_neighbor_rankid_matrix();
+        auto dtype        = coupler.get_mpi_data_type();
+        auto &dm  = coupler.get_data_manager_readwrite();
+        if (! dm.entry_exists("immersed_proportion_halos")) {
+          dm.register_and_allocate<real>("immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs,nens});
+        }
+        auto immersed_proportion       = dm.get<real const,4>("immersed_proportion"      );
+        auto immersed_proportion_halos = dm.get<real      ,4>("immersed_proportion_halos");
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+          immersed_proportion_halos(hs+k,hs+j,hs+i,iens) = immersed_proportion(k,j,i,iens);
+        });
+        MPI_Request sReq [2];
+        MPI_Request rReq [2];
+        MPI_Status  sStat[2];
+        MPI_Status  rStat[2];
+        auto comm = MPI_COMM_WORLD;
+        // x-direction exchange
+        real4d halo_send_buf_W("halo_send_buf_W",nz,ny,hs,nens);
+        real4d halo_send_buf_E("halo_send_buf_E",nz,ny,hs,nens);
+        real4d halo_recv_buf_W("halo_recv_buf_W",nz,ny,hs,nens);
+        real4d halo_recv_buf_E("halo_recv_buf_E",nz,ny,hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int k, int j, int ii, int iens) {
+          halo_send_buf_W(k,j,ii,iens) = immersed_proportion_halos(hs+k,hs+j,hs+ii,iens);
+          halo_send_buf_E(k,j,ii,iens) = immersed_proportion_halos(hs+k,hs+j,nx+ii,iens);
+        });
+        realHost4d halo_send_buf_W_host("halo_send_buf_W_host",nz,ny,hs,nens);
+        realHost4d halo_send_buf_E_host("halo_send_buf_E_host",nz,ny,hs,nens);
+        realHost4d halo_recv_buf_W_host("halo_recv_buf_W_host",nz,ny,hs,nens);
+        realHost4d halo_recv_buf_E_host("halo_recv_buf_E_host",nz,ny,hs,nens);
+        MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
+        MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
+        halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
+        halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
+        yakl::fence();
+        MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
+        MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
+        MPI_Waitall(2, sReq, sStat);
+        MPI_Waitall(2, rReq, rStat);
+        halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
+        halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int k, int j, int ii, int iens) {
+          immersed_proportion_halos(hs+k,hs+j,      ii,iens) = halo_recv_buf_W(k,j,ii,iens);
+          immersed_proportion_halos(hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(k,j,ii,iens);
+        });
+        // y-direction exchange
+        real4d halo_send_buf_S("halo_send_buf_S",nz,hs,nx,nens);
+        real4d halo_send_buf_N("halo_send_buf_N",nz,hs,nx,nens);
+        real4d halo_recv_buf_S("halo_recv_buf_S",nz,hs,nx,nens);
+        real4d halo_recv_buf_N("halo_recv_buf_N",nz,hs,nx,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx,nens) ,
+                                          YAKL_LAMBDA (int k, int jj, int i, int iens) {
+          halo_send_buf_S(k,jj,i,iens) = immersed_proportion_halos(hs+k,hs+jj,hs+i,iens);
+          halo_send_buf_N(k,jj,i,iens) = immersed_proportion_halos(hs+k,ny+jj,hs+i,iens);
+        });
+        realHost4d halo_send_buf_S_host("halo_send_buf_S_host",nz,hs,nx,nens);
+        realHost4d halo_send_buf_N_host("halo_send_buf_N_host",nz,hs,nx,nens);
+        realHost4d halo_recv_buf_S_host("halo_recv_buf_S_host",nz,hs,nx,nens);
+        realHost4d halo_recv_buf_N_host("halo_recv_buf_N_host",nz,hs,nx,nens);
+        MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
+        MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
+        halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
+        halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
+        yakl::fence();
+        MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
+        MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
+        MPI_Waitall(2, sReq, sStat);
+        MPI_Waitall(2, rReq, rStat);
+        halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
+        halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx,nens) ,
+                                          YAKL_LAMBDA (int k, int jj, int i, int iens) {
+          immersed_proportion_halos(hs+k,      jj,hs+i,iens) = halo_recv_buf_S(k,jj,i,iens);
+          immersed_proportion_halos(hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(k,jj,i,iens);
+        });
+        // z-direction boundaries
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int kk, int j, int i, int iens) {
+          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 0;
+          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 0;
+        });
+      };
+
+      create_immersed_proportion_halos( coupler );
+
       // These are needed for a proper restart
       coupler.register_output_variable<real>( "immersed_proportion" , core::Coupler::DIMS_3D      );
       coupler.register_output_variable<real>( "surface_temp"        , core::Coupler::DIMS_SURFACE );
@@ -1366,11 +1456,12 @@ namespace modules {
         if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_pressure_cells"  ) , "hy_pressure_cells"   );
         nc.end_indep_data();
       } );
-      coupler.register_overwrite_with_restart_module( [] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+      coupler.register_overwrite_with_restart_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         auto &dm = coupler.get_data_manager_readwrite();
         nc.read_all(dm.get<real,2>("hy_dens_cells"      ),"hy_dens_cells"      ,{0,0});
         nc.read_all(dm.get<real,2>("hy_dens_theta_cells"),"hy_dens_theta_cells",{0,0});
         nc.read_all(dm.get<real,2>("hy_pressure_cells"  ),"hy_pressure_cells"  ,{0,0});
+        create_immersed_proportion_halos( coupler );
       } );
     }
 

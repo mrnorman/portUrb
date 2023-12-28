@@ -72,44 +72,6 @@ namespace modules {
 
 
 
-    void enforce_immersed_boundaries( core::Coupler & coupler ,
-                                      real5d const  & state   ,
-                                      real5d const  & tracers ,
-                                      real            dt_dyn  ) {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-      auto num_tracers = coupler.get_num_tracers();
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
-      auto use_immersed_boundaries = coupler.get_option<bool>("use_immersed_boundaries");
-      auto immersed_proportion     = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
-      auto hy_dens_cells           = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
-      auto hy_dens_theta_cells     = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
-      if (use_immersed_boundaries) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real prop = immersed_proportion(k,j,i,iens);
-          if (prop > 0) {
-            real r_prop = 1._fp / std::max( prop , 1.e-6_fp );
-            real mult_s = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
-            real mult_w = 1._fp / (1.e-6 + r_prop*r_prop*r_prop);
-            state(idR,hs+k,hs+j,hs+i,iens) = mult_s*hy_dens_cells      (hs+k,iens) + (1-mult_s)*state(idR,hs+k,hs+j,hs+i,iens);
-            state(idU,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idU,hs+k,hs+j,hs+i,iens);
-            state(idV,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idV,hs+k,hs+j,hs+i,iens);
-            state(idW,hs+k,hs+j,hs+i,iens) = mult_w*0                              + (1-mult_w)*state(idW,hs+k,hs+j,hs+i,iens);
-            state(idT,hs+k,hs+j,hs+i,iens) = mult_w*hy_dens_theta_cells(hs+k,iens) + (1-mult_w)*state(idT,hs+k,hs+j,hs+i,iens);
-            for (int tr=0; tr < num_tracers; tr++) {
-              tracers(tr,hs+k,hs+j,hs+i,iens) = mult_w*0 + (1-mult_w)*tracers(tr,hs+k,hs+j,hs+i,iens);
-            }
-          }
-        });
-      }
-    }
-
-
-
     // CFL 2.0
     void time_step_rk_s_3( core::Coupler & coupler ,
                            real5d const  & state   ,
@@ -129,8 +91,6 @@ namespace modules {
       real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
       real5d tracers_tend("tracers_tend",num_tracers,nz,ny,nx,nens);
       int nstages = 0;
-
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
 
       //////////////
       // Part 1
@@ -225,8 +185,6 @@ namespace modules {
       }
 
       if (nstages != s) yakl::yakl_throw("ERROR: Incorrect implementation");
-
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
     }
 
 
@@ -244,8 +202,6 @@ namespace modules {
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
-
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
 
       if (ord == 1) {
         real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
@@ -360,8 +316,6 @@ namespace modules {
           }
         });
       }
-
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
     }
 
 
@@ -379,8 +333,6 @@ namespace modules {
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto tracer_positive = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive");
-
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
 
       if (ord == 1) {
         real5d state_tend  ("state_tend"  ,num_state  ,nz,ny,nx,nens);
@@ -435,7 +387,6 @@ namespace modules {
         //////////////
         // Stage 2
         //////////////
-        // enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int tr=0; tr < num_tracers; tr++) {
@@ -464,7 +415,6 @@ namespace modules {
         //////////////
         // Stage 3
         //////////////
-        // enforce_immersed_boundaries(coupler,state_tmp,tracers_tmp,dt_dyn);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
           for (int tr=0; tr < num_tracers; tr++) {
@@ -491,8 +441,55 @@ namespace modules {
           }
         });
       }
+    }
 
-      enforce_immersed_boundaries(coupler,state,tracers,dt_dyn);
+
+
+    // Once you encounter an immersed boundary, set the specified value
+    YAKL_INLINE static void modify_stencil_immersed_val( SArray<real,1,ord>       & stencil  ,
+                                                         SArray<real,1,ord> const & immersed ,
+                                                         real                       val      ) {
+      // Don't modify the stencils of immersed cells
+      if (immersed(hs) == 0) {
+        for (int i2=hs+1; i2<ord; i2++) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = val; }; break; }
+        }
+        for (int i2=hs-1; i2>=0 ; i2--) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = val; }; break; }
+        }
+      }
+    }
+
+
+
+    // Once you encounter an immersed boundary, set zero value
+    YAKL_INLINE static void modify_stencil_immersed_der0( SArray<real,1,ord>       & stencil  ,
+                                                          SArray<real,1,ord> const & immersed ) {
+      // Don't modify the stencils of immersed cells
+      if (immersed(hs) == 0) {
+        for (int i2=hs+1; i2<ord; i2++) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = stencil(i2-1); }; break; }
+        }
+        for (int i2=hs-1; i2>=0 ; i2--) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = stencil(i2+1); }; break; }
+        }
+      }
+    }
+
+
+
+    YAKL_INLINE static void modify_stencil_immersed_vect( SArray<real,1,ord>       & stencil  ,
+                                                          SArray<real,1,ord> const & immersed ,
+                                                          SArray<real,1,ord> const & vect     ) {
+      // Don't modify the stencils of immersed cells
+      if (immersed(hs) == 0) {
+        for (int i2=hs+1; i2<ord; i2++) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = vect(i3); }; break; }
+        }
+        for (int i2=hs-1; i2>=0 ; i2--) {
+          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = vect(i3); }; break; }
+        }
+      }
     }
 
 
@@ -508,24 +505,25 @@ namespace modules {
       using std::min;
       using std::max;
 
-      auto use_immersed_boundaries = coupler.get_option<bool>("use_immersed_boundaries");
-      auto nens                    = coupler.get_nens();
-      auto nx                      = coupler.get_nx();
-      auto ny                      = coupler.get_ny();
-      auto nz                      = coupler.get_nz();
-      auto dx                      = coupler.get_dx();
-      auto dy                      = coupler.get_dy();
-      auto dz                      = coupler.get_dz();
-      auto sim2d                   = coupler.is_sim2d();
-      auto C0                      = coupler.get_option<real>("C0"     );
-      auto grav                    = coupler.get_option<real>("grav"   );
-      auto gamma                   = coupler.get_option<real>("gamma_d");
-      auto latitude                = coupler.get_option<real>("latitude");
-      auto num_tracers             = coupler.get_num_tracers();
-      auto tracer_positive         = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive"    );
-      auto immersed_proportion     = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion");
-      auto hy_dens_cells           = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
-      auto hy_pressure_cells       = coupler.get_data_manager_readonly().get<real const,2>("hy_pressure_cells"  );
+      auto use_immersed_boundaries   = coupler.get_option<bool>("use_immersed_boundaries");
+      auto nens                      = coupler.get_nens();
+      auto nx                        = coupler.get_nx();
+      auto ny                        = coupler.get_ny();
+      auto nz                        = coupler.get_nz();
+      auto dx                        = coupler.get_dx();
+      auto dy                        = coupler.get_dy();
+      auto dz                        = coupler.get_dz();
+      auto sim2d                     = coupler.is_sim2d();
+      auto C0                        = coupler.get_option<real>("C0"     );
+      auto grav                      = coupler.get_option<real>("grav"   );
+      auto gamma                     = coupler.get_option<real>("gamma_d");
+      auto latitude                  = coupler.get_option<real>("latitude");
+      auto num_tracers               = coupler.get_num_tracers();
+      auto tracer_positive           = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive"    );
+      auto immersed_proportion_halos = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion_halos");
+      auto hy_dens_cells             = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
+      auto hy_dens_theta_cells       = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
+      auto hy_pressure_cells         = coupler.get_data_manager_readonly().get<real const,2>("hy_pressure_cells"  );
       SArray<real,2,ord,2> coefs_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
       real r_dx = 1./dx;
@@ -559,57 +557,154 @@ namespace modules {
       limiter::WenoLimiter<ord> limiter(0.1,1,2,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        SArray<real,1,ord> immersed_x;
+        SArray<real,1,ord> immersed_y;
+        SArray<real,1,ord> immersed_z;
+        SArray<real,1,ord> hy_r;
+        SArray<real,1,ord> hy_t;
         SArray<real,1,ord> stencil;
         SArray<real,1,2  > gll;
-        if (immersed_proportion(k,j,i,iens) > 0) {
-          for (int l=0; l < num_state; l++) {
-            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(l,hs+k,hs+j,i+ii,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            state_limits_x(1,l,k,j,i  ,iens) = gll(0);
-            state_limits_x(0,l,k,j,i+1,iens) = gll(1);
-            for (int jj=0; jj < ord; jj++) { stencil(jj) = state(l,hs+k,j+jj,hs+i,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            state_limits_y(1,l,k,j  ,i,iens) = gll(0);
-            state_limits_y(0,l,k,j+1,i,iens) = gll(1);
-            for (int kk=0; kk < ord; kk++) { stencil(kk) = state(l,k+kk,hs+j,hs+i,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            state_limits_z(1,l,k  ,j,i,iens) = gll(0);
-            state_limits_z(0,l,k+1,j,i,iens) = gll(1);
-          }
-          for (int l=0; l < num_tracers; l++) {
-            for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
-            tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
-            for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
-            tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
-            for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
-            reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-            tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
-            tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
-          }
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
+
+        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = immersed_proportion_halos(hs+k,hs+j,i+ii,iens); }
+        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = immersed_proportion_halos(hs+k,j+jj,hs+i,iens); }
+        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = immersed_proportion_halos(k+kk,hs+j,hs+i,iens); }
+        for (int kk=0; kk < ord; kk++) { hy_r(kk) = hy_dens_cells(k+kk,iens); }
+        for (int kk=0; kk < ord; kk++) { hy_t(kk) = hy_dens_theta_cells(k+kk,iens)/hy_dens_cells(k+kk,iens); }
+
+        // Density x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_val( stencil , immersed_x , hy_r(hs) );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
+        state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
+        // Density y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_val( stencil , immersed_y , hy_r(hs) );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
+        state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
+        // Density z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_vect( stencil , immersed_z , hy_r );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_z(1,idR,k  ,j,i,iens) = gll(0);
+        state_limits_z(0,idR,k+1,j,i,iens) = gll(1);
+
+        // u-vel x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_val( stencil , immersed_x , 0._fp );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
+        state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
+        // u-vel y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_y );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
+        state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
+        // u-vel z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_z );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
+        state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
+
+        // v-vel x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_x );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
+        state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
+        // v-vel y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_val( stencil , immersed_y , 0._fp );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
+        state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
+        // v-vel z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_z );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
+        state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
+
+        // w-vel x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_x );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
+        state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
+        // w-vel y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_y );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
+        state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
+        // w-vel z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_val( stencil , immersed_z , 0._fp );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
+        state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
+
+        // Theta x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_val( stencil , immersed_x , hy_t(hs) );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
+        state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
+        // Theta y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_val( stencil , immersed_y , hy_t(hs) );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
+        state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
+        // Theta z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_vect( stencil , immersed_z , hy_t );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
+        state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
+
+        for (int l=0; l < num_tracers; l++) {
+          // Tracer x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
+          modify_stencil_immersed_der0( stencil , immersed_x );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          pressure_limits_x(1,k,j,i  ,iens) = gll(0);
-          pressure_limits_x(0,k,j,i+1,iens) = gll(1);
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
+          tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
+          tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
+          // Tracer y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed_y );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          pressure_limits_y(1,k,j  ,i,iens) = gll(0);
-          pressure_limits_y(0,k,j+1,i,iens) = gll(1);
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
+          tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
+          tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
+          // Tracer z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed_z );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
-          pressure_limits_z(1,k  ,j,i,iens) = gll(0);
-          pressure_limits_z(0,k+1,j,i,iens) = gll(1);
-        } else {
-          // Density
-          {
-            stencil(hs) = state(idR,hs+k,hs+j,hs+i,iens);
-            for (int ii=0; ii < ord; ii++) {
-            }
-          }
+          tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
+          tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
         }
+
+        // Pressure x
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_x );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        pressure_limits_x(1,k,j,i  ,iens) = gll(0);
+        pressure_limits_x(0,k,j,i+1,iens) = gll(1);
+        // Pressure y
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_y );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        pressure_limits_y(1,k,j  ,i,iens) = gll(0);
+        pressure_limits_y(0,k,j+1,i,iens) = gll(1);
+        // Pressure z
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed_z );
+        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        pressure_limits_z(1,k  ,j,i,iens) = gll(0);
+        pressure_limits_z(0,k+1,j,i,iens) = gll(1);
       });
       
       edge_exchange( coupler , state_limits_x , tracers_limits_x , pressure_limits_x ,
@@ -632,6 +727,30 @@ namespace modules {
         real constexpr cs   = 350.;
         real constexpr r_cs = 1./cs;
         if (j < ny && k < nz) {
+          bool left_cell_immersed  = immersed_proportion_halos(hs+k,hs+j,hs+i-1,iens) > 0;
+          bool right_cell_immersed = immersed_proportion_halos(hs+k,hs+j,hs+i  ,iens) > 0;
+          if (!left_cell_immersed && right_cell_immersed) {
+            // Use only left values
+            state_limits_x   (0,idU,k,j,i,iens) = 0;
+            state_limits_x   (1,idU,k,j,i,iens) = 0;
+            state_limits_x   (1,idR,k,j,i,iens) = state_limits_x   (0,idR,k,j,i,iens);
+            state_limits_x   (1,idV,k,j,i,iens) = state_limits_x   (0,idV,k,j,i,iens);
+            state_limits_x   (1,idW,k,j,i,iens) = state_limits_x   (0,idW,k,j,i,iens);
+            state_limits_x   (1,idT,k,j,i,iens) = state_limits_x   (0,idT,k,j,i,iens);
+            pressure_limits_x(1    ,k,j,i,iens) = pressure_limits_x(0    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_x(1,tr,k,j,i,iens) = tracers_limits_x(0,tr,k,j,i,iens); }
+          }
+          if (!right_cell_immersed && left_cell_immersed) {
+            // Use only right values
+            state_limits_x   (0,idU,k,j,i,iens) = 0;
+            state_limits_x   (1,idU,k,j,i,iens) = 0;
+            state_limits_x   (0,idR,k,j,i,iens) = state_limits_x   (1,idR,k,j,i,iens);
+            state_limits_x   (0,idV,k,j,i,iens) = state_limits_x   (1,idV,k,j,i,iens);
+            state_limits_x   (0,idW,k,j,i,iens) = state_limits_x   (1,idW,k,j,i,iens);
+            state_limits_x   (0,idT,k,j,i,iens) = state_limits_x   (1,idT,k,j,i,iens);
+            pressure_limits_x(0    ,k,j,i,iens) = pressure_limits_x(1    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_x(0,tr,k,j,i,iens) = tracers_limits_x(1,tr,k,j,i,iens); }
+          }
           // Acoustically upwind mass flux and pressure
           real r_L = state_limits_x   (0,idR,k,j,i,iens);   real r_R = state_limits_x   (1,idR,k,j,i,iens);
           real u_L = state_limits_x   (0,idU,k,j,i,iens);   real u_R = state_limits_x   (1,idU,k,j,i,iens);
@@ -654,6 +773,30 @@ namespace modules {
           }
         }
         if (i < nx && k < nz && !sim2d) {
+          bool left_cell_immersed  = immersed_proportion_halos(hs+k,hs+j-1,hs+i,iens) > 0;
+          bool right_cell_immersed = immersed_proportion_halos(hs+k,hs+j  ,hs+i,iens) > 0;
+          if (!left_cell_immersed && right_cell_immersed) {
+            // Use only left values
+            state_limits_y   (0,idV,k,j,i,iens) = 0;
+            state_limits_y   (1,idV,k,j,i,iens) = 0;
+            state_limits_y   (1,idR,k,j,i,iens) = state_limits_y   (0,idR,k,j,i,iens);
+            state_limits_y   (1,idU,k,j,i,iens) = state_limits_y   (0,idU,k,j,i,iens);
+            state_limits_y   (1,idW,k,j,i,iens) = state_limits_y   (0,idW,k,j,i,iens);
+            state_limits_y   (1,idT,k,j,i,iens) = state_limits_y   (0,idT,k,j,i,iens);
+            pressure_limits_y(1    ,k,j,i,iens) = pressure_limits_y(0    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_y(1,tr,k,j,i,iens) = tracers_limits_y(0,tr,k,j,i,iens); }
+          }
+          if (!right_cell_immersed && left_cell_immersed) {
+            // Use only right values
+            state_limits_y   (0,idV,k,j,i,iens) = 0;
+            state_limits_y   (1,idV,k,j,i,iens) = 0;
+            state_limits_y   (0,idR,k,j,i,iens) = state_limits_y   (1,idR,k,j,i,iens);
+            state_limits_y   (0,idU,k,j,i,iens) = state_limits_y   (1,idU,k,j,i,iens);
+            state_limits_y   (0,idW,k,j,i,iens) = state_limits_y   (1,idW,k,j,i,iens);
+            state_limits_y   (0,idT,k,j,i,iens) = state_limits_y   (1,idT,k,j,i,iens);
+            pressure_limits_y(0    ,k,j,i,iens) = pressure_limits_y(1    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_y(0,tr,k,j,i,iens) = tracers_limits_y(1,tr,k,j,i,iens); }
+          }
           // Acoustically upwind mass flux and pressure
           real r_L = state_limits_y   (0,idR,k,j,i,iens);   real r_R = state_limits_y   (1,idR,k,j,i,iens);
           real v_L = state_limits_y   (0,idV,k,j,i,iens);   real v_R = state_limits_y   (1,idV,k,j,i,iens);
@@ -676,6 +819,30 @@ namespace modules {
           }
         }
         if (i < nx && j < ny) {
+          bool left_cell_immersed  = immersed_proportion_halos(hs+k-1,hs+j,hs+i,iens) > 0;
+          bool right_cell_immersed = immersed_proportion_halos(hs+k  ,hs+j,hs+i,iens) > 0;
+          if (!left_cell_immersed && right_cell_immersed) {
+            // Use only left values
+            state_limits_z   (0,idW,k,j,i,iens) = 0;
+            state_limits_z   (1,idW,k,j,i,iens) = 0;
+            state_limits_z   (1,idR,k,j,i,iens) = state_limits_z   (0,idR,k,j,i,iens);
+            state_limits_z   (1,idU,k,j,i,iens) = state_limits_z   (0,idU,k,j,i,iens);
+            state_limits_z   (1,idV,k,j,i,iens) = state_limits_z   (0,idV,k,j,i,iens);
+            state_limits_z   (1,idT,k,j,i,iens) = state_limits_z   (0,idT,k,j,i,iens);
+            pressure_limits_z(1    ,k,j,i,iens) = pressure_limits_z(0    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_z(1,tr,k,j,i,iens) = tracers_limits_z(0,tr,k,j,i,iens); }
+          }
+          if (!right_cell_immersed && left_cell_immersed) {
+            // Use only right values
+            state_limits_z   (0,idW,k,j,i,iens) = 0;
+            state_limits_z   (1,idW,k,j,i,iens) = 0;
+            state_limits_z   (0,idR,k,j,i,iens) = state_limits_z   (1,idR,k,j,i,iens);
+            state_limits_z   (0,idU,k,j,i,iens) = state_limits_z   (1,idU,k,j,i,iens);
+            state_limits_z   (0,idV,k,j,i,iens) = state_limits_z   (1,idV,k,j,i,iens);
+            state_limits_z   (0,idT,k,j,i,iens) = state_limits_z   (1,idT,k,j,i,iens);
+            pressure_limits_z(0    ,k,j,i,iens) = pressure_limits_z(1    ,k,j,i,iens);
+            for (int tr=0; tr < num_tracers; tr++) { tracers_limits_z(0,tr,k,j,i,iens) = tracers_limits_z(1,tr,k,j,i,iens); }
+          }
           // Acoustically upwind mass flux and pressure
           real r_L = state_limits_z   (0,idR,k,j,i,iens);   real r_R = state_limits_z   (1,idR,k,j,i,iens);
           real w_L = state_limits_z   (0,idW,k,j,i,iens);   real w_R = state_limits_z   (1,idW,k,j,i,iens);
@@ -707,30 +874,30 @@ namespace modules {
         }
       });
 
-      // Flux Corrected Transport to enforce positivity for tracer species that must remain non-negative
-      // This looks like it has a race condition, but it does not. Only one of the adjacent cells can ever change
-      // a given edge flux because it's only changed if its sign oriented outward from a cell.
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
-        if (tracer_positive(tr)) {
-          real mass_available = max(tracers_tend(tr,k,j,i,iens),0._fp) * dx * dy * dz;
-          real flux_out = (max(tracers_flux_x(tr,k,j,i+1,iens),0._fp)-min(tracers_flux_x(tr,k,j,i,iens),0._fp))*r_dx +
-                          (max(tracers_flux_y(tr,k,j+1,i,iens),0._fp)-min(tracers_flux_y(tr,k,j,i,iens),0._fp))*r_dy +
-                          (max(tracers_flux_z(tr,k+1,j,i,iens),0._fp)-min(tracers_flux_z(tr,k,j,i,iens),0._fp))*r_dz;
-          real mass_out = (flux_out) * dt * dx * dy * dz;
-          if (mass_out > mass_available) {
-            real mult = mass_available / mass_out;
-            if (tracers_flux_x(tr,k,j,i+1,iens) > 0) { tracers_mult_x(tr,k,j,i+1,iens) = mult; }
-            if (tracers_flux_x(tr,k,j,i  ,iens) < 0) { tracers_mult_x(tr,k,j,i  ,iens) = mult; }
-            if (tracers_flux_y(tr,k,j+1,i,iens) > 0) { tracers_mult_y(tr,k,j+1,i,iens) = mult; }
-            if (tracers_flux_y(tr,k,j  ,i,iens) < 0) { tracers_mult_y(tr,k,j  ,i,iens) = mult; }
-            if (tracers_flux_z(tr,k+1,j,i,iens) > 0) { tracers_mult_z(tr,k+1,j,i,iens) = mult; }
-            if (tracers_flux_z(tr,k  ,j,i,iens) < 0) { tracers_mult_z(tr,k  ,j,i,iens) = mult; }
-          }
-        }
-      });
-
-      fct_mult_exchange( coupler , tracers_mult_x , tracers_mult_y , tracers_mult_z );
+//       // Flux Corrected Transport to enforce positivity for tracer species that must remain non-negative
+//       // This looks like it has a race condition, but it does not. Only one of the adjacent cells can ever change
+//       // a given edge flux because it's only changed if its sign oriented outward from a cell.
+//       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
+//                                         YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
+//         if (tracer_positive(tr)) {
+//           real mass_available = max(tracers_tend(tr,k,j,i,iens),0._fp) * dx * dy * dz;
+//           real flux_out = (max(tracers_flux_x(tr,k,j,i+1,iens),0._fp)-min(tracers_flux_x(tr,k,j,i,iens),0._fp))*r_dx +
+//                           (max(tracers_flux_y(tr,k,j+1,i,iens),0._fp)-min(tracers_flux_y(tr,k,j,i,iens),0._fp))*r_dy +
+//                           (max(tracers_flux_z(tr,k+1,j,i,iens),0._fp)-min(tracers_flux_z(tr,k,j,i,iens),0._fp))*r_dz;
+//           real mass_out = (flux_out) * dt * dx * dy * dz;
+//           if (mass_out > mass_available) {
+//             real mult = mass_available / mass_out;
+//             if (tracers_flux_x(tr,k,j,i+1,iens) > 0) { tracers_mult_x(tr,k,j,i+1,iens) = mult; }
+//             if (tracers_flux_x(tr,k,j,i  ,iens) < 0) { tracers_mult_x(tr,k,j,i  ,iens) = mult; }
+//             if (tracers_flux_y(tr,k,j+1,i,iens) > 0) { tracers_mult_y(tr,k,j+1,i,iens) = mult; }
+//             if (tracers_flux_y(tr,k,j  ,i,iens) < 0) { tracers_mult_y(tr,k,j  ,i,iens) = mult; }
+//             if (tracers_flux_z(tr,k+1,j,i,iens) > 0) { tracers_mult_z(tr,k+1,j,i,iens) = mult; }
+//             if (tracers_flux_z(tr,k  ,j,i,iens) < 0) { tracers_mult_z(tr,k  ,j,i,iens) = mult; }
+//           }
+//         }
+//       });
+// 
+//       fct_mult_exchange( coupler , tracers_mult_x , tracers_mult_y , tracers_mult_z );
 
       // Compute tendencies as the flux divergence + gravity source term
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -742,6 +909,7 @@ namespace modules {
           if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
           if (latitude != 0 && !sim2d && l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
           if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
+          if (immersed_proportion_halos(hs+k,hs+j,hs+i,iens) > 0) state_tend(l,k,j,i,iens) = 0;
         }
         for (int l = 0; l < num_tracers; l++) {
           tracers_tend(l,k,j,i,iens) = -( tracers_flux_x(l,k,j,i+1,iens)*tracers_mult_x(l,k,j,i+1,iens) -
@@ -750,6 +918,7 @@ namespace modules {
                                           tracers_flux_y(l,k,j  ,i,iens)*tracers_mult_y(l,k,j  ,i,iens) ) * r_dy 
                                        -( tracers_flux_z(l,k+1,j,i,iens)*tracers_mult_z(l,k+1,j,i,iens) -
                                           tracers_flux_z(l,k  ,j,i,iens)*tracers_mult_z(l,k  ,j,i,iens) ) * r_dz;
+          if (immersed_proportion_halos(hs+k,hs+j,hs+i,iens) > 0) tracers_tend(l,k,j,i,iens) = 0;
         }
       });
     }
@@ -1432,8 +1601,8 @@ namespace modules {
         // z-direction boundaries
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
-          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 0;
-          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 0;
+          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 1;
+          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 1;
         });
       };
 

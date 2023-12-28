@@ -315,6 +315,14 @@ namespace custom_modules {
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
         if (k == 0) dm_surface_temp(j,i,iens) = theta0;
+        if (k <= nz/5 &&
+            j_beg+j > ny_glob/2-ny_glob/10 && j_beg+j < ny_glob/2+ny_glob/10 &&
+            i_beg+i > ny_glob/2-ny_glob/10 && i_beg+i < ny_glob/2+ny_glob/10 ) {
+          dm_immersed_proportion(k,j,i,iens) = 1;
+          // dm_uvel               (k,j,i,iens) = 0;
+          // dm_vvel               (k,j,i,iens) = 0;
+          // dm_wvel               (k,j,i,iens) = 0;
+        }
       });
 
     }

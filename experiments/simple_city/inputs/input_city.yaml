@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 300.  # 86400
+sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
@@ -18,14 +18,20 @@ init_data: city
 # Output filename
 out_prefix: test
 
-# GCM time step
-dt_gcm: 900
-
 # CRM physics time step
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 25.
+out_freq: 100.
 
-enable_gravity: false
+inform_freq: 2.
+
+latitude: 0.
+
+is_restart: false
+
+restart_file: none
+
+roughness: 0.002
+
 

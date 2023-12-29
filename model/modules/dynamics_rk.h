@@ -428,15 +428,15 @@ namespace modules {
 
     // Once you encounter an immersed boundary, set the specified value
     YAKL_INLINE static void modify_stencil_immersed_val( SArray<real,1,ord>       & stencil  ,
-                                                         SArray<real,1,ord> const & immersed ,
+                                                         SArray<bool,1,ord> const & immersed ,
                                                          real                       val      ) {
       // Don't modify the stencils of immersed cells
-      if (immersed(hs) == 0) {
+      if (! immersed(hs)) {
         for (int i2=hs+1; i2<ord; i2++) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = val; }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = val; }; break; }
         }
         for (int i2=hs-1; i2>=0 ; i2--) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = val; }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = val; }; break; }
         }
       }
     }
@@ -445,14 +445,14 @@ namespace modules {
 
     // Once you encounter an immersed boundary, set zero value
     YAKL_INLINE static void modify_stencil_immersed_der0( SArray<real,1,ord>       & stencil  ,
-                                                          SArray<real,1,ord> const & immersed ) {
+                                                          SArray<bool,1,ord> const & immersed ) {
       // Don't modify the stencils of immersed cells
-      if (immersed(hs) == 0) {
+      if (! immersed(hs)) {
         for (int i2=hs+1; i2<ord; i2++) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = stencil(i2-1); }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = stencil(i2-1); }; break; }
         }
         for (int i2=hs-1; i2>=0 ; i2--) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = stencil(i2+1); }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = stencil(i2+1); }; break; }
         }
       }
     }
@@ -460,15 +460,15 @@ namespace modules {
 
 
     YAKL_INLINE static void modify_stencil_immersed_vect( SArray<real,1,ord>       & stencil  ,
-                                                          SArray<real,1,ord> const & immersed ,
+                                                          SArray<bool,1,ord> const & immersed ,
                                                           SArray<real,1,ord> const & vect     ) {
       // Don't modify the stencils of immersed cells
-      if (immersed(hs) == 0) {
+      if (! immersed(hs)) {
         for (int i2=hs+1; i2<ord; i2++) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = vect(i3); }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3<ord; i3++) { stencil(i3) = vect(i3); }; break; }
         }
         for (int i2=hs-1; i2>=0 ; i2--) {
-          if (immersed(i2) > 0) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = vect(i3); }; break; }
+          if (immersed(i2)) { for (int i3=i2; i3>=0 ; i3--) { stencil(i3) = vect(i3); }; break; }
         }
       }
     }
@@ -538,17 +538,17 @@ namespace modules {
       limiter::WenoLimiter<ord> limiter(0.1,1,2,1,1.e3);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        SArray<real,1,ord> immersed_x;
-        SArray<real,1,ord> immersed_y;
-        SArray<real,1,ord> immersed_z;
+        SArray<bool,1,ord> immersed_x;
+        SArray<bool,1,ord> immersed_y;
+        SArray<bool,1,ord> immersed_z;
         SArray<real,1,ord> hy_r;
         SArray<real,1,ord> hy_t;
         SArray<real,1,ord> stencil;
         SArray<real,1,2  > gll;
 
-        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = immersed_proportion_halos(hs+k,hs+j,i+ii,iens); }
-        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = immersed_proportion_halos(hs+k,j+jj,hs+i,iens); }
-        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = immersed_proportion_halos(k+kk,hs+j,hs+i,iens); }
+        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = immersed_proportion_halos(hs+k,hs+j,i+ii,iens) > 0; }
+        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = immersed_proportion_halos(hs+k,j+jj,hs+i,iens) > 0; }
+        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = immersed_proportion_halos(k+kk,hs+j,hs+i,iens) > 0; }
         for (int kk=0; kk < ord; kk++) { hy_r(kk) = hy_dens_cells(k+kk,iens); }
         for (int kk=0; kk < ord; kk++) { hy_t(kk) = hy_dens_theta_cells(k+kk,iens)/hy_dens_cells(k+kk,iens); }
 
@@ -686,7 +686,7 @@ namespace modules {
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         pressure_limits_z(1,k  ,j,i,iens) = gll(0);
         pressure_limits_z(0,k+1,j,i,iens) = gll(1);
-      });
+      } );
       
       edge_exchange( coupler , state_limits_x , tracers_limits_x , pressure_limits_x ,
                                state_limits_y , tracers_limits_y , pressure_limits_y ,

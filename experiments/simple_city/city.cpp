@@ -4,7 +4,6 @@
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
-#include "windmill_actuators.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"
@@ -67,7 +66,6 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    modules::WindmillActuators                 windmills;
     modules::ColumnNudger                      column_nudger;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
@@ -80,7 +78,6 @@ int main(int argc, char** argv) {
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
     column_nudger.set_column    ( coupler );
     time_averager.init          ( coupler );
-    windmills    .init          ( coupler );
     modules::perturb_temperature( coupler , false , true );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
@@ -115,7 +112,6 @@ int main(int argc, char** argv) {
         coupler.run_module( [&] (Coupler &coupler) { modules::sponge_layer        (coupler,dtphys,dtphys*10,10); } , "sponge_layer"      );
         coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);              } , "surface_fluxes"    );
         coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);              } , "dycore"            );
-        coupler.run_module( [&] (Coupler &coupler) { windmills.apply              (coupler,dtphys);              } , "windmillactuators" );
         coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);              } , "les_closure"       );
         coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);              } , "time_averager"     );
       }

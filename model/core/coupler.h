@@ -337,6 +337,30 @@ namespace core {
       this->zlen = zlen;
     }
 
+
+    template <class F>
+    void run_module( F const &func , std::string name ) {
+      #ifdef PORTURB_FUNCTION_TRACE
+        dm.clean_all_entries();
+      #endif
+      #ifdef PORTURB_FUNCTION_TIMERS
+        yakl::timer_start( name.c_str() );
+      #endif
+      func( *this );
+      #ifdef PORTURB_FUNCTION_TIMERS
+        yakl::timer_stop ( name.c_str() );
+      #endif
+      #ifdef PORTURB_FUNCTION_TRACE
+        auto dirty_entry_names = dm.get_dirty_entries();
+        std::cout << "PortUrb Module " << name << " wrote to the following coupler entries: ";
+        for (int e=0; e < dirty_entry_names.size(); e++) {
+          std::cout << dirty_entry_names[e];
+          if (e < dirty_entry_names.size()-1) std::cout << ", ";
+        }
+        std::cout << "\n\n";
+      #endif
+    }
+
     
     int add_tracer( std::string tracer_name      ,
                     std::string tracer_desc = "" ,

@@ -9,21 +9,21 @@ namespace custom_modules {
   inline void sc_init( core::Coupler & coupler ) {
     using yakl::c::parallel_for;
     using yakl::c::SimpleBounds;
-    auto nens        = coupler.get_nens();
-    auto nx          = coupler.get_nx();
-    auto ny          = coupler.get_ny();
-    auto nz          = coupler.get_nz();
-    auto dx          = coupler.get_dx();
-    auto dy          = coupler.get_dy();
-    auto dz          = coupler.get_dz();
-    auto xlen        = coupler.get_xlen();
-    auto ylen        = coupler.get_ylen();
-    auto zlen        = coupler.get_zlen();
-    auto i_beg       = coupler.get_i_beg();
-    auto j_beg       = coupler.get_j_beg();
-    auto nx_glob     = coupler.get_nx_glob();
-    auto ny_glob     = coupler.get_ny_glob();
-    auto sim2d       = coupler.is_sim2d();
+    auto nens    = coupler.get_nens();
+    auto nx      = coupler.get_nx();
+    auto ny      = coupler.get_ny();
+    auto nz      = coupler.get_nz();
+    auto dx      = coupler.get_dx();
+    auto dy      = coupler.get_dy();
+    auto dz      = coupler.get_dz();
+    auto xlen    = coupler.get_xlen();
+    auto ylen    = coupler.get_ylen();
+    auto zlen    = coupler.get_zlen();
+    auto i_beg   = coupler.get_i_beg();
+    auto j_beg   = coupler.get_j_beg();
+    auto nx_glob = coupler.get_nx_glob();
+    auto ny_glob = coupler.get_ny_glob();
+    auto sim2d   = coupler.is_sim2d();
     if (! coupler.option_exists("R_d"     )) coupler.set_option<real>("R_d"     ,287.       );
     if (! coupler.option_exists("cp_d"    )) coupler.set_option<real>("cp_d"    ,1003.      );
     if (! coupler.option_exists("R_v"     )) coupler.set_option<real>("R_v"     ,461.       );
@@ -45,6 +45,7 @@ namespace custom_modules {
     auto kappa = coupler.get_option<real>("kappa_d");
     if (! coupler.option_exists("C0")) coupler.set_option<real>("C0" , pow( R_d * pow( p0 , -kappa ) , gamma ));
     auto C0    = coupler.get_option<real>("C0");
+    auto roughness = coupler.get_option<real>("roughness",0.1);
 
     auto &dm = coupler.get_data_manager_readwrite();
     auto dims3d = {nz,ny,nx,nens};
@@ -112,40 +113,31 @@ namespace custom_modules {
       MPI_Bcast( building_heights_host.data() , building_heights_host.size() , type , 0 , MPI_COMM_WORLD);
       auto building_heights = building_heights_host.createDeviceCopy();
 
+      real constexpr uref       = 10;   // Velocity at hub height
+      real constexpr theta0     = 300;
+      real constexpr href       = 100;   // Height of hub / center of windmills
+      real constexpr von_karman = 0.40;
+      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+      realHost1d press_host("press",nz);
+      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+      auto press = press_host.createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        dm_rho_d(k,j,i,iens) = 0;
-        dm_uvel (k,j,i,iens) = 0;
+        real zloc = (k+0.5_fp)*dz;
+        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
+        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
+        real p     = press(k);
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i,iens) = rt / theta0;
+        dm_uvel (k,j,i,iens) = u;
         dm_vvel (k,j,i,iens) = 0;
         dm_wvel (k,j,i,iens) = 0;
-        dm_temp (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        for (int kk=0; kk<nqpoints; kk++) {
-          for (int jj=0; jj<nqpoints; jj++) {
-            for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
-              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + qpoints(kk)*dz;
-              real rho, u, v, w, theta, rho_v, hr, ht;
-              modules::profiles::hydro_const_theta(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
-              rho   = hr;
-              u     = 20;
-              v     = 0;
-              w     = 0;
-              theta = ht;
-              rho_v = 0;
-              real T = C0*std::pow(rho*theta,gamma)/(rho*R_d);
-              if (sim2d) v = 0;
-              real wt = qweights(ii)*qweights(jj)*qweights(kk);
-              dm_rho_d(k,j,i,iens) += rho   * wt;
-              dm_uvel (k,j,i,iens) += u     * wt;
-              dm_vvel (k,j,i,iens) += v     * wt;
-              dm_wvel (k,j,i,iens) += w     * wt;
-              dm_temp (k,j,i,iens) += T     * wt;
-              dm_rho_v(k,j,i,iens) += rho_v * wt;
-            }
-          }
-        }
-        if (k == 0) dm_surface_temp(j,i,iens) = 300;
+        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
         int inorm = (static_cast<int>(i_beg)+i)/cells_per_building - buildings_pad;
         int jnorm = (static_cast<int>(j_beg)+j)/cells_per_building - buildings_pad;
         if ( ( inorm >= 0 && inorm < nblocks_x*3 && inorm%3 < 2 ) &&
@@ -288,7 +280,6 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
 
-      real constexpr roughness  = 0.1;
       real constexpr uref       = 10;   // Velocity at hub height
       real constexpr theta0     = 300;
       real constexpr href       = 90;   // Height of hub / center of windmills
@@ -298,11 +289,10 @@ namespace custom_modules {
       press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
       for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
       for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
-      std::cout << press_host;
       auto press = press_host.createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real zloc = (k+0.5_fp)*dz;
-        real ustar = von_karman * uref / std::log((100+roughness)/roughness);
+        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
         real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
         real p     = press(k);
         real rt    = std::pow( p/C0 , 1._fp/gamma );

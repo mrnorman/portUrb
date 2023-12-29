@@ -16,4 +16,10 @@ yakl_process_target(wind_farm)
 target_link_libraries(wind_farm model "${MW_LINK_FLAGS}")
 target_include_directories(wind_farm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
+add_executable(city city.cpp)
+include(${YAKL_HOME}/yakl_utils.cmake)
+yakl_process_target(city)
+target_link_libraries(city model "${MW_LINK_FLAGS}")
+target_include_directories(city PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
+
 

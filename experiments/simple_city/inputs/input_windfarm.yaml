@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 14400.  # 86400
+sim_time: 900.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
@@ -32,5 +32,5 @@ is_restart: false
 
 restart_file: none
 
-roughness: 0.1
+roughness: 0.002
 

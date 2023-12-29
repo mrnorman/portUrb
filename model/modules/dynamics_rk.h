@@ -46,7 +46,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 40;
-      real cfl = 2.00;
+      real cfl = 0.40;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -66,7 +66,7 @@ namespace modules {
       real dt_dyn = compute_time_step( coupler );
       int ncycles = (int) std::ceil( dt_phys / dt_dyn );
       dt_dyn = dt_phys / ncycles;
-      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_s_3(coupler,state,tracers,dt_dyn); }
+      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
       convert_dynamics_to_coupler( coupler , state , tracers );
     }
 
@@ -802,7 +802,7 @@ namespace modules {
         if (i < nx && j < ny) {
           bool left_cell_immersed  = immersed_proportion_halos(hs+k-1,hs+j,hs+i,iens) > 0;
           bool right_cell_immersed = immersed_proportion_halos(hs+k  ,hs+j,hs+i,iens) > 0;
-          if (!left_cell_immersed && right_cell_immersed) {
+          if (!left_cell_immersed && right_cell_immersed && k != 0 && k != nz) {
             // Use only left values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
@@ -813,7 +813,7 @@ namespace modules {
             pressure_limits_z(1    ,k,j,i,iens) = pressure_limits_z(0    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) { tracers_limits_z(1,tr,k,j,i,iens) = tracers_limits_z(0,tr,k,j,i,iens); }
           }
-          if (!right_cell_immersed && left_cell_immersed) {
+          if (!right_cell_immersed && left_cell_immersed && k != 0 && k != nz) {
             // Use only right values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
@@ -1056,7 +1056,7 @@ namespace modules {
         state(idV,kk,hs+j,hs+i,iens) = state(idV,hs+0,hs+j,hs+i,iens);
         state(idW,kk,hs+j,hs+i,iens) = 0;
         state(idT,kk,hs+j,hs+i,iens) = state(idT,hs+0,hs+j,hs+i,iens);
-        pressure( kk,hs+j,hs+i,iens) = pressure(hs,hs+j,hs+i,iens);
+        pressure( kk,hs+j,hs+i,iens) = pressure( hs+0,hs+j,hs+i,iens);
         state(idU,hs+nz+kk,hs+j,hs+i,iens) = state(idU,hs+nz-1,hs+j,hs+i,iens);
         state(idV,hs+nz+kk,hs+j,hs+i,iens) = state(idV,hs+nz-1,hs+j,hs+i,iens);
         state(idW,hs+nz+kk,hs+j,hs+i,iens) = 0;
@@ -1557,8 +1557,8 @@ namespace modules {
         // z-direction boundaries
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
-          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 1;
-          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 1;
+          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 0;
+          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 0;
         });
       };
 

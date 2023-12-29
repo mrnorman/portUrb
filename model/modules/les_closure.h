@@ -307,7 +307,7 @@ namespace modules {
           real j3_i2 = (du2_dx3 + du3_dx2) * du2_dx3;
           real j3_i3 = (du3_dx3 + du3_dx3) * du3_dx3;
           tke_source(k,j,i,iens) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
-          if (immersed(dchs+k,dchs+j,dchs+i,iens)) tke_source(k,j,i,iens) = 0;
+          if (immersed(dchs+k,dchs+j,dchs+i,iens) > 0) tke_source(k,j,i,iens) = 0;
         }
       });
 
@@ -327,7 +327,7 @@ namespace modules {
         real tend_tke = -(flux_tke_x(k,j,i+1,iens) - flux_tke_x(k,j,i,iens)) / dx -
                          (flux_tke_y(k,j+1,i,iens) - flux_tke_y(k,j,i,iens)) / dy -
                          (flux_tke_z(k+1,j,i,iens) - flux_tke_z(k,j,i,iens)) / dz + tke_source(k,j,i,iens);
-        if (immersed(dchs+k,dchs+j,dchs+i,iens)) { tend_ru=0; tend_rv=0; tend_rw=0; tend_rt=0; tend_tke=0; }
+        if (immersed(dchs+k,dchs+j,dchs+i,iens) > 0) { tend_ru=0; tend_rv=0; tend_rw=0; tend_rt=0; tend_tke=0; }
 
         state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
         state(idU,hs+k,hs+j,hs+i,iens) += dtphys * tend_ru ;
@@ -348,7 +348,7 @@ namespace modules {
           real tend_tracer = -(flux_tracers_x(tr,k,j,i+1,iens) - flux_tracers_x(tr,k,j,i,iens)) / dx -
                               (flux_tracers_y(tr,k,j+1,i,iens) - flux_tracers_y(tr,k,j,i,iens)) / dy -
                               (flux_tracers_z(tr,k+1,j,i,iens) - flux_tracers_z(tr,k,j,i,iens)) / dz;
-          if (immersed(dchs+k,dchs+j,dchs+i,iens)) tend_tracer = 0;
+          if (immersed(dchs+k,dchs+j,dchs+i,iens) > 0) tend_tracer = 0;
           tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           tracers(tr,hs+k,hs+j,hs+i,iens) += dtphys * tend_tracer;
         }

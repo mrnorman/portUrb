@@ -29,29 +29,33 @@ namespace modules {
     int  hs        = (immersed.extent(2)-nx)/2;
 
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(ny,nx,nens) , YAKL_LAMBDA (int j, int i, int iens) {
-      real constexpr von_karman = 0.40;
-      real r   = dm_r (0,j,i,iens);
-      real u   = dm_u (0,j,i,iens);
-      real v   = dm_v (0,j,i,iens);
-      real T   = dm_T (0,j,i,iens);
-      real th0 = dm_Ts(  j,i,iens);
-      real p   = r*R_d*T;
-      real th  = T*std::pow( p0/p , R_d/cp_d );
-      real lg  = std::log((dz/2+roughness)/roughness);
-      real c_d = von_karman*von_karman / (lg*lg);
-      real mag = std::sqrt(u*u+v*v);
-      real u_new  = u  + dt*(0-c_d     *(u -0  )*mag)/dz;
-      real v_new  = v  + dt*(0-c_d     *(v -0  )*mag)/dz;
-      real th_new = th + dt*(0-c_d*cp_d*(th-th0)*mag)/dz;
-      real T_new  = th_new*std::pow( p/p0 , R_d/cp_d );
-      if (!immersed(hs+0,hs+j,hs+i,iens)) {
+      if (immersed(hs+0,hs+j,hs+i,iens) == 0) {
+        real constexpr prandtl    = 0.71;
+        real constexpr von_karman = 0.40;
+        real r   = dm_r (0,j,i,iens);
+        real u   = dm_u (0,j,i,iens);
+        real v   = dm_v (0,j,i,iens);
+        real T   = dm_T (0,j,i,iens);
+        real th0 = dm_Ts(  j,i,iens);
+        real p   = r*R_d*T;
+        real th  = T*std::pow( p0/p , R_d/cp_d );
+        real lg  = std::log((dz/2+roughness)/roughness);
+        real c_d = von_karman*von_karman / (lg*lg);
+        real mag = std::sqrt(u*u+v*v);
+        real u_new = u - dt*c_d     *(u -0  )*mag/dz;
+        real v_new = v - dt*c_d     *(v -0  )*mag/dz;
+        real T_new = T - dt*c_d*cp_d*(th-th0)*mag/dz;
+        // Don't allow friction to change sign of difference from suface values
+        if ((u_new-0  )*(u-0  ) < 0) u_new = 0;
+        if ((v_new-0  )*(v-0  ) < 0) v_new = 0;
+        if ((T_new-th0)*(T-th0) < 0) T_new = th0;
         dm_u(0,j,i,iens) = u_new;
         dm_v(0,j,i,iens) = v_new;
         dm_T(0,j,i,iens) = T_new;
       }
     });
 
-    parallel_for( YAKL_AUTO_LABEL() , Bounds<4>({1,nz-2},ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
       if (immersed(hs+k,hs+j,hs+i,iens) == 0) {
         real constexpr von_karman = 0.40;
         real lgx   = std::log((dx/2+roughness)/roughness);
@@ -85,17 +89,21 @@ namespace modules {
           utend += -c_dy*u*magy/dy;
           wtend += -c_dy*w*magy/dy;
         }
-        if (immersed(hs+k-1,hs+j,hs+i,iens) > 0) {
+        if (immersed(hs+k-1,hs+j,hs+i,iens) > 0 && k != 0) {
           utend += -c_dz*u*magz/dz;
           vtend += -c_dz*v*magz/dz;
         }
-        if (immersed(hs+k+1,hs+j,hs+i,iens) > 0) {
+        if (immersed(hs+k+1,hs+j,hs+i,iens) > 0 && k != nz-1) {
           utend += -c_dz*u*magz/dz;
           vtend += -c_dz*v*magz/dz;
         }
         dm_u(k,j,i,iens) += dt*utend;
         dm_v(k,j,i,iens) += dt*vtend;
         dm_w(k,j,i,iens) += dt*wtend;
+        // Don't allow friction to change sign of difference from suface values
+        if (dm_u(k,j,i,iens)*u < 0) dm_u(k,j,i,iens) = 0;
+        if (dm_v(k,j,i,iens)*v < 0) dm_v(k,j,i,iens) = 0;
+        if (dm_w(k,j,i,iens)*w < 0) dm_w(k,j,i,iens) = 0;
       }
     });
 

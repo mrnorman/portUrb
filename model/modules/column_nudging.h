@@ -44,7 +44,7 @@ namespace modules {
       real constexpr time_scale = 900;
       parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(names.size(),nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
-        if (!immersed(k,j,i,iens)) {
+        if (immersed(k,j,i,iens) == 0) {
           state(l,k,j,i,iens) += dt * ( column(l,k,iens) - state_col_avg(l,k,iens) ) / time_scale;
         }
       });

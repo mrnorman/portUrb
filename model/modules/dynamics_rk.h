@@ -96,10 +96,6 @@ namespace modules {
       // Part 1
       //////////////
       for (int istage = 1; istage <= ((n-1)*(n-2))/2; istage++) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int tr=0; tr < num_tracers; tr++) { tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens); }
-        });
         compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,dt_dyn/r);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -119,10 +115,6 @@ namespace modules {
       // Part 2
       ///////////////////
       for (int istage = ((n-1)*(n-2))/2+1; istage <= (n*(n+1))/2-1; istage++) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int tr=0; tr < num_tracers; tr++) { tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens); }
-        });
         compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,dt_dyn/r);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -139,13 +131,6 @@ namespace modules {
       ///////////////////
       // Intermission
       ///////////////////
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        for (int tr=0; tr < num_tracers; tr++) {
-          tracers_tend(tr,k,j,i,iens) =  n   /(2*n-1.)*tracers_tmp(tr,hs+k,hs+j,hs+i,iens) +
-                                        (n-1)/(2*n-1.)*tracers    (tr,hs+k,hs+j,hs+i,iens);
-        }
-      });
       compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,(n-1)/(2*n-1.)*dt_dyn/r);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -166,10 +151,6 @@ namespace modules {
       // Part 3
       //////////////
       for (int istage = (n*(n+1))/2+1; istage <= s; istage++) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          for (int tr=0; tr < num_tracers; tr++) { tracers_tend(tr,k,j,i,iens) = tracers(tr,hs+k,hs+j,hs+i,iens); }
-        });
         compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,dt_dyn/r);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -873,31 +854,6 @@ namespace modules {
           for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
         }
       });
-
-//       // Flux Corrected Transport to enforce positivity for tracer species that must remain non-negative
-//       // This looks like it has a race condition, but it does not. Only one of the adjacent cells can ever change
-//       // a given edge flux because it's only changed if its sign oriented outward from a cell.
-//       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
-//                                         YAKL_LAMBDA (int tr, int k, int j, int i, int iens) {
-//         if (tracer_positive(tr)) {
-//           real mass_available = max(tracers_tend(tr,k,j,i,iens),0._fp) * dx * dy * dz;
-//           real flux_out = (max(tracers_flux_x(tr,k,j,i+1,iens),0._fp)-min(tracers_flux_x(tr,k,j,i,iens),0._fp))*r_dx +
-//                           (max(tracers_flux_y(tr,k,j+1,i,iens),0._fp)-min(tracers_flux_y(tr,k,j,i,iens),0._fp))*r_dy +
-//                           (max(tracers_flux_z(tr,k+1,j,i,iens),0._fp)-min(tracers_flux_z(tr,k,j,i,iens),0._fp))*r_dz;
-//           real mass_out = (flux_out) * dt * dx * dy * dz;
-//           if (mass_out > mass_available) {
-//             real mult = mass_available / mass_out;
-//             if (tracers_flux_x(tr,k,j,i+1,iens) > 0) { tracers_mult_x(tr,k,j,i+1,iens) = mult; }
-//             if (tracers_flux_x(tr,k,j,i  ,iens) < 0) { tracers_mult_x(tr,k,j,i  ,iens) = mult; }
-//             if (tracers_flux_y(tr,k,j+1,i,iens) > 0) { tracers_mult_y(tr,k,j+1,i,iens) = mult; }
-//             if (tracers_flux_y(tr,k,j  ,i,iens) < 0) { tracers_mult_y(tr,k,j  ,i,iens) = mult; }
-//             if (tracers_flux_z(tr,k+1,j,i,iens) > 0) { tracers_mult_z(tr,k+1,j,i,iens) = mult; }
-//             if (tracers_flux_z(tr,k  ,j,i,iens) < 0) { tracers_mult_z(tr,k  ,j,i,iens) = mult; }
-//           }
-//         }
-//       });
-// 
-//       fct_mult_exchange( coupler , tracers_mult_x , tracers_mult_y , tracers_mult_z );
 
       // Compute tendencies as the flux divergence + gravity source term
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {

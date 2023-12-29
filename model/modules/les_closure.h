@@ -26,21 +26,18 @@ namespace modules {
     void apply( core::Coupler &coupler , real dtphys ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nx             = coupler.get_nx  ();
-      auto ny             = coupler.get_ny  ();
-      auto nz             = coupler.get_nz  ();
-      auto nens           = coupler.get_nens();
-      auto dx             = coupler.get_dx  ();
-      auto dy             = coupler.get_dy  ();
-      auto dz             = coupler.get_dz  ();
-      auto grav           = coupler.get_option<real>("grav");
-      auto &dm            = coupler.get_data_manager_readwrite();
-      auto r              = dm.get<real,4>("density_dry");
-      auto u              = dm.get<real,4>("uvel");
-      auto v              = dm.get<real,4>("vvel");
-      auto w              = dm.get<real,4>("wvel");
-      auto T              = dm.get<real,4>("temp");
-      real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
+      auto nx    = coupler.get_nx  ();
+      auto ny    = coupler.get_ny  ();
+      auto nz    = coupler.get_nz  ();
+      auto nens  = coupler.get_nens();
+      auto dx    = coupler.get_dx  ();
+      auto dy    = coupler.get_dy  ();
+      auto dz    = coupler.get_dz  ();
+      auto grav  = coupler.get_option<real>("grav");
+      auto &dm   = coupler.get_data_manager_readwrite();
+      real delta = std::pow( dx*dy*dz , 1._fp/3._fp );
+      auto immersed = dm.get<real const,4>("immersed_proportion_halos");
+      int  dchs  = (immersed.extent(2)-nx)/2; // dycore halo size
 
       real5d state , tracers;
       real4d tke;
@@ -75,16 +72,38 @@ namespace modules {
           real rho   = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K     = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
-          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1,iens)-state(idT,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
-                                  (state(idT,hs+k+1,hs+j,hs+i  ,iens)-state(idT,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+          real dt_dz, du_dz;
+          if        (immersed(dchs+k+1,dchs+j,dchs+i,iens) > 0) {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k  ,hs+j,hs+i-1,iens)-state(idT,hs+k-1,hs+j,hs+i-1,iens))/(  dz) +
+                               (state(idT,hs+k  ,hs+j,hs+i  ,iens)-state(idT,hs+k-1,hs+j,hs+i  ,iens))/(  dz) );
+            du_dz = 0.5_fp * ( (state(idU,hs+k  ,hs+j,hs+i-1,iens)-state(idU,hs+k-1,hs+j,hs+i-1,iens))/(  dz) +
+                               (state(idU,hs+k  ,hs+j,hs+i  ,iens)-state(idU,hs+k-1,hs+j,hs+i  ,iens))/(  dz) );
+          } else if (immersed(dchs+k-1,dchs+j,dchs+i,iens) > 0) {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1,iens)-state(idT,hs+k  ,hs+j,hs+i-1,iens))/(  dz) +
+                               (state(idT,hs+k+1,hs+j,hs+i  ,iens)-state(idT,hs+k  ,hs+j,hs+i  ,iens))/(  dz) );
+            du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1,iens)-state(idU,hs+k  ,hs+j,hs+i-1,iens))/(  dz) +
+                               (state(idU,hs+k+1,hs+j,hs+i  ,iens)-state(idU,hs+k  ,hs+j,hs+i  ,iens))/(  dz) );
+          } else {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1,iens)-state(idT,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
+                               (state(idT,hs+k+1,hs+j,hs+i  ,iens)-state(idT,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+            du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1,iens)-state(idU,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
+                               (state(idU,hs+k+1,hs+j,hs+i  ,iens)-state(idU,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+          }
+          real du_dy;
+          if        (immersed(dchs+k,dchs+j+1,dchs+i,iens) > 0) {
+            du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j  ,hs+i-1,iens)-state(idU,hs+k,hs+j-1,hs+i-1,iens))/(  dy) +
+                               (state(idU,hs+k,hs+j  ,hs+i  ,iens)-state(idU,hs+k,hs+j-1,hs+i  ,iens))/(  dy) );
+          } else if (immersed(dchs+k,dchs+j-1,dchs+i,iens) > 0) {
+            du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1,iens)-state(idU,hs+k,hs+j  ,hs+i-1,iens))/(  dy) +
+                               (state(idU,hs+k,hs+j+1,hs+i  ,iens)-state(idU,hs+k,hs+j  ,hs+i  ,iens))/(  dy) );
+          } else {
+            du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1,iens)-state(idU,hs+k,hs+j-1,hs+i-1,iens))/(2*dy) +
+                               (state(idU,hs+k,hs+j+1,hs+i  ,iens)-state(idU,hs+k,hs+j-1,hs+i  ,iens))/(2*dy) );
+          }
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1,iens) - state(idU,hs+k,hs+j-1,hs+i-1,iens))/(2*dy) +
-                                  (state(idU,hs+k,hs+j+1,hs+i  ,iens) - state(idU,hs+k,hs+j-1,hs+i  ,iens))/(2*dy) );
-          real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1,iens) - state(idU,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
-                                  (state(idU,hs+k+1,hs+j,hs+i  ,iens) - state(idU,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
           real du_dx = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j,hs+i-1,iens))/dx;
           real dv_dx = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j,hs+i-1,iens))/dx;
           real dw_dx = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j,hs+i-1,iens))/dx;
@@ -99,21 +118,51 @@ namespace modules {
             dt_dx = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j,hs+i-1,iens))/dx;
             flux_tracers_x(tr,k,j,i,iens) = -rho*km/Pr*dt_dx;
           }
+          if ( immersed(dchs+k,dchs+j,dchs+i-1,iens) > 0 || immersed(dchs+k,dchs+j,dchs+i  ,iens) > 0 ) {
+            flux_ru_x (k,j,i,iens) = 0;
+            flux_rv_x (k,j,i,iens) = 0;
+            flux_rw_x (k,j,i,iens) = 0;
+            flux_rt_x (k,j,i,iens) = 0;
+            flux_tke_x(k,j,i,iens) = 0;
+            for (int tr=0; tr < num_tracers; tr++) { flux_tracers_x(tr,k,j,i,iens) = 0; }
+          }
         }
         if (i < nx && k < nz) {
           real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K     = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
-          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i,iens)-state(idT,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
-                                  (state(idT,hs+k+1,hs+j  ,hs+i,iens)-state(idT,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+          real dt_dz, dv_dz;
+          if        (immersed(dchs+k+1,dchs+j,dchs+i,iens) > 0) {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k  ,hs+j-1,hs+i,iens)-state(idT,hs+k-1,hs+j-1,hs+i,iens))/(  dz) +
+                               (state(idT,hs+k  ,hs+j  ,hs+i,iens)-state(idT,hs+k-1,hs+j  ,hs+i,iens))/(  dz) );
+            dv_dz = 0.5_fp * ( (state(idV,hs+k  ,hs+j-1,hs+i,iens)-state(idV,hs+k-1,hs+j-1,hs+i,iens))/(  dz) +
+                               (state(idV,hs+k  ,hs+j  ,hs+i,iens)-state(idV,hs+k-1,hs+j  ,hs+i,iens))/(  dz) );
+          } else if (immersed(dchs+k-1,dchs+j,dchs+i,iens) > 0) {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i,iens)-state(idT,hs+k  ,hs+j-1,hs+i,iens))/(  dz) +
+                               (state(idT,hs+k+1,hs+j  ,hs+i,iens)-state(idT,hs+k  ,hs+j  ,hs+i,iens))/(  dz) );
+            dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i,iens)-state(idV,hs+k  ,hs+j-1,hs+i,iens))/(  dz) +
+                               (state(idV,hs+k+1,hs+j  ,hs+i,iens)-state(idV,hs+k  ,hs+j  ,hs+i,iens))/(  dz) );
+          } else {
+            dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i,iens)-state(idT,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
+                               (state(idT,hs+k+1,hs+j  ,hs+i,iens)-state(idT,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+            dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i,iens)-state(idV,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
+                               (state(idV,hs+k+1,hs+j  ,hs+i,iens)-state(idV,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+          }
+          real dv_dx;
+          if        (immersed(dchs+k,dchs+j,dchs+i+1,iens) > 0) {
+            dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i  ,iens) - state(idV,hs+k,hs+j-1,hs+i-1,iens))/(  dx) +
+                               (state(idV,hs+k,hs+j  ,hs+i  ,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(  dx) );
+          } else if (immersed(dchs+k,dchs+j,dchs+i-1,iens) > 0) {
+            dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1,iens) - state(idV,hs+k,hs+j-1,hs+i  ,iens))/(  dx) +
+                               (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i  ,iens))/(  dx) );
+          } else {
+            dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1,iens) - state(idV,hs+k,hs+j-1,hs+i-1,iens))/(2*dx) +
+                               (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(2*dx) );
+          }
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1,iens) - state(idV,hs+k,hs+j-1,hs+i-1,iens))/(2*dx) +
-                                  (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(2*dx) );
-          real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i,iens) - state(idV,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
-                                  (state(idV,hs+k+1,hs+j  ,hs+i,iens) - state(idV,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
           real du_dy = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens))/dy;
           real dv_dy = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens))/dy;
           real dw_dy = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens))/dy;
@@ -128,6 +177,14 @@ namespace modules {
             dt_dy = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j-1,hs+i,iens))/dy;
             flux_tracers_y(tr,k,j,i,iens) = -rho*km/Pr*dt_dy;
           }
+          if ( immersed(dchs+k,dchs+j-1,dchs+i,iens) > 0 || immersed(dchs+k,dchs+j  ,dchs+i,iens) > 0 ) {
+            flux_ru_y (k,j,i,iens) = 0;
+            flux_rv_y (k,j,i,iens) = 0;
+            flux_rw_y (k,j,i,iens) = 0;
+            flux_rt_y (k,j,i,iens) = 0;
+            flux_tke_y(k,j,i,iens) = 0;
+            for (int tr=0; tr < num_tracers; tr++) { flux_tracers_y(tr,k,j,i,iens) = 0; }
+          }
         }
         if (i < nx && j < ny) {
           real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
@@ -138,10 +195,28 @@ namespace modules {
           real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
-          real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1,iens) - state(idW,hs+k-1,hs+j,hs+i-1,iens))/(2*dx) +
-                                  (state(idW,hs+k  ,hs+j,hs+i+1,iens) - state(idW,hs+k  ,hs+j,hs+i-1,iens))/(2*dx) );
-          real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i,iens) - state(idW,hs+k-1,hs+j-1,hs+i,iens))/(2*dy) +
-                                  (state(idW,hs+k  ,hs+j+1,hs+i,iens) - state(idW,hs+k  ,hs+j-1,hs+i,iens))/(2*dy) );
+          real dw_dx;
+          if        (immersed(dchs+k,dchs+j,dchs+i+1,iens) > 0) {
+            dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i  ,iens) - state(idW,hs+k-1,hs+j,hs+i-1,iens))/(  dx) +
+                               (state(idW,hs+k  ,hs+j,hs+i  ,iens) - state(idW,hs+k  ,hs+j,hs+i-1,iens))/(  dx) );
+          } else if (immersed(dchs+k,dchs+j,dchs+i-1,iens) > 0) {
+            dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1,iens) - state(idW,hs+k-1,hs+j,hs+i  ,iens))/(  dx) +
+                               (state(idW,hs+k  ,hs+j,hs+i+1,iens) - state(idW,hs+k  ,hs+j,hs+i  ,iens))/(  dx) );
+          } else {
+            dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1,iens) - state(idW,hs+k-1,hs+j,hs+i-1,iens))/(2*dx) +
+                               (state(idW,hs+k  ,hs+j,hs+i+1,iens) - state(idW,hs+k  ,hs+j,hs+i-1,iens))/(2*dx) );
+          }
+          real dw_dy;
+          if        (immersed(dchs+k,dchs+j+1,dchs+i,iens) > 0) {
+            dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j  ,hs+i,iens) - state(idW,hs+k-1,hs+j-1,hs+i,iens))/(  dy) +
+                               (state(idW,hs+k  ,hs+j  ,hs+i,iens) - state(idW,hs+k  ,hs+j-1,hs+i,iens))/(  dy) );
+          } else if (immersed(dchs+k,dchs+j-1,dchs+i,iens) > 0) {
+            dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i,iens) - state(idW,hs+k-1,hs+j  ,hs+i,iens))/(  dy) +
+                               (state(idW,hs+k  ,hs+j+1,hs+i,iens) - state(idW,hs+k  ,hs+j  ,hs+i,iens))/(  dy) );
+          } else {
+            dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i,iens) - state(idW,hs+k-1,hs+j-1,hs+i,iens))/(2*dy) +
+                               (state(idW,hs+k  ,hs+j+1,hs+i,iens) - state(idW,hs+k  ,hs+j-1,hs+i,iens))/(2*dy) );
+          }
           real du_dz = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens))/dz;
           real dv_dz = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens))/dz;
           real dw_dz = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens))/dz;
@@ -154,6 +229,14 @@ namespace modules {
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dz = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k-1,hs+j,hs+i,iens))/dz;
             flux_tracers_z(tr,k,j,i,iens) = -rho*km/Pr*dt_dz;
+          }
+          if ( immersed(dchs+k-1,dchs+j,dchs+i,iens) > 0 || immersed(dchs+k  ,dchs+j,dchs+i,iens) > 0 ) {
+            flux_ru_z (k,j,i,iens) = 0;
+            flux_rv_z (k,j,i,iens) = 0;
+            flux_rw_z (k,j,i,iens) = 0;
+            flux_rt_z (k,j,i,iens) = 0;
+            flux_tke_z(k,j,i,iens) = 0;
+            for (int tr=0; tr < num_tracers; tr++) { flux_tracers_z(tr,k,j,i,iens) = 0; }
           }
         }
         if (i < nx && j < ny && k < nz) {
@@ -172,15 +255,48 @@ namespace modules {
           // TKE dissipation
           tke_source(k,j,i,iens) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
           // Shear production
-          real du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
-          real du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
-          real du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
-          real du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          real du1_dx1, du2_dx1, du3_dx1;
+          if        (immersed(dchs+k,dchs+j,dchs+i+1,iens) > 0) {
+            du1_dx1 = ( state(idU,hs+k,hs+j,hs+i  ,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (  dx);
+            du2_dx1 = ( state(idV,hs+k,hs+j,hs+i  ,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (  dx);
+            du3_dx1 = ( state(idW,hs+k,hs+j,hs+i  ,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (  dx);
+          } else if (immersed(dchs+k,dchs+j,dchs+i-1,iens) > 0) {
+            du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i  ,iens) ) / (  dx);
+            du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i  ,iens) ) / (  dx);
+            du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i  ,iens) ) / (  dx);
+          } else {
+            du1_dx1 = ( state(idU,hs+k,hs+j,hs+i+1,iens) - state(idU,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+            du2_dx1 = ( state(idV,hs+k,hs+j,hs+i+1,iens) - state(idV,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+            du3_dx1 = ( state(idW,hs+k,hs+j,hs+i+1,iens) - state(idW,hs+k,hs+j,hs+i-1,iens) ) / (2*dx);
+          }
+          real du1_dx2, du2_dx2, du3_dx2;
+          if        (immersed(dchs+k,dchs+j+1,dchs+i,iens) > 0) {
+            du1_dx2 = ( state(idU,hs+k,hs+j  ,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (  dy);
+            du2_dx2 = ( state(idV,hs+k,hs+j  ,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (  dy);
+            du3_dx2 = ( state(idW,hs+k,hs+j  ,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (  dy);
+          } else if (immersed(dchs+k,dchs+j-1,dchs+i,iens) > 0) {
+            du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j  ,hs+i,iens) ) / (  dy);
+            du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j  ,hs+i,iens) ) / (  dy);
+            du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j  ,hs+i,iens) ) / (  dy);
+          } else {
+            du1_dx2 = ( state(idU,hs+k,hs+j+1,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+            du2_dx2 = ( state(idV,hs+k,hs+j+1,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+            du3_dx2 = ( state(idW,hs+k,hs+j+1,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens) ) / (2*dy);
+          }
+          real du1_dx3, du2_dx3, du3_dx3;
+          if        (immersed(dchs+k+1,dchs+j,dchs+i,iens) > 0) {
+            du1_dx3 = ( state(idU,hs+k  ,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (  dz);
+            du2_dx3 = ( state(idV,hs+k  ,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (  dz);
+            du3_dx3 = ( state(idW,hs+k  ,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (  dz);
+          } else if (immersed(dchs+k-1,dchs+j,dchs+i,iens) > 0) {
+            du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k  ,hs+j,hs+i,iens) ) / (  dz);
+            du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k  ,hs+j,hs+i,iens) ) / (  dz);
+            du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k  ,hs+j,hs+i,iens) ) / (  dz);
+          } else {
+            du1_dx3 = ( state(idU,hs+k+1,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+            du2_dx3 = ( state(idV,hs+k+1,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+            du3_dx3 = ( state(idW,hs+k+1,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
+          }
           real j1_i1 = (du1_dx1 + du1_dx1) * du1_dx1;
           real j1_i2 = (du2_dx1 + du1_dx2) * du2_dx1;
           real j1_i3 = (du3_dx1 + du1_dx3) * du3_dx1;
@@ -191,15 +307,9 @@ namespace modules {
           real j3_i2 = (du2_dx3 + du3_dx2) * du2_dx3;
           real j3_i3 = (du3_dx3 + du3_dx3) * du3_dx3;
           tke_source(k,j,i,iens) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
+          if (immersed(dchs+k,dchs+j,dchs+i,iens)) tke_source(k,j,i,iens) = 0;
         }
       });
-
-      real4d tend_ru     ("tend_ru"                 ,nz,ny,nx,nens);
-      real4d tend_rv     ("tend_rv"                 ,nz,ny,nx,nens);
-      real4d tend_rw     ("tend_rw"                 ,nz,ny,nx,nens);
-      real4d tend_rt     ("tend_rt"                 ,nz,ny,nx,nens);
-      real4d tend_tke    ("tend_tke"                ,nz,ny,nx,nens);
-      real5d tend_tracers("tend_tracers",num_tracers,nz,ny,nx,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real tend_ru  = -(flux_ru_x (k,j,i+1,iens) - flux_ru_x (k,j,i,iens)) / dx -
@@ -217,6 +327,7 @@ namespace modules {
         real tend_tke = -(flux_tke_x(k,j,i+1,iens) - flux_tke_x(k,j,i,iens)) / dx -
                          (flux_tke_y(k,j+1,i,iens) - flux_tke_y(k,j,i,iens)) / dy -
                          (flux_tke_z(k+1,j,i,iens) - flux_tke_z(k,j,i,iens)) / dz + tke_source(k,j,i,iens);
+        if (immersed(dchs+k,dchs+j,dchs+i,iens)) { tend_ru=0; tend_rv=0; tend_rw=0; tend_rt=0; tend_tke=0; }
 
         state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
         state(idU,hs+k,hs+j,hs+i,iens) += dtphys * tend_ru ;
@@ -237,6 +348,7 @@ namespace modules {
           real tend_tracer = -(flux_tracers_x(tr,k,j,i+1,iens) - flux_tracers_x(tr,k,j,i,iens)) / dx -
                               (flux_tracers_y(tr,k,j+1,i,iens) - flux_tracers_y(tr,k,j,i,iens)) / dy -
                               (flux_tracers_z(tr,k+1,j,i,iens) - flux_tracers_z(tr,k,j,i,iens)) / dz;
+          if (immersed(dchs+k,dchs+j,dchs+i,iens)) tend_tracer = 0;
           tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           tracers(tr,hs+k,hs+j,hs+i,iens) += dtphys * tend_tracer;
         }

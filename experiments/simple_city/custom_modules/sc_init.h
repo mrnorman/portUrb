@@ -319,9 +319,9 @@ namespace custom_modules {
             j_beg+j > ny_glob/2-ny_glob/10 && j_beg+j < ny_glob/2+ny_glob/10 &&
             i_beg+i > ny_glob/2-ny_glob/10 && i_beg+i < ny_glob/2+ny_glob/10 ) {
           dm_immersed_proportion(k,j,i,iens) = 1;
-          // dm_uvel               (k,j,i,iens) = 0;
-          // dm_vvel               (k,j,i,iens) = 0;
-          // dm_wvel               (k,j,i,iens) = 0;
+          dm_uvel               (k,j,i,iens) = 0;
+          dm_vvel               (k,j,i,iens) = 0;
+          dm_wvel               (k,j,i,iens) = 0;
         }
       });
 

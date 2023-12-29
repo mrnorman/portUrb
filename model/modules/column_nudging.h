@@ -36,6 +36,7 @@ namespace modules {
       int ny   = coupler.get_ny();
       int nz   = coupler.get_nz();
       auto &dm = coupler.get_data_manager_readwrite();
+      auto immersed = dm.get<real const,4>("immersed_proportion");
       core::MultiField<real,4> state;
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,4>(names[i]) ); }
       auto state_col_avg = get_column_average( coupler , state );
@@ -43,7 +44,9 @@ namespace modules {
       real constexpr time_scale = 900;
       parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(names.size(),nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
-        state(l,k,j,i,iens) += dt * ( column(l,k,iens) - state_col_avg(l,k,iens) ) / time_scale;
+        if (!immersed(k,j,i,iens)) {
+          state(l,k,j,i,iens) += dt * ( column(l,k,iens) - state_col_avg(l,k,iens) ) / time_scale;
+        }
       });
     }
 

@@ -32,3 +32,5 @@ is_restart: false
 
 restart_file: none
 
+roughness: 0.1
+

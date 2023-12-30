@@ -46,7 +46,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 40;
-      real cfl = 0.40;
+      real cfl = 2.00;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -66,7 +66,7 @@ namespace modules {
       real dt_dyn = compute_time_step( coupler );
       int ncycles = (int) std::ceil( dt_phys / dt_dyn );
       dt_dyn = dt_phys / ncycles;
-      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
+      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_s_3(coupler,state,tracers,dt_dyn); }
       convert_dynamics_to_coupler( coupler , state , tracers );
     }
 
@@ -505,8 +505,13 @@ namespace modules {
       auto hy_dens_cells             = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
       auto hy_dens_theta_cells       = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
       auto hy_pressure_cells         = coupler.get_data_manager_readonly().get<real const,2>("hy_pressure_cells"  );
-      SArray<real,2,ord,2> coefs_to_gll;
+      SArray<real,2,ord,2> coefs_to_gll, sten_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
+      {
+        SArray<real,2,ord,ord> s2c;
+        TransformMatrices::sten_to_coefs(s2c);
+        sten_to_gll = yakl::intrinsics::matmul_cr(coefs_to_gll,s2c);
+      }
       real r_dx = 1./dx;
       real r_dy = 1./dy;
       real r_dz = 1./dz;
@@ -574,57 +579,57 @@ namespace modules {
         // u-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_val( stencil , immersed_x , 0._fp );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
         // u-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_y );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
         // u-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_z );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
 
         // v-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_der0( stencil , immersed_x );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
         // v-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_val( stencil , immersed_y , 0._fp );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
         // v-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_z );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
 
         // w-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_der0( stencil , immersed_x );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
         // w-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_y );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
         // w-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_val( stencil , immersed_z , 0._fp );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        reconstruct_gll_values(stencil,gll,sten_to_gll);
         state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
 
@@ -891,9 +896,16 @@ namespace modules {
       limiter.compute_limited_coefs( stencil , wenoCoefs );
       for (int ii=0; ii<2; ii++) {
         real tmp = 0;
-        for (int s=0; s < ord; s++) {
-          tmp += coefs_to_gll(s,ii) * wenoCoefs(s);
-        }
+        for (int s=0; s < ord; s++) { tmp += coefs_to_gll(s,ii) * wenoCoefs(s); }
+        gll(ii) = tmp;
+      }
+    }
+    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>   const & stencil     ,
+                                                    SArray<real,1,2  >         & gll         ,
+                                                    SArray<real,2,ord,2> const & sten_to_gll ) {
+      for (int ii=0; ii<2; ii++) {
+        real tmp = 0;
+        for (int s=0; s < ord; s++) { tmp += sten_to_gll(s,ii) * stencil(s); }
         gll(ii) = tmp;
       }
     }

@@ -1,25 +1,22 @@
 ---
 # Simulation time in seconds
-sim_time: 100.  # 86400
+sim_time: 3600.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 2000
-ny_glob: 1000
-nz     : 500
+nx_glob: 500
+ny_glob: 250
+nz     : 75
 
 # Domain size of the CRMs
 xlen: 2000
 ylen: 1000
-zlen: 500
+zlen: 300
 
 init_data: building
 
 # Output filename
 out_prefix: test
-
-# GCM time step
-dt_gcm: 900
 
 # CRM physics time step
 dt_phys: 0.
@@ -27,5 +24,13 @@ dt_phys: 0.
 # Output frequency in seconds
 out_freq: 10.
 
-enable_gravity: true
+inform_freq: 5.
+
+latitude: 0.
+
+is_restart: false
+
+restart_file: none
+
+roughness: 0.002
 

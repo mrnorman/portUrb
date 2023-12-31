@@ -108,12 +108,12 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys);              } , "column_nudger"     );
-        coupler.run_module( [&] (Coupler &coupler) { modules::sponge_layer        (coupler,dtphys,dtphys*10,10); } , "sponge_layer"      );
-        coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);              } , "dycore"            );
-        coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);              } , "surface_fluxes"    );
-        coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);              } , "les_closure"       );
-        coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);              } , "time_averager"     );
+        coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys);              } , "column_nudger"  );
+        coupler.run_module( [&] (Coupler &coupler) { modules::sponge_layer        (coupler,dtphys,dtphys*10,10); } , "sponge_layer"   );
+        coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);              } , "dycore"         );
+        coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);              } , "surface_fluxes" );
+        coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);              } , "les_closure"    );
+        coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);              } , "time_averager"  );
       }
 
       // Update time step

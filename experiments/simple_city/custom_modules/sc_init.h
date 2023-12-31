@@ -153,43 +153,33 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "building") {
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        dm_rho_d(k,j,i,iens) = 0;
-        dm_uvel (k,j,i,iens) = 0;
+      real constexpr uref       = 10;   // Velocity at hub height
+      real constexpr theta0     = 300;
+      real constexpr href       = 100;   // Height of hub / center of windmills
+      real constexpr von_karman = 0.40;
+      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+      realHost1d press_host("press",nz);
+      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+      auto press = press_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real zloc = (k+0.5_fp)*dz;
+        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
+        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
+        real p     = press(k);
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i,iens) = rt / theta0;
+        dm_uvel (k,j,i,iens) = u;
         dm_vvel (k,j,i,iens) = 0;
         dm_wvel (k,j,i,iens) = 0;
-        dm_temp (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        for (int kk=0; kk<nqpoints; kk++) {
-          for (int jj=0; jj<nqpoints; jj++) {
-            for (int ii=0; ii<nqpoints; ii++) {
-              real x = (i+i_beg+0.5)*dx + qpoints(ii)*dx;
-              real y = (j+j_beg+0.5)*dy + qpoints(jj)*dy;   if (sim2d) y = ylen/2;
-              real z = (k      +0.5)*dz + qpoints(kk)*dz;
-              real rho, u, v, w, theta, rho_v, hr, ht;
-              modules::profiles::hydro_const_bvf(z,grav,C0,cp_d,p0,gamma,R_d,hr,ht);
-              rho   = hr;
-              u     = 20;
-              v     = 0;
-              w     = 0;
-              theta = ht;
-              rho_v = 0;
-              real T = C0*std::pow(rho*theta,gamma)/(rho*R_d);
-              if (sim2d) v = 0;
-              real wt = qweights(ii)*qweights(jj)*qweights(kk);
-              dm_rho_d(k,j,i,iens) += rho   * wt;
-              dm_uvel (k,j,i,iens) += u     * wt;
-              dm_vvel (k,j,i,iens) += v     * wt;
-              dm_wvel (k,j,i,iens) += w     * wt;
-              dm_temp (k,j,i,iens) += T     * wt;
-              dm_rho_v(k,j,i,iens) += rho_v * wt;
-            }
-          }
-        }
-        if (k == 0) dm_surface_temp(j,i,iens) = 300;
-        real x0 = 0.2*nx_glob;
-        real y0 = 0.5*ny_glob;
+        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
+        real x0 = 0.2 *nx_glob;
+        real y0 = 0.5 *ny_glob;
         real xr = 0.05*ny_glob;
         real yr = 0.05*ny_glob;
         if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && k <= 0.3*nz ) {

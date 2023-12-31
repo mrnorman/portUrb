@@ -101,7 +101,7 @@ namespace modules {
                                (state(idU,hs+k,hs+j+1,hs+i  ,iens)-state(idU,hs+k,hs+j-1,hs+i  ,iens))/(2*dy) );
           }
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
-          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
           real du_dx = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j,hs+i-1,iens))/dx;
@@ -160,7 +160,7 @@ namespace modules {
                                (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(2*dx) );
           }
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
-          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
           real du_dy = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens))/dy;
@@ -192,7 +192,7 @@ namespace modules {
           real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
           real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
-          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
           real dw_dx;
@@ -245,7 +245,7 @@ namespace modules {
           real t     = state(idT,hs+k,hs+j,hs+i,iens);
           real dt_dz = ( state(idT,hs+k+1,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens) ) / (2*dz);
           real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
-          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20) , delta );
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km    = 0.1_fp * ell * std::sqrt(K);
           real Pr    = delta / (1+2*ell);
           // Compute tke cell-averaged source

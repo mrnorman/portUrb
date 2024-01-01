@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 3600.  # 86400
+sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
@@ -22,9 +22,9 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 100.
 
-inform_freq: 1.
+inform_freq: 10.
 
 latitude: 0.
 

@@ -548,6 +548,7 @@ namespace modules {
         SArray<bool,1,ord> immersed_y;
         SArray<bool,1,ord> immersed_z;
         SArray<real,1,ord> hy_r;
+        SArray<real,1,ord> hy_t;
         SArray<real,1,ord> stencil;
         SArray<real,1,2  > gll;
 
@@ -555,6 +556,7 @@ namespace modules {
         for (int jj=0; jj < ord; jj++) { immersed_y(jj) = immersed_proportion_halos(hs+k,j+jj,hs+i,iens) > 0; }
         for (int kk=0; kk < ord; kk++) { immersed_z(kk) = immersed_proportion_halos(k+kk,hs+j,hs+i,iens) > 0; }
         for (int kk=0; kk < ord; kk++) { hy_r(kk) = hy_dens_cells (k+kk,iens); }
+        for (int kk=0; kk < ord; kk++) { hy_t(kk) = hy_theta_cells(k+kk,iens); }
 
         bool any_immersed_x = false;  for (int ii=0; ii < ord; ii++) { if (immersed_x(ii)) any_immersed_x = true; }
         bool any_immersed_y = false;  for (int jj=0; jj < ord; jj++) { if (immersed_y(jj)) any_immersed_y = true; }
@@ -562,13 +564,13 @@ namespace modules {
 
         // Density x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_x );
+        modify_stencil_immersed_val( stencil , immersed_x , hy_r(hs) );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
         // Density y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_y );
+        modify_stencil_immersed_val( stencil , immersed_y , hy_r(hs) );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
@@ -647,19 +649,19 @@ namespace modules {
 
         // Theta x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_x );
+        modify_stencil_immersed_val( stencil , immersed_x , hy_t(hs) );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
         // Theta y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_y );
+        modify_stencil_immersed_val( stencil , immersed_y , hy_t(hs) );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
         // Theta z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_z );
+        modify_stencil_immersed_vect( stencil , immersed_z , hy_t );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
@@ -667,19 +669,19 @@ namespace modules {
         for (int l=0; l < num_tracers; l++) {
           // Tracer x
           for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
-          modify_stencil_immersed_der0( stencil , immersed_x );
+          modify_stencil_immersed_val( stencil , immersed_x , 0._fp );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
           tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
           tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
           // Tracer y
           for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
-          modify_stencil_immersed_der0( stencil , immersed_y );
+          modify_stencil_immersed_val( stencil , immersed_y , 0._fp );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
           tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
           tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
           // Tracer z
           for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
-          modify_stencil_immersed_der0( stencil , immersed_z );
+          modify_stencil_immersed_val( stencil , immersed_z , 0._fp );
           reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
           tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
           tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
@@ -1436,7 +1438,7 @@ namespace modules {
         for (int j = 0; j < ny; j++) {
           for (int i = 0; i < nx; i++) {
             r(k,iens) += state(idR,k,hs+j,hs+i,iens);
-            t(k,iens) += state(idT,k,hs+j,hs+i,iens);
+            t(k,iens) += state(idT,k,hs+j,hs+i,iens) / state(idR,k,hs+j,hs+i,iens);
             p(k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
           }
         }
@@ -1578,12 +1580,19 @@ namespace modules {
       // These are needed for a proper restart
       coupler.register_output_variable<real>( "immersed_proportion" , core::Coupler::DIMS_3D      );
       coupler.register_output_variable<real>( "surface_temp"        , core::Coupler::DIMS_SURFACE );
-      coupler.register_write_output_module( [] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+      coupler.register_write_output_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+        auto i_beg = coupler.get_i_beg();
+        auto j_beg = coupler.get_j_beg();
+        auto nz    = coupler.get_nz();
+        auto ny    = coupler.get_ny();
+        auto nx    = coupler.get_nx();
+        auto nens  = coupler.get_nens();
         nc.redef();
         nc.create_dim( "z_halo" , coupler.get_nz()+2*hs );
         nc.create_var<real>( "hy_dens_cells"     , {"z_halo","ens"});
         nc.create_var<real>( "hy_theta_cells"    , {"z_halo","ens"});
         nc.create_var<real>( "hy_pressure_cells" , {"z_halo","ens"});
+        nc.create_var<real>( "theta"             , {"z","y","x","ens"});
         nc.enddef();
         nc.begin_indep_data();
         auto &dm = coupler.get_data_manager_readonly();
@@ -1591,6 +1600,16 @@ namespace modules {
         if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_theta_cells"   ) , "hy_theta_cells"    );
         if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_pressure_cells") , "hy_pressure_cells" );
         nc.end_indep_data();
+        real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        convert_coupler_to_dynamics( coupler , state , tracers );
+        std::vector<MPI_Offset> start_3d = {0,(MPI_Offset)j_beg,(MPI_Offset)i_beg,0};
+        using yakl::componentwise::operator/;
+        real4d data("data",nz,ny,nx,nens);
+        yakl::c::parallel_for( yakl::c::Bounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+          data(k,j,i,iens) = state(idT,hs+k,hs+j,hs+i,iens) / state(idR,hs+k,hs+j,hs+i,iens);
+        });
+        nc.write_all(data,"theta",start_3d);
       } );
       coupler.register_overwrite_with_restart_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         auto &dm = coupler.get_data_manager_readwrite();

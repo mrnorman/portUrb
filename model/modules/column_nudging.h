@@ -28,7 +28,7 @@ namespace modules {
     }
 
 
-    void nudge_to_column( core::Coupler &coupler , real dt ) {
+    void nudge_to_column( core::Coupler &coupler , real dt , real time_scale = 900 ) {
       using yakl::c::parallel_for;
       using yakl::c::Bounds;
       int nens = coupler.get_nens();
@@ -41,7 +41,6 @@ namespace modules {
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,4>(names[i]) ); }
       auto state_col_avg = get_column_average( coupler , state );
       YAKL_SCOPE( column , this->column );
-      real constexpr time_scale = 900;
       parallel_for( YAKL_AUTO_LABEL() , Bounds<5>(names.size(),nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
         if (immersed(k,j,i,iens) == 0) {

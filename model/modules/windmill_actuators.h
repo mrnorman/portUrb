@@ -33,7 +33,7 @@ namespace modules {
       int ny_t = std::ceil(rad*2/dy);
       int nz_t = std::ceil((z0+rad)/dz);
       real y0 = ny_t*dy/2;
-      int constexpr N = 100;
+      int constexpr N = 1000;
       real ddy = dy / N;
       real ddz = dz / N;
       realHost2d templ_host("templ",nz_t,ny_t);
@@ -57,10 +57,25 @@ namespace modules {
         }
       }
       auto templ = templ_host.createDeviceCopy();
-      int j0 = ny_glob/2 - ny_t/2;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        if ( i_beg+i == nx_glob/4 && j_beg+j >= j0 && j_beg+j < j0+ny_t && k < nz_t ) {
-          windmill_prop(k,j,i,iens) = templ(k,j_beg+j-j0)/(dx*dy*dz);
+      std::vector<int> xind_vec ;
+      std::vector<int> yind0_vec;
+      for (int i=nx_glob/4; i <= 3*nx_glob/4; i += (int) std::ceil(rad*2*10/dx)) { xind_vec .push_back(i); }
+      for (int j=ny_glob/4; j <= 3*ny_glob/4; j += (int) std::ceil(rad*2*5 /dy)) { yind0_vec.push_back(j); }
+      intHost1d xind_host ("wf_xind" ,xind_vec .size());
+      intHost1d yind0_host("wf_yind0",yind0_vec.size());
+      for (int i=0; i < xind_vec .size(); i++) { xind_host (i) = xind_vec [i]; }
+      for (int j=0; j < yind0_vec.size(); j++) { yind0_host(j) = yind0_vec[j]; }
+      auto xind  = xind_host .createDeviceCopy();
+      auto yind0 = yind0_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz_t,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        // Loop over windmills
+        for (int jj=0; jj < yind0.size(); jj++) {
+          for (int ii=0; ii < xind .size(); ii++) {
+            // If we're at the right index for a given windmill, then copy in the template
+            if (i_beg+i == xind(ii) && j_beg+j >= yind0(jj) && j_beg+j <= yind0(jj)+ny_t-1) {
+              windmill_prop(k,j,i,iens) = templ(k,j_beg+j-yind0(jj))/(dx*dy*dz);
+            }
+          }
         }
       });
     }

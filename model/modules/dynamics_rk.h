@@ -500,11 +500,12 @@ namespace modules {
       auto gamma                     = coupler.get_option<real>("gamma_d");
       auto latitude                  = coupler.get_option<real>("latitude");
       auto num_tracers               = coupler.get_num_tracers();
-      auto tracer_positive           = coupler.get_data_manager_readonly().get<bool const,1>("tracer_positive"    );
-      auto immersed_proportion_halos = coupler.get_data_manager_readonly().get<real const,4>("immersed_proportion_halos");
-      auto hy_dens_cells             = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells"      );
-      auto hy_dens_theta_cells       = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_theta_cells");
-      auto hy_pressure_cells         = coupler.get_data_manager_readonly().get<real const,2>("hy_pressure_cells"  );
+      auto &dm                       = coupler.get_data_manager_readonly();
+      auto tracer_positive           = dm.get<bool const,1>("tracer_positive"          );
+      auto immersed_proportion_halos = dm.get<real const,4>("immersed_proportion_halos");
+      auto hy_dens_cells             = dm.get<real const,2>("hy_dens_cells"            );
+      auto hy_theta_cells            = dm.get<real const,2>("hy_theta_cells"           );
+      auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"        );
       SArray<real,2,ord,2> coefs_to_gll, sten_to_gll;
       TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
       {
@@ -547,25 +548,27 @@ namespace modules {
         SArray<bool,1,ord> immersed_y;
         SArray<bool,1,ord> immersed_z;
         SArray<real,1,ord> hy_r;
-        SArray<real,1,ord> hy_t;
         SArray<real,1,ord> stencil;
         SArray<real,1,2  > gll;
 
         for (int ii=0; ii < ord; ii++) { immersed_x(ii) = immersed_proportion_halos(hs+k,hs+j,i+ii,iens) > 0; }
         for (int jj=0; jj < ord; jj++) { immersed_y(jj) = immersed_proportion_halos(hs+k,j+jj,hs+i,iens) > 0; }
         for (int kk=0; kk < ord; kk++) { immersed_z(kk) = immersed_proportion_halos(k+kk,hs+j,hs+i,iens) > 0; }
-        for (int kk=0; kk < ord; kk++) { hy_r(kk) = hy_dens_cells(k+kk,iens); }
-        for (int kk=0; kk < ord; kk++) { hy_t(kk) = hy_dens_theta_cells(k+kk,iens)/hy_dens_cells(k+kk,iens); }
+        for (int kk=0; kk < ord; kk++) { hy_r(kk) = hy_dens_cells (k+kk,iens); }
+
+        bool any_immersed_x = false;  for (int ii=0; ii < ord; ii++) { if (immersed_x(ii)) any_immersed_x = true; }
+        bool any_immersed_y = false;  for (int jj=0; jj < ord; jj++) { if (immersed_y(jj)) any_immersed_y = true; }
+        bool any_immersed_z = false;  for (int kk=0; kk < ord; kk++) { if (immersed_z(kk)) any_immersed_z = true; }
 
         // Density x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_val( stencil , immersed_x , hy_r(hs) );
+        modify_stencil_immersed_der0( stencil , immersed_x );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
         // Density y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_val( stencil , immersed_y , hy_r(hs) );
+        modify_stencil_immersed_der0( stencil , immersed_y );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
@@ -579,75 +582,84 @@ namespace modules {
         // u-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_val( stencil , immersed_x , 0._fp );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
         // u-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_y );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
         // u-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_z );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
 
         // v-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_der0( stencil , immersed_x );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
         // v-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_val( stencil , immersed_y , 0._fp );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
         // v-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_z );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
 
         // w-vel x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_der0( stencil , immersed_x );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
         // w-vel y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_y );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
         // w-vel z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_val( stencil , immersed_z , 0._fp );
-        reconstruct_gll_values(stencil,gll,sten_to_gll);
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
 
         // Theta x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_val( stencil , immersed_x , hy_t(hs) );
+        modify_stencil_immersed_der0( stencil , immersed_x );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
         // Theta y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_val( stencil , immersed_y , hy_t(hs) );
+        modify_stencil_immersed_der0( stencil , immersed_y );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
         // Theta z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_vect( stencil , immersed_z , hy_t );
+        modify_stencil_immersed_der0( stencil , immersed_z );
         reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
         state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
@@ -918,18 +930,18 @@ namespace modules {
                         real4d        const & pressure ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nens         = coupler.get_nens();
-      auto nx           = coupler.get_nx();
-      auto ny           = coupler.get_ny();
-      auto nz           = coupler.get_nz();
-      auto dz           = coupler.get_dz();
-      auto num_tracers  = coupler.get_num_tracers();
-      auto &neigh       = coupler.get_neighbor_rankid_matrix();
-      auto dtype        = coupler.get_mpi_data_type();
-      auto grav         = coupler.get_option<real>("grav");
-      auto gamma        = coupler.get_option<real>("gamma_d");
-      auto C0           = coupler.get_option<real>("C0");
-      auto surface_temp = coupler.get_data_manager_readonly().get<real const,3>("surface_temp");
+      auto nens          = coupler.get_nens();
+      auto nx            = coupler.get_nx();
+      auto ny            = coupler.get_ny();
+      auto nz            = coupler.get_nz();
+      auto dz            = coupler.get_dz();
+      auto num_tracers   = coupler.get_num_tracers();
+      auto &neigh        = coupler.get_neighbor_rankid_matrix();
+      auto dtype         = coupler.get_mpi_data_type();
+      auto grav          = coupler.get_option<real>("grav");
+      auto gamma         = coupler.get_option<real>("gamma_d");
+      auto C0            = coupler.get_option<real>("C0");
+      auto hy_dens_cells = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells");
       MPI_Request sReq [2];
       MPI_Request rReq [2];
       MPI_Status  sStat[2];
@@ -1062,13 +1074,14 @@ namespace modules {
       }
 
       // z-direction BC's
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int kk, int j, int i, int iens) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) , YAKL_LAMBDA (int kk, int j, int i, int iens) {
+        state(idR,kk,hs+j,hs+i,iens) = hy_dens_cells (kk,iens);
         state(idU,kk,hs+j,hs+i,iens) = state(idU,hs+0,hs+j,hs+i,iens);
         state(idV,kk,hs+j,hs+i,iens) = state(idV,hs+0,hs+j,hs+i,iens);
         state(idW,kk,hs+j,hs+i,iens) = 0;
         state(idT,kk,hs+j,hs+i,iens) = state(idT,hs+0,hs+j,hs+i,iens);
         pressure( kk,hs+j,hs+i,iens) = pressure( hs+0,hs+j,hs+i,iens);
+        state(idR,hs+nz+kk,hs+j,hs+i,iens) = hy_dens_cells(hs+nz+kk,iens);
         state(idU,hs+nz+kk,hs+j,hs+i,iens) = state(idU,hs+nz-1,hs+j,hs+i,iens);
         state(idV,hs+nz+kk,hs+j,hs+i,iens) = state(idV,hs+nz-1,hs+j,hs+i,iens);
         state(idW,hs+nz+kk,hs+j,hs+i,iens) = 0;
@@ -1077,26 +1090,6 @@ namespace modules {
         for (int l=0; l < num_tracers; l++) {
           tracers(l,      kk,hs+j,hs+i,iens) = tracers(l,hs+0   ,hs+j,hs+i,iens);
           tracers(l,hs+nz+kk,hs+j,hs+i,iens) = tracers(l,hs+nz-1,hs+j,hs+i,iens);
-        }
-        {
-          int  k0       = hs;
-          int  k        = k0-1-kk;
-          real rho0     = state(idR,k0,hs+j,hs+i,iens);
-          real theta0   = surface_temp(j,i,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          state(idR,k,hs+j,hs+i,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
-                                                  1._fp/(gamma-1) );
-        }
-        {
-          int  k0       = hs+nz-1;
-          int  k        = k0+1+kk;
-          real rho0     = state(idR,k0,hs+j,hs+i,iens);
-          real theta0   = state(idT,k0,hs+j,hs+i,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          state(idR,k,hs+j,hs+i,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
-                                                  1._fp/(gamma-1) );
         }
       });
     }
@@ -1405,6 +1398,7 @@ namespace modules {
       auto num_tracers = coupler.get_num_tracers();
       auto gamma       = coupler.get_option<real>("gamma_d");
       auto C0          = coupler.get_option<real>("C0"     );
+      auto grav        = coupler.get_option<real>("grav"   );
 
       num_tracers = coupler.get_num_tracers();
       bool1d tracer_adds_mass("tracer_adds_mass",num_tracers);
@@ -1429,58 +1423,63 @@ namespace modules {
       auto dm_tracer_positive = dm.get<bool,1>("tracer_positive");
       tracer_positive.deep_copy_to(dm_tracer_positive);
 
-      real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
-      real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);  state   = 0;
+      real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);  tracers = 0;
       convert_coupler_to_dynamics( coupler , state , tracers );
-      real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma);
-        real rdens = 1._fp / state(idR,hs+k,hs+j,hs+i,iens);
-        state(idU,hs+k,hs+j,hs+i,iens) *= rdens;
-        state(idV,hs+k,hs+j,hs+i,iens) *= rdens;
-        state(idW,hs+k,hs+j,hs+i,iens) *= rdens;
-        state(idT,hs+k,hs+j,hs+i,iens) *= rdens;
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= rdens; }
-      });
-      if (ord > 1) halo_exchange( coupler , state , tracers , pressure );
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        real dens = state(idR,hs+k,hs+j,hs+i,iens);
-        state(idU,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idV,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idW,hs+k,hs+j,hs+i,iens) *= dens;
-        state(idT,hs+k,hs+j,hs+i,iens) *= dens;
-        for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
-      });
-      dm.register_and_allocate<real>("hy_dens_cells"      ,"",{nz+2*hs,nens});
-      dm.register_and_allocate<real>("hy_dens_theta_cells","",{nz+2*hs,nens});
-      dm.register_and_allocate<real>("hy_pressure_cells"  ,"",{nz+2*hs,nens});
-      auto r  = dm.get<real,2>("hy_dens_cells"      );    r  = 0;
-      auto rt = dm.get<real,2>("hy_dens_theta_cells");    rt = 0;
-      auto p  = dm.get<real,2>("hy_pressure_cells"  );    p  = 0;
+      dm.register_and_allocate<real>("hy_dens_cells"    ,"",{nz+2*hs,nens});
+      dm.register_and_allocate<real>("hy_theta_cells"   ,"",{nz+2*hs,nens});
+      dm.register_and_allocate<real>("hy_pressure_cells","",{nz+2*hs,nens});
+      auto r = dm.get<real,2>("hy_dens_cells"    );    r = 0;
+      auto t = dm.get<real,2>("hy_theta_cells"   );    t = 0;
+      auto p = dm.get<real,2>("hy_pressure_cells");    p = 0;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
         for (int j = 0; j < ny; j++) {
           for (int i = 0; i < nx; i++) {
-            r (k,iens) += state(idR,k,hs+j,hs+i,iens);
-            rt(k,iens) += state(idT,k,hs+j,hs+i,iens);
-            p (k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
+            r(k,iens) += state(idR,k,hs+j,hs+i,iens);
+            t(k,iens) += state(idT,k,hs+j,hs+i,iens);
+            p(k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
           }
         }
       });
-      auto r_loc  = r .createHostCopy();    auto r_glob  = r .createHostObject();
-      auto rt_loc = rt.createHostCopy();    auto rt_glob = rt.createHostObject();
-      auto p_loc  = p .createHostCopy();    auto p_glob  = p .createHostObject();
+      auto r_loc = r .createHostCopy();    auto r_glob = r .createHostObject();
+      auto t_loc = t .createHostCopy();    auto t_glob = t .createHostObject();
+      auto p_loc = p .createHostCopy();    auto p_glob = p .createHostObject();
       auto dtype = coupler.get_mpi_data_type();
-      MPI_Allreduce( r_loc .data() , r_glob .data() , r .size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( rt_loc.data() , rt_glob.data() , rt.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( p_loc .data() , p_glob .data() , p .size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      r_glob .deep_copy_to(r );
-      rt_glob.deep_copy_to(rt);
-      p_glob .deep_copy_to(p );
+      MPI_Allreduce( r_loc.data() , r_glob.data() , r.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+      MPI_Allreduce( t_loc.data() , t_glob.data() , t.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+      MPI_Allreduce( p_loc.data() , p_glob.data() , p.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+      r_glob.deep_copy_to(r);
+      t_glob.deep_copy_to(t);
+      p_glob.deep_copy_to(p);
       real r_nx_ny = 1./(nx_glob*ny_glob);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
-        r (k,iens) *= r_nx_ny;
-        rt(k,iens) *= r_nx_ny;
-        p (k,iens) *= r_nx_ny;
+        r(k,iens) *= r_nx_ny;
+        t(k,iens) *= r_nx_ny;
+        p(k,iens) *= r_nx_ny;
+      });
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(hs,nens) , YAKL_LAMBDA (int kk, int iens) {
+        {
+          int  k0       = hs;
+          int  k        = k0-1-kk;
+          real rho0     = r(k0,iens);
+          real theta0   = t(k0,iens);
+          real rho0_gm1 = std::pow(rho0  ,gamma-1);
+          real theta0_g = std::pow(theta0,gamma  );
+          r(k,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+          t(k,iens) = theta0;
+          p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
+        }
+        {
+          int  k0       = hs+nz-1;
+          int  k        = k0+1+kk;
+          real rho0     = r(k0,iens);
+          real theta0   = t(k0,iens);
+          real rho0_gm1 = std::pow(rho0  ,gamma-1);
+          real theta0_g = std::pow(theta0,gamma  );
+          r(k,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+          t(k,iens) = theta0;
+          p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
+        }
       });
 
       auto create_immersed_proportion_halos = [] (core::Coupler &coupler) {
@@ -1569,8 +1568,8 @@ namespace modules {
         // z-direction boundaries
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
-          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 0;
-          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 0;
+          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 1;
+          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 1;
         });
       };
 
@@ -1582,22 +1581,22 @@ namespace modules {
       coupler.register_write_output_module( [] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         nc.redef();
         nc.create_dim( "z_halo" , coupler.get_nz()+2*hs );
-        nc.create_var<real>( "hy_dens_cells"       , {"z_halo","ens"});
-        nc.create_var<real>( "hy_dens_theta_cells" , {"z_halo","ens"});
-        nc.create_var<real>( "hy_pressure_cells"   , {"z_halo","ens"});
+        nc.create_var<real>( "hy_dens_cells"     , {"z_halo","ens"});
+        nc.create_var<real>( "hy_theta_cells"    , {"z_halo","ens"});
+        nc.create_var<real>( "hy_pressure_cells" , {"z_halo","ens"});
         nc.enddef();
         nc.begin_indep_data();
         auto &dm = coupler.get_data_manager_readonly();
-        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_dens_cells"      ) , "hy_dens_cells"       );
-        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_dens_theta_cells") , "hy_dens_theta_cells" );
-        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_pressure_cells"  ) , "hy_pressure_cells"   );
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_dens_cells"    ) , "hy_dens_cells"     );
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_theta_cells"   ) , "hy_theta_cells"    );
+        if (coupler.is_mainproc()) nc.write( dm.get<real const,2>("hy_pressure_cells") , "hy_pressure_cells" );
         nc.end_indep_data();
       } );
       coupler.register_overwrite_with_restart_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         auto &dm = coupler.get_data_manager_readwrite();
-        nc.read_all(dm.get<real,2>("hy_dens_cells"      ),"hy_dens_cells"      ,{0,0});
-        nc.read_all(dm.get<real,2>("hy_dens_theta_cells"),"hy_dens_theta_cells",{0,0});
-        nc.read_all(dm.get<real,2>("hy_pressure_cells"  ),"hy_pressure_cells"  ,{0,0});
+        nc.read_all(dm.get<real,2>("hy_dens_cells"    ),"hy_dens_cells"    ,{0,0});
+        nc.read_all(dm.get<real,2>("hy_theta_cells"   ),"hy_theta_cells"   ,{0,0});
+        nc.read_all(dm.get<real,2>("hy_pressure_cells"),"hy_pressure_cells",{0,0});
         create_immersed_proportion_halos( coupler );
       } );
     }

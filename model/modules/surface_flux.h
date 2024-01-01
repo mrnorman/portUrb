@@ -30,7 +30,6 @@ namespace modules {
 
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(ny,nx,nens) , YAKL_LAMBDA (int j, int i, int iens) {
       if (immersed(hs+0,hs+j,hs+i,iens) == 0) {
-        real constexpr prandtl    = 0.71;
         real constexpr von_karman = 0.40;
         real r   = dm_r (0,j,i,iens);
         real u   = dm_u (0,j,i,iens);

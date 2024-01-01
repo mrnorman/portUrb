@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
     column_nudger.set_column    ( coupler );
     time_averager.init          ( coupler );
-    // modules::perturb_temperature( coupler , false , true );
+    modules::perturb_temperature( coupler , false , true );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");

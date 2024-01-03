@@ -66,6 +66,10 @@ namespace modules {
       real5d flux_tracers_z("flux_tracers_z",num_tracers,nz+1,ny  ,nx  ,nens);
       real4d tke_source    ("tke_source"                ,nz  ,ny  ,nx  ,nens);
 
+      // Buoyancy source
+      // TKE dissipation
+      // Shear production
+
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny+1,nx+1,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         if (j < ny && k < nz) {

@@ -22,4 +22,10 @@ yakl_process_target(city)
 target_link_libraries(city model "${MW_LINK_FLAGS}")
 target_include_directories(city PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
+add_executable(abl abl.cpp)
+include(${YAKL_HOME}/yakl_utils.cmake)
+yakl_process_target(abl)
+target_link_libraries(abl model "${MW_LINK_FLAGS}")
+target_include_directories(abl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
+
 

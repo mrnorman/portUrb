@@ -59,13 +59,13 @@ namespace limiter {
 
 
   template <> struct WenoLimiter<5> {
-    real cutoff, idl_L, idl_C, idl_R, idl_H;
+    float cutoff, idl_L, idl_C, idl_R, idl_H;
 
-    YAKL_INLINE WenoLimiter(real cutoff_in = 0,
-                            real idl_L_in  = 1,
-                            real idl_C_in  = 2,
-                            real idl_R_in  = 1,
-                            real idl_H_in  = 1000) {
+    YAKL_INLINE WenoLimiter(float cutoff_in = 0,
+                            float idl_L_in  = 1,
+                            float idl_C_in  = 2,
+                            float idl_R_in  = 1,
+                            float idl_H_in  = 1000) {
       cutoff = cutoff_in;
       idl_L  = idl_L_in;
       idl_C  = idl_C_in;
@@ -74,42 +74,32 @@ namespace limiter {
       convexify( idl_L , idl_C , idl_R , idl_H );
     }
 
-    YAKL_INLINE void compute_limited_coefs( SArray<real,1,5> const &s_in , SArray<real,1,5> &coefs_H ) const {
-      // Normalize the stencil to be between zero and one
-      SArray<real,1,5> s;
-      s(0)=s_in(0);  s(1)=s_in(1);  s(2)=s_in(2);  s(3)=s_in(3);  s(4)=s_in(4);  
-      real mn=s(0);  mn=std::min(mn,s(1));  mn=std::min(mn,s(2));  mn=std::min(mn,s(3));  mn=std::min(mn,s(4));
-      real mx=s(0);  mx=std::max(mx,s(1));  mx=std::max(mx,s(2));  mx=std::max(mx,s(3));  mx=std::max(mx,s(4));
-      s(0)-=mn;  s(1)-=mn;  s(2)-=mn;  s(3)-=mn;  s(4)-=mn;  
-      real mult = 1;
-      if (mx-mn > 1.e-10) mult = 1._fp/(mx-mn);
-      s(0)*=mult;  s(1)*=mult;  s(2)*=mult;  s(3)*=mult;  s(4)*=mult;  
-      real r_mult = 1._fp/mult;
+    YAKL_INLINE void compute_limited_coefs( SArray<real,1,5> const &s , SArray<real,1,5> &coefs_H ) const {
       // Reconstruct high-order, left, right, and center polynomials
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
       coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
       coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
       coefs5_shift3( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
-      real w_L = TV( coefs_L );
-      real w_C = TV( coefs_C );
-      real w_R = TV( coefs_R );
-      real w_H = TV( coefs_H );
+      float w_L = TV( coefs_L );
+      float w_C = TV( coefs_C );
+      float w_R = TV( coefs_R );
+      float w_H = TV( coefs_H );
       convexify( w_L , w_C , w_R , w_H );
-      w_L = idl_L / (w_L*w_L + 1.e-20);
-      w_C = idl_C / (w_C*w_C + 1.e-20);
-      w_R = idl_R / (w_R*w_R + 1.e-20);
-      w_H = idl_H / (w_H*w_H + 1.e-20);
+      w_L = idl_L / (w_L*w_L + 1.e-20f);
+      w_C = idl_C / (w_C*w_C + 1.e-20f);
+      w_R = idl_R / (w_R*w_R + 1.e-20f);
+      w_H = idl_H / (w_H*w_H + 1.e-20f);
       convexify( w_L , w_C , w_R , w_H );
       if (w_L <= cutoff) w_L = 0;
       if (w_C <= cutoff) w_C = 0;
       if (w_R <= cutoff) w_R = 0;
       convexify( w_L , w_C , w_R , w_H );
-      coefs_H(0) = r_mult*(coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R) + mn;
-      coefs_H(1) = r_mult*(coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R);
-      coefs_H(2) = r_mult*(coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R);
-      coefs_H(3) = r_mult*(coefs_H(3)*w_H                                                   );
-      coefs_H(4) = r_mult*(coefs_H(4)*w_H                                                   );
+      coefs_H(0) = (coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R);
+      coefs_H(1) = (coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R);
+      coefs_H(2) = (coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R);
+      coefs_H(3) = (coefs_H(3)*w_H                                                   );
+      coefs_H(4) = (coefs_H(4)*w_H                                                   );
     }
   };
 

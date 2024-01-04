@@ -3,27 +3,31 @@
 
 namespace limiter {
 
-  YAKL_INLINE void convexify(real & w1, real & w2, real & w3) {
-    real tot = w1 + w2 + w3;
-    if (tot > 1.e-20) { w1 /= tot;   w2 /= tot;   w3 /= tot; }
+  template <class T>
+  YAKL_INLINE void convexify(T & w1, T & w2, T & w3) {
+    T tot = w1 + w2 + w3;
+    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot; }
   }
 
 
-  YAKL_INLINE void convexify(real & w1, real & w2, real & w3, real & w4) {
-    real tot = w1 + w2 + w3 + w4;
-    if (tot > 1.e-20) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot; }
+  template <class T>
+  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4) {
+    T tot = w1 + w2 + w3 + w4;
+    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot; }
   }
 
 
-  YAKL_INLINE void convexify(real & w1, real & w2, real & w3, real & w4, real & w5) {
-    real tot = w1 + w2 + w3 + w4 + w5;
-    if (tot > 1.e-20) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot; }
+  template <class T>
+  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4, T & w5) {
+    T tot = w1 + w2 + w3 + w4 + w5;
+    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot; }
   }
 
 
-  YAKL_INLINE void convexify(real & w1, real & w2, real & w3, real & w4, real & w5, real & w6) {
-    real tot = w1 + w2 + w3 + w4 + w5 + w6;
-    if (tot > 1.e-20) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot;   w6 /= tot; }
+  template <class T>
+  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4, T & w5, T & w6) {
+    T tot = w1 + w2 + w3 + w4 + w5 + w6;
+    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot;   w6 /= tot; }
   }
 
 
@@ -34,9 +38,9 @@ namespace limiter {
     return TV;
   }
 
-  YAKL_INLINE real TV(SArray<real,1,3> &a) {
-    real TV;
-    TV=1.0000000000000000000000000000000000000_fp*(a(1)*a(1))+4.3333333333333333333333333333333333333_fp*(a(2)*a(2));
+  YAKL_INLINE float TV(SArray<real,1,3> &a) {
+    float TV;
+    TV=1.0000000000000000000000000000000000000f*(static_cast<float>(a(1))*static_cast<float>(a(1)))+4.3333333333333333333333333333333333333f*(static_cast<float>(a(2))*static_cast<float>(a(2)));
 
     return TV;
   }
@@ -48,9 +52,9 @@ namespace limiter {
     return TV;
   }
 
-  YAKL_INLINE real TV(SArray<real,1,5> &a) {
-    real TV;
-    TV=1.0000000000000000000000000000000000000_fp*(a(1)*a(1))+4.3333333333333333333333333333333333333_fp*(a(2)*a(2))+0.50000000000000000000000000000000000000_fp*a(1)*a(3)+39.112500000000000000000000000000000000_fp*(a(3)*a(3))+4.2000000000000000000000000000000000000_fp*a(2)*a(4)+625.83571428571428571428571428571428571_fp*(a(4)*a(4));
+  YAKL_INLINE float TV(SArray<real,1,5> &a) {
+    float TV;
+    TV=1.0000000000000000000000000000000000000f*(static_cast<float>(a(1))*static_cast<float>(a(1)))+4.3333333333333333333333333333333333333f*(static_cast<float>(a(2))*static_cast<float>(a(2)))+0.50000000000000000000000000000000000000f*static_cast<float>(a(1))*static_cast<float>(a(3))+39.112500000000000000000000000000000000f*(static_cast<float>(a(3))*static_cast<float>(a(3)))+4.2000000000000000000000000000000000000f*static_cast<float>(a(2))*static_cast<float>(a(4))+625.83571428571428571428571428571428571f*(static_cast<float>(a(4))*static_cast<float>(a(4)));
 
     return TV;
   }

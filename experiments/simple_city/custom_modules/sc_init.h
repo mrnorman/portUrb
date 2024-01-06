@@ -192,10 +192,13 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
+      real constexpr uref       = 10;
+      real constexpr href       = 450;
+      real constexpr von_karman = 0.40;
+
       auto compute_theta = YAKL_LAMBDA (real z) -> real {
-        if      (z < 500)              { return 300;                 }
-        else if (z >= 500 && z <= 650) { return 300 + 0.08 *(z-500); }
-        else                           { return 312 + 0.003*(z-650); }
+        if      (z <  500) { return 300;                 }
+        else               { return 300 + 0.01 *(z-500); }
       };
 
       // Integrate RHS over GLL interval using GLL quadrature
@@ -236,6 +239,7 @@ namespace custom_modules {
         }
       }
       auto pressGLL = pressGLL_host.createDeviceCopy();
+      auto latitude = coupler.get_option<real>("latitude");
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         dm_rho_d(k,j,i,iens) = 0;
@@ -250,15 +254,15 @@ namespace custom_modules {
           real p         = pressGLL(k,kk,iens);
           real rho_theta = std::pow( p/C0 , 1._fp/gamma );
           real rho       = rho_theta / theta;
-          real u         = 10;
-          real v         = 0;
+          real ustar     = von_karman * uref / std::log((href+roughness)/roughness);
+          real u         = ustar / von_karman * std::log((z+roughness)/roughness);
           real w         = 0;
           real T         = p/(rho*R_d);
           real rho_v     = 0;
           real wt = qweights(kk);
           dm_rho_d(k,j,i,iens) += rho   * wt;
           dm_uvel (k,j,i,iens) += u     * wt;
-          dm_vvel (k,j,i,iens) += v     * wt;
+          dm_vvel (k,j,i,iens) += 0     * wt;
           dm_wvel (k,j,i,iens) += w     * wt;
           dm_temp (k,j,i,iens) += T     * wt;
           dm_rho_v(k,j,i,iens) += rho_v * wt;
@@ -295,14 +299,6 @@ namespace custom_modules {
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
         if (k == 0) dm_surface_temp(j,i,iens) = theta0;
-        // if (k <= nz/5 &&
-        //     j_beg+j > ny_glob/2-ny_glob/10 && j_beg+j < ny_glob/2+ny_glob/10 &&
-        //     i_beg+i > ny_glob/2-ny_glob/10 && i_beg+i < ny_glob/2+ny_glob/10 ) {
-        //   dm_immersed_proportion(k,j,i,iens) = 1;
-        //   dm_uvel               (k,j,i,iens) = 0;
-        //   dm_vvel               (k,j,i,iens) = 0;
-        //   dm_wvel               (k,j,i,iens) = 0;
-        // }
       });
 
     }

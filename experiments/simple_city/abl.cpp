@@ -8,6 +8,8 @@
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"
+#include "domain_nudger.h"
+#include "EdgeSponge.h"
 #include "sponge_layer.h"
 
 int main(int argc, char** argv) {
@@ -69,6 +71,7 @@ int main(int argc, char** argv) {
     modules::LES_Closure                       les_closure;
     modules::WindmillActuators                 windmills;
     modules::ColumnNudger                      column_nudger;
+    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -78,9 +81,10 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler );
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler );
+    column_nudger.set_column    ( coupler , {"uvel"} );
     time_averager.init          ( coupler );
     windmills    .init          ( coupler );
+    edge_sponge  .init          ( coupler );
     modules::perturb_temperature( coupler , false , true );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
@@ -111,11 +115,18 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        coupler.run_module( [&] (Coupler &coupler) { modules::sponge_layer        (coupler,dtphys,dtphys*10,10); } , "edge_sponge"       );
-        coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);              } , "dycore"            );
-        coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);              } , "surface_fluxes"    );
-        coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);              } , "les_closure"       );
-        coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);              } , "time_averager"     );
+        auto run_nudger    = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*10);  };
+        auto run_dycore    = [&] (Coupler &coupler) { dycore.time_step     (coupler,dtphys);                    };
+        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dtphys,dtphys*10,10);       };
+        auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);            };
+        auto run_les       = [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);            };
+        auto run_tavg      = [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);            };
+        coupler.run_module( run_nudger    , "column_nudger"  );
+        coupler.run_module( run_sponge    , "edge_sponge"    );
+        coupler.run_module( run_dycore    , "dycore"         );
+        coupler.run_module( run_surf_flux , "surface_fluxes" );
+        coupler.run_module( run_les       , "les_closure"    );
+        coupler.run_module( run_tavg      , "time_averager"  );
       }
 
       // Update time step

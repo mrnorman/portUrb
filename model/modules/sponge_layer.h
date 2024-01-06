@@ -35,9 +35,7 @@ namespace modules {
     full_fields.add_field( dm.get<real,4>("vvel"       ) );
     full_fields.add_field( dm.get<real,4>("wvel"       ) );
     full_fields.add_field( dm.get<real,4>("temp"       ) );
-    for (int tr=0; tr < num_tracers; tr++) {
-      full_fields.add_field( dm.get<real,4>(tracer_names[tr]) );
-    }
+    for (int tr=0; tr < num_tracers; tr++) { full_fields.add_field( dm.get<real,4>(tracer_names[tr]) ); }
 
     int num_fields = full_fields.get_num_fields();
 

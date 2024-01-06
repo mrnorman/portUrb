@@ -3,7 +3,6 @@
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
 #SBATCH -t 2:00:00
-#SBATCH -p batch
 #SBATCH -N 128
 
 num_nodes=`echo "$SLURM_JOB_NUM_NODES*8" | bc`

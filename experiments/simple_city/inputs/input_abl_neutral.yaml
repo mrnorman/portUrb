@@ -1,17 +1,17 @@
 ---
 # Simulation time in seconds
-sim_time: 36000.  # 86400
+sim_time: 43200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
 nx_glob: 800
 ny_glob: 800
-nz     : 140
+nz     : 200
 
 # Domain size of the CRMs
 xlen: 4000
 ylen: 4000
-zlen: 700
+zlen: 1000
 
 init_data: ABL_neutral
 
@@ -26,11 +26,11 @@ out_freq: 900.
 
 inform_freq: 10.
 
-latitude: 54.
+latitude: 0.
 
-is_restart: false
+is_restart: true
 
-restart_file: none
+restart_file: test_00000030.nc
 
 roughness: 0.1
 

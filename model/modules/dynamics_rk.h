@@ -520,19 +520,28 @@ namespace modules {
         // Density x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
         for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = hy_dens_cells(hs+k,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_x = false;
+        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
         // Density y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
         for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = hy_dens_cells(hs+k,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_y = false;
+        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
         // Density z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
         for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = hy_dens_cells(k+kk,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_z = false;
+        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_z(1,idR,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idR,k+1,j,i,iens) = gll(1);
       });
@@ -651,19 +660,28 @@ namespace modules {
         // Theta x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
         for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = hy_theta_cells(hs+k,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_x = false;
+        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
         state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
         // Theta y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
         for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = hy_theta_cells(hs+k,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_y = false;
+        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
         state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
         // Theta z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
         for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = hy_theta_cells(k+kk,iens); }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_z = false;
+        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
         state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
       });
@@ -676,7 +694,10 @@ namespace modules {
         SArray<bool,1,ord> immersed_x;
         for (int ii=0; ii < ord; ii++) { immersed_x(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
         modify_stencil_immersed_der0( stencil , immersed_x );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_x = false;
+        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         pressure_limits_x(1,k,j,i  ,iens) = gll(0);
         pressure_limits_x(0,k,j,i+1,iens) = gll(1);
         // Pressure y
@@ -684,7 +705,10 @@ namespace modules {
         SArray<bool,1,ord> immersed_y;
         for (int jj=0; jj < ord; jj++) { immersed_y(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_y );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_y = false;
+        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         pressure_limits_y(1,k,j  ,i,iens) = gll(0);
         pressure_limits_y(0,k,j+1,i,iens) = gll(1);
         // Pressure z
@@ -692,7 +716,10 @@ namespace modules {
         SArray<bool,1,ord> immersed_z;
         for (int kk=0; kk < ord; kk++) { immersed_z(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
         modify_stencil_immersed_der0( stencil , immersed_z );
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_z = false;
+        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         pressure_limits_z(1,k  ,j,i,iens) = gll(0);
         pressure_limits_z(0,k+1,j,i,iens) = gll(1);
       });
@@ -704,19 +731,28 @@ namespace modules {
         // Tracer x
         for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
         for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = 0; }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_x = false;
+        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
+        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
         tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
         // Tracer y
         for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
         for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = 0; }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_y = false;
+        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
+        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
         tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
         // Tracer z
         for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
         for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = 0; }
-        reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+        bool any_immersed_z = false;
+        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
+        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
+        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
         tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
         tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
       });

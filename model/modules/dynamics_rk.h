@@ -464,6 +464,9 @@ namespace modules {
       auto hy_dens_cells             = dm.get<real const,2>("hy_dens_cells"            ); // Hydrostatic density
       auto hy_theta_cells            = dm.get<real const,2>("hy_theta_cells"           ); // Hydrostatic potential
                                                                                           //  temperature
+      auto hy_dens_edges             = dm.get<real const,2>("hy_dens_edges"            ); // Hydrostatic density
+      auto hy_theta_edges            = dm.get<real const,2>("hy_theta_edges"           ); // Hydrostatic potential
+                                                                                          //  temperature
       auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"        ); // Hydrostatic pressure
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
@@ -785,26 +788,32 @@ namespace modules {
             // Use only left values
             state_limits_x   (0,idU,k,j,i,iens) = 0;
             state_limits_x   (1,idU,k,j,i,iens) = 0;
-            state_limits_x   (1,idR,k,j,i,iens) = state_limits_x   (0,idR,k,j,i,iens);
+            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_x   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_x   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
             state_limits_x   (1,idV,k,j,i,iens) = state_limits_x   (0,idV,k,j,i,iens);
             state_limits_x   (1,idW,k,j,i,iens) = state_limits_x   (0,idW,k,j,i,iens);
-            state_limits_x   (1,idT,k,j,i,iens) = state_limits_x   (0,idT,k,j,i,iens);
             pressure_limits_x(1    ,k,j,i,iens) = pressure_limits_x(0    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_x(1,tr,k,j,i,iens) = tracers_limits_x(0,tr,k,j,i,iens);
+              tracers_limits_x(0,tr,k,j,i,iens) = 0;
+              tracers_limits_x(1,tr,k,j,i,iens) = 0;
             }
           }
           if (!right_cell_immersed && left_cell_immersed) {
             // Use only right values
             state_limits_x   (0,idU,k,j,i,iens) = 0;
             state_limits_x   (1,idU,k,j,i,iens) = 0;
-            state_limits_x   (0,idR,k,j,i,iens) = state_limits_x   (1,idR,k,j,i,iens);
+            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_x   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_x   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
             state_limits_x   (0,idV,k,j,i,iens) = state_limits_x   (1,idV,k,j,i,iens);
             state_limits_x   (0,idW,k,j,i,iens) = state_limits_x   (1,idW,k,j,i,iens);
-            state_limits_x   (0,idT,k,j,i,iens) = state_limits_x   (1,idT,k,j,i,iens);
             pressure_limits_x(0    ,k,j,i,iens) = pressure_limits_x(1    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_x(0,tr,k,j,i,iens) = tracers_limits_x(1,tr,k,j,i,iens);
+              tracers_limits_x(0,tr,k,j,i,iens) = 0;
+              tracers_limits_x(1,tr,k,j,i,iens) = 0;
             }
           }
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
@@ -835,26 +844,32 @@ namespace modules {
             // Use only left values
             state_limits_y   (0,idV,k,j,i,iens) = 0;
             state_limits_y   (1,idV,k,j,i,iens) = 0;
-            state_limits_y   (1,idR,k,j,i,iens) = state_limits_y   (0,idR,k,j,i,iens);
+            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_y   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_y   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
             state_limits_y   (1,idU,k,j,i,iens) = state_limits_y   (0,idU,k,j,i,iens);
             state_limits_y   (1,idW,k,j,i,iens) = state_limits_y   (0,idW,k,j,i,iens);
-            state_limits_y   (1,idT,k,j,i,iens) = state_limits_y   (0,idT,k,j,i,iens);
             pressure_limits_y(1    ,k,j,i,iens) = pressure_limits_y(0    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_y(1,tr,k,j,i,iens) = tracers_limits_y(0,tr,k,j,i,iens);
+              tracers_limits_y(0,tr,k,j,i,iens) = 0;
+              tracers_limits_y(1,tr,k,j,i,iens) = 0;
             }
           }
           if (!right_cell_immersed && left_cell_immersed) {
             // Use only right values
             state_limits_y   (0,idV,k,j,i,iens) = 0;
             state_limits_y   (1,idV,k,j,i,iens) = 0;
-            state_limits_y   (0,idR,k,j,i,iens) = state_limits_y   (1,idR,k,j,i,iens);
+            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
+            state_limits_y   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_y   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
             state_limits_y   (0,idU,k,j,i,iens) = state_limits_y   (1,idU,k,j,i,iens);
             state_limits_y   (0,idW,k,j,i,iens) = state_limits_y   (1,idW,k,j,i,iens);
-            state_limits_y   (0,idT,k,j,i,iens) = state_limits_y   (1,idT,k,j,i,iens);
             pressure_limits_y(0    ,k,j,i,iens) = pressure_limits_y(1    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_y(0,tr,k,j,i,iens) = tracers_limits_y(1,tr,k,j,i,iens);
+              tracers_limits_y(0,tr,k,j,i,iens) = 0;
+              tracers_limits_y(1,tr,k,j,i,iens) = 0;
             }
           }
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
@@ -885,26 +900,32 @@ namespace modules {
             // Use only left values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
-            state_limits_z   (1,idR,k,j,i,iens) = state_limits_z   (0,idR,k,j,i,iens);
+            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges (k,iens);
+            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges (k,iens);
+            state_limits_z   (0,idT,k,j,i,iens) = hy_theta_edges(k,iens);
+            state_limits_z   (1,idT,k,j,i,iens) = hy_theta_edges(k,iens);
             state_limits_z   (1,idU,k,j,i,iens) = state_limits_z   (0,idU,k,j,i,iens);
             state_limits_z   (1,idV,k,j,i,iens) = state_limits_z   (0,idV,k,j,i,iens);
-            state_limits_z   (1,idT,k,j,i,iens) = state_limits_z   (0,idT,k,j,i,iens);
             pressure_limits_z(1    ,k,j,i,iens) = pressure_limits_z(0    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_z(1,tr,k,j,i,iens) = tracers_limits_z(0,tr,k,j,i,iens);
+              tracers_limits_z(0,tr,k,j,i,iens) = 0;
+              tracers_limits_z(1,tr,k,j,i,iens) = 0;
             }
           }
           if (!right_cell_immersed && left_cell_immersed && k != 0 && k != nz) {
             // Use only right values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
-            state_limits_z   (0,idR,k,j,i,iens) = state_limits_z   (1,idR,k,j,i,iens);
+            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges (k,iens);
+            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges (k,iens);
+            state_limits_z   (0,idT,k,j,i,iens) = hy_theta_edges(k,iens);
+            state_limits_z   (1,idT,k,j,i,iens) = hy_theta_edges(k,iens);
             state_limits_z   (0,idU,k,j,i,iens) = state_limits_z   (1,idU,k,j,i,iens);
             state_limits_z   (0,idV,k,j,i,iens) = state_limits_z   (1,idV,k,j,i,iens);
-            state_limits_z   (0,idT,k,j,i,iens) = state_limits_z   (1,idT,k,j,i,iens);
             pressure_limits_z(0    ,k,j,i,iens) = pressure_limits_z(1    ,k,j,i,iens);
             for (int tr=0; tr < num_tracers; tr++) {
-              tracers_limits_z(0,tr,k,j,i,iens) = tracers_limits_z(1,tr,k,j,i,iens);
+              tracers_limits_z(0,tr,k,j,i,iens) = 0;
+              tracers_limits_z(1,tr,k,j,i,iens) = 0;
             }
           }
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
@@ -1538,7 +1559,34 @@ namespace modules {
         });
       };
 
+      auto compute_hydrostasis_edges = [] (core::Coupler &coupler) {
+        using yakl::c::parallel_for;
+        using yakl::c::SimpleBounds;;
+        auto nz   = coupler.get_nz  ();
+        auto ny   = coupler.get_ny  ();
+        auto nx   = coupler.get_nx  ();
+        auto nens = coupler.get_nens();
+        auto &dm  = coupler.get_data_manager_readwrite();
+        if (! dm.entry_exists("hy_dens_edges" )) dm.register_and_allocate<real>("hy_dens_edges" ,"",{nz+1,nens});
+        if (! dm.entry_exists("hy_theta_edges")) dm.register_and_allocate<real>("hy_theta_edges","",{nz+1,nens});
+        auto hy_dens_cells  = dm.get<real const,2>("hy_dens_cells" );
+        auto hy_theta_cells = dm.get<real const,2>("hy_theta_cells");
+        auto hy_dens_edges  = dm.get<real      ,2>("hy_dens_edges" );
+        auto hy_theta_edges = dm.get<real      ,2>("hy_theta_edges");
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
+          hy_dens_edges(k,iens) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2,iens)) +
+                                             7./12.*std::log(hy_dens_cells(hs+k-1,iens)) +
+                                             7./12.*std::log(hy_dens_cells(hs+k  ,iens)) +
+                                            -1./12.*std::log(hy_dens_cells(hs+k+1,iens)) );
+          hy_theta_edges(k,iens) = -1./12.*hy_theta_cells(hs+k-2,iens) +
+                                    7./12.*hy_theta_cells(hs+k-1,iens) +
+                                    7./12.*hy_theta_cells(hs+k  ,iens) +
+                                   -1./12.*hy_theta_cells(hs+k+1,iens);
+        });
+      };
+
       create_immersed_proportion_halos( coupler );
+      compute_hydrostasis_edges       ( coupler );
 
       // These are needed for a proper restart
       coupler.register_output_variable<real>( "immersed_proportion" , core::Coupler::DIMS_3D      );
@@ -1580,6 +1628,7 @@ namespace modules {
         nc.read_all(dm.get<real,2>("hy_theta_cells"   ),"hy_theta_cells"   ,{0,0});
         nc.read_all(dm.get<real,2>("hy_pressure_cells"),"hy_pressure_cells",{0,0});
         create_immersed_proportion_halos( coupler );
+        compute_hydrostasis_edges       ( coupler );
       } );
     }
 

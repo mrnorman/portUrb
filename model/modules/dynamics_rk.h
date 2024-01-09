@@ -428,6 +428,37 @@ namespace modules {
 
 
 
+    // The issue with having zero-value boundary conditions is that nothing can flux through that boundary
+    // Often the next cell interface's flux needs to "feel" the zero value in order to avoid fluxing too much
+    // into the cell adjacent to the boundary.
+    template <class LIM3, class LIM5>
+    YAKL_INLINE static void do_recon( SArray<real,1,5>   const & stencil  ,
+                                      SArray<real,1,2>         & gll      ,
+                                      SArray<real,2,3,2> const & s2g3     ,
+                                      SArray<real,2,5,2> const & s2g5     ,
+                                      SArray<real,2,3,2> const & c2g3     ,
+                                      SArray<real,2,5,2> const & c2g5     ,
+                                      LIM3               const & lim3     ,
+                                      LIM5               const & lim5     ,
+                                      SArray<bool,1,5>   const & immersed ,
+                                      bool                       zero_vel ) {
+      if (zero_vel) {
+        if        (immersed(hs-1) || immersed(hs+1)) {
+          SArray<real,1,3> stencil3;
+          for (int i=0; i < 3; i++) { stencil3(i) = stencil(i+1); }
+          reconstruct_gll_values(stencil3,gll,s2g3);
+        } else if (immersed(hs-2) || immersed(hs+2)) {
+          reconstruct_gll_values(stencil ,gll,s2g5);
+        } else {
+          reconstruct_gll_values(stencil ,gll,c2g5,lim5);
+        }
+      } else {
+        reconstruct_gll_values(stencil ,gll,c2g5,lim5);
+      }
+    }
+
+
+
     // Compute semi-discrete tendencies in x, y, and z directions
     // Fully split in dimensions, and coupled together inside RK stages
     // dt is not used at the moment
@@ -470,13 +501,16 @@ namespace modules {
       auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"        ); // Hydrostatic pressure
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
-      SArray<real,2,ord,2> coefs_to_gll, sten_to_gll;
-      TransformMatrices::coefs_to_gll_lower(coefs_to_gll);
-      {
-        SArray<real,2,ord,ord> s2c;
-        TransformMatrices::sten_to_coefs(s2c);
-        sten_to_gll = yakl::intrinsics::matmul_cr(coefs_to_gll,s2c); // Matrix-matrix multiply in column-row format
-      }
+      SArray<real,2,3,2> c2g3, s2g3;
+      SArray<real,2,5,2> c2g5, s2g5;
+      SArray<real,2,3,3> s2c3;
+      SArray<real,2,5,5> s2c5;
+      TransformMatrices::coefs_to_gll_lower(c2g3);
+      TransformMatrices::coefs_to_gll_lower(c2g5);
+      TransformMatrices::sten_to_coefs     (s2c3);
+      TransformMatrices::sten_to_coefs     (s2c5);
+      s2g3 = yakl::intrinsics::matmul_cr(c2g3,s2c3); // Matrix-matrix multiply in column-row format
+      s2g5 = yakl::intrinsics::matmul_cr(c2g5,s2c5); // Matrix-matrix multiply in column-row format
       real r_dx = 1./dx; // reciprocal of grid spacing
       real r_dy = 1./dy; // reciprocal of grid spacing
       real r_dz = 1./dz; // reciprocal of grid spacing
@@ -509,8 +543,10 @@ namespace modules {
       real5d pressure_limits_y("pressure_limits_y",2            ,nz,ny+1,nx,nens);
       real5d pressure_limits_z("pressure_limits_z",2            ,nz+1,ny,nx,nens);
 
+
       // Create a WENO limiter
-      limiter::WenoLimiter<ord> limiter(0.1,1,2,1,1.e3);
+      limiter::WenoLimiter<3> lim3(0.1,1,1,1.e2);
+      limiter::WenoLimiter<5> lim5(0.1,1,2,1,1.e3);
 
       // The kernels below are split because if they are not, the AMD compiler does a very poor job with register reuse
       //   and the code slows down significantly on AMD GPUs.
@@ -519,245 +555,213 @@ namespace modules {
       //   ignored in WENO interpolation.
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // Density x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = hy_dens_cells(hs+k,iens); }
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
-        state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
-        // Density y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = hy_dens_cells(hs+k,iens); }
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
-        state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
-        // Density z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = hy_dens_cells(k+kk,iens); }
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_z(1,idR,k  ,j,i,iens) = gll(0);
-        state_limits_z(0,idR,k+1,j,i,iens) = gll(1);
+        { // Density x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = hy_dens_cells(hs+k,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
+        }
+        { // Density y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = hy_dens_cells(hs+k,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
+        }
+        { // Density z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = hy_dens_cells(k+kk,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_z(1,idR,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,idR,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of u-velocity for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // u-vel x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = 0; }
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
-        state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
-        // u-vel y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
-        SArray<bool,1,ord> immersed_y;
-        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_y );
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
-        state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
-        // u-vel z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
-        SArray<bool,1,ord> immersed_z;
-        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_z );
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
-        state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
+        { // u-vel x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
+        }
+        { // u-vel y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
+        }
+        { // u-vel z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of v-velocity for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // v-vel x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
-        SArray<bool,1,ord> immersed_x;
-        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_x );
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
-        state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
-        // v-vel y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = 0; }
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
-        state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
-        // v-vel z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
-        SArray<bool,1,ord> immersed_z;
-        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_z );
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
-        state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
+        { // v-vel x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
+        }
+        { // v-vel y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
+        }
+        { // v-vel z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of w-velocity for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // w-vel x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
-        SArray<bool,1,ord> immersed_x;
-        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_x );
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
-        state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
-        // w-vel y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
-        SArray<bool,1,ord> immersed_y;
-        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_y );
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
-        state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
-        // w-vel z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = 0; }
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
-        state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
+        { // w-vel x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
+        }
+        { // w-vel y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
+        }
+        { // w-vel z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of potential temperature for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // Theta x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = hy_theta_cells(hs+k,iens); }
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
-        state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
-        // Theta y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = hy_theta_cells(hs+k,iens); }
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
-        state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
-        // Theta z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = hy_theta_cells(k+kk,iens); }
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
-        state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
+        { // Theta x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = hy_theta_cells(hs+k,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
+        }
+        { // Theta y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = hy_theta_cells(hs+k,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
+        }
+        { // Theta z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = hy_theta_cells(k+kk,iens); }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of pressure for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // Pressure x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
-        SArray<bool,1,ord> immersed_x;
-        for (int ii=0; ii < ord; ii++) { immersed_x(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_x );
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        pressure_limits_x(1,k,j,i  ,iens) = gll(0);
-        pressure_limits_x(0,k,j,i+1,iens) = gll(1);
-        // Pressure y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
-        SArray<bool,1,ord> immersed_y;
-        for (int jj=0; jj < ord; jj++) { immersed_y(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_y );
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        pressure_limits_y(1,k,j  ,i,iens) = gll(0);
-        pressure_limits_y(0,k,j+1,i,iens) = gll(1);
-        // Pressure z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
-        SArray<bool,1,ord> immersed_z;
-        for (int kk=0; kk < ord; kk++) { immersed_z(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed_z );
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        pressure_limits_z(1,k  ,j,i,iens) = gll(0);
-        pressure_limits_z(0,k+1,j,i,iens) = gll(1);
+        { // Pressure x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          pressure_limits_x(1,k,j,i  ,iens) = gll(0);
+          pressure_limits_x(0,k,j,i+1,iens) = gll(1);
+        }
+        { // Pressure y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          pressure_limits_y(1,k,j  ,i,iens) = gll(0);
+          pressure_limits_y(0,k,j+1,i,iens) = gll(1);
+        }
+        { // Pressure z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          modify_stencil_immersed_der0( stencil , immersed );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          pressure_limits_z(1,k  ,j,i,iens) = gll(0);
+          pressure_limits_z(0,k+1,j,i,iens) = gll(1);
+        }
       });
       // Reconstruct cell-edge estimates of tracers for each cell for each dimension
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_tracers,nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil;
+        SArray<bool,1,ord> immersed;
         SArray<real,1,2  > gll;
-        // Tracer x
-        for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) stencil(ii) = 0; }
-        bool any_immersed_x = false;
-        for (int ii=0; ii < ord; ii++) { if (fully_immersed_halos(hs+k,hs+j,i+ii,iens)) any_immersed_x = true; }
-        if (any_immersed_x) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
-        tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
-        // Tracer y
-        for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) stencil(jj) = 0; }
-        bool any_immersed_y = false;
-        for (int jj=0; jj < ord; jj++) { if (fully_immersed_halos(hs+k,j+jj,hs+i,iens)) any_immersed_y = true; }
-        if (any_immersed_y) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
-        tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
-        // Tracer z
-        for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) stencil(kk) = 0; }
-        bool any_immersed_z = false;
-        for (int kk=0; kk < ord; kk++) { if (fully_immersed_halos(k+kk,hs+j,hs+i,iens)) any_immersed_z = true; }
-        if (any_immersed_z) { reconstruct_gll_values(stencil,gll,sten_to_gll);          }
-        else                { reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter); }
-        tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
-        tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
+        { // Tracer x
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
+          tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
+        }
+        { // Tracer y
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
+          tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
+        }
+        { // Tracer z
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = 0; }
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
+          tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
+        }
       });
       
       // Perform periodic horizontal exchange of cell-edge data, and implement vertical boundary conditions
@@ -984,7 +988,7 @@ namespace modules {
 
 
     // Use a WENO limiter (or any limiter) to compute coefficients. Then sample polynomial at cell edges
-    template <class LIMITER>
+    template <yakl::index_t ord, class LIMITER>
     YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>     const & stencil      ,
                                                     SArray<real,1,2  >           & gll          ,
                                                     SArray<real,2,ord,2>   const & coefs_to_gll ,
@@ -1003,6 +1007,7 @@ namespace modules {
 
 
     // Project stencil averages to cell-edge interpolations (No limiter)
+    template <yakl::index_t ord>
     YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>   const & stencil     ,
                                                     SArray<real,1,2  >         & gll         ,
                                                     SArray<real,2,ord,2> const & sten_to_gll ) {

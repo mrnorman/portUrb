@@ -76,6 +76,17 @@ namespace limiter {
 
     YAKL_INLINE void compute_limited_coefs( SArray<real,1,5> const &s , SArray<real,1,5> &coefs_H ) const {
       // Reconstruct high-order, left, right, and center polynomials
+      using std::max;
+      using std::min;
+      real mn=s(0);  mn=min(mn,s(1));  mn=min(mn,s(2));  mn=min(mn,s(3));  mn=min(mn,s(4));
+      real mx=s(0);  mx=max(mx,s(1));  mx=max(mx,s(2));  mx=max(mx,s(3));  mx=max(mx,s(4));
+      real mult   = mx-mn > 1.e-10_fp ? mx-mn : 1;
+      real r_mult = 1._fp/mult;
+      s(0) = (s(0)-mn)*r_mult;
+      s(1) = (s(1)-mn)*r_mult;
+      s(2) = (s(2)-mn)*r_mult;
+      s(3) = (s(3)-mn)*r_mult;
+      s(4) = (s(4)-mn)*r_mult;
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
       coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
@@ -95,11 +106,11 @@ namespace limiter {
       if (w_C <= cutoff) w_C = 0;
       if (w_R <= cutoff) w_R = 0;
       convexify( w_L , w_C , w_R , w_H );
-      coefs_H(0) = (coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R);
-      coefs_H(1) = (coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R);
-      coefs_H(2) = (coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R);
-      coefs_H(3) = (coefs_H(3)*w_H                                                   );
-      coefs_H(4) = (coefs_H(4)*w_H                                                   );
+      coefs_H(0) = mult*(coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R) + mn;
+      coefs_H(1) = mult*(coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R);
+      coefs_H(2) = mult*(coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R);
+      coefs_H(3) = mult*(coefs_H(3)*w_H                                                   );
+      coefs_H(4) = mult*(coefs_H(4)*w_H                                                   );
     }
   };
 

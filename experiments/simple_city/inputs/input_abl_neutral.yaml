@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 43200.  # 86400
+sim_time: 14400.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
@@ -28,9 +28,9 @@ inform_freq: 10.
 
 latitude: 0.
 
-is_restart: true
+is_restart: false
 
-restart_file: test_00000030.nc
+restart_file: none
 
 roughness: 0.1
 

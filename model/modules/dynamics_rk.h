@@ -1523,19 +1523,19 @@ namespace modules {
           immersed_proportion_halos(hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(k,j,ii,iens);
         });
         // y-direction exchange
-        real4d halo_send_buf_S("halo_send_buf_S",nz,hs,nx,nens);
-        real4d halo_send_buf_N("halo_send_buf_N",nz,hs,nx,nens);
-        real4d halo_recv_buf_S("halo_recv_buf_S",nz,hs,nx,nens);
-        real4d halo_recv_buf_N("halo_recv_buf_N",nz,hs,nx,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx,nens) ,
+        real4d halo_send_buf_S("halo_send_buf_S",nz,hs,nx+2*hs,nens);
+        real4d halo_send_buf_N("halo_send_buf_N",nz,hs,nx+2*hs,nens);
+        real4d halo_recv_buf_S("halo_recv_buf_S",nz,hs,nx+2*hs,nens);
+        real4d halo_recv_buf_N("halo_recv_buf_N",nz,hs,nx+2*hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int k, int jj, int i, int iens) {
-          halo_send_buf_S(k,jj,i,iens) = immersed_proportion_halos(hs+k,hs+jj,hs+i,iens);
-          halo_send_buf_N(k,jj,i,iens) = immersed_proportion_halos(hs+k,ny+jj,hs+i,iens);
+          halo_send_buf_S(k,jj,i,iens) = immersed_proportion_halos(hs+k,hs+jj,i,iens);
+          halo_send_buf_N(k,jj,i,iens) = immersed_proportion_halos(hs+k,ny+jj,i,iens);
         });
-        realHost4d halo_send_buf_S_host("halo_send_buf_S_host",nz,hs,nx,nens);
-        realHost4d halo_send_buf_N_host("halo_send_buf_N_host",nz,hs,nx,nens);
-        realHost4d halo_recv_buf_S_host("halo_recv_buf_S_host",nz,hs,nx,nens);
-        realHost4d halo_recv_buf_N_host("halo_recv_buf_N_host",nz,hs,nx,nens);
+        realHost4d halo_send_buf_S_host("halo_send_buf_S_host",nz,hs,nx+2*hs,nens);
+        realHost4d halo_send_buf_N_host("halo_send_buf_N_host",nz,hs,nx+2*hs,nens);
+        realHost4d halo_recv_buf_S_host("halo_recv_buf_S_host",nz,hs,nx+2*hs,nens);
+        realHost4d halo_recv_buf_N_host("halo_recv_buf_N_host",nz,hs,nx+2*hs,nens);
         MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
         MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
         halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
@@ -1547,16 +1547,16 @@ namespace modules {
         MPI_Waitall(2, rReq, rStat);
         halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
         halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx,nens) ,
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int k, int jj, int i, int iens) {
-          immersed_proportion_halos(hs+k,      jj,hs+i,iens) = halo_recv_buf_S(k,jj,i,iens);
-          immersed_proportion_halos(hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(k,jj,i,iens);
+          immersed_proportion_halos(hs+k,      jj,i,iens) = halo_recv_buf_S(k,jj,i,iens);
+          immersed_proportion_halos(hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(k,jj,i,iens);
         });
         // z-direction boundaries
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) ,
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int kk, int j, int i, int iens) {
-          immersed_proportion_halos(      kk,hs+j,hs+i,iens) = 1;
-          immersed_proportion_halos(hs+nz+kk,hs+j,hs+i,iens) = 1;
+          immersed_proportion_halos(      kk,j,i,iens) = 1;
+          immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
         });
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+2*hs,ny+2*hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int k, int j, int i, int iens) {

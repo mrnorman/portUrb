@@ -611,8 +611,8 @@ namespace modules {
       // z-direction BC's
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                         YAKL_LAMBDA (int kk, int j, int i, int iens) {
-        state(idU,      kk,j,i,iens) = 0;
-        state(idV,      kk,j,i,iens) = 0;
+        state(idU,      kk,j,i,iens) = state(idU,hs+0   ,j,i,iens);
+        state(idV,      kk,j,i,iens) = state(idV,hs+0   ,j,i,iens);
         state(idW,      kk,j,i,iens) = 0;
         state(idT,      kk,j,i,iens) = state(idT,hs+0   ,j,i,iens);
         tke  (          kk,j,i,iens) = 0;

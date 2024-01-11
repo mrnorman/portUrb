@@ -530,7 +530,13 @@ namespace modules {
       });
 
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
-      if (ord > 1) halo_exchange( coupler , state , tracers , pressure );
+      core::MultiField<real,4> fields;
+      for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
+      for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
+      fields.add_field( pressure );
+      if (ord > 1) halo_exchange( coupler , fields );
+
+      halo_boundary_conditions( coupler , state , tracers , pressure );
 
       // To hold left and right interface recontsructions for each cell in each direction
       real6d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1,nens);
@@ -542,7 +548,6 @@ namespace modules {
       real5d pressure_limits_x("pressure_limits_x",2            ,nz,ny,nx+1,nens);
       real5d pressure_limits_y("pressure_limits_y",2            ,nz,ny+1,nx,nens);
       real5d pressure_limits_z("pressure_limits_z",2            ,nz+1,ny,nx,nens);
-
 
       // Create a WENO limiter
       limiter::WenoLimiter<3> lim3(0.1,1,1,1.e2);
@@ -1022,30 +1027,19 @@ namespace modules {
 
 
     // Exchange halo values periodically in the horizontal, and apply vertical no-slip solid-wall BC's
-    void halo_exchange( core::Coupler const & coupler  ,
-                        real5d        const & state    ,
-                        real5d        const & tracers  ,
-                        real4d        const & pressure ) const {
+    void halo_exchange( core::Coupler const & coupler , core::MultiField<real,4> & fields ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nens          = coupler.get_nens();
-      auto nx            = coupler.get_nx();
-      auto ny            = coupler.get_ny();
-      auto nz            = coupler.get_nz();
-      auto dz            = coupler.get_dz();
-      auto num_tracers   = coupler.get_num_tracers();
-      auto &neigh        = coupler.get_neighbor_rankid_matrix();
-      auto dtype         = coupler.get_mpi_data_type();
-      auto grav          = coupler.get_option<real>("grav");
-      auto gamma         = coupler.get_option<real>("gamma_d");
-      auto C0            = coupler.get_option<real>("C0");
-      auto hy_dens_cells = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells");
-      MPI_Request sReq [2];
-      MPI_Request rReq [2];
-      MPI_Status  sStat[2];
-      MPI_Status  rStat[2];
+      auto nens   = coupler.get_nens();
+      auto nx     = coupler.get_nx();
+      auto ny     = coupler.get_ny();
+      auto nz     = coupler.get_nz();
+      auto &neigh = coupler.get_neighbor_rankid_matrix();
+      auto dtype  = coupler.get_mpi_data_type();
+      MPI_Request sReq [2], rReq [2];
+      MPI_Status  sStat[2], rStat[2];
       auto comm = MPI_COMM_WORLD;
-      int npack = num_state + num_tracers + 1;
+      int npack = fields.size();
 
       // x-direction exchanges
       {
@@ -1055,16 +1049,8 @@ namespace modules {
         real5d halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
                                           YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          if        (v < num_state) {
-            halo_send_buf_W(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,hs+ii,iens);
-            halo_send_buf_E(v,k,j,ii,iens) = state  (v          ,hs+k,hs+j,nx+ii,iens);
-          } else if (v < num_state + num_tracers) {
-            halo_send_buf_W(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,hs+ii,iens);
-            halo_send_buf_E(v,k,j,ii,iens) = tracers(v-num_state,hs+k,hs+j,nx+ii,iens);
-          } else {
-            halo_send_buf_W(v,k,j,ii,iens) = pressure(hs+k,hs+j,hs+ii,iens);
-            halo_send_buf_E(v,k,j,ii,iens) = pressure(hs+k,hs+j,nx+ii,iens);
-          }
+          halo_send_buf_W(v,k,j,ii,iens) = fields(v,hs+k,hs+j,hs+ii,iens);
+          halo_send_buf_E(v,k,j,ii,iens) = fields(v,hs+k,hs+j,nx+ii,iens);
         });
         yakl::timer_start("halo_exchange_mpi");
         #ifdef MW_GPU_AWARE_MPI
@@ -1077,10 +1063,10 @@ namespace modules {
           MPI_Waitall(2, rReq, rStat);
           yakl::timer_stop("halo_exchange_mpi");
         #else
-          realHost5d halo_send_buf_W_host("halo_send_buf_W_host",npack,nz,ny,hs,nens);
-          realHost5d halo_send_buf_E_host("halo_send_buf_E_host",npack,nz,ny,hs,nens);
-          realHost5d halo_recv_buf_W_host("halo_recv_buf_W_host",npack,nz,ny,hs,nens);
-          realHost5d halo_recv_buf_E_host("halo_recv_buf_E_host",npack,nz,ny,hs,nens);
+          auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
+          auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
+          auto halo_recv_buf_W_host = halo_recv_buf_W.createHostObject();
+          auto halo_recv_buf_E_host = halo_recv_buf_E.createHostObject();
           MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
           MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
           halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
@@ -1096,37 +1082,21 @@ namespace modules {
         #endif
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
                                           YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          if        (v < num_state) {
-            state  (v          ,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-            state  (v          ,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-          } else if (v < num_state + num_tracers) {
-            tracers(v-num_state,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-            tracers(v-num_state,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-          } else {
-            pressure(hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-            pressure(hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-          }
+          fields(v,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
+          fields(v,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
         });
       }
 
       // y-direction exchanges
       {
-        real5d halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx,nens);
-        real5d halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx,nens);
-        real5d halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx,nens);
-        real5d halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
+        real5d halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx+2*hs,nens);
+        real5d halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx+2*hs,nens);
+        real5d halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs,nens);
+        real5d halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          if        (v < num_state) {
-            halo_send_buf_S(v,k,jj,i,iens) = state  (v          ,hs+k,hs+jj,hs+i,iens);
-            halo_send_buf_N(v,k,jj,i,iens) = state  (v          ,hs+k,ny+jj,hs+i,iens);
-          } else if (v < num_state + num_tracers) {
-            halo_send_buf_S(v,k,jj,i,iens) = tracers(v-num_state,hs+k,hs+jj,hs+i,iens);
-            halo_send_buf_N(v,k,jj,i,iens) = tracers(v-num_state,hs+k,ny+jj,hs+i,iens);
-          } else {
-            halo_send_buf_S(v,k,jj,i,iens) = pressure(hs+k,hs+jj,hs+i,iens);
-            halo_send_buf_N(v,k,jj,i,iens) = pressure(hs+k,ny+jj,hs+i,iens);
-          }
+          halo_send_buf_S(v,k,jj,i,iens) = fields(v,hs+k,hs+jj,i,iens);
+          halo_send_buf_N(v,k,jj,i,iens) = fields(v,hs+k,ny+jj,i,iens);
         });
         yakl::timer_start("halo_exchange_mpi");
         #ifdef MW_GPU_AWARE_MPI
@@ -1139,10 +1109,10 @@ namespace modules {
           MPI_Waitall(2, rReq, rStat);
           yakl::timer_stop("halo_exchange_mpi");
         #else
-          realHost5d halo_send_buf_S_host("halo_send_buf_S_host",npack,nz,hs,nx,nens);
-          realHost5d halo_send_buf_N_host("halo_send_buf_N_host",npack,nz,hs,nx,nens);
-          realHost5d halo_recv_buf_S_host("halo_recv_buf_S_host",npack,nz,hs,nx,nens);
-          realHost5d halo_recv_buf_N_host("halo_recv_buf_N_host",npack,nz,hs,nx,nens);
+          auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
+          auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
+          auto halo_recv_buf_S_host = halo_recv_buf_S.createHostObject();
+          auto halo_recv_buf_N_host = halo_recv_buf_N.createHostObject();
           MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
           MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
           halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
@@ -1156,38 +1126,53 @@ namespace modules {
           halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
           halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
         #endif
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx,nens) ,
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
                                           YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          if        (v < num_state) {
-            state  (v          ,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-            state  (v          ,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-          } else if (v < num_state + num_tracers) {
-            tracers(v-num_state,hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-            tracers(v-num_state,hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-          } else {
-            pressure(hs+k,      jj,hs+i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-            pressure(hs+k,ny+hs+jj,hs+i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-          }
+          fields(v,hs+k,      jj,i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
+          fields(v,hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
         });
       }
+    }
+
+
+
+    void halo_boundary_conditions( core::Coupler const & coupler  ,
+                                   real5d        const & state    ,
+                                   real5d        const & tracers  ,
+                                   real4d        const & pressure ) const {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto nens          = coupler.get_nens();
+      auto nx            = coupler.get_nx();
+      auto ny            = coupler.get_ny();
+      auto nz            = coupler.get_nz();
+      auto dz            = coupler.get_dz();
+      auto num_tracers   = coupler.get_num_tracers();
+      auto &neigh        = coupler.get_neighbor_rankid_matrix();
+      auto dtype         = coupler.get_mpi_data_type();
+      auto grav          = coupler.get_option<real>("grav");
+      auto gamma         = coupler.get_option<real>("gamma_d");
+      auto C0            = coupler.get_option<real>("C0");
+      auto hy_dens_cells = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells");
 
       // z-direction BC's
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny,nx,nens) , YAKL_LAMBDA (int kk, int j, int i, int iens) {
-        state(idR,kk,hs+j,hs+i,iens) = hy_dens_cells (kk,iens);
-        state(idU,kk,hs+j,hs+i,iens) = state(idU,hs+0,hs+j,hs+i,iens);
-        state(idV,kk,hs+j,hs+i,iens) = state(idV,hs+0,hs+j,hs+i,iens);
-        state(idW,kk,hs+j,hs+i,iens) = 0;
-        state(idT,kk,hs+j,hs+i,iens) = state(idT,hs+0,hs+j,hs+i,iens);
-        pressure( kk,hs+j,hs+i,iens) = pressure( hs+0,hs+j,hs+i,iens);
-        state(idR,hs+nz+kk,hs+j,hs+i,iens) = hy_dens_cells(hs+nz+kk,iens);
-        state(idU,hs+nz+kk,hs+j,hs+i,iens) = state(idU,hs+nz-1,hs+j,hs+i,iens);
-        state(idV,hs+nz+kk,hs+j,hs+i,iens) = state(idV,hs+nz-1,hs+j,hs+i,iens);
-        state(idW,hs+nz+kk,hs+j,hs+i,iens) = 0;
-        state(idT,hs+nz+kk,hs+j,hs+i,iens) = state(idT,hs+nz-1,hs+j,hs+i,iens);
-        pressure( hs+nz+kk,hs+j,hs+i,iens) = pressure( hs+nz-1,hs+j,hs+i,iens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                        YAKL_LAMBDA (int kk, int j, int i, int iens) {
+        state(idR,kk,j,i,iens) = hy_dens_cells (kk,iens);
+        state(idU,kk,j,i,iens) = state(idU,hs+0,j,i,iens);
+        state(idV,kk,j,i,iens) = state(idV,hs+0,j,i,iens);
+        state(idW,kk,j,i,iens) = 0;
+        state(idT,kk,j,i,iens) = state(idT,hs+0,j,i,iens);
+        pressure( kk,j,i,iens) = pressure( hs+0,j,i,iens);
+        state(idR,hs+nz+kk,j,i,iens) = hy_dens_cells(hs+nz+kk,iens);
+        state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+nz-1,j,i,iens);
+        state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+nz-1,j,i,iens);
+        state(idW,hs+nz+kk,j,i,iens) = 0;
+        state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+nz-1,j,i,iens);
+        pressure( hs+nz+kk,j,i,iens) = pressure( hs+nz-1,j,i,iens);
         for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,hs+j,hs+i,iens) = tracers(l,hs+0   ,hs+j,hs+i,iens);
-          tracers(l,hs+nz+kk,hs+j,hs+i,iens) = tracers(l,hs+nz-1,hs+j,hs+i,iens);
+          tracers(l,      kk,j,i,iens) = tracers(l,hs+0   ,j,i,iens);
+          tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+nz-1,j,i,iens);
         }
       });
     }

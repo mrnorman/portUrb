@@ -38,9 +38,17 @@ nx = nc.dimensions["nx"].size
 # double wvel(nz, ny, nx, nens) ;
 # double temperature(nz, ny, nx, nens) ;
 
-explicit_u_x = nc.variables["explicit_u_x"][:]
-closure_u_x  = nc.variables["closure_u_x" ][:]
+print("Getting data")
+explicit_u_x = nc.variables["explicit_u_x"][::5,::5,::5,0]
+closure_u_x  = nc.variables["closure_u_x" ][::5,::5,::5,0]
 
-plt.plot( explicit_u_x.tolist() , closure_u_x.tolist() )
-plt.savefig("u_x.jpg")
+print("Plotting")
+plt.scatter( explicit_u_x.flatten() , closure_u_x.flatten() , s=0.01 )
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Explicitly calculated")
+plt.ylabel("LES Closure")
+print("Saving Figure")
+plt.show()
+#plt.savefig("u_x.jpg")
 

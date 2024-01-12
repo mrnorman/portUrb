@@ -4,9 +4,9 @@ sim_time: 14400.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 80
-ny_glob: 80
-nz     : 20
+nx_glob: 800
+ny_glob: 800
+nz     : 200
 
 # Domain size of the CRMs
 xlen: 4000
@@ -28,9 +28,9 @@ inform_freq: 10.
 
 latitude: 0.
 
-is_restart: false
+is_restart: true
 
-restart_file: none
+restart_file: abl_save/test_00000016.nc
 
 roughness: 0.1
 

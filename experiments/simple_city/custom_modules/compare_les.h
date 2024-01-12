@@ -10,9 +10,10 @@
 #include <random>
 #include <sstream>
 
-namespace modules {
+namespace custom_modules {
 
   struct CompareLES {
+    int  static constexpr ord = 5;
     int  static constexpr hs  = (ord-1)/2; // Number of halo cells ("hs" == "halo size")
     int  static constexpr num_state = 5;   // Number of state variables
     int  static constexpr idR = 0;  // Density
@@ -22,7 +23,7 @@ namespace modules {
     int  static constexpr idT = 4;  // Density * potential temperature
 
 
-    void compare_les( core::Coupler & coupler ) const {
+    void operator() ( core::Coupler & coupler ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       using yakl::intrinsics::matmul_cr;
@@ -37,31 +38,30 @@ namespace modules {
       auto C0                        = coupler.get_option<real>("C0"     );  // pressure = C0*pow(rho*theta,gamma)
       auto grav                      = coupler.get_option<real>("grav"   );  // Gravity
       auto gamma                     = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
-      auto latitude                  = coupler.get_option<real>("latitude"); // For coriolis
       auto num_tracers               = coupler.get_num_tracers();            // Number of tracers
       auto &dm                       = coupler.get_data_manager_readonly();  // Grab read-only data manager
-      auto tracer_positive           = dm.get<bool const,1>("tracer_positive"          ); // Is a tracer
-                                                                                          //   positive-definite?
-      auto immersed_proportion_halos = dm.get<real const,4>("immersed_proportion_halos"); // Proportion of immersed
-                                                                                          //   material in each cell
-      auto fully_immersed_halos      = dm.get<bool const,4>("fully_immersed_halos"     ); // Is a cell fullly immersed?
-      auto hy_dens_cells             = dm.get<real const,2>("hy_dens_cells"            ); // Hydrostatic density
-      auto hy_theta_cells            = dm.get<real const,2>("hy_theta_cells"           ); // Hydrostatic potential
-                                                                                          //  temperature
-      auto hy_dens_edges             = dm.get<real const,2>("hy_dens_edges"            ); // Hydrostatic density
-      auto hy_theta_edges            = dm.get<real const,2>("hy_theta_edges"           ); // Hydrostatic potential
-                                                                                          //  temperature
-      auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"        ); // Hydrostatic pressure
+      auto tracer_positive           = dm.get<bool const,1>("tracer_positive"  ); // Is tracer positive-definite?
+      auto hy_dens_cells             = dm.get<real const,2>("hy_dens_cells"    ); // Hydrostatic density
+      auto hy_theta_cells            = dm.get<real const,2>("hy_theta_cells"   ); // Hydrostatic potential temp
+      auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"); // Hydrostatic pressure
+      auto tracer_names              = coupler.get_tracer_names();
+      int idTKE = -1;
+      for (int i=0; i < num_tracers; i++) { if (tracer_names[i] == "TKE") { idTKE = i; break; } }
+      real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      real5d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      convert_coupler_to_dynamics( coupler , state , tracers );
+      auto tke = tracers.slice<4>(idTKE,0,0,0,0);
+      real delta = std::pow( dx*dy*dz , 1._fp/3._fp );
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
       SArray<real,2,ord,ord> s2c, c2g, c2d, s2g, s2d2g, g2c, g2d2g;
       TransformMatrices::sten_to_coefs (s2c);
       TransformMatrices::coefs_to_gll  (c2g);
-      TransformMatrices::gll_to_coefs  (g2d);
+      TransformMatrices::gll_to_coefs  (g2c);
       TransformMatrices::coefs_to_deriv(c2d);
       s2g   = matmul_cr(c2g,s2c);
-      s2d2g = matmul_cr(c2g,matmul_cr(c2d,s2c);
-      g2d2g = matmul_cr(c2g,matmul_cr(c2d,g2c);
+      s2d2g = matmul_cr(c2g,matmul_cr(c2d,s2c));
+      g2d2g = matmul_cr(c2g,matmul_cr(c2d,g2c));
       real r_dx = 1./dx; // reciprocal of grid spacing
       real r_dy = 1./dy; // reciprocal of grid spacing
       real r_dz = 1./dz; // reciprocal of grid spacing
@@ -80,11 +80,13 @@ namespace modules {
       });
 
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
-      core::MultiField<real,4> fields;
-      for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
-      for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
-      fields.add_field( pressure );
-      if (ord > 1) halo_exchange( coupler , fields );
+      {
+        core::MultiField<real,4> fields;
+        for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
+        for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
+        fields.add_field( pressure );
+        if (ord > 1) halo_exchange( coupler , fields );
+      }
 
       halo_boundary_conditions( coupler , state , tracers , pressure );
 
@@ -230,37 +232,181 @@ namespace modules {
         wt(hs+k,hs+j,hs+i,iens) = sum(gll_w*gll_t);
       });
 
-      core::MultiField<real,4> fields;
-      fields.add_field(uu);
-      fields.add_field(uv);
-      fields.add_field(uw);
-      fields.add_field(ut);
-      fields.add_field(vv);
-      fields.add_field(vw);
-      fields.add_field(vt);
-      fields.add_field(ww);
-      fields.add_field(wt);
-      if (ord > 1) halo_exchange( coupler , fields );
+      {
+        core::MultiField<real,4> fields;
+        fields.add_field(uu);
+        fields.add_field(uv);
+        fields.add_field(uw);
+        fields.add_field(ut);
+        fields.add_field(vv);
+        fields.add_field(vw);
+        fields.add_field(vt);
+        fields.add_field(ww);
+        fields.add_field(wt);
+        if (ord > 1) halo_exchange( coupler , fields );
+      }
 
       halo_boundary_conditions(coupler,uu,uv,uw,ut,vv,vw,vt,ww,wt);
 
+      real4d explicit_u_x("explicit_u_x",nz,ny,nx+1,nens);
+      real4d explicit_v_x("explicit_v_x",nz,ny,nx+1,nens);
+      real4d explicit_w_x("explicit_w_x",nz,ny,nx+1,nens);
+      real4d explicit_t_x("explicit_t_x",nz,ny,nx+1,nens);
+      real4d explicit_u_y("explicit_u_y",nz,ny+1,nx,nens);
+      real4d explicit_v_y("explicit_v_y",nz,ny+1,nx,nens);
+      real4d explicit_w_y("explicit_w_y",nz,ny+1,nx,nens);
+      real4d explicit_t_y("explicit_t_y",nz,ny+1,nx,nens);
+      real4d explicit_u_z("explicit_u_z",nz+1,ny,nx,nens);
+      real4d explicit_v_z("explicit_v_z",nz+1,ny,nx,nens);
+      real4d explicit_w_z("explicit_w_z",nz+1,ny,nx,nens);
+      real4d explicit_t_z("explicit_t_z",nz+1,ny,nx,nens);
+      real4d closure_u_x ("closure_u_x" ,nz,ny,nx+1,nens);
+      real4d closure_v_x ("closure_v_x" ,nz,ny,nx+1,nens);
+      real4d closure_w_x ("closure_w_x" ,nz,ny,nx+1,nens);
+      real4d closure_t_x ("closure_t_x" ,nz,ny,nx+1,nens);
+      real4d closure_u_y ("closure_u_y" ,nz,ny+1,nx,nens);
+      real4d closure_v_y ("closure_v_y" ,nz,ny+1,nx,nens);
+      real4d closure_w_y ("closure_w_y" ,nz,ny+1,nx,nens);
+      real4d closure_t_y ("closure_t_y" ,nz,ny+1,nx,nens);
+      real4d closure_u_z ("closure_u_z" ,nz+1,ny,nx,nens);
+      real4d closure_v_z ("closure_v_z" ,nz+1,ny,nx,nens);
+      real4d closure_w_z ("closure_w_z" ,nz+1,ny,nx,nens);
+      real4d closure_t_z ("closure_t_z" ,nz+1,ny,nx,nens);
 
       // TODO: Reconstruct fluxes of sum of products and density to compute fluxes
       //       Assume w' is zero at the boundary, so zero flux for terms involving w'
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny+1,nx+1,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real rho = state(idR,hs+k,hs+j,hs+i,iens);
+        if (j < ny && k < nz) {
+          explicit_u_x(k,j,i,iens) = rho*(uu(hs+k,hs+j,hs+i-1,iens)+uu(hs+k,hs+j,hs+i,iens))/2;
+          explicit_v_x(k,j,i,iens) = rho*(uv(hs+k,hs+j,hs+i-1,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
+          explicit_w_x(k,j,i,iens) = rho*(uw(hs+k,hs+j,hs+i-1,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
+          explicit_t_x(k,j,i,iens) = rho*(ut(hs+k,hs+j,hs+i-1,iens)+ut(hs+k,hs+j,hs+i,iens))/2;
 
+          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
+          real K     = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
+          real t     = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
+          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1,iens)-state(idT,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
+                                  (state(idT,hs+k+1,hs+j,hs+i  ,iens)-state(idT,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+          real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1,iens)-state(idU,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
+                                  (state(idU,hs+k+1,hs+j,hs+i  ,iens)-state(idU,hs+k-1,hs+j,hs+i  ,iens))/(2*dz) );
+          real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1,iens)-state(idU,hs+k,hs+j-1,hs+i-1,iens))/(2*dy) +
+                                  (state(idU,hs+k,hs+j+1,hs+i  ,iens)-state(idU,hs+k,hs+j-1,hs+i  ,iens))/(2*dy) );
+          real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km    = 0.1_fp * ell * std::sqrt(K);
+          real Pr    = delta / (1+2*ell);
+          real du_dx = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dv_dx = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dw_dx = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j,hs+i-1,iens))/dx;
+          real dt_dx = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j,hs+i-1,iens))/dx;
+          closure_u_x(k,j,i,iens) = -rho*km   *(du_dx + du_dx);
+          closure_v_x(k,j,i,iens) = -rho*km   *(dv_dx + du_dy);
+          closure_w_x(k,j,i,iens) = -rho*km   *(dw_dx + du_dz);
+          closure_t_x(k,j,i,iens) = -rho*km/Pr*dt_dx;
+        }
+        if (i < nx && k < nz) {
+          explicit_u_y(k,j,i,iens) = rho*(uv(hs+k,hs+j-1,hs+i,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
+          explicit_v_y(k,j,i,iens) = rho*(vv(hs+k,hs+j-1,hs+i,iens)+vv(hs+k,hs+j,hs+i,iens))/2;
+          explicit_w_y(k,j,i,iens) = rho*(vw(hs+k,hs+j-1,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
+          explicit_t_y(k,j,i,iens) = rho*(vt(hs+k,hs+j-1,hs+i,iens)+vt(hs+k,hs+j,hs+i,iens))/2;
 
-      // TODO: Create halo routine that takes in a MultiField to make it more general
+          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
+          real K     = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
+          real t     = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
+          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i,iens)-state(idT,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
+                                  (state(idT,hs+k+1,hs+j  ,hs+i,iens)-state(idT,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+          real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i,iens)-state(idV,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
+                                  (state(idV,hs+k+1,hs+j  ,hs+i,iens)-state(idV,hs+k-1,hs+j  ,hs+i,iens))/(2*dz) );
+          real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1,iens) - state(idV,hs+k,hs+j-1,hs+i-1,iens))/(2*dx) +
+                                  (state(idV,hs+k,hs+j  ,hs+i+1,iens) - state(idV,hs+k,hs+j  ,hs+i-1,iens))/(2*dx) );
+          real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km    = 0.1_fp * ell * std::sqrt(K);
+          real Pr    = delta / (1+2*ell);
+          real du_dy = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dv_dy = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dw_dy = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens))/dy;
+          real dt_dy = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j-1,hs+i,iens))/dy;
+          closure_u_y(k,j,i,iens) = -rho*km   *(du_dy + dv_dx);
+          closure_v_y(k,j,i,iens) = -rho*km   *(dv_dy + dv_dy);
+          closure_w_y(k,j,i,iens) = -rho*km   *(dw_dy + dv_dz);
+          closure_t_y(k,j,i,iens) = -rho*km/Pr*dt_dy;
+        }
+        if (i < nx && j < ny) {
+          explicit_u_z(k,j,i,iens) = rho*(uw(hs+k-1,hs+j,hs+i,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
+          explicit_v_z(k,j,i,iens) = rho*(vw(hs+k-1,hs+j,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
+          explicit_w_z(k,j,i,iens) = rho*(ww(hs+k-1,hs+j,hs+i,iens)+ww(hs+k,hs+j,hs+i,iens))/2;
+          explicit_t_z(k,j,i,iens) = rho*(wt(hs+k-1,hs+j,hs+i,iens)+wt(hs+k,hs+j,hs+i,iens))/2;
+
+          real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
+          real K     = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
+          real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
+          real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
+          real N     = dt_dz >= 0 ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km    = 0.1_fp * ell * std::sqrt(K);
+          real Pr    = delta / (1+2*ell);
+          real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1,iens) - state(idW,hs+k-1,hs+j,hs+i-1,iens))/(2*dx) +
+                                  (state(idW,hs+k  ,hs+j,hs+i+1,iens) - state(idW,hs+k  ,hs+j,hs+i-1,iens))/(2*dx) );
+          real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i,iens) - state(idW,hs+k-1,hs+j-1,hs+i,iens))/(2*dy) +
+                                  (state(idW,hs+k  ,hs+j+1,hs+i,iens) - state(idW,hs+k  ,hs+j-1,hs+i,iens))/(2*dy) );
+          real du_dz = (state(idU,hs+k,hs+j,hs+i,iens) - state(idU,hs+k-1,hs+j,hs+i,iens))/dz;
+          real dv_dz = (state(idV,hs+k,hs+j,hs+i,iens) - state(idV,hs+k-1,hs+j,hs+i,iens))/dz;
+          real dw_dz = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens))/dz;
+          closure_u_z(k,j,i,iens) = -rho*km   *(du_dz + dw_dx);
+          closure_v_z(k,j,i,iens) = -rho*km   *(dv_dz + dw_dy);
+          closure_w_z(k,j,i,iens) = -rho*km   *(dw_dz + dw_dz);
+          closure_t_z(k,j,i,iens) = -rho*km/Pr*dt_dz;
+        }
+      });
+
+      yakl::SimpleNetCDF nc;
+      nc.create("compare_les.nc");
+      nc.write( explicit_u_x                 , "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_v_x                 , "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_w_x                 , "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_t_x                 , "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_u_y                 , "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_v_y                 , "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_w_y                 , "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_t_y                 , "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_u_z                 , "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_v_z                 , "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_w_z                 , "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_t_z                 , "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_u_x                  , "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_v_x                  , "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_w_x                  , "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_t_x                  , "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_u_y                  , "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_v_y                  , "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_w_y                  , "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_t_y                  , "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_u_z                  , "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_v_z                  , "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_w_z                  , "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_t_z                  , "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( tke                          , "TKE"          , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( state.slice<4>(idR,0,0,0,0)  , "density"      , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( state.slice<4>(idU,0,0,0,0)  , "uvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( state.slice<4>(idV,0,0,0,0)  , "vvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( state.slice<4>(idW,0,0,0,0)  , "wvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( state.slice<4>(idT,0,0,0,0)  , "theta"        , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("temp") , "temperature"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.close();
 
     }
 
 
 
     // Project stencil averages to cell-edge interpolations (No limiter)
-    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>   const & stencil     ,
-                                                    SArray<real,1,2  >         & gll         ,
-                                                    SArray<real,2,ord,2> const & sten_to_gll ) {
+    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>     const & stencil     ,
+                                                    SArray<real,1,ord>           & gll         ,
+                                                    SArray<real,2,ord,ord> const & sten_to_gll ) {
       // Compute left and right cell edge estimates from stencil cell averages
-      for (int ii=0; ii<2; ii++) {
+      for (int ii=0; ii<ord; ii++) {
         real tmp = 0;
         for (int s=0; s < ord; s++) { tmp += sten_to_gll(s,ii) * stencil(s); }
         gll(ii) = tmp;

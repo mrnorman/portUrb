@@ -11,6 +11,7 @@
 #include "domain_nudger.h"
 #include "EdgeSponge.h"
 #include "sponge_layer.h"
+#include "compare_les.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -68,6 +69,7 @@ int main(int argc, char** argv) {
     modules::WindmillActuators                 windmills;
     modules::ColumnNudger                      column_nudger;
     custom_modules::EdgeSponge                 edge_sponge;
+    custom_modules::CompareLES                 compare_les;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -98,8 +100,7 @@ int main(int argc, char** argv) {
       endrun("ERROR: Must be a restart YAML file");
     }
 
-    // Begin main simulation loop over time steps
-    coupler.run_module( custom_modules::compare_les , "compare_les"  );
+    compare_les(coupler);
   }
   yakl::finalize();
   MPI_Finalize();

@@ -28,6 +28,13 @@ template <class T> inline void debug_print_sum( T var , char const * file , int 
   if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": sum(" << varname << ")  -->  " << yakl::intrinsics::sum( var ) << std::endl;
 }
 
+template <class T> inline void debug_print_avg( T var , char const * file , int line , char const * varname ) {
+  MPI_Barrier(MPI_COMM_WORLD);
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": avg(" << varname << ")  -->  " << yakl::intrinsics::sum( var )/var.size() << std::endl;
+}
+
 template <class T> inline void debug_print_min( T var , char const * file , int line , char const * varname ) {
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
@@ -51,6 +58,7 @@ template <class T> inline void debug_print_val( T var , char const * file , int 
 
 #define DEBUG_PRINT_MAIN() { debug_print(__FILE__,__LINE__); }
 #define DEBUG_PRINT_MAIN_SUM(var) { debug_print_sum((var),__FILE__,__LINE__,#var); }
+#define DEBUG_PRINT_MAIN_AVG(var) { debug_print_avg((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_MIN(var) { debug_print_min((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_MAX(var) { debug_print_max((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_VAL(var) { debug_print_val((var),__FILE__,__LINE__,#var); }

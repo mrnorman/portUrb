@@ -27,24 +27,24 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       using yakl::intrinsics::matmul_cr;
-      auto nens                      = coupler.get_nens();
-      auto nx                        = coupler.get_nx();    // Proces-local number of cells
-      auto ny                        = coupler.get_ny();    // Proces-local number of cells
-      auto nz                        = coupler.get_nz();    // Total vertical cells
-      auto dx                        = coupler.get_dx();    // grid spacing
-      auto dy                        = coupler.get_dy();    // grid spacing
-      auto dz                        = coupler.get_dz();    // grid spacing
-      auto sim2d                     = coupler.is_sim2d();  // Is this a 2-D simulation?
-      auto C0                        = coupler.get_option<real>("C0"     );  // pressure = C0*pow(rho*theta,gamma)
-      auto grav                      = coupler.get_option<real>("grav"   );  // Gravity
-      auto gamma                     = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
-      auto num_tracers               = coupler.get_num_tracers();            // Number of tracers
-      auto &dm                       = coupler.get_data_manager_readonly();  // Grab read-only data manager
-      auto tracer_positive           = dm.get<bool const,1>("tracer_positive"  ); // Is tracer positive-definite?
-      auto hy_dens_cells             = dm.get<real const,2>("hy_dens_cells"    ); // Hydrostatic density
-      auto hy_theta_cells            = dm.get<real const,2>("hy_theta_cells"   ); // Hydrostatic potential temp
-      auto hy_pressure_cells         = dm.get<real const,2>("hy_pressure_cells"); // Hydrostatic pressure
-      auto tracer_names              = coupler.get_tracer_names();
+      auto nens              = coupler.get_nens();
+      auto nx                = coupler.get_nx();    // Proces-local number of cells
+      auto ny                = coupler.get_ny();    // Proces-local number of cells
+      auto nz                = coupler.get_nz();    // Total vertical cells
+      auto dx                = coupler.get_dx();    // grid spacing
+      auto dy                = coupler.get_dy();    // grid spacing
+      auto dz                = coupler.get_dz();    // grid spacing
+      auto sim2d             = coupler.is_sim2d();  // Is this a 2-D simulation?
+      auto C0                = coupler.get_option<real>("C0"     );  // pressure = C0*pow(rho*theta,gamma)
+      auto grav              = coupler.get_option<real>("grav"   );  // Gravity
+      auto gamma             = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
+      auto num_tracers       = coupler.get_num_tracers();            // Number of tracers
+      auto &dm               = coupler.get_data_manager_readonly();  // Grab read-only data manager
+      auto tracer_positive   = dm.get<bool const,1>("tracer_positive"  ); // Is tracer positive-definite?
+      auto hy_dens_cells     = dm.get<real const,2>("hy_dens_cells"    ); // Hydrostatic density
+      auto hy_theta_cells    = dm.get<real const,2>("hy_theta_cells"   ); // Hydrostatic potential temp
+      auto hy_pressure_cells = dm.get<real const,2>("hy_pressure_cells"); // Hydrostatic pressure
+      auto tracer_names      = coupler.get_tracer_names();
       int idTKE = -1;
       for (int i=0; i < num_tracers; i++) { if (tracer_names[i] == "TKE") { idTKE = i; break; } }
       real5d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
@@ -89,6 +89,14 @@ namespace custom_modules {
       }
 
       halo_boundary_conditions( coupler , state , tracers , pressure );
+
+      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idR,0,0,0,0));
+      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idU,0,0,0,0));
+      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idV,0,0,0,0));
+      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idW,0,0,0,0));
+      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idT,0,0,0,0));
+      DEBUG_PRINT_MAIN_AVG(tke);
+      DEBUG_PRINT_MAIN_AVG(pressure);
 
       real4d uu("uu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d uv("uv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
@@ -217,19 +225,59 @@ namespace custom_modules {
         using yakl::componentwise::operator*;
         using yakl::componentwise::operator-;
         using yakl::intrinsics::sum;
-        gll_u = gll_u - sum(gll_u)/gll_u.size();
-        gll_v = gll_v - sum(gll_v)/gll_v.size();
-        gll_w = gll_w - sum(gll_w)/gll_w.size();
-        gll_t = gll_t - sum(gll_t)/gll_t.size();
-        uu(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_u);
-        uv(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_v);
-        uw(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_w);
-        ut(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_t);
-        vv(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_v);
-        vw(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_w);
-        vt(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_t);
-        ww(hs+k,hs+j,hs+i,iens) = sum(gll_w*gll_w);
-        wt(hs+k,hs+j,hs+i,iens) = sum(gll_w*gll_t);
+        real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
+        for (int kk=0; kk < ord; kk++) {
+        for (int jj=0; jj < ord; jj++) {
+        for (int ii=0; ii < ord; ii++) {
+          avg_u += gll_u(kk,jj,ii);
+          avg_v += gll_v(kk,jj,ii);
+          avg_w += gll_w(kk,jj,ii);
+          avg_t += gll_t(kk,jj,ii);
+        } } }
+        avg_u /= gll_u.size();
+        avg_v /= gll_v.size();
+        avg_w /= gll_w.size();
+        avg_t /= gll_t.size();
+        for (int kk=0; kk < ord; kk++) {
+        for (int jj=0; jj < ord; jj++) {
+        for (int ii=0; ii < ord; ii++) {
+          gll_u(kk,jj,ii) -= avg_u;
+          gll_v(kk,jj,ii) -= avg_v;
+          gll_w(kk,jj,ii) -= avg_w;
+          gll_t(kk,jj,ii) -= avg_t;
+        } } }
+
+        real avg_uu = 0;
+        real avg_uv = 0;
+        real avg_uw = 0;
+        real avg_ut = 0;
+        real avg_vv = 0;
+        real avg_vw = 0;
+        real avg_vt = 0;
+        real avg_ww = 0;
+        real avg_wt = 0;
+        for (int kk=0; kk < ord; kk++) {
+        for (int jj=0; jj < ord; jj++) {
+        for (int ii=0; ii < ord; ii++) {
+          avg_uu += gll_u(kk,jj,ii)*gll_u(kk,jj,ii);
+          avg_uv += gll_u(kk,jj,ii)*gll_v(kk,jj,ii);
+          avg_uw += gll_u(kk,jj,ii)*gll_w(kk,jj,ii);
+          avg_ut += gll_u(kk,jj,ii)*gll_t(kk,jj,ii);
+          avg_vv += gll_v(kk,jj,ii)*gll_v(kk,jj,ii);
+          avg_vw += gll_v(kk,jj,ii)*gll_w(kk,jj,ii);
+          avg_vt += gll_v(kk,jj,ii)*gll_t(kk,jj,ii);
+          avg_ww += gll_w(kk,jj,ii)*gll_w(kk,jj,ii);
+          avg_wt += gll_w(kk,jj,ii)*gll_t(kk,jj,ii);
+        } } }
+        uu(hs+k,hs+j,hs+i,iens) = avg_uu/gll_u.size();
+        uv(hs+k,hs+j,hs+i,iens) = avg_uv/gll_u.size();
+        uw(hs+k,hs+j,hs+i,iens) = avg_uw/gll_u.size();
+        ut(hs+k,hs+j,hs+i,iens) = avg_ut/gll_u.size();
+        vv(hs+k,hs+j,hs+i,iens) = avg_vv/gll_u.size();
+        vw(hs+k,hs+j,hs+i,iens) = avg_vw/gll_u.size();
+        vt(hs+k,hs+j,hs+i,iens) = avg_vt/gll_u.size();
+        ww(hs+k,hs+j,hs+i,iens) = avg_ww/gll_u.size();
+        wt(hs+k,hs+j,hs+i,iens) = avg_wt/gll_u.size();
       });
 
       {
@@ -247,6 +295,16 @@ namespace custom_modules {
       }
 
       halo_boundary_conditions(coupler,uu,uv,uw,ut,vv,vw,vt,ww,wt);
+
+      DEBUG_PRINT_MAIN_AVG(uu);
+      DEBUG_PRINT_MAIN_AVG(uv);
+      DEBUG_PRINT_MAIN_AVG(uw);
+      DEBUG_PRINT_MAIN_AVG(ut);
+      DEBUG_PRINT_MAIN_AVG(vv);
+      DEBUG_PRINT_MAIN_AVG(vw);
+      DEBUG_PRINT_MAIN_AVG(vt);
+      DEBUG_PRINT_MAIN_AVG(ww);
+      DEBUG_PRINT_MAIN_AVG(wt);
 
       real4d explicit_u_x("explicit_u_x",nz,ny,nx+1,nens);
       real4d explicit_v_x("explicit_v_x",nz,ny,nx+1,nens);
@@ -277,14 +335,13 @@ namespace custom_modules {
       //       Assume w' is zero at the boundary, so zero flux for terms involving w'
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+1,ny+1,nx+1,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
-        real rho = state(idR,hs+k,hs+j,hs+i,iens);
         if (j < ny && k < nz) {
+          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           explicit_u_x(k,j,i,iens) = rho*(uu(hs+k,hs+j,hs+i-1,iens)+uu(hs+k,hs+j,hs+i,iens))/2;
           explicit_v_x(k,j,i,iens) = rho*(uv(hs+k,hs+j,hs+i-1,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_x(k,j,i,iens) = rho*(uw(hs+k,hs+j,hs+i-1,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_x(k,j,i,iens) = rho*(ut(hs+k,hs+j,hs+i-1,iens)+ut(hs+k,hs+j,hs+i,iens))/2;
 
-          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K     = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
           real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1,iens)-state(idT,hs+k-1,hs+j,hs+i-1,iens))/(2*dz) +
@@ -307,12 +364,12 @@ namespace custom_modules {
           closure_t_x(k,j,i,iens) = -rho*km/Pr*dt_dx;
         }
         if (i < nx && k < nz) {
+          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           explicit_u_y(k,j,i,iens) = rho*(uv(hs+k,hs+j-1,hs+i,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
           explicit_v_y(k,j,i,iens) = rho*(vv(hs+k,hs+j-1,hs+i,iens)+vv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_y(k,j,i,iens) = rho*(vw(hs+k,hs+j-1,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_y(k,j,i,iens) = rho*(vt(hs+k,hs+j-1,hs+i,iens)+vt(hs+k,hs+j,hs+i,iens))/2;
 
-          real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K     = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
           real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i,iens)-state(idT,hs+k-1,hs+j-1,hs+i,iens))/(2*dz) +
@@ -335,12 +392,12 @@ namespace custom_modules {
           closure_t_y(k,j,i,iens) = -rho*km/Pr*dt_dy;
         }
         if (i < nx && j < ny) {
+          real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           explicit_u_z(k,j,i,iens) = rho*(uw(hs+k-1,hs+j,hs+i,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
           explicit_v_z(k,j,i,iens) = rho*(vw(hs+k-1,hs+j,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_z(k,j,i,iens) = rho*(ww(hs+k-1,hs+j,hs+i,iens)+ww(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_z(k,j,i,iens) = rho*(wt(hs+k-1,hs+j,hs+i,iens)+wt(hs+k,hs+j,hs+i,iens))/2;
 
-          real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K     = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
           real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
@@ -365,36 +422,36 @@ namespace custom_modules {
       // TODO: change to pnetcdf writes
       yakl::SimpleNetCDF nc;
       nc.create("compare_les.nc");
-      nc.write( explicit_u_x                        , "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_v_x                        , "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_w_x                        , "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_t_x                        , "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_u_y                        , "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_v_y                        , "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_w_y                        , "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_t_y                        , "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_u_z                        , "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_v_z                        , "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_w_z                        , "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_t_z                        , "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_u_x                         , "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_v_x                         , "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_w_x                         , "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_t_x                         , "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_u_y                         , "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_v_y                         , "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_w_y                         , "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_t_y                         , "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_u_z                         , "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_v_z                         , "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_w_z                         , "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_t_z                         , "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("TKE"        ) , "TKE"          , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("density_dry") , "density_dry"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("uvel"       ) , "uvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("vvel"       ) , "vvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("wvel"       ) , "wvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("temp"       ) , "temperature"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_u_x                       .createHostCopy() , "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_v_x                       .createHostCopy() , "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_w_x                       .createHostCopy() , "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_t_x                       .createHostCopy() , "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( explicit_u_y                       .createHostCopy() , "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_v_y                       .createHostCopy() , "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_w_y                       .createHostCopy() , "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_t_y                       .createHostCopy() , "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( explicit_u_z                       .createHostCopy() , "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_v_z                       .createHostCopy() , "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_w_z                       .createHostCopy() , "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( explicit_t_z                       .createHostCopy() , "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_u_x                        .createHostCopy() , "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_v_x                        .createHostCopy() , "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_w_x                        .createHostCopy() , "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_t_x                        .createHostCopy() , "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.write( closure_u_y                        .createHostCopy() , "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_v_y                        .createHostCopy() , "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_w_y                        .createHostCopy() , "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_t_y                        .createHostCopy() , "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.write( closure_u_z                        .createHostCopy() , "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_v_z                        .createHostCopy() , "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_w_z                        .createHostCopy() , "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( closure_t_z                        .createHostCopy() , "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("TKE"        ).createHostCopy() , "TKE"          , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("density_dry").createHostCopy() , "density_dry"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("uvel"       ).createHostCopy() , "uvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("vvel"       ).createHostCopy() , "vvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("wvel"       ).createHostCopy() , "wvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
+      nc.write( dm.get<real const,4>("temp"       ).createHostCopy() , "temperature"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
       nc.close();
 
     }
@@ -452,8 +509,8 @@ namespace custom_modules {
           MPI_Waitall(2, rReq, rStat);
           yakl::timer_stop("halo_exchange_mpi");
         #else
-          auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
-          auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
+          auto halo_send_buf_W_host = halo_send_buf_W.createHostCopy();
+          auto halo_send_buf_E_host = halo_send_buf_E.createHostCopy();
           auto halo_recv_buf_W_host = halo_recv_buf_W.createHostObject();
           auto halo_recv_buf_E_host = halo_recv_buf_E.createHostObject();
           MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
@@ -498,8 +555,8 @@ namespace custom_modules {
           MPI_Waitall(2, rReq, rStat);
           yakl::timer_stop("halo_exchange_mpi");
         #else
-          auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
-          auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
+          auto halo_send_buf_S_host = halo_send_buf_S.createHostCopy();
+          auto halo_send_buf_N_host = halo_send_buf_N.createHostCopy();
           auto halo_recv_buf_S_host = halo_recv_buf_S.createHostObject();
           auto halo_recv_buf_N_host = halo_recv_buf_N.createHostObject();
           MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );

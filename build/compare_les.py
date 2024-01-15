@@ -39,11 +39,11 @@ nx = nc.dimensions["nx"].size
 # double temperature(nz, ny, nx, nens) ;
 
 print("Getting data")
-explicit_u_x = nc.variables["explicit_u_x"][::5,::5,::5,0]
-closure_u_x  = nc.variables["closure_u_x" ][::5,::5,::5,0]
+explicit_u_x = nc.variables["explicit_u_x"][::2,::2,::2,0]
+closure_u_x  = nc.variables["closure_u_x" ][::2,::2,::2,0]
 
 print("Plotting")
-plt.scatter( explicit_u_x.flatten() , closure_u_x.flatten() , s=0.01 )
+plt.scatter( explicit_u_x.flatten() , closure_u_x.flatten() , s=0.00001 )
 plt.xscale("log")
 plt.yscale("log")
 plt.xlabel("Explicitly calculated")
@@ -51,4 +51,18 @@ plt.ylabel("LES Closure")
 print("Saving Figure")
 plt.show()
 #plt.savefig("u_x.jpg")
+
+# fig = plt.figure()
+# ax = fig.add_subplot(projection='3d')
+# ax.scatter( ( explicit_u_x.flatten() - np.min(explicit_u_x) ) / (np.max(explicit_u_x)-np.min(explicit_u_x)) ,
+#             ( tke_x       .flatten() - np.min(tke_x       ) ) / (np.max(tke_x       )-np.min(tke_x       )) ,
+#             ( closure_u_x .flatten() - np.min(closure_u_x ) ) / (np.max(closure_u_x )-np.min(closure_u_x )) ,
+#             s=0.01 )
+# # ax.set_aspect("equal")
+# ax.set_xscale("log")
+# ax.set_zscale("log")
+# ax.set_xlabel('Explicitly Calculated')
+# ax.set_ylabel('TKE')
+# ax.set_zlabel('LES Closure')
+# plt.show()
 

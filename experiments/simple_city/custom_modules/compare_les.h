@@ -27,9 +27,9 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       using yakl::intrinsics::matmul_cr;
+      using yakl::intrinsics::sum;
       using yakl::componentwise::operator-;
       using yakl::componentwise::operator*;
-      using yakl::intrinsics::sum;
       auto nens              = coupler.get_nens();
       auto nx                = coupler.get_nx();    // Proces-local number of cells
       auto ny                = coupler.get_ny();    // Proces-local number of cells
@@ -132,7 +132,7 @@ namespace custom_modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
           for (int ii=0; ii < ord; ii++) { gll_w(ii) = gll(ii); }
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); } // t-velocity
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); } // theta
           reconstruct_gll_values( stencil , gll , s2g );
           for (int ii=0; ii < ord; ii++) { gll_t(ii) = gll(ii); }
           gll_u = gll_u - sum(gll_u)/gll_u.size();
@@ -162,7 +162,7 @@ namespace custom_modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
           for (int jj=0; jj < ord; jj++) { gll_w(jj) = gll(jj); }
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); } // t-velocity
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); } // theta
           reconstruct_gll_values( stencil , gll , s2g );
           for (int jj=0; jj < ord; jj++) { gll_t(jj) = gll(jj); }
           gll_u = gll_u - sum(gll_u)/gll_u.size();
@@ -192,7 +192,7 @@ namespace custom_modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
           for (int kk=0; kk < ord; kk++) { gll_w(kk) = gll(kk); }
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); } // t-velocity
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); } // theta
           reconstruct_gll_values( stencil , gll , s2g );
           for (int kk=0; kk < ord; kk++) { gll_t(kk) = gll(kk); }
           gll_u = gll_u - sum(gll_u)/gll_u.size();
@@ -229,19 +229,6 @@ namespace custom_modules {
 
       halo_boundary_conditions( coupler , uu , uv , uw , ut , vu , vv , vw , vt , wu , wv , ww , wt );
 
-      DEBUG_PRINT_MAIN_AVG(uu)
-      DEBUG_PRINT_MAIN_AVG(uv)
-      DEBUG_PRINT_MAIN_AVG(uw)
-      DEBUG_PRINT_MAIN_AVG(ut)
-      DEBUG_PRINT_MAIN_AVG(vu)
-      DEBUG_PRINT_MAIN_AVG(vv)
-      DEBUG_PRINT_MAIN_AVG(vw)
-      DEBUG_PRINT_MAIN_AVG(vt)
-      DEBUG_PRINT_MAIN_AVG(wu)
-      DEBUG_PRINT_MAIN_AVG(wv)
-      DEBUG_PRINT_MAIN_AVG(ww)
-      DEBUG_PRINT_MAIN_AVG(wt)
-
       real4d explicit_u_x("explicit_u_x",nz,ny,nx+1,nens);
       real4d explicit_v_x("explicit_v_x",nz,ny,nx+1,nens);
       real4d explicit_w_x("explicit_w_x",nz,ny,nx+1,nens);
@@ -266,6 +253,24 @@ namespace custom_modules {
       real4d closure_v_z ("closure_v_z" ,nz+1,ny,nx,nens);
       real4d closure_w_z ("closure_w_z" ,nz+1,ny,nx,nens);
       real4d closure_t_z ("closure_t_z" ,nz+1,ny,nx,nens);
+      real4d tke_x       ("tke_x"       ,nz,ny,nx+1,nens);
+      real4d tke_y       ("tke_y"       ,nz,ny+1,nx,nens);
+      real4d tke_z       ("tke_z"       ,nz+1,ny,nx,nens);
+      real4d density_x   ("density_x"   ,nz,ny,nx+1,nens);
+      real4d density_y   ("density_y"   ,nz,ny+1,nx,nens);
+      real4d density_z   ("density_z"   ,nz+1,ny,nx,nens);
+      real4d uvel_x      ("uvel_x"      ,nz,ny,nx+1,nens);
+      real4d uvel_y      ("uvel_y"      ,nz,ny+1,nx,nens);
+      real4d uvel_z      ("uvel_z"      ,nz+1,ny,nx,nens);
+      real4d vvel_x      ("vvel_x"      ,nz,ny,nx+1,nens);
+      real4d vvel_y      ("vvel_y"      ,nz,ny+1,nx,nens);
+      real4d vvel_z      ("vvel_z"      ,nz+1,ny,nx,nens);
+      real4d wvel_x      ("wvel_x"      ,nz,ny,nx+1,nens);
+      real4d wvel_y      ("wvel_y"      ,nz,ny+1,nx,nens);
+      real4d wvel_z      ("wvel_z"      ,nz+1,ny,nx,nens);
+      real4d theta_x     ("theta_x"     ,nz,ny,nx+1,nens);
+      real4d theta_y     ("theta_y"     ,nz,ny+1,nx,nens);
+      real4d theta_z     ("theta_z"     ,nz+1,ny,nx,nens);
 
       // TODO: Reconstruct fluxes of sum of products and density to compute fluxes
       //       Assume w' is zero at the boundary, so zero flux for terms involving w'
@@ -277,6 +282,13 @@ namespace custom_modules {
           explicit_v_x(k,j,i,iens) = rho*(uv(hs+k,hs+j,hs+i-1,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_x(k,j,i,iens) = rho*(uw(hs+k,hs+j,hs+i-1,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_x(k,j,i,iens) = rho*(ut(hs+k,hs+j,hs+i-1,iens)+ut(hs+k,hs+j,hs+i,iens))/2;
+
+          tke_x    (k,j,i,iens) = (tke  (    hs+k,hs+j,hs+i-1,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
+          density_x(k,j,i,iens) = (state(idR,hs+k,hs+j,hs+i-1,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
+          uvel_x   (k,j,i,iens) = (state(idU,hs+k,hs+j,hs+i-1,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
+          uvel_x   (k,j,i,iens) = (state(idV,hs+k,hs+j,hs+i-1,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
+          wvel_x   (k,j,i,iens) = (state(idW,hs+k,hs+j,hs+i-1,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
+          theta_x  (k,j,i,iens) = (state(idT,hs+k,hs+j,hs+i-1,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
 
           real K     = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -305,6 +317,13 @@ namespace custom_modules {
           explicit_v_y(k,j,i,iens) = rho*(vv(hs+k,hs+j-1,hs+i,iens)+vv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_y(k,j,i,iens) = rho*(vw(hs+k,hs+j-1,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_y(k,j,i,iens) = rho*(vt(hs+k,hs+j-1,hs+i,iens)+vt(hs+k,hs+j,hs+i,iens))/2;
+
+          tke_y    (k,j,i,iens) = (tke  (    hs+k,hs+j-1,hs+i,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
+          density_y(k,j,i,iens) = (state(idR,hs+k,hs+j-1,hs+i,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
+          uvel_y   (k,j,i,iens) = (state(idU,hs+k,hs+j-1,hs+i,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
+          uvel_y   (k,j,i,iens) = (state(idV,hs+k,hs+j-1,hs+i,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
+          wvel_y   (k,j,i,iens) = (state(idW,hs+k,hs+j-1,hs+i,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
+          theta_y  (k,j,i,iens) = (state(idT,hs+k,hs+j-1,hs+i,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
 
           real K     = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -341,6 +360,13 @@ namespace custom_modules {
             explicit_t_z(k,j,i,iens) = 0;
           }
 
+          tke_z    (k,j,i,iens) = (tke  (    hs+k-1,hs+j,hs+i,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
+          density_z(k,j,i,iens) = (state(idR,hs+k-1,hs+j,hs+i,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
+          uvel_z   (k,j,i,iens) = (state(idU,hs+k-1,hs+j,hs+i,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
+          uvel_z   (k,j,i,iens) = (state(idV,hs+k-1,hs+j,hs+i,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
+          wvel_z   (k,j,i,iens) = (state(idW,hs+k-1,hs+j,hs+i,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
+          theta_z  (k,j,i,iens) = (state(idT,hs+k-1,hs+j,hs+i,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
+
           real K     = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
           real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
@@ -374,6 +400,18 @@ namespace custom_modules {
       DEBUG_PRINT_MAIN_AVG(explicit_v_z)
       DEBUG_PRINT_MAIN_AVG(explicit_w_z)
       DEBUG_PRINT_MAIN_AVG(explicit_t_z)
+      DEBUG_PRINT_MAIN_AVG(closure_u_x)
+      DEBUG_PRINT_MAIN_AVG(closure_v_x)
+      DEBUG_PRINT_MAIN_AVG(closure_w_x)
+      DEBUG_PRINT_MAIN_AVG(closure_t_x)
+      DEBUG_PRINT_MAIN_AVG(closure_u_y)
+      DEBUG_PRINT_MAIN_AVG(closure_v_y)
+      DEBUG_PRINT_MAIN_AVG(closure_w_y)
+      DEBUG_PRINT_MAIN_AVG(closure_t_y)
+      DEBUG_PRINT_MAIN_AVG(closure_u_z)
+      DEBUG_PRINT_MAIN_AVG(closure_v_z)
+      DEBUG_PRINT_MAIN_AVG(closure_w_z)
+      DEBUG_PRINT_MAIN_AVG(closure_t_z)
 
       // TODO: change to pnetcdf writes
       yakl::SimplePNetCDF nc;
@@ -414,6 +452,24 @@ namespace custom_modules {
       nc.create_var<real>( "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
       nc.create_var<real>( "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
       nc.create_var<real>( "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "tke_x"        , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "tke_y"        , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "tke_z"        , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "density_x"    , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "density_y"    , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "density_z"    , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "uvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "uvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "uvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "vvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "vvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "vvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "wvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "wvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "wvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "theta_x"      , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "theta_y"      , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "theta_z"      , {"nzp1","ny"  ,"nx"  ,"nens"} );
       nc.enddef();
       
       int constexpr DIR_X = 0;
@@ -454,6 +510,24 @@ namespace custom_modules {
       write_array( closure_v_z  , "closure_v_z"  , DIR_Z );
       write_array( closure_w_z  , "closure_w_z"  , DIR_Z );
       write_array( closure_t_z  , "closure_t_z"  , DIR_Z );
+      write_array( tke_x        , "tke_x"        , DIR_X );
+      write_array( tke_y        , "tke_y"        , DIR_Y );
+      write_array( tke_z        , "tke_z"        , DIR_Z );
+      write_array( density_x    , "density_x"    , DIR_X );
+      write_array( density_y    , "density_y"    , DIR_Y );
+      write_array( density_z    , "density_z"    , DIR_Z );
+      write_array( uvel_x       , "uvel_x"       , DIR_X );
+      write_array( uvel_y       , "uvel_y"       , DIR_Y );
+      write_array( uvel_z       , "uvel_z"       , DIR_Z );
+      write_array( vvel_x       , "vvel_x"       , DIR_X );
+      write_array( vvel_y       , "vvel_y"       , DIR_Y );
+      write_array( vvel_z       , "vvel_z"       , DIR_Z );
+      write_array( wvel_x       , "wvel_x"       , DIR_X );
+      write_array( wvel_y       , "wvel_y"       , DIR_Y );
+      write_array( wvel_z       , "wvel_z"       , DIR_Z );
+      write_array( theta_x      , "theta_x"      , DIR_X );
+      write_array( theta_y      , "theta_y"      , DIR_Y );
+      write_array( theta_z      , "theta_z"      , DIR_Z );
       nc.close();
     }
 

@@ -31,6 +31,14 @@ namespace custom_modules {
       auto nx                = coupler.get_nx();    // Proces-local number of cells
       auto ny                = coupler.get_ny();    // Proces-local number of cells
       auto nz                = coupler.get_nz();    // Total vertical cells
+      auto nx_glob           = coupler.get_nx_glob();
+      auto ny_glob           = coupler.get_ny_glob();
+      auto nproc_x           = coupler.get_nproc_x();
+      auto nproc_y           = coupler.get_nproc_y();
+      auto i_beg             = coupler.get_i_beg  ();
+      auto j_beg             = coupler.get_j_beg  ();
+      auto px                = coupler.get_px();
+      auto py                = coupler.get_py();
       auto dx                = coupler.get_dx();    // grid spacing
       auto dy                = coupler.get_dy();    // grid spacing
       auto dz                = coupler.get_dz();    // grid spacing
@@ -90,194 +98,143 @@ namespace custom_modules {
 
       halo_boundary_conditions( coupler , state , tracers , pressure );
 
-      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idR,0,0,0,0));
-      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idU,0,0,0,0));
-      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idV,0,0,0,0));
-      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idW,0,0,0,0));
-      DEBUG_PRINT_MAIN_AVG(state.slice<4>(idT,0,0,0,0));
-      DEBUG_PRINT_MAIN_AVG(tke);
-      DEBUG_PRINT_MAIN_AVG(pressure);
-
       real4d uu("uu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d uv("uv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d uw("uw",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d ut("ut",nz+2*hs,ny+2*hs,nx+2*hs,nens);
+
+      real4d vu("vu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vv("vv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vw("vw",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vt("vt",nz+2*hs,ny+2*hs,nx+2*hs,nens);
+
+      real4d wu("wu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
+      real4d wv("wv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d ww("ww",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d wt("wt",nz+2*hs,ny+2*hs,nx+2*hs,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil, gll;
-        SArray<real,3,ord,ord,ord> gll_tmp1, gll_tmp2, gll_u, gll_v, gll_w, gll_t;
+        SArray<real,1,ord> gll_u, gll_v, gll_w, gll_t;
         //////////////////
-        // u-velocity
+        // x-direction
         //////////////////
-        // x direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          stencil(ii) = state(idU,k+kk,j+jj,i+ii,iens);
+        {
+          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
+          // u-velocity
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp1(kk,jj,ii) = gll(ii);
-        } } }
-        // y direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int jj=0; jj < ord; jj++) {
-          stencil(jj) = gll_tmp1(kk,jj,ii);
+          for (int ii=0; ii < ord; ii++) { gll_u(ii) = gll(ii);    avg_u += gll(ii); }
+          // v-velocity
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp2(kk,jj,ii) = gll(jj);
-        } } }
-        // z direction
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int kk=0; kk < ord; kk++) {
-          stencil(kk) = gll_tmp2(kk,jj,ii);
+          for (int ii=0; ii < ord; ii++) { gll_v(ii) = gll(ii);    avg_v += gll(ii); }
+          // w-velocity
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values( stencil , gll , s2g );
-          gll_u(kk,jj,ii) = gll(kk);
-        } } }
-        //////////////////
-        // v-velocity
-        //////////////////
-        // x direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          stencil(ii) = state(idV,k+kk,j+jj,i+ii,iens);
+          for (int ii=0; ii < ord; ii++) { gll_w(ii) = gll(ii);    avg_w += gll(ii); }
+          // t-velocity
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
           reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp1(kk,jj,ii) = gll(ii);
-        } } }
-        // y direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int jj=0; jj < ord; jj++) {
-          stencil(jj) = gll_tmp1(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp2(kk,jj,ii) = gll(jj);
-        } } }
-        // z direction
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int kk=0; kk < ord; kk++) {
-          stencil(kk) = gll_tmp2(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_v(kk,jj,ii) = gll(kk);
-        } } }
-        //////////////////
-        // w-velocity
-        //////////////////
-        // x direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          stencil(ii) = state(idW,k+kk,j+jj,i+ii,iens);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp1(kk,jj,ii) = gll(ii);
-        } } }
-        // y direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int jj=0; jj < ord; jj++) {
-          stencil(jj) = gll_tmp1(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp2(kk,jj,ii) = gll(jj);
-        } } }
-        // z direction
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int kk=0; kk < ord; kk++) {
-          stencil(kk) = gll_tmp2(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_w(kk,jj,ii) = gll(kk);
-        } } }
-        //////////////////
-        // theta
-        //////////////////
-        // x direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          stencil(ii) = state(idT,k+kk,j+jj,i+ii,iens);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp1(kk,jj,ii) = gll(ii);
-        } } }
-        // y direction
-        for (int kk=0; kk < ord; kk++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int jj=0; jj < ord; jj++) {
-          stencil(jj) = gll_tmp1(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_tmp2(kk,jj,ii) = gll(jj);
-        } } }
-        // z direction
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-        for (int kk=0; kk < ord; kk++) {
-          stencil(kk) = gll_tmp2(kk,jj,ii);
-          reconstruct_gll_values( stencil , gll , s2g );
-          gll_t(kk,jj,ii) = gll(kk);
-        } } }
-        ///////////////////////////////////////////////////
-        // Remove the means, then compute sum of products
-        ///////////////////////////////////////////////////
-        using yakl::componentwise::operator*;
-        using yakl::componentwise::operator-;
-        using yakl::intrinsics::sum;
-        real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          avg_u += gll_u(kk,jj,ii);
-          avg_v += gll_v(kk,jj,ii);
-          avg_w += gll_w(kk,jj,ii);
-          avg_t += gll_t(kk,jj,ii);
-        } } }
-        avg_u /= gll_u.size();
-        avg_v /= gll_v.size();
-        avg_w /= gll_w.size();
-        avg_t /= gll_t.size();
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          gll_u(kk,jj,ii) -= avg_u;
-          gll_v(kk,jj,ii) -= avg_v;
-          gll_w(kk,jj,ii) -= avg_w;
-          gll_t(kk,jj,ii) -= avg_t;
-        } } }
+          for (int ii=0; ii < ord; ii++) { gll_t(ii) = gll(ii);    avg_t += gll(ii); }
+          for (int ii=0; ii < ord; ii++) {
+            gll_u(ii) -= avg_u/ord;
+            gll_v(ii) -= avg_v/ord;
+            gll_w(ii) -= avg_w/ord;
+            gll_t(ii) -= avg_t/ord;
+          }
+          real tot_uu = 0, tot_uv = 0, tot_uw = 0, tot_ut = 0;
+          for (int ii=0; ii < ord; ii++) {
+            tot_uu += gll_u(ii)*gll_u(ii);
+            tot_uv += gll_u(ii)*gll_v(ii);
+            tot_uw += gll_u(ii)*gll_w(ii);
+            tot_ut += gll_u(ii)*gll_t(ii);
+          }
+          uu(hs+k,hs+j,hs+i,iens) = tot_uu/ord;
+          uv(hs+k,hs+j,hs+i,iens) = tot_uv/ord;
+          uw(hs+k,hs+j,hs+i,iens) = tot_uw/ord;
+          ut(hs+k,hs+j,hs+i,iens) = tot_ut/ord;
+        }
 
-        real avg_uu = 0;
-        real avg_uv = 0;
-        real avg_uw = 0;
-        real avg_ut = 0;
-        real avg_vv = 0;
-        real avg_vw = 0;
-        real avg_vt = 0;
-        real avg_ww = 0;
-        real avg_wt = 0;
-        for (int kk=0; kk < ord; kk++) {
-        for (int jj=0; jj < ord; jj++) {
-        for (int ii=0; ii < ord; ii++) {
-          avg_uu += gll_u(kk,jj,ii)*gll_u(kk,jj,ii);
-          avg_uv += gll_u(kk,jj,ii)*gll_v(kk,jj,ii);
-          avg_uw += gll_u(kk,jj,ii)*gll_w(kk,jj,ii);
-          avg_ut += gll_u(kk,jj,ii)*gll_t(kk,jj,ii);
-          avg_vv += gll_v(kk,jj,ii)*gll_v(kk,jj,ii);
-          avg_vw += gll_v(kk,jj,ii)*gll_w(kk,jj,ii);
-          avg_vt += gll_v(kk,jj,ii)*gll_t(kk,jj,ii);
-          avg_ww += gll_w(kk,jj,ii)*gll_w(kk,jj,ii);
-          avg_wt += gll_w(kk,jj,ii)*gll_t(kk,jj,ii);
-        } } }
-        uu(hs+k,hs+j,hs+i,iens) = avg_uu/gll_u.size();
-        uv(hs+k,hs+j,hs+i,iens) = avg_uv/gll_u.size();
-        uw(hs+k,hs+j,hs+i,iens) = avg_uw/gll_u.size();
-        ut(hs+k,hs+j,hs+i,iens) = avg_ut/gll_u.size();
-        vv(hs+k,hs+j,hs+i,iens) = avg_vv/gll_u.size();
-        vw(hs+k,hs+j,hs+i,iens) = avg_vw/gll_u.size();
-        vt(hs+k,hs+j,hs+i,iens) = avg_vt/gll_u.size();
-        ww(hs+k,hs+j,hs+i,iens) = avg_ww/gll_u.size();
-        wt(hs+k,hs+j,hs+i,iens) = avg_wt/gll_u.size();
+        //////////////////
+        // y-direction
+        //////////////////
+        {
+          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
+          // u-velocity
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int jj=0; jj < ord; jj++) { gll_u(jj) = gll(jj);    avg_u += gll(jj); }
+          // v-velocity
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int jj=0; jj < ord; jj++) { gll_v(jj) = gll(jj);    avg_v += gll(jj); }
+          // w-velocity
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int jj=0; jj < ord; jj++) { gll_w(jj) = gll(jj);    avg_w += gll(jj); }
+          // t-velocity
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int jj=0; jj < ord; jj++) { gll_t(jj) = gll(jj);    avg_t += gll(jj); }
+          for (int jj=0; jj < ord; jj++) {
+            gll_u(jj) -= avg_u/ord;
+            gll_v(jj) -= avg_v/ord;
+            gll_w(jj) -= avg_w/ord;
+            gll_t(jj) -= avg_t/ord;
+          }
+          real tot_vu = 0, tot_vv = 0, tot_vw = 0, tot_vt = 0;
+          for (int jj=0; jj < ord; jj++) {
+            tot_vu += gll_v(jj)*gll_u(jj);
+            tot_vv += gll_v(jj)*gll_v(jj);
+            tot_vw += gll_v(jj)*gll_w(jj);
+            tot_vt += gll_v(jj)*gll_t(jj);
+          }
+          vu(hs+k,hs+j,hs+i,iens) = tot_vu/ord;
+          vv(hs+k,hs+j,hs+i,iens) = tot_vv/ord;
+          vw(hs+k,hs+j,hs+i,iens) = tot_vw/ord;
+          vt(hs+k,hs+j,hs+i,iens) = tot_vt/ord;
+        }
+
+        //////////////////
+        // z-direction
+        //////////////////
+        {
+          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
+          // u-velocity
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int kk=0; kk < ord; kk++) { gll_u(kk) = gll(kk);    avg_u += gll(kk); }
+          // v-velocity
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int kk=0; kk < ord; kk++) { gll_v(kk) = gll(kk);    avg_v += gll(kk); }
+          // w-velocity
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int kk=0; kk < ord; kk++) { gll_w(kk) = gll(kk);    avg_w += gll(kk); }
+          // t-velocity
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
+          reconstruct_gll_values( stencil , gll , s2g );
+          for (int kk=0; kk < ord; kk++) { gll_t(kk) = gll(kk);    avg_t += gll(kk); }
+          for (int kk=0; kk < ord; kk++) {
+            gll_u(kk) -= avg_u/ord;
+            gll_v(kk) -= avg_v/ord;
+            gll_w(kk) -= avg_w/ord;
+            gll_t(kk) -= avg_t/ord;
+          }
+          real tot_wu = 0, tot_wv = 0, tot_ww = 0, tot_wt = 0;
+          for (int kk=0; kk < ord; kk++) {
+            tot_wu += gll_w(kk)*gll_u(kk);
+            tot_wv += gll_w(kk)*gll_v(kk);
+            tot_ww += gll_w(kk)*gll_w(kk);
+            tot_wt += gll_w(kk)*gll_t(kk);
+          }
+          wu(hs+k,hs+j,hs+i,iens) = tot_wu/ord;
+          wv(hs+k,hs+j,hs+i,iens) = tot_wv/ord;
+          ww(hs+k,hs+j,hs+i,iens) = tot_ww/ord;
+          wt(hs+k,hs+j,hs+i,iens) = tot_wt/ord;
+        }
       });
 
       {
@@ -286,25 +243,31 @@ namespace custom_modules {
         fields.add_field(uv);
         fields.add_field(uw);
         fields.add_field(ut);
+        fields.add_field(vu);
         fields.add_field(vv);
         fields.add_field(vw);
         fields.add_field(vt);
+        fields.add_field(wu);
+        fields.add_field(wv);
         fields.add_field(ww);
         fields.add_field(wt);
         if (ord > 1) halo_exchange( coupler , fields );
       }
 
-      halo_boundary_conditions(coupler,uu,uv,uw,ut,vv,vw,vt,ww,wt);
+      halo_boundary_conditions( coupler , uu , uv , uw , ut , vu , vv , vw , vt , wu , wv , ww , wt );
 
-      DEBUG_PRINT_MAIN_AVG(uu);
-      DEBUG_PRINT_MAIN_AVG(uv);
-      DEBUG_PRINT_MAIN_AVG(uw);
-      DEBUG_PRINT_MAIN_AVG(ut);
-      DEBUG_PRINT_MAIN_AVG(vv);
-      DEBUG_PRINT_MAIN_AVG(vw);
-      DEBUG_PRINT_MAIN_AVG(vt);
-      DEBUG_PRINT_MAIN_AVG(ww);
-      DEBUG_PRINT_MAIN_AVG(wt);
+      DEBUG_PRINT_MAIN_AVG(uu)
+      DEBUG_PRINT_MAIN_AVG(uv)
+      DEBUG_PRINT_MAIN_AVG(uw)
+      DEBUG_PRINT_MAIN_AVG(ut)
+      DEBUG_PRINT_MAIN_AVG(vu)
+      DEBUG_PRINT_MAIN_AVG(vv)
+      DEBUG_PRINT_MAIN_AVG(vw)
+      DEBUG_PRINT_MAIN_AVG(vt)
+      DEBUG_PRINT_MAIN_AVG(wu)
+      DEBUG_PRINT_MAIN_AVG(wv)
+      DEBUG_PRINT_MAIN_AVG(ww)
+      DEBUG_PRINT_MAIN_AVG(wt)
 
       real4d explicit_u_x("explicit_u_x",nz,ny,nx+1,nens);
       real4d explicit_v_x("explicit_v_x",nz,ny,nx+1,nens);
@@ -365,7 +328,7 @@ namespace custom_modules {
         }
         if (i < nx && k < nz) {
           real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
-          explicit_u_y(k,j,i,iens) = rho*(uv(hs+k,hs+j-1,hs+i,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
+          explicit_u_y(k,j,i,iens) = rho*(vu(hs+k,hs+j-1,hs+i,iens)+vu(hs+k,hs+j,hs+i,iens))/2;
           explicit_v_y(k,j,i,iens) = rho*(vv(hs+k,hs+j-1,hs+i,iens)+vv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_y(k,j,i,iens) = rho*(vw(hs+k,hs+j-1,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_y(k,j,i,iens) = rho*(vt(hs+k,hs+j-1,hs+i,iens)+vt(hs+k,hs+j,hs+i,iens))/2;
@@ -393,10 +356,17 @@ namespace custom_modules {
         }
         if (i < nx && j < ny) {
           real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
-          explicit_u_z(k,j,i,iens) = rho*(uw(hs+k-1,hs+j,hs+i,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
-          explicit_v_z(k,j,i,iens) = rho*(vw(hs+k-1,hs+j,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
-          explicit_w_z(k,j,i,iens) = rho*(ww(hs+k-1,hs+j,hs+i,iens)+ww(hs+k,hs+j,hs+i,iens))/2;
-          explicit_t_z(k,j,i,iens) = rho*(wt(hs+k-1,hs+j,hs+i,iens)+wt(hs+k,hs+j,hs+i,iens))/2;
+          if (k > 0 && k < nz) {
+            explicit_u_z(k,j,i,iens) = rho*(wu(hs+k-1,hs+j,hs+i,iens)+wu(hs+k,hs+j,hs+i,iens))/2;
+            explicit_v_z(k,j,i,iens) = rho*(wv(hs+k-1,hs+j,hs+i,iens)+wv(hs+k,hs+j,hs+i,iens))/2;
+            explicit_w_z(k,j,i,iens) = rho*(ww(hs+k-1,hs+j,hs+i,iens)+ww(hs+k,hs+j,hs+i,iens))/2;
+            explicit_t_z(k,j,i,iens) = rho*(wt(hs+k-1,hs+j,hs+i,iens)+wt(hs+k,hs+j,hs+i,iens))/2;
+          } else  {
+            explicit_u_z(k,j,i,iens) = 0;
+            explicit_v_z(k,j,i,iens) = 0;
+            explicit_w_z(k,j,i,iens) = 0;
+            explicit_t_z(k,j,i,iens) = 0;
+          }
 
           real K     = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -419,41 +389,99 @@ namespace custom_modules {
         }
       });
 
-      // TODO: change to pnetcdf writes
-      yakl::SimpleNetCDF nc;
-      nc.create("compare_les.nc");
-      nc.write( explicit_u_x                       .createHostCopy() , "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_v_x                       .createHostCopy() , "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_w_x                       .createHostCopy() , "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_t_x                       .createHostCopy() , "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( explicit_u_y                       .createHostCopy() , "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_v_y                       .createHostCopy() , "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_w_y                       .createHostCopy() , "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_t_y                       .createHostCopy() , "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( explicit_u_z                       .createHostCopy() , "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_v_z                       .createHostCopy() , "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_w_z                       .createHostCopy() , "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( explicit_t_z                       .createHostCopy() , "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_u_x                        .createHostCopy() , "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_v_x                        .createHostCopy() , "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_w_x                        .createHostCopy() , "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_t_x                        .createHostCopy() , "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.write( closure_u_y                        .createHostCopy() , "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_v_y                        .createHostCopy() , "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_w_y                        .createHostCopy() , "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_t_y                        .createHostCopy() , "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.write( closure_u_z                        .createHostCopy() , "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_v_z                        .createHostCopy() , "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_w_z                        .createHostCopy() , "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( closure_t_z                        .createHostCopy() , "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("TKE"        ).createHostCopy() , "TKE"          , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("density_dry").createHostCopy() , "density_dry"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("uvel"       ).createHostCopy() , "uvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("vvel"       ).createHostCopy() , "vvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("wvel"       ).createHostCopy() , "wvel"         , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.write( dm.get<real const,4>("temp"       ).createHostCopy() , "temperature"  , {"nz"  ,"ny"  ,"nx"  ,"nens"} );
-      nc.close();
+      DEBUG_PRINT_MAIN_AVG(explicit_u_x)
+      DEBUG_PRINT_MAIN_AVG(explicit_v_x)
+      DEBUG_PRINT_MAIN_AVG(explicit_w_x)
+      DEBUG_PRINT_MAIN_AVG(explicit_t_x)
+      DEBUG_PRINT_MAIN_AVG(explicit_u_y)
+      DEBUG_PRINT_MAIN_AVG(explicit_v_y)
+      DEBUG_PRINT_MAIN_AVG(explicit_w_y)
+      DEBUG_PRINT_MAIN_AVG(explicit_t_y)
+      DEBUG_PRINT_MAIN_AVG(explicit_u_z)
+      DEBUG_PRINT_MAIN_AVG(explicit_v_z)
+      DEBUG_PRINT_MAIN_AVG(explicit_w_z)
+      DEBUG_PRINT_MAIN_AVG(explicit_t_z)
 
+      // TODO: change to pnetcdf writes
+      yakl::SimplePNetCDF nc;
+      MPI_Info info;
+      MPI_Info_create(&info);
+      MPI_Info_set(info, "romio_no_indep_rw",    "true");
+      MPI_Info_set(info, "nc_header_align_size", "1048576");
+      MPI_Info_set(info, "nc_var_align_size",    "1048576");
+      nc.create( "compare_les.nc" , NC_CLOBBER | NC_64BIT_DATA , info );
+      nc.create_dim( "nx"   , nx_glob   );
+      nc.create_dim( "ny"   , ny_glob   );
+      nc.create_dim( "nz"   , nz        );
+      nc.create_dim( "nxp1" , nx_glob+1 );
+      nc.create_dim( "nyp1" , ny_glob+1 );
+      nc.create_dim( "nzp1" , nz     +1 );
+      nc.create_dim( "nens" , nens      );
+      nc.create_var<real>( "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
+      nc.create_var<real>( "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
+      nc.create_var<real>( "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.enddef();
+      
+      int constexpr DIR_X = 0;
+      int constexpr DIR_Y = 1;
+      int constexpr DIR_Z = 2;
+      auto write_array = [&] ( real4d const &array , std::string label , int dir ) {
+        real4d data("data",nz,ny,nx,nens);
+        parallel_for( SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+          data(k,j,i,iens) = array(k,j,i,iens);
+        });
+        std::vector<MPI_Offset> start = {(MPI_Offset)0,(MPI_Offset)j_beg,(MPI_Offset)i_beg,(MPI_Offset)0};
+        if      (dir == DIR_X) { nc.write_all( px < nproc_x-1 ? data.createHostCopy() : array.createHostCopy() , label , start ); }
+        else if (dir == DIR_Y) { nc.write_all( py < nproc_y-1 ? data.createHostCopy() : array.createHostCopy() , label , start ); }
+        else                   { nc.write_all(                                          array.createHostCopy() , label , start ); }
+      };
+
+      write_array( explicit_u_x , "explicit_u_x" , DIR_X );
+      write_array( explicit_v_x , "explicit_v_x" , DIR_X );
+      write_array( explicit_w_x , "explicit_w_x" , DIR_X );
+      write_array( explicit_t_x , "explicit_t_x" , DIR_X );
+      write_array( explicit_u_y , "explicit_u_y" , DIR_Y );
+      write_array( explicit_v_y , "explicit_v_y" , DIR_Y );
+      write_array( explicit_w_y , "explicit_w_y" , DIR_Y );
+      write_array( explicit_t_y , "explicit_t_y" , DIR_Y );
+      write_array( explicit_u_z , "explicit_u_z" , DIR_Z );
+      write_array( explicit_v_z , "explicit_v_z" , DIR_Z );
+      write_array( explicit_w_z , "explicit_w_z" , DIR_Z );
+      write_array( explicit_t_z , "explicit_t_z" , DIR_Z );
+      write_array( closure_u_x  , "closure_u_x"  , DIR_X );
+      write_array( closure_v_x  , "closure_v_x"  , DIR_X );
+      write_array( closure_w_x  , "closure_w_x"  , DIR_X );
+      write_array( closure_t_x  , "closure_t_x"  , DIR_X );
+      write_array( closure_u_y  , "closure_u_y"  , DIR_Y );
+      write_array( closure_v_y  , "closure_v_y"  , DIR_Y );
+      write_array( closure_w_y  , "closure_w_y"  , DIR_Y );
+      write_array( closure_t_y  , "closure_t_y"  , DIR_Y );
+      write_array( closure_u_z  , "closure_u_z"  , DIR_Z );
+      write_array( closure_v_z  , "closure_v_z"  , DIR_Z );
+      write_array( closure_w_z  , "closure_w_z"  , DIR_Z );
+      write_array( closure_t_z  , "closure_t_z"  , DIR_Z );
+      nc.close();
     }
 
 
@@ -627,9 +655,12 @@ namespace custom_modules {
                                    real4d const &uv ,
                                    real4d const &uw ,
                                    real4d const &ut ,
+                                   real4d const &vu ,
                                    real4d const &vv ,
                                    real4d const &vw ,
                                    real4d const &vt ,
+                                   real4d const &wu ,
+                                   real4d const &wv ,
                                    real4d const &ww ,
                                    real4d const &wt ) const {
       using yakl::c::parallel_for;
@@ -645,9 +676,12 @@ namespace custom_modules {
         uv(kk,j,i,iens) = uv(hs,j,i,iens);
         uw(kk,j,i,iens) = 0;
         ut(kk,j,i,iens) = ut(hs,j,i,iens);
+        vu(kk,j,i,iens) = vu(hs,j,i,iens);
         vv(kk,j,i,iens) = vv(hs,j,i,iens);
         vw(kk,j,i,iens) = 0;
         vt(kk,j,i,iens) = vt(hs,j,i,iens);
+        wu(kk,j,i,iens) = 0;
+        wv(kk,j,i,iens) = 0;
         ww(kk,j,i,iens) = 0;
         wt(kk,j,i,iens) = 0;
 
@@ -655,9 +689,12 @@ namespace custom_modules {
         uv(hs+nz+kk,j,i,iens) = uv(hs+nz-1,j,i,iens);
         uw(hs+nz+kk,j,i,iens) = 0;
         ut(hs+nz+kk,j,i,iens) = ut(hs+nz-1,j,i,iens);
+        vu(hs+nz+kk,j,i,iens) = vu(hs+nz-1,j,i,iens);
         vv(hs+nz+kk,j,i,iens) = vv(hs+nz-1,j,i,iens);
         vw(hs+nz+kk,j,i,iens) = 0;
         vt(hs+nz+kk,j,i,iens) = vt(hs+nz-1,j,i,iens);
+        wu(hs+nz+kk,j,i,iens) = 0;
+        wv(hs+nz+kk,j,i,iens) = 0;
         ww(hs+nz+kk,j,i,iens) = 0;
         wt(hs+nz+kk,j,i,iens) = 0;
       });

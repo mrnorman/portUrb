@@ -27,6 +27,9 @@ namespace custom_modules {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       using yakl::intrinsics::matmul_cr;
+      using yakl::componentwise::operator-;
+      using yakl::componentwise::operator*;
+      using yakl::intrinsics::sum;
       auto nens              = coupler.get_nens();
       auto nx                = coupler.get_nx();    // Proces-local number of cells
       auto ny                = coupler.get_ny();    // Proces-local number of cells
@@ -120,120 +123,90 @@ namespace custom_modules {
         // x-direction
         //////////////////
         {
-          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
-          // u-velocity
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); } // u-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_u(ii) = gll(ii);    avg_u += gll(ii); }
-          // v-velocity
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { gll_u(ii) = gll(ii); }
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); } // v-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_v(ii) = gll(ii);    avg_v += gll(ii); }
-          // w-velocity
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { gll_v(ii) = gll(ii); }
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_w(ii) = gll(ii);    avg_w += gll(ii); }
-          // t-velocity
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii < ord; ii++) { gll_w(ii) = gll(ii); }
+          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); } // t-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_t(ii) = gll(ii);    avg_t += gll(ii); }
-          for (int ii=0; ii < ord; ii++) {
-            gll_u(ii) -= avg_u/ord;
-            gll_v(ii) -= avg_v/ord;
-            gll_w(ii) -= avg_w/ord;
-            gll_t(ii) -= avg_t/ord;
-          }
-          real tot_uu = 0, tot_uv = 0, tot_uw = 0, tot_ut = 0;
-          for (int ii=0; ii < ord; ii++) {
-            tot_uu += gll_u(ii)*gll_u(ii);
-            tot_uv += gll_u(ii)*gll_v(ii);
-            tot_uw += gll_u(ii)*gll_w(ii);
-            tot_ut += gll_u(ii)*gll_t(ii);
-          }
-          uu(hs+k,hs+j,hs+i,iens) = tot_uu/ord;
-          uv(hs+k,hs+j,hs+i,iens) = tot_uv/ord;
-          uw(hs+k,hs+j,hs+i,iens) = tot_uw/ord;
-          ut(hs+k,hs+j,hs+i,iens) = tot_ut/ord;
+          for (int ii=0; ii < ord; ii++) { gll_t(ii) = gll(ii); }
+          gll_u = gll_u - sum(gll_u)/gll_u.size();
+          gll_v = gll_v - sum(gll_v)/gll_v.size();
+          gll_w = gll_w - sum(gll_w)/gll_w.size();
+          gll_t = gll_t - sum(gll_t)/gll_t.size();
+          auto gll_uu = gll_u*gll_u;
+          auto gll_uv = gll_u*gll_v;
+          auto gll_uw = gll_u*gll_w;
+          auto gll_ut = gll_u*gll_t;
+          uu(hs+k,hs+j,hs+i,iens) = sum(gll_uu)/gll_uu.size();
+          uv(hs+k,hs+j,hs+i,iens) = sum(gll_uv)/gll_uv.size();
+          uw(hs+k,hs+j,hs+i,iens) = sum(gll_uw)/gll_uw.size();
+          ut(hs+k,hs+j,hs+i,iens) = sum(gll_ut)/gll_ut.size();
         }
 
         //////////////////
         // y-direction
         //////////////////
         {
-          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
-          // u-velocity
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); } // u-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_u(jj) = gll(jj);    avg_u += gll(jj); }
-          // v-velocity
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { gll_u(jj) = gll(jj); }
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); } // v-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_v(jj) = gll(jj);    avg_v += gll(jj); }
-          // w-velocity
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { gll_v(jj) = gll(jj); }
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_w(jj) = gll(jj);    avg_w += gll(jj); }
-          // t-velocity
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj < ord; jj++) { gll_w(jj) = gll(jj); }
+          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); } // t-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_t(jj) = gll(jj);    avg_t += gll(jj); }
-          for (int jj=0; jj < ord; jj++) {
-            gll_u(jj) -= avg_u/ord;
-            gll_v(jj) -= avg_v/ord;
-            gll_w(jj) -= avg_w/ord;
-            gll_t(jj) -= avg_t/ord;
-          }
-          real tot_vu = 0, tot_vv = 0, tot_vw = 0, tot_vt = 0;
-          for (int jj=0; jj < ord; jj++) {
-            tot_vu += gll_v(jj)*gll_u(jj);
-            tot_vv += gll_v(jj)*gll_v(jj);
-            tot_vw += gll_v(jj)*gll_w(jj);
-            tot_vt += gll_v(jj)*gll_t(jj);
-          }
-          vu(hs+k,hs+j,hs+i,iens) = tot_vu/ord;
-          vv(hs+k,hs+j,hs+i,iens) = tot_vv/ord;
-          vw(hs+k,hs+j,hs+i,iens) = tot_vw/ord;
-          vt(hs+k,hs+j,hs+i,iens) = tot_vt/ord;
+          for (int jj=0; jj < ord; jj++) { gll_t(jj) = gll(jj); }
+          gll_u = gll_u - sum(gll_u)/gll_u.size();
+          gll_v = gll_v - sum(gll_v)/gll_v.size();
+          gll_w = gll_w - sum(gll_w)/gll_w.size();
+          gll_t = gll_t - sum(gll_t)/gll_t.size();
+          auto gll_vu = gll_v*gll_u;
+          auto gll_vv = gll_v*gll_v;
+          auto gll_vw = gll_v*gll_w;
+          auto gll_vt = gll_v*gll_t;
+          vu(hs+k,hs+j,hs+i,iens) = sum(gll_vu)/gll_vu.size();
+          vv(hs+k,hs+j,hs+i,iens) = sum(gll_vv)/gll_vv.size();
+          vw(hs+k,hs+j,hs+i,iens) = sum(gll_vw)/gll_vw.size();
+          vt(hs+k,hs+j,hs+i,iens) = sum(gll_vt)/gll_vt.size();
         }
 
         //////////////////
         // z-direction
         //////////////////
         {
-          real avg_u = 0, avg_v = 0, avg_w = 0, avg_t = 0;
-          // u-velocity
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); } // u-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_u(kk) = gll(kk);    avg_u += gll(kk); }
-          // v-velocity
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { gll_u(kk) = gll(kk); }
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); } // v-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_v(kk) = gll(kk);    avg_v += gll(kk); }
-          // w-velocity
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { gll_v(kk) = gll(kk); }
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); } // w-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_w(kk) = gll(kk);    avg_w += gll(kk); }
-          // t-velocity
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk < ord; kk++) { gll_w(kk) = gll(kk); }
+          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); } // t-velocity
           reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_t(kk) = gll(kk);    avg_t += gll(kk); }
-          for (int kk=0; kk < ord; kk++) {
-            gll_u(kk) -= avg_u/ord;
-            gll_v(kk) -= avg_v/ord;
-            gll_w(kk) -= avg_w/ord;
-            gll_t(kk) -= avg_t/ord;
-          }
-          real tot_wu = 0, tot_wv = 0, tot_ww = 0, tot_wt = 0;
-          for (int kk=0; kk < ord; kk++) {
-            tot_wu += gll_w(kk)*gll_u(kk);
-            tot_wv += gll_w(kk)*gll_v(kk);
-            tot_ww += gll_w(kk)*gll_w(kk);
-            tot_wt += gll_w(kk)*gll_t(kk);
-          }
-          wu(hs+k,hs+j,hs+i,iens) = tot_wu/ord;
-          wv(hs+k,hs+j,hs+i,iens) = tot_wv/ord;
-          ww(hs+k,hs+j,hs+i,iens) = tot_ww/ord;
-          wt(hs+k,hs+j,hs+i,iens) = tot_wt/ord;
+          for (int kk=0; kk < ord; kk++) { gll_t(kk) = gll(kk); }
+          gll_u = gll_u - sum(gll_u)/gll_u.size();
+          gll_v = gll_v - sum(gll_v)/gll_v.size();
+          gll_w = gll_w - sum(gll_w)/gll_w.size();
+          gll_t = gll_t - sum(gll_t)/gll_t.size();
+          auto gll_wu = gll_w*gll_u;
+          auto gll_wv = gll_w*gll_v;
+          auto gll_ww = gll_w*gll_w;
+          auto gll_wt = gll_w*gll_t;
+          wu(hs+k,hs+j,hs+i,iens) = sum(gll_wu)/gll_wu.size();
+          wv(hs+k,hs+j,hs+i,iens) = sum(gll_wv)/gll_wv.size();
+          ww(hs+k,hs+j,hs+i,iens) = sum(gll_ww)/gll_ww.size();
+          wt(hs+k,hs+j,hs+i,iens) = sum(gll_wt)/gll_wt.size();
         }
       });
 

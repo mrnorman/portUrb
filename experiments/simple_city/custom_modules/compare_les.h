@@ -105,109 +105,79 @@ namespace custom_modules {
       real4d uv("uv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d uw("uw",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d ut("ut",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-
-      real4d vu("vu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vv("vv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vw("vw",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d vt("vt",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-
-      real4d wu("wu",nz+2*hs,ny+2*hs,nx+2*hs,nens);
-      real4d wv("wv",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d ww("ww",nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real4d wt("wt",nz+2*hs,ny+2*hs,nx+2*hs,nens);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<real,1,ord> stencil, gll;
-        SArray<real,1,ord> gll_u, gll_v, gll_w, gll_t;
-        //////////////////
-        // x-direction
-        //////////////////
-        {
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); } // u-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_u(ii) = gll(ii); }
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); } // v-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_v(ii) = gll(ii); }
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); } // w-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_w(ii) = gll(ii); }
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); } // theta
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int ii=0; ii < ord; ii++) { gll_t(ii) = gll(ii); }
-          gll_u = gll_u - sum(gll_u)/gll_u.size();
-          gll_v = gll_v - sum(gll_v)/gll_v.size();
-          gll_w = gll_w - sum(gll_w)/gll_w.size();
-          gll_t = gll_t - sum(gll_t)/gll_t.size();
-          auto gll_uu = gll_u*gll_u;
-          auto gll_uv = gll_u*gll_v;
-          auto gll_uw = gll_u*gll_w;
-          auto gll_ut = gll_u*gll_t;
-          uu(hs+k,hs+j,hs+i,iens) = sum(gll_uu)/gll_uu.size();
-          uv(hs+k,hs+j,hs+i,iens) = sum(gll_uv)/gll_uv.size();
-          uw(hs+k,hs+j,hs+i,iens) = sum(gll_uw)/gll_uw.size();
-          ut(hs+k,hs+j,hs+i,iens) = sum(gll_ut)/gll_ut.size();
+        SArray<real,3,ord,ord,ord> gll_u, gll_v, gll_w, gll_t;
+        // 3-D reconstruction
+        for (int kk=0; kk < ord; kk++) {
+          for (int jj=0; jj < ord; jj++) {
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); } // u-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int ii=0; ii < ord; ii++) { gll_u(kk,jj,ii) = gll(ii); }
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); } // v-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int ii=0; ii < ord; ii++) { gll_v(kk,jj,ii) = gll(ii); }
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); } // w-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int ii=0; ii < ord; ii++) { gll_w(kk,jj,ii) = gll(ii); }
+            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); } // theta
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int ii=0; ii < ord; ii++) { gll_t(kk,jj,ii) = gll(ii); }
+          }
         }
-
-        //////////////////
-        // y-direction
-        //////////////////
-        {
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); } // u-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_u(jj) = gll(jj); }
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); } // v-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_v(jj) = gll(jj); }
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); } // w-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_w(jj) = gll(jj); }
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); } // theta
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int jj=0; jj < ord; jj++) { gll_t(jj) = gll(jj); }
-          gll_u = gll_u - sum(gll_u)/gll_u.size();
-          gll_v = gll_v - sum(gll_v)/gll_v.size();
-          gll_w = gll_w - sum(gll_w)/gll_w.size();
-          gll_t = gll_t - sum(gll_t)/gll_t.size();
-          auto gll_vu = gll_v*gll_u;
-          auto gll_vv = gll_v*gll_v;
-          auto gll_vw = gll_v*gll_w;
-          auto gll_vt = gll_v*gll_t;
-          vu(hs+k,hs+j,hs+i,iens) = sum(gll_vu)/gll_vu.size();
-          vv(hs+k,hs+j,hs+i,iens) = sum(gll_vv)/gll_vv.size();
-          vw(hs+k,hs+j,hs+i,iens) = sum(gll_vw)/gll_vw.size();
-          vt(hs+k,hs+j,hs+i,iens) = sum(gll_vt)/gll_vt.size();
+        for (int kk=0; kk < ord; kk++) {
+          for (int ii=0; ii < ord; ii++) {
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = gll_u(kk,jj,ii); } // u-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int jj=0; jj < ord; jj++) { gll_u(kk,jj,ii) = gll(jj); }
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = gll_v(kk,jj,ii); } // v-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int jj=0; jj < ord; jj++) { gll_v(kk,jj,ii) = gll(jj); }
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = gll_w(kk,jj,ii); } // w-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int jj=0; jj < ord; jj++) { gll_w(kk,jj,ii) = gll(jj); }
+            for (int jj=0; jj < ord; jj++) { stencil(jj) = gll_t(kk,jj,ii); } // theta
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int jj=0; jj < ord; jj++) { gll_t(kk,jj,ii) = gll(jj); }
+          }
         }
-
-        //////////////////
-        // z-direction
-        //////////////////
-        {
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); } // u-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_u(kk) = gll(kk); }
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); } // v-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_v(kk) = gll(kk); }
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); } // w-velocity
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_w(kk) = gll(kk); }
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); } // theta
-          reconstruct_gll_values( stencil , gll , s2g );
-          for (int kk=0; kk < ord; kk++) { gll_t(kk) = gll(kk); }
-          gll_u = gll_u - sum(gll_u)/gll_u.size();
-          gll_v = gll_v - sum(gll_v)/gll_v.size();
-          gll_w = gll_w - sum(gll_w)/gll_w.size();
-          gll_t = gll_t - sum(gll_t)/gll_t.size();
-          auto gll_wu = gll_w*gll_u;
-          auto gll_wv = gll_w*gll_v;
-          auto gll_ww = gll_w*gll_w;
-          auto gll_wt = gll_w*gll_t;
-          wu(hs+k,hs+j,hs+i,iens) = sum(gll_wu)/gll_wu.size();
-          wv(hs+k,hs+j,hs+i,iens) = sum(gll_wv)/gll_wv.size();
-          ww(hs+k,hs+j,hs+i,iens) = sum(gll_ww)/gll_ww.size();
-          wt(hs+k,hs+j,hs+i,iens) = sum(gll_wt)/gll_wt.size();
+        for (int jj=0; jj < ord; jj++) {
+          for (int ii=0; ii < ord; ii++) {
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = gll_u(kk,jj,ii); } // u-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int kk=0; kk < ord; kk++) { gll_u(kk,jj,ii) = gll(kk); }
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = gll_v(kk,jj,ii); } // v-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int kk=0; kk < ord; kk++) { gll_v(kk,jj,ii) = gll(kk); }
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = gll_w(kk,jj,ii); } // w-velocity
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int kk=0; kk < ord; kk++) { gll_w(kk,jj,ii) = gll(kk); }
+            for (int kk=0; kk < ord; kk++) { stencil(kk) = gll_t(kk,jj,ii); } // theta
+            reconstruct_gll_values( stencil , gll , s2g );
+            for (int kk=0; kk < ord; kk++) { gll_t(kk,jj,ii) = gll(kk); }
+          }
         }
+        // Remove means
+        gll_u = gll_u - sum(gll_u)/gll_u.size();
+        gll_v = gll_v - sum(gll_v)/gll_v.size();
+        gll_w = gll_w - sum(gll_w)/gll_w.size();
+        gll_t = gll_t - sum(gll_t)/gll_t.size();
+        // Store average of products
+        uu(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_u)/gll_u.size();
+        uv(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_v)/gll_u.size();
+        uw(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_w)/gll_u.size();
+        ut(hs+k,hs+j,hs+i,iens) = sum(gll_u*gll_t)/gll_u.size();
+        vv(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_v)/gll_v.size();
+        vw(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_w)/gll_v.size();
+        vt(hs+k,hs+j,hs+i,iens) = sum(gll_v*gll_t)/gll_v.size();
+        ww(hs+k,hs+j,hs+i,iens) = sum(gll_w*gll_w)/gll_w.size();
+        wt(hs+k,hs+j,hs+i,iens) = sum(gll_w*gll_t)/gll_w.size();
       });
 
       {
@@ -216,18 +186,15 @@ namespace custom_modules {
         fields.add_field(uv);
         fields.add_field(uw);
         fields.add_field(ut);
-        fields.add_field(vu);
         fields.add_field(vv);
         fields.add_field(vw);
         fields.add_field(vt);
-        fields.add_field(wu);
-        fields.add_field(wv);
         fields.add_field(ww);
         fields.add_field(wt);
         if (ord > 1) halo_exchange( coupler , fields );
       }
 
-      halo_boundary_conditions( coupler , uu , uv , uw , ut , vu , vv , vw , vt , wu , wv , ww , wt );
+      halo_boundary_conditions( coupler , uu , uv , uw , ut , vv , vw , vt , ww , wt );
 
       real4d explicit_u_x("explicit_u_x",nz,ny,nx+1,nens);
       real4d explicit_v_x("explicit_v_x",nz,ny,nx+1,nens);
@@ -253,24 +220,6 @@ namespace custom_modules {
       real4d closure_v_z ("closure_v_z" ,nz+1,ny,nx,nens);
       real4d closure_w_z ("closure_w_z" ,nz+1,ny,nx,nens);
       real4d closure_t_z ("closure_t_z" ,nz+1,ny,nx,nens);
-      real4d tke_x       ("tke_x"       ,nz,ny,nx+1,nens);
-      real4d tke_y       ("tke_y"       ,nz,ny+1,nx,nens);
-      real4d tke_z       ("tke_z"       ,nz+1,ny,nx,nens);
-      real4d density_x   ("density_x"   ,nz,ny,nx+1,nens);
-      real4d density_y   ("density_y"   ,nz,ny+1,nx,nens);
-      real4d density_z   ("density_z"   ,nz+1,ny,nx,nens);
-      real4d uvel_x      ("uvel_x"      ,nz,ny,nx+1,nens);
-      real4d uvel_y      ("uvel_y"      ,nz,ny+1,nx,nens);
-      real4d uvel_z      ("uvel_z"      ,nz+1,ny,nx,nens);
-      real4d vvel_x      ("vvel_x"      ,nz,ny,nx+1,nens);
-      real4d vvel_y      ("vvel_y"      ,nz,ny+1,nx,nens);
-      real4d vvel_z      ("vvel_z"      ,nz+1,ny,nx,nens);
-      real4d wvel_x      ("wvel_x"      ,nz,ny,nx+1,nens);
-      real4d wvel_y      ("wvel_y"      ,nz,ny+1,nx,nens);
-      real4d wvel_z      ("wvel_z"      ,nz+1,ny,nx,nens);
-      real4d theta_x     ("theta_x"     ,nz,ny,nx+1,nens);
-      real4d theta_y     ("theta_y"     ,nz,ny+1,nx,nens);
-      real4d theta_z     ("theta_z"     ,nz+1,ny,nx,nens);
 
       // TODO: Reconstruct fluxes of sum of products and density to compute fluxes
       //       Assume w' is zero at the boundary, so zero flux for terms involving w'
@@ -282,13 +231,6 @@ namespace custom_modules {
           explicit_v_x(k,j,i,iens) = rho*(uv(hs+k,hs+j,hs+i-1,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_x(k,j,i,iens) = rho*(uw(hs+k,hs+j,hs+i-1,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_x(k,j,i,iens) = rho*(ut(hs+k,hs+j,hs+i-1,iens)+ut(hs+k,hs+j,hs+i,iens))/2;
-
-          tke_x    (k,j,i,iens) = (tke  (    hs+k,hs+j,hs+i-1,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
-          density_x(k,j,i,iens) = (state(idR,hs+k,hs+j,hs+i-1,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
-          uvel_x   (k,j,i,iens) = (state(idU,hs+k,hs+j,hs+i-1,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
-          uvel_x   (k,j,i,iens) = (state(idV,hs+k,hs+j,hs+i-1,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
-          wvel_x   (k,j,i,iens) = (state(idW,hs+k,hs+j,hs+i-1,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
-          theta_x  (k,j,i,iens) = (state(idT,hs+k,hs+j,hs+i-1,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
 
           real K     = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -313,17 +255,10 @@ namespace custom_modules {
         }
         if (i < nx && k < nz) {
           real rho   = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
-          explicit_u_y(k,j,i,iens) = rho*(vu(hs+k,hs+j-1,hs+i,iens)+vu(hs+k,hs+j,hs+i,iens))/2;
+          explicit_u_y(k,j,i,iens) = rho*(uv(hs+k,hs+j-1,hs+i,iens)+uv(hs+k,hs+j,hs+i,iens))/2;
           explicit_v_y(k,j,i,iens) = rho*(vv(hs+k,hs+j-1,hs+i,iens)+vv(hs+k,hs+j,hs+i,iens))/2;
           explicit_w_y(k,j,i,iens) = rho*(vw(hs+k,hs+j-1,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
           explicit_t_y(k,j,i,iens) = rho*(vt(hs+k,hs+j-1,hs+i,iens)+vt(hs+k,hs+j,hs+i,iens))/2;
-
-          tke_y    (k,j,i,iens) = (tke  (    hs+k,hs+j-1,hs+i,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
-          density_y(k,j,i,iens) = (state(idR,hs+k,hs+j-1,hs+i,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
-          uvel_y   (k,j,i,iens) = (state(idU,hs+k,hs+j-1,hs+i,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
-          uvel_y   (k,j,i,iens) = (state(idV,hs+k,hs+j-1,hs+i,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
-          wvel_y   (k,j,i,iens) = (state(idW,hs+k,hs+j-1,hs+i,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
-          theta_y  (k,j,i,iens) = (state(idT,hs+k,hs+j-1,hs+i,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
 
           real K     = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -349,8 +284,8 @@ namespace custom_modules {
         if (i < nx && j < ny) {
           real rho   = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           if (k > 0 && k < nz) {
-            explicit_u_z(k,j,i,iens) = rho*(wu(hs+k-1,hs+j,hs+i,iens)+wu(hs+k,hs+j,hs+i,iens))/2;
-            explicit_v_z(k,j,i,iens) = rho*(wv(hs+k-1,hs+j,hs+i,iens)+wv(hs+k,hs+j,hs+i,iens))/2;
+            explicit_u_z(k,j,i,iens) = rho*(uw(hs+k-1,hs+j,hs+i,iens)+uw(hs+k,hs+j,hs+i,iens))/2;
+            explicit_v_z(k,j,i,iens) = rho*(vw(hs+k-1,hs+j,hs+i,iens)+vw(hs+k,hs+j,hs+i,iens))/2;
             explicit_w_z(k,j,i,iens) = rho*(ww(hs+k-1,hs+j,hs+i,iens)+ww(hs+k,hs+j,hs+i,iens))/2;
             explicit_t_z(k,j,i,iens) = rho*(wt(hs+k-1,hs+j,hs+i,iens)+wt(hs+k,hs+j,hs+i,iens))/2;
           } else  {
@@ -359,13 +294,6 @@ namespace custom_modules {
             explicit_w_z(k,j,i,iens) = 0;
             explicit_t_z(k,j,i,iens) = 0;
           }
-
-          tke_z    (k,j,i,iens) = (tke  (    hs+k-1,hs+j,hs+i,iens)+tke  (    hs+k,hs+j,hs+i,iens))/2;
-          density_z(k,j,i,iens) = (state(idR,hs+k-1,hs+j,hs+i,iens)+state(idR,hs+k,hs+j,hs+i,iens))/2;
-          uvel_z   (k,j,i,iens) = (state(idU,hs+k-1,hs+j,hs+i,iens)+state(idU,hs+k,hs+j,hs+i,iens))/2;
-          uvel_z   (k,j,i,iens) = (state(idV,hs+k-1,hs+j,hs+i,iens)+state(idV,hs+k,hs+j,hs+i,iens))/2;
-          wvel_z   (k,j,i,iens) = (state(idW,hs+k-1,hs+j,hs+i,iens)+state(idW,hs+k,hs+j,hs+i,iens))/2;
-          theta_z  (k,j,i,iens) = (state(idT,hs+k-1,hs+j,hs+i,iens)+state(idT,hs+k,hs+j,hs+i,iens))/2;
 
           real K     = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
           real t     = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i,iens) + state(idT,hs+k,hs+j,hs+i,iens) );
@@ -388,30 +316,83 @@ namespace custom_modules {
         }
       });
 
-      DEBUG_PRINT_MAIN_AVG(explicit_u_x)
-      DEBUG_PRINT_MAIN_AVG(explicit_v_x)
-      DEBUG_PRINT_MAIN_AVG(explicit_w_x)
-      DEBUG_PRINT_MAIN_AVG(explicit_t_x)
-      DEBUG_PRINT_MAIN_AVG(explicit_u_y)
-      DEBUG_PRINT_MAIN_AVG(explicit_v_y)
-      DEBUG_PRINT_MAIN_AVG(explicit_w_y)
-      DEBUG_PRINT_MAIN_AVG(explicit_t_y)
-      DEBUG_PRINT_MAIN_AVG(explicit_u_z)
-      DEBUG_PRINT_MAIN_AVG(explicit_v_z)
-      DEBUG_PRINT_MAIN_AVG(explicit_w_z)
-      DEBUG_PRINT_MAIN_AVG(explicit_t_z)
-      DEBUG_PRINT_MAIN_AVG(closure_u_x)
-      DEBUG_PRINT_MAIN_AVG(closure_v_x)
-      DEBUG_PRINT_MAIN_AVG(closure_w_x)
-      DEBUG_PRINT_MAIN_AVG(closure_t_x)
-      DEBUG_PRINT_MAIN_AVG(closure_u_y)
-      DEBUG_PRINT_MAIN_AVG(closure_v_y)
-      DEBUG_PRINT_MAIN_AVG(closure_w_y)
-      DEBUG_PRINT_MAIN_AVG(closure_t_y)
-      DEBUG_PRINT_MAIN_AVG(closure_u_z)
-      DEBUG_PRINT_MAIN_AVG(closure_v_z)
-      DEBUG_PRINT_MAIN_AVG(closure_w_z)
-      DEBUG_PRINT_MAIN_AVG(closure_t_z)
+      real4d tend_explicit_u_x      ("tend_explicit_u_x"      ,nz,ny,nx,nens);
+      real4d tend_explicit_v_x      ("tend_explicit_v_x"      ,nz,ny,nx,nens);
+      real4d tend_explicit_w_x      ("tend_explicit_w_x"      ,nz,ny,nx,nens);
+      real4d tend_explicit_t_x      ("tend_explicit_t_x"      ,nz,ny,nx,nens);
+      real4d tend_explicit_u_y      ("tend_explicit_u_y"      ,nz,ny,nx,nens);
+      real4d tend_explicit_v_y      ("tend_explicit_v_y"      ,nz,ny,nx,nens);
+      real4d tend_explicit_w_y      ("tend_explicit_w_y"      ,nz,ny,nx,nens);
+      real4d tend_explicit_t_y      ("tend_explicit_t_y"      ,nz,ny,nx,nens);
+      real4d tend_explicit_u_z      ("tend_explicit_u_z"      ,nz,ny,nx,nens);
+      real4d tend_explicit_v_z      ("tend_explicit_v_z"      ,nz,ny,nx,nens);
+      real4d tend_explicit_w_z      ("tend_explicit_w_z"      ,nz,ny,nx,nens);
+      real4d tend_explicit_t_z      ("tend_explicit_t_z"      ,nz,ny,nx,nens);
+      real4d tend_closure_u_x       ("tend_closure_u_x"       ,nz,ny,nx,nens);
+      real4d tend_closure_v_x       ("tend_closure_v_x"       ,nz,ny,nx,nens);
+      real4d tend_closure_w_x       ("tend_closure_w_x"       ,nz,ny,nx,nens);
+      real4d tend_closure_t_x       ("tend_closure_t_x"       ,nz,ny,nx,nens);
+      real4d tend_closure_u_y       ("tend_closure_u_y"       ,nz,ny,nx,nens);
+      real4d tend_closure_v_y       ("tend_closure_v_y"       ,nz,ny,nx,nens);
+      real4d tend_closure_w_y       ("tend_closure_w_y"       ,nz,ny,nx,nens);
+      real4d tend_closure_t_y       ("tend_closure_t_y"       ,nz,ny,nx,nens);
+      real4d tend_closure_u_z       ("tend_closure_u_z"       ,nz,ny,nx,nens);
+      real4d tend_closure_v_z       ("tend_closure_v_z"       ,nz,ny,nx,nens);
+      real4d tend_closure_w_z       ("tend_closure_w_z"       ,nz,ny,nx,nens);
+      real4d tend_closure_t_z       ("tend_closure_t_z"       ,nz,ny,nx,nens);
+      real4d tend_closure_notke_u_x ("tend_closure_notke_u_x" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_v_x ("tend_closure_notke_v_x" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_w_x ("tend_closure_notke_w_x" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_t_x ("tend_closure_notke_t_x" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_u_y ("tend_closure_notke_u_y" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_v_y ("tend_closure_notke_v_y" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_w_y ("tend_closure_notke_w_y" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_t_y ("tend_closure_notke_t_y" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_u_z ("tend_closure_notke_u_z" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_v_z ("tend_closure_notke_v_z" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_w_z ("tend_closure_notke_w_z" ,nz,ny,nx,nens);
+      real4d tend_closure_notke_t_z ("tend_closure_notke_t_z" ,nz,ny,nx,nens);
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+
+        tend_explicit_u_x(k,j,i,iens) = -( explicit_u_x(k,j,i+1,iens) - explicit_u_x(k,j,i,iens) ) / dx;
+        tend_explicit_v_x(k,j,i,iens) = -( explicit_v_x(k,j,i+1,iens) - explicit_v_x(k,j,i,iens) ) / dx;
+        tend_explicit_w_x(k,j,i,iens) = -( explicit_w_x(k,j,i+1,iens) - explicit_w_x(k,j,i,iens) ) / dx;
+        tend_explicit_t_x(k,j,i,iens) = -( explicit_t_x(k,j,i+1,iens) - explicit_t_x(k,j,i,iens) ) / dx;
+        tend_explicit_u_y(k,j,i,iens) = -( explicit_u_y(k,j+1,i,iens) - explicit_u_y(k,j,i,iens) ) / dy;
+        tend_explicit_v_y(k,j,i,iens) = -( explicit_v_y(k,j+1,i,iens) - explicit_v_y(k,j,i,iens) ) / dy;
+        tend_explicit_w_y(k,j,i,iens) = -( explicit_w_y(k,j+1,i,iens) - explicit_w_y(k,j,i,iens) ) / dy;
+        tend_explicit_t_y(k,j,i,iens) = -( explicit_t_y(k,j+1,i,iens) - explicit_t_y(k,j,i,iens) ) / dy;
+        tend_explicit_u_z(k,j,i,iens) = -( explicit_u_z(k+1,j,i,iens) - explicit_u_z(k,j,i,iens) ) / dz;
+        tend_explicit_v_z(k,j,i,iens) = -( explicit_v_z(k+1,j,i,iens) - explicit_v_z(k,j,i,iens) ) / dz;
+        tend_explicit_w_z(k,j,i,iens) = -( explicit_w_z(k+1,j,i,iens) - explicit_w_z(k,j,i,iens) ) / dz;
+        tend_explicit_t_z(k,j,i,iens) = -( explicit_t_z(k+1,j,i,iens) - explicit_t_z(k,j,i,iens) ) / dz;
+        tend_closure_u_x (k,j,i,iens) = -( closure_u_x (k,j,i+1,iens) - closure_u_x (k,j,i,iens) ) / dx;
+        tend_closure_v_x (k,j,i,iens) = -( closure_v_x (k,j,i+1,iens) - closure_v_x (k,j,i,iens) ) / dx;
+        tend_closure_w_x (k,j,i,iens) = -( closure_w_x (k,j,i+1,iens) - closure_w_x (k,j,i,iens) ) / dx;
+        tend_closure_t_x (k,j,i,iens) = -( closure_t_x (k,j,i+1,iens) - closure_t_x (k,j,i,iens) ) / dx;
+        tend_closure_u_y (k,j,i,iens) = -( closure_u_y (k,j+1,i,iens) - closure_u_y (k,j,i,iens) ) / dy;
+        tend_closure_v_y (k,j,i,iens) = -( closure_v_y (k,j+1,i,iens) - closure_v_y (k,j,i,iens) ) / dy;
+        tend_closure_w_y (k,j,i,iens) = -( closure_w_y (k,j+1,i,iens) - closure_w_y (k,j,i,iens) ) / dy;
+        tend_closure_t_y (k,j,i,iens) = -( closure_t_y (k,j+1,i,iens) - closure_t_y (k,j,i,iens) ) / dy;
+        tend_closure_u_z (k,j,i,iens) = -( closure_u_z (k+1,j,i,iens) - closure_u_z (k,j,i,iens) ) / dz;
+        tend_closure_v_z (k,j,i,iens) = -( closure_v_z (k+1,j,i,iens) - closure_v_z (k,j,i,iens) ) / dz;
+        tend_closure_w_z (k,j,i,iens) = -( closure_w_z (k+1,j,i,iens) - closure_w_z (k,j,i,iens) ) / dz;
+        tend_closure_t_z (k,j,i,iens) = -( closure_t_z (k+1,j,i,iens) - closure_t_z (k,j,i,iens) ) / dz;
+        tend_closure_notke_u_x (k,j,i,iens) = -( closure_u_x (k,j,i+1,iens)/std::sqrt(tke(k,j,i+1,iens)) - closure_u_x (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dx;
+        tend_closure_notke_v_x (k,j,i,iens) = -( closure_v_x (k,j,i+1,iens)/std::sqrt(tke(k,j,i+1,iens)) - closure_v_x (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dx;
+        tend_closure_notke_w_x (k,j,i,iens) = -( closure_w_x (k,j,i+1,iens)/std::sqrt(tke(k,j,i+1,iens)) - closure_w_x (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dx;
+        tend_closure_notke_t_x (k,j,i,iens) = -( closure_t_x (k,j,i+1,iens)/std::sqrt(tke(k,j,i+1,iens)) - closure_t_x (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dx;
+        tend_closure_notke_u_y (k,j,i,iens) = -( closure_u_y (k,j+1,i,iens)/std::sqrt(tke(k,j+1,i,iens)) - closure_u_y (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dy;
+        tend_closure_notke_v_y (k,j,i,iens) = -( closure_v_y (k,j+1,i,iens)/std::sqrt(tke(k,j+1,i,iens)) - closure_v_y (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dy;
+        tend_closure_notke_w_y (k,j,i,iens) = -( closure_w_y (k,j+1,i,iens)/std::sqrt(tke(k,j+1,i,iens)) - closure_w_y (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dy;
+        tend_closure_notke_t_y (k,j,i,iens) = -( closure_t_y (k,j+1,i,iens)/std::sqrt(tke(k,j+1,i,iens)) - closure_t_y (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dy;
+        tend_closure_notke_u_z (k,j,i,iens) = -( closure_u_z (k+1,j,i,iens)/std::sqrt(tke(k+1,j,i,iens)) - closure_u_z (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dz;
+        tend_closure_notke_v_z (k,j,i,iens) = -( closure_v_z (k+1,j,i,iens)/std::sqrt(tke(k+1,j,i,iens)) - closure_v_z (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dz;
+        tend_closure_notke_w_z (k,j,i,iens) = -( closure_w_z (k+1,j,i,iens)/std::sqrt(tke(k+1,j,i,iens)) - closure_w_z (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dz;
+        tend_closure_notke_t_z (k,j,i,iens) = -( closure_t_z (k+1,j,i,iens)/std::sqrt(tke(k+1,j,i,iens)) - closure_t_z (k,j,i,iens)/std::sqrt(tke(k,j,i,iens)) ) / dz;
+      });
 
       // TODO: change to pnetcdf writes
       yakl::SimplePNetCDF nc;
@@ -424,110 +405,103 @@ namespace custom_modules {
       nc.create_dim( "nx"   , nx_glob   );
       nc.create_dim( "ny"   , ny_glob   );
       nc.create_dim( "nz"   , nz        );
-      nc.create_dim( "nxp1" , nx_glob+1 );
-      nc.create_dim( "nyp1" , ny_glob+1 );
-      nc.create_dim( "nzp1" , nz     +1 );
       nc.create_dim( "nens" , nens      );
-      nc.create_var<real>( "explicit_u_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "explicit_v_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "explicit_w_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "explicit_t_x" , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "explicit_u_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_v_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_w_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_t_y" , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_u_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_v_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_w_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "explicit_t_z" , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "closure_u_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "closure_v_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "closure_w_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "closure_t_x"  , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "closure_u_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "closure_v_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "closure_w_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "closure_t_y"  , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "closure_u_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "closure_v_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "closure_w_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "closure_t_z"  , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "tke_x"        , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "tke_y"        , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "tke_z"        , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "density_x"    , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "density_y"    , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "density_z"    , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "uvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "uvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "uvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "vvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "vvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "vvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "wvel_x"       , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "wvel_y"       , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "wvel_z"       , {"nzp1","ny"  ,"nx"  ,"nens"} );
-      nc.create_var<real>( "theta_x"      , {"nz"  ,"ny"  ,"nxp1","nens"} );
-      nc.create_var<real>( "theta_y"      , {"nz"  ,"nyp1","nx"  ,"nens"} );
-      nc.create_var<real>( "theta_z"      , {"nzp1","ny"  ,"nx"  ,"nens"} );
+      nc.create_var<real>( "tend_explicit_u_x"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_v_x"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_w_x"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_t_x"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_u_y"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_v_y"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_w_y"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_t_y"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_u_z"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_v_z"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_w_z"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_explicit_t_z"      , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_u_x"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_v_x"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_w_x"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_t_x"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_u_y"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_v_y"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_w_y"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_t_y"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_u_z"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_v_z"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_w_z"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_t_z"       , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_u_x" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_v_x" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_w_x" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_t_x" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_u_y" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_v_y" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_w_y" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_t_y" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_u_z" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_v_z" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_w_z" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tend_closure_notke_t_z" , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "tke"                    , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "density"                , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "uvel"                   , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "vvel"                   , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "wvel"                   , {"nz","ny","nx","nens"} );
+      nc.create_var<real>( "theta"                  , {"nz","ny","nx","nens"} );
       nc.enddef();
+
+      std::vector<MPI_Offset> start = {(MPI_Offset)0,(MPI_Offset)j_beg,(MPI_Offset)i_beg,(MPI_Offset)0};
       
-      int constexpr DIR_X = 0;
-      int constexpr DIR_Y = 1;
-      int constexpr DIR_Z = 2;
-      auto write_array = [&] ( real4d const &array , std::string label , int dir ) {
+      auto write_halo_array = [&] ( real4d const &array , std::string label ) {
         real4d data("data",nz,ny,nx,nens);
         parallel_for( SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          data(k,j,i,iens) = array(k,j,i,iens);
+          data(k,j,i,iens) = array(hs+k,hs+j,hs+i,iens);
         });
-        std::vector<MPI_Offset> start = {(MPI_Offset)0,(MPI_Offset)j_beg,(MPI_Offset)i_beg,(MPI_Offset)0};
-        if      (dir == DIR_X) { nc.write_all( px < nproc_x-1 ? data.createHostCopy() : array.createHostCopy() , label , start ); }
-        else if (dir == DIR_Y) { nc.write_all( py < nproc_y-1 ? data.createHostCopy() : array.createHostCopy() , label , start ); }
-        else                   { nc.write_all(                                          array.createHostCopy() , label , start ); }
+        nc.write_all( data , label , start );
       };
 
-      write_array( explicit_u_x , "explicit_u_x" , DIR_X );
-      write_array( explicit_v_x , "explicit_v_x" , DIR_X );
-      write_array( explicit_w_x , "explicit_w_x" , DIR_X );
-      write_array( explicit_t_x , "explicit_t_x" , DIR_X );
-      write_array( explicit_u_y , "explicit_u_y" , DIR_Y );
-      write_array( explicit_v_y , "explicit_v_y" , DIR_Y );
-      write_array( explicit_w_y , "explicit_w_y" , DIR_Y );
-      write_array( explicit_t_y , "explicit_t_y" , DIR_Y );
-      write_array( explicit_u_z , "explicit_u_z" , DIR_Z );
-      write_array( explicit_v_z , "explicit_v_z" , DIR_Z );
-      write_array( explicit_w_z , "explicit_w_z" , DIR_Z );
-      write_array( explicit_t_z , "explicit_t_z" , DIR_Z );
-      write_array( closure_u_x  , "closure_u_x"  , DIR_X );
-      write_array( closure_v_x  , "closure_v_x"  , DIR_X );
-      write_array( closure_w_x  , "closure_w_x"  , DIR_X );
-      write_array( closure_t_x  , "closure_t_x"  , DIR_X );
-      write_array( closure_u_y  , "closure_u_y"  , DIR_Y );
-      write_array( closure_v_y  , "closure_v_y"  , DIR_Y );
-      write_array( closure_w_y  , "closure_w_y"  , DIR_Y );
-      write_array( closure_t_y  , "closure_t_y"  , DIR_Y );
-      write_array( closure_u_z  , "closure_u_z"  , DIR_Z );
-      write_array( closure_v_z  , "closure_v_z"  , DIR_Z );
-      write_array( closure_w_z  , "closure_w_z"  , DIR_Z );
-      write_array( closure_t_z  , "closure_t_z"  , DIR_Z );
-      write_array( tke_x        , "tke_x"        , DIR_X );
-      write_array( tke_y        , "tke_y"        , DIR_Y );
-      write_array( tke_z        , "tke_z"        , DIR_Z );
-      write_array( density_x    , "density_x"    , DIR_X );
-      write_array( density_y    , "density_y"    , DIR_Y );
-      write_array( density_z    , "density_z"    , DIR_Z );
-      write_array( uvel_x       , "uvel_x"       , DIR_X );
-      write_array( uvel_y       , "uvel_y"       , DIR_Y );
-      write_array( uvel_z       , "uvel_z"       , DIR_Z );
-      write_array( vvel_x       , "vvel_x"       , DIR_X );
-      write_array( vvel_y       , "vvel_y"       , DIR_Y );
-      write_array( vvel_z       , "vvel_z"       , DIR_Z );
-      write_array( wvel_x       , "wvel_x"       , DIR_X );
-      write_array( wvel_y       , "wvel_y"       , DIR_Y );
-      write_array( wvel_z       , "wvel_z"       , DIR_Z );
-      write_array( theta_x      , "theta_x"      , DIR_X );
-      write_array( theta_y      , "theta_y"      , DIR_Y );
-      write_array( theta_z      , "theta_z"      , DIR_Z );
+      nc.write_all( tend_explicit_u_x       , "tend_explicit_u_x"       , start );
+      nc.write_all( tend_explicit_v_x       , "tend_explicit_v_x"       , start );
+      nc.write_all( tend_explicit_w_x       , "tend_explicit_w_x"       , start );
+      nc.write_all( tend_explicit_t_x       , "tend_explicit_t_x"       , start );
+      nc.write_all( tend_explicit_u_y       , "tend_explicit_u_y"       , start );
+      nc.write_all( tend_explicit_v_y       , "tend_explicit_v_y"       , start );
+      nc.write_all( tend_explicit_w_y       , "tend_explicit_w_y"       , start );
+      nc.write_all( tend_explicit_t_y       , "tend_explicit_t_y"       , start );
+      nc.write_all( tend_explicit_u_z       , "tend_explicit_u_z"       , start );
+      nc.write_all( tend_explicit_v_z       , "tend_explicit_v_z"       , start );
+      nc.write_all( tend_explicit_w_z       , "tend_explicit_w_z"       , start );
+      nc.write_all( tend_explicit_t_z       , "tend_explicit_t_z"       , start );
+      nc.write_all( tend_closure_u_x        , "tend_closure_u_x"        , start );
+      nc.write_all( tend_closure_v_x        , "tend_closure_v_x"        , start );
+      nc.write_all( tend_closure_w_x        , "tend_closure_w_x"        , start );
+      nc.write_all( tend_closure_t_x        , "tend_closure_t_x"        , start );
+      nc.write_all( tend_closure_u_y        , "tend_closure_u_y"        , start );
+      nc.write_all( tend_closure_v_y        , "tend_closure_v_y"        , start );
+      nc.write_all( tend_closure_w_y        , "tend_closure_w_y"        , start );
+      nc.write_all( tend_closure_t_y        , "tend_closure_t_y"        , start );
+      nc.write_all( tend_closure_u_z        , "tend_closure_u_z"        , start );
+      nc.write_all( tend_closure_v_z        , "tend_closure_v_z"        , start );
+      nc.write_all( tend_closure_w_z        , "tend_closure_w_z"        , start );
+      nc.write_all( tend_closure_t_z        , "tend_closure_t_z"        , start );
+      nc.write_all( tend_closure_notke_u_x  , "tend_closure_notke_u_x"  , start );
+      nc.write_all( tend_closure_notke_v_x  , "tend_closure_notke_v_x"  , start );
+      nc.write_all( tend_closure_notke_w_x  , "tend_closure_notke_w_x"  , start );
+      nc.write_all( tend_closure_notke_t_x  , "tend_closure_notke_t_x"  , start );
+      nc.write_all( tend_closure_notke_u_y  , "tend_closure_notke_u_y"  , start );
+      nc.write_all( tend_closure_notke_v_y  , "tend_closure_notke_v_y"  , start );
+      nc.write_all( tend_closure_notke_w_y  , "tend_closure_notke_w_y"  , start );
+      nc.write_all( tend_closure_notke_t_y  , "tend_closure_notke_t_y"  , start );
+      nc.write_all( tend_closure_notke_u_z  , "tend_closure_notke_u_z"  , start );
+      nc.write_all( tend_closure_notke_v_z  , "tend_closure_notke_v_z"  , start );
+      nc.write_all( tend_closure_notke_w_z  , "tend_closure_notke_w_z"  , start );
+      nc.write_all( tend_closure_notke_t_z  , "tend_closure_notke_t_z"  , start );
+      write_halo_array( tke                         , "tke"     );
+      write_halo_array( state.slice<4>(idR,0,0,0,0) , "density" );
+      write_halo_array( state.slice<4>(idU,0,0,0,0) , "uvel"    );
+      write_halo_array( state.slice<4>(idV,0,0,0,0) , "vvel"    );
+      write_halo_array( state.slice<4>(idW,0,0,0,0) , "wvel"    );
+      write_halo_array( state.slice<4>(idT,0,0,0,0) , "theta"   );
       nc.close();
     }
 
@@ -702,12 +676,9 @@ namespace custom_modules {
                                    real4d const &uv ,
                                    real4d const &uw ,
                                    real4d const &ut ,
-                                   real4d const &vu ,
                                    real4d const &vv ,
                                    real4d const &vw ,
                                    real4d const &vt ,
-                                   real4d const &wu ,
-                                   real4d const &wv ,
                                    real4d const &ww ,
                                    real4d const &wt ) const {
       using yakl::c::parallel_for;
@@ -723,12 +694,9 @@ namespace custom_modules {
         uv(kk,j,i,iens) = uv(hs,j,i,iens);
         uw(kk,j,i,iens) = 0;
         ut(kk,j,i,iens) = ut(hs,j,i,iens);
-        vu(kk,j,i,iens) = vu(hs,j,i,iens);
         vv(kk,j,i,iens) = vv(hs,j,i,iens);
         vw(kk,j,i,iens) = 0;
         vt(kk,j,i,iens) = vt(hs,j,i,iens);
-        wu(kk,j,i,iens) = 0;
-        wv(kk,j,i,iens) = 0;
         ww(kk,j,i,iens) = 0;
         wt(kk,j,i,iens) = 0;
 
@@ -736,12 +704,9 @@ namespace custom_modules {
         uv(hs+nz+kk,j,i,iens) = uv(hs+nz-1,j,i,iens);
         uw(hs+nz+kk,j,i,iens) = 0;
         ut(hs+nz+kk,j,i,iens) = ut(hs+nz-1,j,i,iens);
-        vu(hs+nz+kk,j,i,iens) = vu(hs+nz-1,j,i,iens);
         vv(hs+nz+kk,j,i,iens) = vv(hs+nz-1,j,i,iens);
         vw(hs+nz+kk,j,i,iens) = 0;
         vt(hs+nz+kk,j,i,iens) = vt(hs+nz-1,j,i,iens);
-        wu(hs+nz+kk,j,i,iens) = 0;
-        wv(hs+nz+kk,j,i,iens) = 0;
         ww(hs+nz+kk,j,i,iens) = 0;
         wt(hs+nz+kk,j,i,iens) = 0;
       });

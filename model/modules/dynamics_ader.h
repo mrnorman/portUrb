@@ -185,43 +185,54 @@ namespace modules {
 
       limiter::WenoLimiter<ord> limiter(0.1,1,2,1,1.e3);
 
+      core::MultiField<real,4> advec_fields;
+      advec_fields.add_field(state.slice<4>(idV,0,0,0,0));
+      advec_fields.add_field(state.slice<4>(idW,0,0,0,0));
+      advec_fields.add_field(state.slice<4>(idT,0,0,0,0));
+      for (int tr=0; tr < num_tracers; tr++) { advec_fields.add_field(tracers.slice<4>(tr,0,0,0,0)); }
+      core::MultiField<real,4> advec_limits_L;
+      advec_limits_L.add_field(state_limits.slice<4>(0,idV,0,0,0,0));
+      advec_limits_L.add_field(state_limits.slice<4>(0,idW,0,0,0,0));
+      advec_limits_L.add_field(state_limits.slice<4>(0,idT,0,0,0,0));
+      for (int tr=0; tr < num_tracers; tr++) { advec_limits_L.add_field(tracers_limits.slice<4>(0,tr,0,0,0,0)); }
+      core::MultiField<real,4> advec_limits_R;
+      advec_limits_R.add_field(state_limits.slice<4>(1,idV,0,0,0,0));
+      advec_limits_R.add_field(state_limits.slice<4>(1,idW,0,0,0,0));
+      advec_limits_R.add_field(state_limits.slice<4>(1,idT,0,0,0,0));
+      for (int tr=0; tr < num_tracers; tr++) { advec_limits_R.add_field(tracers_limits.slice<4>(1,tr,0,0,0,0)); }
+
+      real6d r_dts ("r_dts" ,tord,tord,nz,ny,nx,nens);
+      real6d ru_dts("ru_dts",tord,tord,nz,ny,nx,nens);
+      real6d p_dts ("p_dts" ,tord,tord,nz,ny,nx,nens);
+
       // Compute samples of state and tracers at cell edges using cell-centered reconstructions at high-order with WENO
       // At the end of this, we will have two samples per cell edge in each dimension, one from each adjacent cell.
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real constexpr cs2 = 350*350;
         // State and pressure
-        SArray<real,2,tord,tord> r, ru;
         {
           // Compute GLL points for zeroth-order time derivative
-          SArray<real,2,tord,tord> rv, rw, rt, ruu, ruv, ruw, rut, p;
+          SArray<real,2,tord,tord> ruu;
+          SArray<real,1,tord> gll;
           SArray<real,1,ord> stencil;
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,r ,coefs_to_gll,limiter);
+          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+          for (int ii=0; ii < tord; ii++) { r_dts (0,ii,k,j,i,iens) = gll(ii); }
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,ru,coefs_to_gll,limiter);
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,rv,coefs_to_gll,limiter);
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,rw,coefs_to_gll,limiter);
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
+          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+          for (int ii=0; ii < tord; ii++) { ru_dts(0,ii,k,j,i,iens) = gll(ii); }
           for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure( hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,p ,coefs_to_gll,limiter);
+          reconstruct_gll_values(stencil,gll,coefs_to_gll,limiter);
+          for (int ii=0; ii < tord; ii++) { p_dts (0,ii,k,j,i,iens) = gll(ii); }
           // Compute non-linears for zeroth-order time derivative
           for (int ii=0; ii < tord; ii++) {
-            real r_r = 1._fp / r(0,ii);
-            ruu(0,ii) = ru(0,ii)*ru(0,ii)*r_r;
-            ruv(0,ii) = ru(0,ii)*rv(0,ii)*r_r;
-            ruw(0,ii) = ru(0,ii)*rw(0,ii)*r_r;
-            rut(0,ii) = ru(0,ii)*rt(0,ii)*r_r;
+            real r_r = 1._fp / r_dts(0,ii,k,j,i,iens);
+            ruu(0,ii) = ru_dts(0,ii,k,j,i,iens)*ru_dts(0,ii,k,j,i,iens)*r_r;
           }
           // Initialize non-linears to zero for higher-order time derivatives
           for (int kt=1; kt < tord; kt++) {
             for (int ii=0; ii < tord; ii++) {
               ruu(kt,ii) = 0;
-              ruv(kt,ii) = 0;
-              ruw(kt,ii) = 0;
-              rut(kt,ii) = 0;
             }
           }
           // Compute higher-order time derivatives for state & non-linears
@@ -231,119 +242,88 @@ namespace modules {
             for (int ii=0; ii<tord; ii++) {
               real der_ru    = 0;
               real der_ruu_p = 0;
-              real der_ruv   = 0;
-              real der_ruw   = 0;
-              real der_rut   = 0;
               for (int s=0; s < tord; s++) {
-                der_ru    += g2d2g(s,ii)*(ru (kt,s)          );
-                der_ruu_p += g2d2g(s,ii)*(ruu(kt,s) + p(kt,s));
-                der_ruv   += g2d2g(s,ii)*(ruv(kt,s)          );
-                der_ruw   += g2d2g(s,ii)*(ruw(kt,s)          );
-                der_rut   += g2d2g(s,ii)*(rut(kt,s)          );
+                der_ru    += g2d2g(s,ii)*(ru_dts (kt,s,k,j,i,iens)          );
+                der_ruu_p += g2d2g(s,ii)*(ruu(kt,s) + p_dts(kt,s,k,j,i,iens));
               }
-              r (kt+1,ii) = -der_ru   *r_ktp1;
-              ru(kt+1,ii) = -der_ruu_p*r_ktp1;
-              rv(kt+1,ii) = -der_ruv  *r_ktp1;
-              rw(kt+1,ii) = -der_ruw  *r_ktp1;
-              rt(kt+1,ii) = -der_rut  *r_ktp1;
-              p (kt+1,ii) = -der_ru   *r_ktp1*cs2;
+              r_dts (kt+1,ii,k,j,i,iens) = -der_ru   *r_ktp1;
+              ru_dts(kt+1,ii,k,j,i,iens) = -der_ruu_p*r_ktp1;
+              p_dts (kt+1,ii,k,j,i,iens) = -der_ru   *r_ktp1*cs2;
             }
             // Compute non-linear fluxes based off of new state data
             for (int ii=0; ii < tord; ii++) {
               real tot_ruu = 0;
-              real tot_ruv = 0;
-              real tot_ruw = 0;
-              real tot_rut = 0;
               for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
-                tot_ruu += ru(ind_rt,ii)*ru(kt+1-ind_rt,ii)-r(ind_rt,ii)*ruu(kt+1-ind_rt,ii);
-                tot_ruv += ru(ind_rt,ii)*rv(kt+1-ind_rt,ii)-r(ind_rt,ii)*ruv(kt+1-ind_rt,ii);
-                tot_ruw += ru(ind_rt,ii)*rw(kt+1-ind_rt,ii)-r(ind_rt,ii)*ruw(kt+1-ind_rt,ii);
-                tot_rut += ru(ind_rt,ii)*rt(kt+1-ind_rt,ii)-r(ind_rt,ii)*rut(kt+1-ind_rt,ii);
+                tot_ruu += ru_dts(ind_rt,ii,k,j,i,iens)*ru_dts(kt+1-ind_rt,ii,k,j,i,iens)-r_dts(ind_rt,ii,k,j,i,iens)*ruu(kt+1-ind_rt,ii);
               }
-              real r_r = 1._fp/r(0,ii);
+              real r_r = 1._fp/r_dts(0,ii,k,j,i,iens);
               ruu(kt+1,ii) = tot_ruu * r_r;
-              ruv(kt+1,ii) = tot_ruv * r_r;
-              ruw(kt+1,ii) = tot_ruw * r_r;
-              rut(kt+1,ii) = tot_rut * r_r;
             }
           }
           // Compute time average for all terms except r and ru, which are needed later
           real mult = dt;
+          real r_tavg_0       = r_dts (0,0     ,k,j,i,iens);
+          real ru_tavg_0      = ru_dts(0,0     ,k,j,i,iens);
+          real r_tavg_tordm1  = r_dts (0,tord-1,k,j,i,iens);
+          real ru_tavg_tordm1 = ru_dts(0,tord-1,k,j,i,iens);
           for (int kt=1; kt < tord; kt++) {
             real r_ktp1 = 1._fp/(kt+1);
-            rv(0,0     ) += mult * rv(kt,0     ) * r_ktp1;
-            rw(0,0     ) += mult * rw(kt,0     ) * r_ktp1;
-            rt(0,0     ) += mult * rt(kt,0     ) * r_ktp1;
-            p (0,0     ) += mult * p (kt,0     ) * r_ktp1;
-            rv(0,tord-1) += mult * rv(kt,tord-1) * r_ktp1;
-            rw(0,tord-1) += mult * rw(kt,tord-1) * r_ktp1;
-            rt(0,tord-1) += mult * rt(kt,tord-1) * r_ktp1;
-            p (0,tord-1) += mult * p (kt,tord-1) * r_ktp1;
+            p_dts (0,0     ,k,j,i,iens) += mult * p_dts (kt,0     ,k,j,i,iens) * r_ktp1;
+            r_tavg_0                    += mult * r_dts (kt,0     ,k,j,i,iens) * r_ktp1;
+            ru_tavg_0                   += mult * ru_dts(kt,0     ,k,j,i,iens) * r_ktp1;
+            p_dts (0,tord-1,k,j,i,iens) += mult * p_dts (kt,tord-1,k,j,i,iens) * r_ktp1;
+            r_tavg_tordm1               += mult * r_dts (kt,tord-1,k,j,i,iens) * r_ktp1;
+            ru_tavg_tordm1              += mult * ru_dts(kt,tord-1,k,j,i,iens) * r_ktp1;
             mult *= dt;
           }
-          state_limits   (1,idV,k,j,i  ,iens) = rv(0,0     );
-          state_limits   (1,idW,k,j,i  ,iens) = rw(0,0     );
-          state_limits   (1,idT,k,j,i  ,iens) = rt(0,0     );
-          pressure_limits(1    ,k,j,i  ,iens) = p (0,0     );
-          state_limits   (0,idV,k,j,i+1,iens) = rv(0,tord-1);
-          state_limits   (0,idW,k,j,i+1,iens) = rw(0,tord-1);
-          state_limits   (0,idT,k,j,i+1,iens) = rt(0,tord-1);
-          pressure_limits(0    ,k,j,i+1,iens) = p (0,tord-1);
+          pressure_limits(1    ,k,j,i  ,iens) = p_dts(0,0     ,k,j,i,iens);
+          state_limits   (1,idR,k,j,i  ,iens) = r_tavg_0 ;
+          state_limits   (1,idU,k,j,i  ,iens) = ru_tavg_0;
+          pressure_limits(0    ,k,j,i+1,iens) = p_dts(0,tord-1,k,j,i,iens);
+          state_limits   (0,idR,k,j,i+1,iens) = r_tavg_tordm1 ;
+          state_limits   (0,idU,k,j,i+1,iens) = ru_tavg_tordm1;
         }
-        // Tracers
-        for (int l=0; l < num_tracers; l++) {
-          SArray<real,1,ord> stencil;
-          SArray<real,2,tord,tord> rt, rut;
-          // Compute GLL points for zeroth-order time derivative
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
-          reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
-          // Compute non-linears for zeroth-order time derivative
-          for (int ii=0; ii < tord; ii++) { rut(0,ii) = ru(0,ii)*rt(0,ii)/r(0,ii); }
-          // Initialize non-linears to zero for higher-order time derivatives
-          for (int kt=1; kt < tord; kt++) { for (int ii=0; ii < tord; ii++) { rut(kt,ii) = 0; } }
-          // Compute higher-order time derivatives for state & non-linears
-          for (int kt=0; kt < tord-1; kt++) {
-            real r_ktp1 = 1._fp/(kt+1);
-            // Compute derivative of fluxes to compute next time derivative
-            for (int ii=0; ii<tord; ii++) {
-              real der_rut = 0;
-              for (int s=0; s < tord; s++) { der_rut += g2d2g(s,ii)* rut(kt,s); }
-              rt(kt+1,ii) = -der_rut*r_ktp1;
-            }
-            // Compute non-linear fluxes based off of new state data
-            for (int ii=0; ii < tord; ii++) {
-              real tot_rut = 0;
-              for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
-                tot_rut += ru(ind_rt,ii)*rt(kt+1-ind_rt,ii)-r(ind_rt,ii)*rut(kt+1-ind_rt,ii);
-              }
-              rut(kt+1,ii) = tot_rut / r(0,ii);
-            }
+      });
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(advec_fields.size(),nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        SArray<real,1,ord> stencil;
+        SArray<real,2,tord,tord> rt, rut;
+        // Compute GLL points for zeroth-order time derivative
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = advec_fields(l,hs+k,hs+j,i+ii,iens); }
+        reconstruct_gll_values(stencil,rt,coefs_to_gll,limiter);
+        // Compute non-linears for zeroth-order time derivative
+        for (int ii=0; ii < tord; ii++) { rut(0,ii) = ru_dts(0,ii,k,j,i,iens)*rt(0,ii)/r_dts(0,ii,k,j,i,iens); }
+        // Initialize non-linears to zero for higher-order time derivatives
+        for (int kt=1; kt < tord; kt++) { for (int ii=0; ii < tord; ii++) { rut(kt,ii) = 0; } }
+        // Compute higher-order time derivatives for state & non-linears
+        for (int kt=0; kt < tord-1; kt++) {
+          real r_ktp1 = 1._fp/(kt+1);
+          // Compute derivative of fluxes to compute next time derivative
+          for (int ii=0; ii<tord; ii++) {
+            real der_rut = 0;
+            for (int s=0; s < tord; s++) { der_rut += g2d2g(s,ii)* rut(kt,s); }
+            rt(kt+1,ii) = -der_rut*r_ktp1;
           }
-          // Compute time-average for tracers
-          real mult = dt;
-          for (int kt=1; kt < tord; kt++) {
-            real r_ktp1 = 1._fp/(kt+1);
-            rt(0,0     ) += mult * rt(kt,0     ) * r_ktp1;
-            rt(0,tord-1) += mult * rt(kt,tord-1) * r_ktp1;
-            mult *= dt;
+          // Compute non-linear fluxes based off of new state data
+          for (int ii=0; ii < tord; ii++) {
+            real tot_rut = 0;
+            for (int ind_rt=0; ind_rt <= kt+1; ind_rt++) {
+              tot_rut += ru_dts(ind_rt,ii,k,j,i,iens)*rt(kt+1-ind_rt,ii)-r_dts(ind_rt,ii,k,j,i,iens)*rut(kt+1-ind_rt,ii);
+            }
+            rut(kt+1,ii) = tot_rut / r_dts(0,ii,k,j,i,iens);
           }
-          tracers_limits(1,l,k,j,i  ,iens) = rt(0,0     );
-          tracers_limits(0,l,k,j,i+1,iens) = rt(0,tord-1);
         }
-        // Compute time-average for r and ru
+        // Compute time-average for tracers
         real mult = dt;
         for (int kt=1; kt < tord; kt++) {
           real r_ktp1 = 1._fp/(kt+1);
-          r (0,0     ) += mult * r (kt,0     ) * r_ktp1;
-          ru(0,0     ) += mult * ru(kt,0     ) * r_ktp1;
-          r (0,tord-1) += mult * r (kt,tord-1) * r_ktp1;
-          ru(0,tord-1) += mult * ru(kt,tord-1) * r_ktp1;
+          rt(0,0     ) += mult * rt(kt,0     ) * r_ktp1;
+          rt(0,tord-1) += mult * rt(kt,tord-1) * r_ktp1;
           mult *= dt;
         }
-        state_limits(1,idR,k,j,i  ,iens) = r (0,0     );
-        state_limits(1,idU,k,j,i  ,iens) = ru(0,0     );
-        state_limits(0,idR,k,j,i+1,iens) = r (0,tord-1);
-        state_limits(0,idU,k,j,i+1,iens) = ru(0,tord-1);
+        advec_limits_R(l,k,j,i  ,iens) = rt(0,0     );
+        advec_limits_L(l,k,j,i+1,iens) = rt(0,tord-1);
       });
       
       edge_exchange_x( coupler , state_limits , tracers_limits , pressure_limits );
@@ -965,6 +945,25 @@ namespace modules {
         real tmp = 0;
         for (int s=0; s < ord; s++) { tmp += coefs_to_gll(s,ii) * wenoCoefs(s); }
         gll(0,ii) = tmp;
+      }
+    }
+
+
+
+    // ord stencil cell averages to two GLL point values via high-order reconstruction and WENO limiting
+    template <class LIMITER>
+    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>      const & stencil      ,
+                                                    SArray<real,1,tord>           & gll          ,
+                                                    SArray<real,2,ord,tord> const & coefs_to_gll ,
+                                                    LIMITER                 const & limiter    ) {
+      // Reconstruct values
+      SArray<real,1,ord> wenoCoefs;
+      limiter.compute_limited_coefs( stencil , wenoCoefs );
+      // Transform ord weno coefficients into 2 GLL points
+      for (int ii=0; ii<tord; ii++) {
+        real tmp = 0;
+        for (int s=0; s < ord; s++) { tmp += coefs_to_gll(s,ii) * wenoCoefs(s); }
+        gll(ii) = tmp;
       }
     }
 

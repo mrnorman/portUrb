@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_rk.h"
+#include "dynamics_ader.h"
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
@@ -45,12 +45,14 @@ int main(int argc, char** argv) {
     auto restart_file = config["restart_file"].as<std::string>(""           );
     auto latitude     = config["latitude"    ].as<real       >(0            );
     auto roughness    = config["roughness"   ].as<real       >(0.1          );
+    auto use_weno     = config["use_weno"    ].as<bool       >(true         );
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"   , out_prefix   );
     coupler.set_option<std::string>( "init_data"    , init_data    );
     coupler.set_option<real       >( "out_freq"     , out_freq     );
     coupler.set_option<bool       >( "is_restart"   , is_restart   );
+    coupler.set_option<bool       >( "use_weno"     , use_weno     );
     coupler.set_option<std::string>( "restart_file" , restart_file );
     coupler.set_option<real       >( "latitude"     , latitude     );
     coupler.set_option<real       >( "roughness"    , roughness    );

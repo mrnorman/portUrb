@@ -60,6 +60,72 @@ plt.scatter( explicit , result.slope*explicit + result.intercept , s=0.00001 , c
 # plt.xlim(-20,0)
 plt.show()
 
+
+plt.close()
+print("Getting data")
+explicit = nc.variables["tend_explicit_v_x"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_v_y"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_v_z"][::4,::4,::4,0].flatten()
+closure  = nc.variables["tend_closure_v_x" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_v_y" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_v_z" ][::4,::4,::4,0].flatten()
+tol = 1.e-7
+print("Computing non-trivial indices")
+indices = range(len(explicit))
+filtered_indices = list(filter( lambda i: np.abs(closure[i]) > tol , indices ))
+print("Computing filter, abs, and log")
+explicit = np.log(np.abs(explicit[filtered_indices]))
+closure  = np.log(np.abs(closure [filtered_indices]))
+print("Plotting")
+plt.scatter( explicit , closure , s=0.00001 , c = "blue"  , edgecolors="face" )
+plt.scatter( explicit , result.slope*explicit + result.intercept , s=0.00001 , c = "red"  , edgecolors="face" )
+# plt.xlim(-20,0)
+plt.show()
+
+
+plt.close()
+print("Getting data")
+explicit = nc.variables["tend_explicit_w_x"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_w_y"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_w_z"][::4,::4,::4,0].flatten()
+closure  = nc.variables["tend_closure_w_x" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_w_y" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_w_z" ][::4,::4,::4,0].flatten()
+tol = 1.e-7
+print("Computing non-trivial indices")
+indices = range(len(explicit))
+filtered_indices = list(filter( lambda i: np.abs(closure[i]) > tol , indices ))
+print("Computing filter, abs, and log")
+explicit = np.log(np.abs(explicit[filtered_indices]))
+closure  = np.log(np.abs(closure [filtered_indices]))
+print("Plotting")
+plt.scatter( explicit , closure , s=0.00001 , c = "blue"  , edgecolors="face" )
+plt.scatter( explicit , result.slope*explicit + result.intercept , s=0.00001 , c = "red"  , edgecolors="face" )
+# plt.xlim(-20,0)
+plt.show()
+
+
+plt.close()
+print("Getting data")
+explicit = nc.variables["tend_explicit_t_x"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_t_y"][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_explicit_t_z"][::4,::4,::4,0].flatten()
+closure  = nc.variables["tend_closure_t_x" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_t_y" ][::4,::4,::4,0].flatten() + \
+           nc.variables["tend_closure_t_z" ][::4,::4,::4,0].flatten()
+tol = 1.e-7
+print("Computing non-trivial indices")
+indices = range(len(explicit))
+filtered_indices = list(filter( lambda i: np.abs(closure[i]) > tol , indices ))
+print("Computing filter, abs, and log")
+explicit = np.log(np.abs(explicit[filtered_indices]))
+closure  = np.log(np.abs(closure [filtered_indices]))
+print("Plotting")
+plt.scatter( explicit , closure , s=0.00001 , c = "blue"  , edgecolors="face" )
+plt.scatter( explicit , result.slope*explicit + result.intercept , s=0.00001 , c = "red"  , edgecolors="face" )
+# plt.xlim(-20,0)
+plt.show()
+
 # fig = plt.figure()
 # ax = fig.add_subplot(projection='3d')
 # ax.scatter( ( explicit_u_x.flatten() - np.min(explicit_u_x) ) / (np.max(explicit_u_x)-np.min(explicit_u_x)) ,

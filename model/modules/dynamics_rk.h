@@ -52,7 +52,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 40;
-      real cfl = 2.00;
+      real cfl = 0.45;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
 
@@ -73,7 +73,7 @@ namespace modules {
       real dt_dyn = compute_time_step( coupler );
       int ncycles = (int) std::ceil( dt_phys / dt_dyn );
       dt_dyn = dt_phys / ncycles;
-      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_s_3(coupler,state,tracers,dt_dyn); }
+      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
       convert_dynamics_to_coupler( coupler , state , tracers );
     }
 
@@ -441,19 +441,24 @@ namespace modules {
                                       LIM3               const & lim3     ,
                                       LIM5               const & lim5     ,
                                       SArray<bool,1,5>   const & immersed ,
-                                      bool                       zero_vel ) {
-      if (zero_vel) {
-        if        (immersed(hs-1) || immersed(hs+1)) {
-          SArray<real,1,3> stencil3;
-          for (int i=0; i < 3; i++) { stencil3(i) = stencil(i+1); }
-          reconstruct_gll_values(stencil3,gll,s2g3);
-        } else if (immersed(hs-2) || immersed(hs+2)) {
-          reconstruct_gll_values(stencil ,gll,s2g5);
+                                      bool                       zero_vel ,
+                                      bool                       use_weno ) {
+      if (use_weno) {
+        if (zero_vel) {
+          if        (immersed(hs-1) || immersed(hs+1)) {
+            SArray<real,1,3> stencil3;
+            for (int i=0; i < 3; i++) { stencil3(i) = stencil(i+1); }
+            reconstruct_gll_values(stencil3,gll,s2g3);
+          } else if (immersed(hs-2) || immersed(hs+2)) {
+            reconstruct_gll_values(stencil ,gll,s2g5);
+          } else {
+            reconstruct_gll_values(stencil ,gll,c2g5,lim5);
+          }
         } else {
           reconstruct_gll_values(stencil ,gll,c2g5,lim5);
         }
       } else {
-        reconstruct_gll_values(stencil ,gll,c2g5,lim5);
+        reconstruct_gll_values(stencil,gll,s2g5);
       }
     }
 
@@ -487,6 +492,7 @@ namespace modules {
       auto latitude                  = coupler.get_option<real>("latitude"); // For coriolis
       auto num_tracers               = coupler.get_num_tracers();            // Number of tracers
       auto &dm                       = coupler.get_data_manager_readonly();  // Grab read-only data manager
+      auto use_weno                  = coupler.get_option<bool>("use_weno",true);
       auto tracer_positive           = dm.get<bool const,1>("tracer_positive"          ); // Is a tracer
                                                                                           //   positive-definite?
       auto immersed_proportion_halos = dm.get<real const,4>("immersed_proportion_halos"); // Proportion of immersed
@@ -566,7 +572,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = hy_dens_cells(hs+k,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_x(1,idR,k,j,i  ,iens) = gll(0);
           state_limits_x(0,idR,k,j,i+1,iens) = gll(1);
         }
@@ -574,7 +580,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = hy_dens_cells(hs+k,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_y(1,idR,k,j  ,i,iens) = gll(0);
           state_limits_y(0,idR,k,j+1,i,iens) = gll(1);
         }
@@ -582,7 +588,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = hy_dens_cells(k+kk,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_z(1,idR,k  ,j,i,iens) = gll(0);
           state_limits_z(0,idR,k+1,j,i,iens) = gll(1);
         }
@@ -596,7 +602,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  , use_weno );
           state_limits_x(1,idU,k,j,i  ,iens) = gll(0);
           state_limits_x(0,idU,k,j,i+1,iens) = gll(1);
         }
@@ -604,7 +610,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_y(1,idU,k,j  ,i,iens) = gll(0);
           state_limits_y(0,idU,k,j+1,i,iens) = gll(1);
         }
@@ -612,7 +618,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_z(1,idU,k  ,j,i,iens) = gll(0);
           state_limits_z(0,idU,k+1,j,i,iens) = gll(1);
         }
@@ -626,7 +632,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_x(1,idV,k,j,i  ,iens) = gll(0);
           state_limits_x(0,idV,k,j,i+1,iens) = gll(1);
         }
@@ -634,7 +640,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  , use_weno );
           state_limits_y(1,idV,k,j  ,i,iens) = gll(0);
           state_limits_y(0,idV,k,j+1,i,iens) = gll(1);
         }
@@ -642,7 +648,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_z(1,idV,k  ,j,i,iens) = gll(0);
           state_limits_z(0,idV,k+1,j,i,iens) = gll(1);
         }
@@ -656,7 +662,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_x(1,idW,k,j,i  ,iens) = gll(0);
           state_limits_x(0,idW,k,j,i+1,iens) = gll(1);
         }
@@ -664,7 +670,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_y(1,idW,k,j  ,i,iens) = gll(0);
           state_limits_y(0,idW,k,j+1,i,iens) = gll(1);
         }
@@ -672,7 +678,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , true  , use_weno );
           state_limits_z(1,idW,k  ,j,i,iens) = gll(0);
           state_limits_z(0,idW,k+1,j,i,iens) = gll(1);
         }
@@ -686,7 +692,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idT,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = hy_theta_cells(hs+k,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_x(1,idT,k,j,i  ,iens) = gll(0);
           state_limits_x(0,idT,k,j,i+1,iens) = gll(1);
         }
@@ -694,7 +700,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idT,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = hy_theta_cells(hs+k,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_y(1,idT,k,j  ,i,iens) = gll(0);
           state_limits_y(0,idT,k,j+1,i,iens) = gll(1);
         }
@@ -702,7 +708,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idT,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = hy_theta_cells(k+kk,iens); }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           state_limits_z(1,idT,k  ,j,i,iens) = gll(0);
           state_limits_z(0,idT,k+1,j,i,iens) = gll(1);
         }
@@ -716,7 +722,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = pressure(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           pressure_limits_x(1,k,j,i  ,iens) = gll(0);
           pressure_limits_x(0,k,j,i+1,iens) = gll(1);
         }
@@ -724,7 +730,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = pressure(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           pressure_limits_y(1,k,j  ,i,iens) = gll(0);
           pressure_limits_y(0,k,j+1,i,iens) = gll(1);
         }
@@ -732,7 +738,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = pressure(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           pressure_limits_z(1,k  ,j,i,iens) = gll(0);
           pressure_limits_z(0,k+1,j,i,iens) = gll(1);
         }
@@ -747,7 +753,7 @@ namespace modules {
           for (int ii=0; ii < ord; ii++) { stencil(ii) = tracers(l,hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii < ord; ii++) { if (immersed(ii)) stencil(ii) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           tracers_limits_x(1,l,k,j,i  ,iens) = gll(0);
           tracers_limits_x(0,l,k,j,i+1,iens) = gll(1);
         }
@@ -755,7 +761,7 @@ namespace modules {
           for (int jj=0; jj < ord; jj++) { stencil(jj) = tracers(l,hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj < ord; jj++) { if (immersed(jj)) stencil(jj) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           tracers_limits_y(1,l,k,j  ,i,iens) = gll(0);
           tracers_limits_y(0,l,k,j+1,i,iens) = gll(1);
         }
@@ -763,7 +769,7 @@ namespace modules {
           for (int kk=0; kk < ord; kk++) { stencil(kk) = tracers(l,k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk < ord; kk++) { if (immersed(kk)) stencil(kk) = 0; }
-          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false );
+          do_recon( stencil , gll , s2g3 , s2g5 , c2g3 , c2g5 , lim3 , lim5 , immersed , false , use_weno );
           tracers_limits_z(1,l,k  ,j,i,iens) = gll(0);
           tracers_limits_z(0,l,k+1,j,i,iens) = gll(1);
         }

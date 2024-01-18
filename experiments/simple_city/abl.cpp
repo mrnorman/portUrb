@@ -35,6 +35,7 @@ int main(int argc, char** argv) {
     auto ylen         = config["ylen"        ].as<real       >();
     auto zlen         = config["zlen"        ].as<real       >();
     auto dtphys_in    = config["dt_phys"     ].as<real       >();
+    auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
     auto nens         = config["nens"        ].as<int        >(1            );
@@ -110,7 +111,7 @@ int main(int argc, char** argv) {
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
       // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler); }
+      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 
@@ -155,10 +156,11 @@ int main(int argc, char** argv) {
         auto mpi_data_type = coupler.get_mpi_data_type();
         MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
         if (coupler.is_mainproc()) {
-          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
+          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag , dt: "
                     << std::scientific << std::setw(10) << etime            << " , " 
                     << std::scientific << std::setw(10) << dur_step.count() << " , "
-                    << std::scientific << std::setw(10) << wind_mag         << std::endl;
+                    << std::scientific << std::setw(10) << wind_mag         << " , "
+                    << std::scientific << std::setw(10) << dtphys           << std::endl;
         }
         inform_counter.reset();
       } // End informing user section

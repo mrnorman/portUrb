@@ -829,13 +829,6 @@ namespace modules {
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(ind,tr,k,j,i,iens)*r_rupw;
         }
-        if (k < nz) {
-          state(idU,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-          state(idV,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-          state(idW,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-          state(idT,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
-          for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens); }
-        }
       });
 
       // Compute tendencies as the flux divergence + gravity source term
@@ -843,10 +836,12 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(mx,nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
         if (l < num_state) {
+          if (l != idR) state(l,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           state_tend  (l,k,j,i,iens) = -( state_flux  (l,k+1,j,i,iens) - state_flux  (l,k,j,i,iens) ) * r_dz;
           if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
         }
         if (l < num_tracers) {
+          tracers(l,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k+1,j,i,iens) - tracers_flux(l,k,j,i,iens) ) * r_dz;
         }
       });

@@ -3,7 +3,7 @@
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
 #SBATCH -t 2:00:00
-#SBATCH -N 136
+#SBATCH -N 48
 
 num_nodes=`echo "$SLURM_JOB_NUM_NODES*8" | bc`
 cd /lustre/orion/stf006/scratch/imn/portUrb/build

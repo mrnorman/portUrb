@@ -43,7 +43,7 @@ def spectra(T,nbins,dx = 1) :
 
 
 
-nbins = 1000
+nbins = 3000
 dx = 5
 
 # nc = Dataset("abl_weno/test_00000004.nc", "r")
@@ -62,12 +62,13 @@ dx = 5
 # freq,spd = spectra((u*u+v*v+w*w)/2,nbins,dx)
 # plt.loglog( freq , spd )
 
-nc = Dataset("test_00000016.nc", "r")
+nc = Dataset("test_00000004.nc", "r")
 nz = nc.dimensions["z"].size
-u = nc.variables["uvel"][int(200./700.*nz):int(400./700.*nz),:,:,0]
-v = nc.variables["vvel"][int(200./700.*nz):int(400./700.*nz),:,:,0]
-w = nc.variables["wvel"][int(200./700.*nz):int(400./700.*nz),:,:,0]
-freq,spd = spectra((u*u+v*v+w*w)/2,nbins,dx)
+u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+w = nc.variables["wvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+ke = (u*u+v*v+w*w)/2
+freq,spd = spectra(ke - np.mean(ke),nbins,dx)
 plt.loglog( freq , spd )
 
 # ind1 = next(x for x, val in enumerate(freq) if val > 0.02)

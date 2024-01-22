@@ -3,32 +3,6 @@
 
 namespace limiter {
 
-  template <class T>
-  YAKL_INLINE void convexify(T & w1, T & w2, T & w3) {
-    T tot = w1 + w2 + w3;
-    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot; }
-  }
-
-
-  template <class T>
-  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4) {
-    T tot = w1 + w2 + w3 + w4;
-    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot; }
-  }
-
-
-  template <class T>
-  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4, T & w5) {
-    T tot = w1 + w2 + w3 + w4 + w5;
-    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot; }
-  }
-
-
-  template <class T>
-  YAKL_INLINE void convexify(T & w1, T & w2, T & w3, T & w4, T & w5, T & w6) {
-    T tot = w1 + w2 + w3 + w4 + w5 + w6;
-    if (tot > static_cast<T>(1.e-20)) { w1 /= tot;   w2 /= tot;   w3 /= tot;   w4 /= tot;   w5 /= tot;   w6 /= tot; }
-  }
 
 
   YAKL_INLINE real TV(SArray<real,1,2> &a) {

@@ -4,7 +4,7 @@
 def c_scalar(retlab,val,coeflab) :
     import re
     code = ""
-    s = retlab+"="
+    s = retlab+" = "
     #Remove spaces
     s = s+str(val).replace(' ','')
     #Replace squares with multiplication
@@ -24,7 +24,7 @@ def c_scalar(retlab,val,coeflab) :
 def c_scalar_float(retlab,val,coeflab) :
     import re
     code = ""
-    s = retlab+"="
+    s = retlab+" = "
     #Remove spaces
     s = s+str(val).replace(' ','')
     #Replace squares with multiplication
@@ -47,7 +47,7 @@ def c_vector(retlab,N,vec,coeflab) :
     import re
     code = ""
     for i in range(N) :
-        s = retlab+"("+str(i)+")="
+        s = retlab+"("+str(i)+") = "
         s = s+str(vec[i]).replace(' ','')
         s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
         s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
@@ -63,7 +63,7 @@ def c_matrix(retlab,M,N,mat,coeflab) :
     code = ""
     for j in range(N) :
         for i in range(M) :
-            s = retlab+"("+str(j)+","+str(i)+")="
+            s = retlab+"("+str(j)+","+str(i)+") = "
             s = s+str(mat[i,j]).replace(' ','')
             s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
             s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
@@ -80,7 +80,7 @@ def c_3d(retlab,N1,N2,N3,mat,coeflab) :
     for k in range(N3) :
         for j in range(N2) :
             for i in range(N1) :
-                s = retlab+"("+str(k)+","+str(j)+","+str(i)+")="
+                s = retlab+"("+str(k)+","+str(j)+","+str(i)+") = "
                 s = s+str(mat[k][j][i]).replace(' ','')
                 s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
                 s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
@@ -96,7 +96,7 @@ def c_matrix_aoa(retlab,N1,N2,mat,coeflab) :
     code = ""
     for j in range(N2) :
         for i in range(N1) :
-            s = retlab+"("+str(j)+","+str(i)+")="
+            s = retlab+"("+str(j)+","+str(i)+") = "
             s = s+str(mat[j][i]).replace(' ','')
             s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
             s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)

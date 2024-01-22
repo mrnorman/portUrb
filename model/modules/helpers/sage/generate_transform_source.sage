@@ -46,10 +46,10 @@ for N in range(N1,N2+1) :
     print(add_spaces(4,c_matrix('rslt',N,N,force_fp(c2d,129),'none')))
     print('  }\n');
 
-    print('  template <class FP> YAKL_INLINE FP coefs_to_tv(SArray<FP,1,%s> &a) {'%(N))
+    print('  template <class FP> YAKL_INLINE float coefs_to_tv(SArray<FP,1,%s> &a) {'%(N))
     print('    FP rslt;')
     rslt = coefs_to_TV(N)
-    print(add_spaces(4,c_scalar('rslt',force_fp(rslt,129),'a')))
+    print(add_spaces(4,c_scalar_float('rslt',force_fp(rslt,129),'a')))
     print('    return rslt;')
     print('  }\n');
 

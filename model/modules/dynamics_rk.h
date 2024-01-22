@@ -366,6 +366,10 @@ namespace modules {
       real r_dz = 1./dz; // reciprocal of grid spacing
       real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens); // Holds pressure perturbation
       real fcor = 2*7.2921e-5*std::sin(latitude/180*M_PI);      // For coriolis: 2*Omega*sin(latitude)
+      SArray<real,3,2,2,2> weno_recon_3;
+      SArray<real,3,3,3,3> weno_recon_ord;
+      TransformMatrices::weno_lower_sten_to_coefs(weno_recon_3);
+      TransformMatrices::weno_lower_sten_to_coefs(weno_recon_ord);
 
       // Compute pressure perturbation. Divide rho*u, rho*v, rho*w, rho*theta, rho*tracer by density to get
       //   velocities, theta, and tracer concentrations to make boundary conditions easier to implement.

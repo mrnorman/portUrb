@@ -8,7 +8,7 @@ N2 = 9
 
 print('#pragma once')
 
-print('#include "awfl_const.h"')
+print('#include "main_header.h"')
 print('#include <math.h>')
 print('using yakl::SArray;\n')
 

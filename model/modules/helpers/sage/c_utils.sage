@@ -8,13 +8,13 @@ def c_scalar(retlab,val,coeflab) :
     #Remove spaces
     s = s+str(val).replace(' ','')
     #Replace squares with multiplication
-    s = re.sub("([a-zA-Z()0-9_]*)\^2","(\\1*\\1)",s,0,re.DOTALL)
+    s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
     #Replace exponentials with power functions
-    s = re.sub("([a-zA-Z()0-9_]*)\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
+    s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
     #Replace coeficients (e.g., c1) with parentheses (e.g., c(1))
     s = re.sub(coeflab+"([0-9]+)",coeflab+"(\\1)",s, 0, re.DOTALL)
     #Add _fp suffixes to floating point numbers
-    s = re.sub("([0-9]*\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
+    s = re.sub("([0-9]*\\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
     #Add new line to the end.
     code = code + s + ";\n"
     return code
@@ -27,10 +27,10 @@ def c_vector(retlab,N,vec,coeflab) :
     for i in range(N) :
         s = retlab+"("+str(i)+")="
         s = s+str(vec[i]).replace(' ','')
-        s = re.sub("([a-zA-Z()0-9_]*)\^2","(\\1*\\1)",s,0,re.DOTALL)
-        s = re.sub("([a-zA-Z()0-9_]*)\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
+        s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
+        s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
         s = re.sub(coeflab+"([0-9]+)",coeflab+"(\\1)",s, 0, re.DOTALL)
-        s = re.sub("([0-9]*\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
+        s = re.sub("([0-9]*\\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
         code = code + s + ";\n"
     return code
 
@@ -43,10 +43,10 @@ def c_matrix(retlab,M,N,mat,coeflab) :
         for i in range(M) :
             s = retlab+"("+str(j)+","+str(i)+")="
             s = s+str(mat[i,j]).replace(' ','')
-            s = re.sub("([a-zA-Z()0-9_]*)\^2","(\\1*\\1)",s,0,re.DOTALL)
-            s = re.sub("([a-zA-Z()0-9_]*)\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
+            s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
+            s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
             s = re.sub(coeflab+"([0-9]+)",coeflab+"(\\1)",s, 0, re.DOTALL)
-            s = re.sub("([0-9]*\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
+            s = re.sub("([0-9]*\\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
             code = code + s + ";\n"
     return code
 
@@ -60,10 +60,10 @@ def c_3d(retlab,N1,N2,N3,mat,coeflab) :
             for i in range(N1) :
                 s = retlab+"("+str(k)+","+str(j)+","+str(i)+")="
                 s = s+str(mat[k][j][i]).replace(' ','')
-                s = re.sub("([a-zA-Z()0-9_]*)\^2","(\\1*\\1)",s,0,re.DOTALL)
-                s = re.sub("([a-zA-Z()0-9_]*)\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
+                s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
+                s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
                 s = re.sub(coeflab+"([0-9]+)",coeflab+"(\\1)",s, 0, re.DOTALL)
-                s = re.sub("([0-9]*\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
+                s = re.sub("([0-9]*\\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
                 code = code + s + ";\n"
     return code
 
@@ -76,10 +76,10 @@ def c_matrix_aoa(retlab,N1,N2,mat,coeflab) :
         for i in range(N1) :
             s = retlab+"("+str(j)+","+str(i)+")="
             s = s+str(mat[j][i]).replace(' ','')
-            s = re.sub("([a-zA-Z()0-9_]*)\^2","(\\1*\\1)",s,0,re.DOTALL)
-            s = re.sub("([a-zA-Z()0-9_]*)\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
+            s = re.sub("([a-zA-Z()0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
+            s = re.sub("([a-zA-Z()0-9_]*)\\^([0-9]*)","pow((double)\\1,(double)\\2)",s,0,re.DOTALL)
             s = re.sub(coeflab+"([0-9]+)",coeflab+"(\\1)",s, 0, re.DOTALL)
-            s = re.sub("([0-9]*\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
+            s = re.sub("([0-9]*\\.[0-9e-]*)","\\1_fp",s, 0, re.DOTALL)
             code = code + s + ";\n"
     return code
 

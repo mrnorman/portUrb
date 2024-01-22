@@ -142,7 +142,7 @@ def coefs_to_TV(N) :
     hs = (N-1)/2
     coefs = coefs_1d(N,0,'a')
     p = poly_1d(N,coefs,x)
-    TV = sum( vector([ integrate_poly(N, np.abs(p.diff(x,i)) ,x,-1/2,1/2) for i in range(1,N)]) )
+    TV = sum( vector([ integrate_poly(N, p.diff(x,i)^2 ,x,-1/2,1/2) for i in range(1,N)]) )
     return TV
 
 

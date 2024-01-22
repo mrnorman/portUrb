@@ -171,11 +171,13 @@ namespace modules {
         pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(rt,gamma) - hy_pressure_cells(hs+k,iens);
       });
 
-      core::MultiField<real,4> fields;
-      for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
-      for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
-      fields.add_field( pressure );
-      if (ord > 1) halo_exchange_x( coupler , fields );
+      {
+        core::MultiField<real,4> fields;
+        for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
+        for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
+        fields.add_field( pressure );
+        if (ord > 1) halo_exchange_x( coupler , fields );
+      }
 
       real6d state_limits   ("state_limits"   ,2,num_state  ,nz,ny,nx+1,nens);
       real6d tracers_limits ("tracers_limits" ,2,num_tracers,nz,ny,nx+1,nens);
@@ -188,11 +190,13 @@ namespace modules {
       advec_fields.add_field(state.slice<4>(idW,0,0,0,0));
       advec_fields.add_field(state.slice<4>(idT,0,0,0,0));
       for (int tr=0; tr < num_tracers; tr++) { advec_fields.add_field(tracers.slice<4>(tr,0,0,0,0)); }
+
       core::MultiField<real,4> advec_limits_L;
       advec_limits_L.add_field(state_limits.slice<4>(0,idV,0,0,0,0));
       advec_limits_L.add_field(state_limits.slice<4>(0,idW,0,0,0,0));
       advec_limits_L.add_field(state_limits.slice<4>(0,idT,0,0,0,0));
       for (int tr=0; tr < num_tracers; tr++) { advec_limits_L.add_field(tracers_limits.slice<4>(0,tr,0,0,0,0)); }
+
       core::MultiField<real,4> advec_limits_R;
       advec_limits_R.add_field(state_limits.slice<4>(1,idV,0,0,0,0));
       advec_limits_R.add_field(state_limits.slice<4>(1,idW,0,0,0,0));
@@ -627,11 +631,13 @@ namespace modules {
       advec_fields.add_field(state.slice<4>(idV,0,0,0,0));
       advec_fields.add_field(state.slice<4>(idT,0,0,0,0));
       for (int tr=0; tr < num_tracers; tr++) { advec_fields.add_field(tracers.slice<4>(tr,0,0,0,0)); }
+
       core::MultiField<real,4> advec_limits_L;
       advec_limits_L.add_field(state_limits.slice<4>(0,idU,0,0,0,0));
       advec_limits_L.add_field(state_limits.slice<4>(0,idV,0,0,0,0));
       advec_limits_L.add_field(state_limits.slice<4>(0,idT,0,0,0,0));
       for (int tr=0; tr < num_tracers; tr++) { advec_limits_L.add_field(tracers_limits.slice<4>(0,tr,0,0,0,0)); }
+
       core::MultiField<real,4> advec_limits_R;
       advec_limits_R.add_field(state_limits.slice<4>(1,idU,0,0,0,0));
       advec_limits_R.add_field(state_limits.slice<4>(1,idV,0,0,0,0));
@@ -775,6 +781,14 @@ namespace modules {
         for (int tr=0; tr < num_tracers; tr++) {
           tracers_flux(tr,k,j,i,iens) = rw_upw*tracers_limits(ind,tr,k,j,i,iens)*r_rupw;
         }
+        if (k < nz) {
+          real dens = state(idR,hs+k,hs+j,hs+i,iens);
+          state(idU,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idV,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idW,hs+k,hs+j,hs+i,iens) *= dens;
+          state(idT,hs+k,hs+j,hs+i,iens) *= dens;
+          for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i,iens) *= dens; }
+        }
       });
 
       // Compute tendencies as the flux divergence + gravity source term
@@ -782,12 +796,10 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(mx,nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
         if (l < num_state) {
-          if (l != idR) state(l,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           state_tend  (l,k,j,i,iens) = -( state_flux  (l,k+1,j,i,iens) - state_flux  (l,k,j,i,iens) ) * r_dz;
           if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
         }
         if (l < num_tracers) {
-          tracers(l,hs+k,hs+j,hs+i,iens) *= state(idR,hs+k,hs+j,hs+i,iens);
           tracers_tend(l,k,j,i,iens) = -( tracers_flux(l,k+1,j,i,iens) - tracers_flux(l,k,j,i,iens) ) * r_dz;
         }
       });

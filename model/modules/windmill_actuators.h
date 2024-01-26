@@ -102,11 +102,13 @@ namespace modules {
       auto tend_v   = vvel.createDeviceObject();
       auto tend_w   = wvel.createDeviceObject();
       auto tend_tke = tke .createDeviceObject();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
         real r     = rho_d(k,j,i,iens);
         real u     = uvel (k,j,i,iens);
         real v     = vvel (k,j,i,iens);
-        real w     = vvel (k,j,i,iens);
+        real w     = wvel (k,j,i,iens);
         real mag   = std::sqrt(u*u + v*v + w*w);
         real C_T   = 0.80;
         real C_P   = 0.60;
@@ -122,6 +124,8 @@ namespace modules {
         tend_w  (k,j,i,iens) = -0.5_fp  *C_T  *mag0*w0       *windmill_prop(k,j,i,iens);
         tend_tke(k,j,i,iens) =  0.5_fp*r*C_TKE*mag0*mag0*mag0*windmill_prop(k,j,i,iens);
       });
+
+
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         uvel(k,j,i,iens) += dt * tend_u  (k,j,i,iens);
         vvel(k,j,i,iens) += dt * tend_v  (k,j,i,iens);

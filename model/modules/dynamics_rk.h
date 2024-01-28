@@ -308,9 +308,30 @@ namespace modules {
         halo_boundary_conditions( coupler , state , tracers , pressure );
       }
 
-      typedef limiter::WenoLimiter<ord> Limiter;
+      // typedef limiter::WenoLimiter<ord> Limiter;
+
+      struct Limiter {
+        struct Params { };
+        Params params;
+        void set_params() { }
+        typedef SArray<real,1,1> Weights;
+        YAKL_INLINE static void compute_limited_coefs( SArray<real,1,5> const &s         ,
+                                                       SArray<real,1,5>       &coefs_H   ,
+                                                       Params           const &params_in ) {
+          TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+        }
+        YAKL_INLINE static void compute_limited_weights( SArray<float,1,5> const &s         ,
+                                                         Weights                 &weights   ,
+                                                         Params            const &params_in ) { }
+        YAKL_INLINE static void apply_limited_weights( SArray<real ,1,5> const &s       ,
+                                                       Weights           const &weights ,
+                                                       SArray<real ,1,5>       &coefs_H ) {
+          TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+        }
+      };
+
       Limiter lim;
-      lim.set_params(0.0,1,2,1,1.e3);
+      lim.set_params();
       auto lim_params = lim.params;
 
       real6d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1,nens);
@@ -359,25 +380,16 @@ namespace modules {
           }
           if (l==idV || l==idW) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int ii=0; ii<2; ii++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+          state_limits_x(1,l,k,j,i  ,iens) = 0;
+          state_limits_x(0,l,k,j,i+1,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            state_limits_x(1,l,k,j,i  ,iens) += mult1 * weno_coefs(s);
+            state_limits_x(0,l,k,j,i+1,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          state_limits_x(1,l,k,j,i  ,iens) = gll(0);
-          state_limits_x(0,l,k,j,i+1,iens) = gll(1);
-
-          // state_limits_x(1,l,k,j,i  ,iens) = 0;
-          // state_limits_x(0,l,k,j,i+1,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   state_limits_x(1,l,k,j,i  ,iens) += mult1 * weno_coefs(s);
-          //   state_limits_x(0,l,k,j,i+1,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -388,25 +400,16 @@ namespace modules {
           for (int ii=0; ii<ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int ii=0; ii<2; ii++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+          pressure_limits_x(1,k,j,i  ,iens) = 0;
+          pressure_limits_x(0,k,j,i+1,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            pressure_limits_x(1,k,j,i  ,iens) += mult1 * weno_coefs(s);
+            pressure_limits_x(0,k,j,i+1,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          pressure_limits_x(1,k,j,i  ,iens) = gll(0);
-          pressure_limits_x(0,k,j,i+1,iens) = gll(1);
-
-          // pressure_limits_x(1,k,j,i  ,iens) = 0;
-          // pressure_limits_x(0,k,j,i+1,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   pressure_limits_x(1,k,j,i  ,iens) += mult1 * weno_coefs(s);
-          //   pressure_limits_x(0,k,j,i+1,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
       });
 
@@ -446,25 +449,16 @@ namespace modules {
           }
           if (l==idU || l==idW) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int jj=0; jj<2; jj++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,jj) * weno_coefs(s); }
-            gll(jj) = tmp;
+          state_limits_y(1,l,k,j  ,i,iens) = 0;
+          state_limits_y(0,l,k,j+1,i,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            state_limits_y(1,l,k,j  ,i,iens) += mult1 * weno_coefs(s);
+            state_limits_y(0,l,k,j+1,i,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          state_limits_y(1,l,k,j  ,i,iens) = gll(0);
-          state_limits_y(0,l,k,j+1,i,iens) = gll(1);
-
-          // state_limits_y(1,l,k,j  ,i,iens) = 0;
-          // state_limits_y(0,l,k,j+1,i,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   state_limits_y(1,l,k,j  ,i,iens) += mult1 * weno_coefs(s);
-          //   state_limits_y(0,l,k,j+1,i,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -475,25 +469,16 @@ namespace modules {
           for (int jj=0; jj<ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int jj=0; jj<2; jj++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,jj) * weno_coefs(s); }
-            gll(jj) = tmp;
+          pressure_limits_y(1,k,j  ,i,iens) = 0;
+          pressure_limits_y(0,k,j+1,i,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            pressure_limits_y(1,k,j  ,i,iens) += mult1 * weno_coefs(s);
+            pressure_limits_y(0,k,j+1,i,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          pressure_limits_y(1,k,j  ,i,iens) = gll(0);
-          pressure_limits_y(0,k,j+1,i,iens) = gll(1);
-
-          // pressure_limits_y(1,k,j  ,i,iens) = 0;
-          // pressure_limits_y(0,k,j+1,i,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   pressure_limits_y(1,k,j  ,i,iens) += mult1 * weno_coefs(s);
-          //   pressure_limits_y(0,k,j+1,i,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
       });
 
@@ -533,25 +518,16 @@ namespace modules {
           }
           if (l==idU || l==idV) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int kk=0; kk<2; kk++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,kk) * weno_coefs(s); }
-            gll(kk) = tmp;
+          state_limits_z(1,l,k  ,j,i,iens) = 0;
+          state_limits_z(0,l,k+1,j,i,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            state_limits_z(1,l,k  ,j,i,iens) += mult1 * weno_coefs(s);
+            state_limits_z(0,l,k+1,j,i,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          state_limits_z(1,l,k  ,j,i,iens) = gll(0);
-          state_limits_z(0,l,k+1,j,i,iens) = gll(1);
-
-          // state_limits_z(1,l,k  ,j,i,iens) = 0;
-          // state_limits_z(0,l,k+1,j,i,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   state_limits_z(1,l,k  ,j,i,iens) += mult1 * weno_coefs(s);
-          //   state_limits_z(0,l,k+1,j,i,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -562,25 +538,16 @@ namespace modules {
           for (int kk=0; kk<ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-
-          for (int kk=0; kk<2; kk++) {
-            real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,kk) * weno_coefs(s); }
-            gll(kk) = tmp;
+          pressure_limits_z(1,k  ,j,i,iens) = 0;
+          pressure_limits_z(0,k+1,j,i,iens) = 0;
+          real mult1 = 1;
+          real mult2 = 1;
+          for (int s=0; s < ord; s++) {
+            pressure_limits_z(1,k  ,j,i,iens) += mult1 * weno_coefs(s);
+            pressure_limits_z(0,k+1,j,i,iens) += mult2 * weno_coefs(s);
+            mult1 *= -0.5_fp;
+            mult2 *=  0.5_fp;
           }
-          pressure_limits_z(1,k  ,j,i,iens) = gll(0);
-          pressure_limits_z(0,k+1,j,i,iens) = gll(1);
-
-          // pressure_limits_z(1,k  ,j,i,iens) = 0;
-          // pressure_limits_z(0,k+1,j,i,iens) = 0;
-          // real mult1 = 1;
-          // real mult2 = 1;
-          // for (int s=0; s < ord; s++) {
-          //   pressure_limits_z(1,k  ,j,i,iens) += mult1 * weno_coefs(s);
-          //   pressure_limits_z(0,k+1,j,i,iens) += mult2 * weno_coefs(s);
-          //   mult1 *= -0.5_fp;
-          //   mult2 *=  0.5_fp;
-          // }
         }
       });
 

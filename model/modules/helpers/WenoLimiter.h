@@ -52,8 +52,6 @@ namespace limiter {
   template <> struct WenoLimiter<3> {
     struct Params {
       float cutoff, idl_L, idl_R, idl_H;
-      SArray<real,3,2,2,2> recon_lo;
-      SArray<real,2,3,3>   recon_hi;
     };
     Params params;
 
@@ -66,33 +64,15 @@ namespace limiter {
       params.idl_R  = idl_R_in;
       params.idl_H  = idl_H_in;
       convexify( params.idl_L , params.idl_R , params.idl_H );
-      TransformMatrices::weno_lower_sten_to_coefs(params.recon_lo);
-      TransformMatrices::sten_to_coefs           (params.recon_hi);
     }
 
-    YAKL_INLINE static void compute_limited_coefs( SArray<real,1,3> const &stencil   ,
+    YAKL_INLINE static void compute_limited_coefs( SArray<real,1,3> const &s         ,
                                                    SArray<real,1,3>       &coefs_H   ,
                                                    Params           const &params_in ) {
-      // Reconstruct high-order polynomial
-      for (int ii=0; ii < 3; ii++) {
-        real tmp_H = 0;
-        for (int s=0; s < 3; s++) {
-          tmp_H += params_in.recon_hi(s,ii) * stencil(0+s);
-        }
-        coefs_H(ii) = tmp_H;
-      }
-      // Reconstruct low-order polynomials
+      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
       SArray<real,1,2> coefs_L, coefs_R;
-      for (int ii=0; ii < 2; ii++) {
-        real tmp_L = 0, tmp_R = 0;
-        for (int s=0; s < 2; s++) {
-          tmp_L += params_in.recon_lo(0,s,ii) * stencil(0+s);
-          tmp_R += params_in.recon_lo(1,s,ii) * stencil(1+s);
-        }
-        coefs_L(ii) = tmp_L;
-        coefs_R(ii) = tmp_R;
-      }
-      // Compute total variation
+      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
+      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
       float w_L = TransformMatrices::coefs_to_tv( coefs_L );
       float w_R = TransformMatrices::coefs_to_tv( coefs_R );
       float w_H = TransformMatrices::coefs_to_tv( coefs_H );
@@ -115,8 +95,6 @@ namespace limiter {
   template <> struct WenoLimiter<5> {
     struct Params {
       float cutoff, idl_L, idl_C, idl_R, idl_H;
-      SArray<real,3,3,3,3> recon_lo;
-      SArray<real,2,5,5>   recon_hi;
     };
     Params params;
 
@@ -131,35 +109,16 @@ namespace limiter {
       params.idl_R  = idl_R_in;
       params.idl_H  = idl_H_in;
       convexify( params.idl_L , params.idl_C , params.idl_R , params.idl_H );
-      TransformMatrices::weno_lower_sten_to_coefs(params.recon_lo);
-      TransformMatrices::sten_to_coefs           (params.recon_hi);
     }
 
-    YAKL_INLINE static void compute_limited_coefs( SArray<real,1,5> const &stencil   ,
+    YAKL_INLINE static void compute_limited_coefs( SArray<real,1,5> const &s         ,
                                                    SArray<real,1,5>       &coefs_H   ,
                                                    Params           const &params_in ) {
-      // Reconstruct high-order polynomial
-      for (int ii=0; ii < 5; ii++) {
-        real tmp_H = 0;
-        for (int s=0; s < 5; s++) {
-          tmp_H += params_in.recon_hi(s,ii) * stencil(0+s);
-        }
-        coefs_H(ii) = tmp_H;
-      }
-      // Reconstruct low-order polynomials
+      TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
-      for (int ii=0; ii < 3; ii++) {
-        real tmp_L = 0, tmp_C = 0, tmp_R = 0;
-        for (int s=0; s < 3; s++) {
-          tmp_L += params_in.recon_lo(0,s,ii) * stencil(0+s);
-          tmp_C += params_in.recon_lo(1,s,ii) * stencil(1+s);
-          tmp_R += params_in.recon_lo(2,s,ii) * stencil(2+s);
-        }
-        coefs_L(ii) = tmp_L;
-        coefs_C(ii) = tmp_C;
-        coefs_R(ii) = tmp_R;
-      }
-      // Compute total variation
+      TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
+      TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
+      TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
       float w_L = TransformMatrices::coefs_to_tv( coefs_L );
       float w_C = TransformMatrices::coefs_to_tv( coefs_C );
       float w_R = TransformMatrices::coefs_to_tv( coefs_R );

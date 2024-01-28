@@ -134,7 +134,7 @@ print('  }\n');
 
 
 
-print('  template <class FP> YAKL_INLINE void coefs2_shift1(SArray<real,1,2> &coefs , real s0 , real s1) {')
+print('  template <class FP> YAKL_INLINE void coefs2_shift1(SArray<FP,1,2> &coefs , FP s0 , FP s1) {')
 N=2
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -145,7 +145,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',2,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs2_shift2(SArray<real,1,2> &coefs , real s0 , real s1) {')
+print('  template <class FP> YAKL_INLINE void coefs2_shift2(SArray<FP,1,2> &coefs , FP s0 , FP s1) {')
 N=2
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -156,7 +156,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',2,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs3_shift0(SArray<real,1,3> &coefs , real s0 , real s1, real s2) {')
+print('  template <class FP> YAKL_INLINE void coefs3_shift1(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
 N=3
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -168,7 +168,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs3_shift2(SArray<real,1,3> &coefs , real s0 , real s1, real s2) {')
+print('  template <class FP> YAKL_INLINE void coefs3_shift2(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
 N=3
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -180,7 +180,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs3_shift3(SArray<real,1,3> &coefs , real s0 , real s1, real s2) {')
+print('  template <class FP> YAKL_INLINE void coefs3_shift3(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
 N=3
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -192,7 +192,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs5(SArray<real,1,5> &coefs , real s0 , real s1, real s2, real s3, real s4) {')
+print('  template <class FP> YAKL_INLINE void coefs5(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
 N=5
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -206,7 +206,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs7(SArray<real,1,7> &coefs , real s0 , real s1, real s2, real s3, real s4, real s5, real s6) {')
+print('  template <class FP> YAKL_INLINE void coefs7(SArray<FP,1,7> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5, FP s6) {')
 N=7
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)
@@ -222,7 +222,7 @@ coefs = constr_to_coefs*coefs_1d(N,0,'s')
 print(add_spaces(4,c_vector('coefs',7,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
-print('  template <class FP> YAKL_INLINE void coefs9(SArray<real,1,9> &coefs , real s0 , real s1, real s2, real s3, real s4, real s5, real s6, real s7, real s8) {')
+print('  template <class FP> YAKL_INLINE void coefs9(SArray<FP,1,9> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5, FP s6, FP s7, FP s8) {')
 N=9
 coefs = coefs_1d(N,0,'a')
 p = poly_1d(N,coefs,x)

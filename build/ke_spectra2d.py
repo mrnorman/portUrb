@@ -62,7 +62,7 @@ dx = 5
 # freq,spd = spectra((u*u+v*v+w*w)/2,nbins,dx)
 # plt.loglog( freq , spd )
 
-nc = Dataset("test_00000007.nc", "r")
+nc = Dataset("test_00000001.nc", "r")
 nz = nc.dimensions["z"].size
 u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
 v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]

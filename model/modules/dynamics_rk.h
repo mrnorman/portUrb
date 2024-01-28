@@ -359,16 +359,25 @@ namespace modules {
           }
           if (l==idV || l==idW) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          state_limits_x(1,l,k,j,i  ,iens) = 0;
-          state_limits_x(0,l,k,j,i+1,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            state_limits_x(1,l,k,j,i  ,iens) += mult1 * weno_coefs(s);
-            state_limits_x(0,l,k,j,i+1,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          state_limits_x(1,l,k,j,i  ,iens) = gll(0);
+          state_limits_x(0,l,k,j,i+1,iens) = gll(1);
+
+          // state_limits_x(1,l,k,j,i  ,iens) = 0;
+          // state_limits_x(0,l,k,j,i+1,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   state_limits_x(1,l,k,j,i  ,iens) += mult1 * weno_coefs(s);
+          //   state_limits_x(0,l,k,j,i+1,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -379,16 +388,25 @@ namespace modules {
           for (int ii=0; ii<ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          pressure_limits_x(1,k,j,i  ,iens) = 0;
-          pressure_limits_x(0,k,j,i+1,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            pressure_limits_x(1,k,j,i  ,iens) += mult1 * weno_coefs(s);
-            pressure_limits_x(0,k,j,i+1,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          pressure_limits_x(1,k,j,i  ,iens) = gll(0);
+          pressure_limits_x(0,k,j,i+1,iens) = gll(1);
+
+          // pressure_limits_x(1,k,j,i  ,iens) = 0;
+          // pressure_limits_x(0,k,j,i+1,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   pressure_limits_x(1,k,j,i  ,iens) += mult1 * weno_coefs(s);
+          //   pressure_limits_x(0,k,j,i+1,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
       });
 
@@ -428,16 +446,25 @@ namespace modules {
           }
           if (l==idU || l==idW) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          state_limits_y(1,l,k,j  ,i,iens) = 0;
-          state_limits_y(0,l,k,j+1,i,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            state_limits_y(1,l,k,j  ,i,iens) += mult1 * weno_coefs(s);
-            state_limits_y(0,l,k,j+1,i,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          state_limits_y(1,l,k,j  ,i,iens) = gll(0);
+          state_limits_y(0,l,k,j+1,i,iens) = gll(1);
+
+          // state_limits_y(1,l,k,j  ,i,iens) = 0;
+          // state_limits_y(0,l,k,j+1,i,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   state_limits_y(1,l,k,j  ,i,iens) += mult1 * weno_coefs(s);
+          //   state_limits_y(0,l,k,j+1,i,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -448,16 +475,25 @@ namespace modules {
           for (int jj=0; jj<ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          pressure_limits_y(1,k,j  ,i,iens) = 0;
-          pressure_limits_y(0,k,j+1,i,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            pressure_limits_y(1,k,j  ,i,iens) += mult1 * weno_coefs(s);
-            pressure_limits_y(0,k,j+1,i,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          pressure_limits_y(1,k,j  ,i,iens) = gll(0);
+          pressure_limits_y(0,k,j+1,i,iens) = gll(1);
+
+          // pressure_limits_y(1,k,j  ,i,iens) = 0;
+          // pressure_limits_y(0,k,j+1,i,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   pressure_limits_y(1,k,j  ,i,iens) += mult1 * weno_coefs(s);
+          //   pressure_limits_y(0,k,j+1,i,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
       });
 
@@ -497,16 +533,25 @@ namespace modules {
           }
           if (l==idU || l==idV) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          state_limits_z(1,l,k  ,j,i,iens) = 0;
-          state_limits_z(0,l,k+1,j,i,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            state_limits_z(1,l,k  ,j,i,iens) += mult1 * weno_coefs(s);
-            state_limits_z(0,l,k+1,j,i,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          state_limits_z(1,l,k  ,j,i,iens) = gll(0);
+          state_limits_z(0,l,k+1,j,i,iens) = gll(1);
+
+          // state_limits_z(1,l,k  ,j,i,iens) = 0;
+          // state_limits_z(0,l,k+1,j,i,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   state_limits_z(1,l,k  ,j,i,iens) += mult1 * weno_coefs(s);
+          //   state_limits_z(0,l,k+1,j,i,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
         {
           SArray<real,1,ord> stencil;
@@ -517,16 +562,25 @@ namespace modules {
           for (int kk=0; kk<ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
-          pressure_limits_z(1,k  ,j,i,iens) = 0;
-          pressure_limits_z(0,k+1,j,i,iens) = 0;
-          real mult1 = 1;
-          real mult2 = 1;
-          for (int s=0; s < ord; s++) {
-            pressure_limits_z(1,k  ,j,i,iens) += mult1 * weno_coefs(s);
-            pressure_limits_z(0,k+1,j,i,iens) += mult2 * weno_coefs(s);
-            mult1 *= -0.5_fp;
-            mult2 *=  0.5_fp;
+
+          for (int ii=0; ii<2; ii++) {
+            real tmp = 0;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
+            gll(ii) = tmp;
           }
+          pressure_limits_z(1,k  ,j,i,iens) = gll(0);
+          pressure_limits_z(0,k+1,j,i,iens) = gll(1);
+
+          // pressure_limits_z(1,k  ,j,i,iens) = 0;
+          // pressure_limits_z(0,k+1,j,i,iens) = 0;
+          // real mult1 = 1;
+          // real mult2 = 1;
+          // for (int s=0; s < ord; s++) {
+          //   pressure_limits_z(1,k  ,j,i,iens) += mult1 * weno_coefs(s);
+          //   pressure_limits_z(0,k+1,j,i,iens) += mult2 * weno_coefs(s);
+          //   mult1 *= -0.5_fp;
+          //   mult2 *=  0.5_fp;
+          // }
         }
       });
 
@@ -627,10 +681,10 @@ namespace modules {
             // Use only left values
             state_limits_x   (0,idU,k,j,i,iens) = 0;
             state_limits_x   (1,idU,k,j,i,iens) = 0;
-            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_x   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
-            state_limits_x   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_x   (0,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
+            state_limits_x   (1,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
             state_limits_x   (1,idV,k,j,i,iens) = state_limits_x   (0,idV,k,j,i,iens);
             state_limits_x   (1,idW,k,j,i,iens) = state_limits_x   (0,idW,k,j,i,iens);
             pressure_limits_x(1    ,k,j,i,iens) = pressure_limits_x(0    ,k,j,i,iens);
@@ -643,10 +697,10 @@ namespace modules {
             // Use only right values
             state_limits_x   (0,idU,k,j,i,iens) = 0;
             state_limits_x   (1,idU,k,j,i,iens) = 0;
-            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_x   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
-            state_limits_x   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_x   (0,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_x   (1,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_x   (0,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
+            state_limits_x   (1,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
             state_limits_x   (0,idV,k,j,i,iens) = state_limits_x   (1,idV,k,j,i,iens);
             state_limits_x   (0,idW,k,j,i,iens) = state_limits_x   (1,idW,k,j,i,iens);
             pressure_limits_x(0    ,k,j,i,iens) = pressure_limits_x(1    ,k,j,i,iens);
@@ -682,10 +736,10 @@ namespace modules {
             // Use only left values
             state_limits_y   (0,idV,k,j,i,iens) = 0;
             state_limits_y   (1,idV,k,j,i,iens) = 0;
-            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_y   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
-            state_limits_y   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_y   (0,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
+            state_limits_y   (1,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
             state_limits_y   (1,idU,k,j,i,iens) = state_limits_y   (0,idU,k,j,i,iens);
             state_limits_y   (1,idW,k,j,i,iens) = state_limits_y   (0,idW,k,j,i,iens);
             pressure_limits_y(1    ,k,j,i,iens) = pressure_limits_y(0    ,k,j,i,iens);
@@ -698,10 +752,10 @@ namespace modules {
             // Use only right values
             state_limits_y   (0,idV,k,j,i,iens) = 0;
             state_limits_y   (1,idV,k,j,i,iens) = 0;
-            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells (hs+k,iens);
-            state_limits_y   (0,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
-            state_limits_y   (1,idT,k,j,i,iens) = hy_theta_cells(hs+k,iens);
+            state_limits_y   (0,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_y   (1,idR,k,j,i,iens) = hy_dens_cells(hs+k,iens);
+            state_limits_y   (0,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
+            state_limits_y   (1,idT,k,j,i,iens) = hy_dens_cells(hs+k,iens)*hy_theta_cells(hs+k,iens);
             state_limits_y   (0,idU,k,j,i,iens) = state_limits_y   (1,idU,k,j,i,iens);
             state_limits_y   (0,idW,k,j,i,iens) = state_limits_y   (1,idW,k,j,i,iens);
             pressure_limits_y(0    ,k,j,i,iens) = pressure_limits_y(1    ,k,j,i,iens);
@@ -737,10 +791,10 @@ namespace modules {
             // Use only left values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
-            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges (k,iens);
-            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges (k,iens);
-            state_limits_z   (0,idT,k,j,i,iens) = hy_theta_edges(k,iens);
-            state_limits_z   (1,idT,k,j,i,iens) = hy_theta_edges(k,iens);
+            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges(k,iens);
+            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges(k,iens);
+            state_limits_z   (0,idT,k,j,i,iens) = hy_dens_edges(k,iens)*hy_theta_edges(k,iens);
+            state_limits_z   (1,idT,k,j,i,iens) = hy_dens_edges(k,iens)*hy_theta_edges(k,iens);
             state_limits_z   (1,idU,k,j,i,iens) = state_limits_z   (0,idU,k,j,i,iens);
             state_limits_z   (1,idV,k,j,i,iens) = state_limits_z   (0,idV,k,j,i,iens);
             pressure_limits_z(1    ,k,j,i,iens) = pressure_limits_z(0    ,k,j,i,iens);
@@ -753,10 +807,10 @@ namespace modules {
             // Use only right values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
-            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges (k,iens);
-            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges (k,iens);
-            state_limits_z   (0,idT,k,j,i,iens) = hy_theta_edges(k,iens);
-            state_limits_z   (1,idT,k,j,i,iens) = hy_theta_edges(k,iens);
+            state_limits_z   (0,idR,k,j,i,iens) = hy_dens_edges(k,iens);
+            state_limits_z   (1,idR,k,j,i,iens) = hy_dens_edges(k,iens);
+            state_limits_z   (0,idT,k,j,i,iens) = hy_dens_edges(k,iens)*hy_theta_edges(k,iens);
+            state_limits_z   (1,idT,k,j,i,iens) = hy_dens_edges(k,iens)*hy_theta_edges(k,iens);
             state_limits_z   (0,idU,k,j,i,iens) = state_limits_z   (1,idU,k,j,i,iens);
             state_limits_z   (0,idV,k,j,i,iens) = state_limits_z   (1,idV,k,j,i,iens);
             pressure_limits_z(0    ,k,j,i,iens) = pressure_limits_z(1    ,k,j,i,iens);

@@ -54,6 +54,7 @@ namespace limiter {
       float cutoff, idl_L, idl_R, idl_H;
     };
     Params params;
+    typedef SArray<float,1,3> Weights;
 
     void set_params( real cutoff_in = 0.100 ,
                      real idl_L_in  = 1     ,
@@ -77,9 +78,9 @@ namespace limiter {
       float w_R = TransformMatrices::coefs_to_tv( coefs_R );
       float w_H = TransformMatrices::coefs_to_tv( coefs_H );
       convexify( w_L , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20);
+      w_L = params_in.idl_L / (w_L*w_L + 1.e-20f);
+      w_R = params_in.idl_R / (w_R*w_R + 1.e-20f);
+      w_H = params_in.idl_H / (w_H*w_H + 1.e-20f);
       convexify( w_L , w_R , w_H );
       if (w_L <= params_in.cutoff) w_L = 0;
       if (w_R <= params_in.cutoff) w_R = 0;
@@ -87,6 +88,42 @@ namespace limiter {
       coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_R(0)*w_R;
       coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_R(1)*w_R;
       coefs_H(2) = coefs_H(2)*w_H;
+    }
+
+    YAKL_INLINE static void compute_limited_weights( SArray<float,1,3> const &s         ,
+                                                     Weights                 &weights   ,
+                                                     Params            const &params_in ) {
+      SArray<float,1,3> coefs_H;
+      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
+      SArray<float,1,2> coefs_L, coefs_R;
+      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
+      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
+      float w_L = TransformMatrices::coefs_to_tv( coefs_L );
+      float w_R = TransformMatrices::coefs_to_tv( coefs_R );
+      float w_H = TransformMatrices::coefs_to_tv( coefs_H );
+      convexify( w_L , w_R , w_H );
+      w_L = params_in.idl_L / (w_L*w_L + 1.e-20f);
+      w_R = params_in.idl_R / (w_R*w_R + 1.e-20f);
+      w_H = params_in.idl_H / (w_H*w_H + 1.e-20f);
+      convexify( w_L , w_R , w_H );
+      if (w_L <= params_in.cutoff) w_L = 0;
+      if (w_R <= params_in.cutoff) w_R = 0;
+      convexify( w_L , w_R , w_H );
+      weights(0) = w_H;
+      weights(1) = w_L;
+      weights(2) = w_R;
+    }
+
+    YAKL_INLINE static void apply_limited_weights( SArray<real ,1,3> const &s       ,
+                                                   Weights           const &weights ,
+                                                   SArray<real ,1,3>       &coefs_H ) {
+      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
+      SArray<real,1,2> coefs_L, coefs_R;
+      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
+      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
+      coefs_H(0) = coefs_H(0)*weights(0) + coefs_L(0)*weights(1) + coefs_R(0)*weights(2);
+      coefs_H(1) = coefs_H(1)*weights(0) + coefs_L(1)*weights(1) + coefs_R(1)*weights(2);
+      coefs_H(2) = coefs_H(2)*weights(0);
     }
   };
 
@@ -97,6 +134,7 @@ namespace limiter {
       float cutoff, idl_L, idl_C, idl_R, idl_H;
     };
     Params params;
+    typedef SArray<float,1,4> Weights;
 
     void set_params( real cutoff_in = 0.100 ,
                      real idl_L_in  = 1     ,
@@ -124,10 +162,10 @@ namespace limiter {
       float w_R = TransformMatrices::coefs_to_tv( coefs_R );
       float w_H = TransformMatrices::coefs_to_tv( coefs_H );
       convexify( w_L , w_C , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20);
-      w_C = params_in.idl_C / (w_C*w_C + 1.e-20);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20);
+      w_L = params_in.idl_L / (w_L*w_L + 1.e-20f);
+      w_C = params_in.idl_C / (w_C*w_C + 1.e-20f);
+      w_R = params_in.idl_R / (w_R*w_R + 1.e-20f);
+      w_H = params_in.idl_H / (w_H*w_H + 1.e-20f);
       convexify( w_L , w_C , w_R , w_H );
       if (w_L <= params_in.cutoff) w_L = 0;
       if (w_C <= params_in.cutoff) w_C = 0;
@@ -138,6 +176,50 @@ namespace limiter {
       coefs_H(2) = coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R;
       coefs_H(3) = coefs_H(3)*w_H;
       coefs_H(4) = coefs_H(4)*w_H;
+    }
+
+    YAKL_INLINE static void compute_limited_weights( SArray<float,1,5> const &s         ,
+                                                     Weights                 &weights   ,
+                                                     Params            const &params_in ) {
+      SArray<float,1,5> coefs_H;
+      TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+      SArray<float,1,3> coefs_L, coefs_C, coefs_R;
+      TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
+      TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
+      TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      float w_L = TransformMatrices::coefs_to_tv( coefs_L );
+      float w_C = TransformMatrices::coefs_to_tv( coefs_C );
+      float w_R = TransformMatrices::coefs_to_tv( coefs_R );
+      float w_H = TransformMatrices::coefs_to_tv( coefs_H );
+      convexify( w_L , w_C , w_R , w_H );
+      w_L = params_in.idl_L / (w_L*w_L + 1.e-20f);
+      w_C = params_in.idl_C / (w_C*w_C + 1.e-20f);
+      w_R = params_in.idl_R / (w_R*w_R + 1.e-20f);
+      w_H = params_in.idl_H / (w_H*w_H + 1.e-20f);
+      convexify( w_L , w_C , w_R , w_H );
+      if (w_L <= params_in.cutoff) w_L = 0;
+      if (w_C <= params_in.cutoff) w_C = 0;
+      if (w_R <= params_in.cutoff) w_R = 0;
+      convexify( w_L , w_C , w_R , w_H );
+      weights(0) = w_H;
+      weights(1) = w_L;
+      weights(2) = w_C;
+      weights(3) = w_R;
+    }
+
+    YAKL_INLINE static void apply_limited_weights( SArray<real ,1,5> const &s       ,
+                                                   Weights           const &weights ,
+                                                   SArray<real ,1,5>       &coefs_H ) {
+      TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+      SArray<real,1,3> coefs_L, coefs_C, coefs_R;
+      TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
+      TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
+      TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      coefs_H(0) = coefs_H(0)*weights(0) + coefs_L(0)*weights(1) + coefs_C(0)*weights(2) + coefs_R(0)*weights(3);
+      coefs_H(1) = coefs_H(1)*weights(0) + coefs_L(1)*weights(1) + coefs_C(1)*weights(2) + coefs_R(1)*weights(3);
+      coefs_H(2) = coefs_H(2)*weights(0) + coefs_L(2)*weights(1) + coefs_C(2)*weights(2) + coefs_R(2)*weights(3);
+      coefs_H(3) = coefs_H(3)*weights(0);
+      coefs_H(4) = coefs_H(4)*weights(0);
     }
   };
 

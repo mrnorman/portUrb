@@ -121,9 +121,13 @@ namespace limiter {
       SArray<real,1,2> coefs_L, coefs_R;
       TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
       TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
-      coefs_H(0) = coefs_H(0)*weights(0) + coefs_L(0)*weights(1) + coefs_R(0)*weights(2);
-      coefs_H(1) = coefs_H(1)*weights(0) + coefs_L(1)*weights(1) + coefs_R(1)*weights(2);
-      coefs_H(2) = coefs_H(2)*weights(0);
+      real w_H = weights(0);
+      real w_L = weights(1);
+      real w_R = weights(2);
+      convexify( w_L , w_R , w_H );
+      coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_R(0)*w_R;
+      coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_R(1)*w_R;
+      coefs_H(2) = coefs_H(2)*w_H;
     }
   };
 
@@ -215,11 +219,16 @@ namespace limiter {
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
       TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
-      coefs_H(0) = coefs_H(0)*weights(0) + coefs_L(0)*weights(1) + coefs_C(0)*weights(2) + coefs_R(0)*weights(3);
-      coefs_H(1) = coefs_H(1)*weights(0) + coefs_L(1)*weights(1) + coefs_C(1)*weights(2) + coefs_R(1)*weights(3);
-      coefs_H(2) = coefs_H(2)*weights(0) + coefs_L(2)*weights(1) + coefs_C(2)*weights(2) + coefs_R(2)*weights(3);
-      coefs_H(3) = coefs_H(3)*weights(0);
-      coefs_H(4) = coefs_H(4)*weights(0);
+      real w_H = weights(0);
+      real w_L = weights(1);
+      real w_C = weights(2);
+      real w_R = weights(3);
+      convexify( w_L , w_C , w_R , w_H );
+      coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R;
+      coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R;
+      coefs_H(2) = coefs_H(2)*w_H + coefs_L(2)*w_L + coefs_C(2)*w_C + coefs_R(2)*w_R;
+      coefs_H(3) = coefs_H(3)*w_H;
+      coefs_H(4) = coefs_H(4)*w_H;
     }
   };
 

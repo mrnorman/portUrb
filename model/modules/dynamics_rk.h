@@ -332,8 +332,8 @@ namespace modules {
           Limiter::Weights weights_loc;
           SArray<float,1,ord> stencil;
           SArray<bool ,1,ord> immersed;
-          for (int ii=0; ii<ord; ii++) { stencil (ii) = static_cast<float>(state             (l,hs+k,hs+j,i+ii,iens)); }
-          for (int ii=0; ii<ord; ii++) { immersed(ii) = static_cast<float>(fully_immersed_halos(hs+k,hs+j,i+ii,iens)); }
+          for (int ii=0; ii<ord; ii++) { stencil (ii) = static_cast<float>(state(l,hs+k,hs+j,i+ii,iens)); }
+          for (int ii=0; ii<ord; ii++) { immersed(ii) =       fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii<ord; ii++) {
             if (l==idR && immersed(ii)) { stencil(ii) = hy_dens_cells(hs+k,iens); }
             if (l==idU && immersed(ii)) { stencil(ii) = 0; }
@@ -419,8 +419,8 @@ namespace modules {
           Limiter::Weights weights_loc;
           SArray<float,1,ord> stencil;
           SArray<bool ,1,ord> immersed;
-          for (int jj=0; jj<ord; jj++) { stencil (jj) = static_cast<float>(state             (l,hs+k,j+jj,hs+i,iens)); }
-          for (int jj=0; jj<ord; jj++) { immersed(jj) = static_cast<float>(fully_immersed_halos(hs+k,j+jj,hs+i,iens)); }
+          for (int jj=0; jj<ord; jj++) { stencil (jj) = static_cast<float>(state(l,hs+k,j+jj,hs+i,iens)); }
+          for (int jj=0; jj<ord; jj++) { immersed(jj) =       fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj<ord; jj++) {
             if (l==idR && immersed(jj)) { stencil(jj) = hy_dens_cells(hs+k,iens); }
             if (l==idV && immersed(jj)) { stencil(jj) = 0; }
@@ -447,10 +447,10 @@ namespace modules {
           if (l==idU || l==idW) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
 
-          for (int ii=0; ii<2; ii++) {
+          for (int jj=0; jj<2; jj++) {
             real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,jj) * weno_coefs(s); }
+            gll(jj) = tmp;
           }
           state_limits_y(1,l,k,j  ,i,iens) = gll(0);
           state_limits_y(0,l,k,j+1,i,iens) = gll(1);
@@ -476,10 +476,10 @@ namespace modules {
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
 
-          for (int ii=0; ii<2; ii++) {
+          for (int jj=0; jj<2; jj++) {
             real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,jj) * weno_coefs(s); }
+            gll(jj) = tmp;
           }
           pressure_limits_y(1,k,j  ,i,iens) = gll(0);
           pressure_limits_y(0,k,j+1,i,iens) = gll(1);
@@ -506,8 +506,8 @@ namespace modules {
           Limiter::Weights weights_loc;
           SArray<float,1,ord> stencil;
           SArray<bool ,1,ord> immersed;
-          for (int kk=0; kk<ord; kk++) { stencil (kk) = static_cast<float>(state             (l,k+kk,hs+j,hs+i,iens)); }
-          for (int kk=0; kk<ord; kk++) { immersed(kk) = static_cast<float>(fully_immersed_halos(k+kk,hs+j,hs+i,iens)); }
+          for (int kk=0; kk<ord; kk++) { stencil (kk) = static_cast<float>(state(l,k+kk,hs+j,hs+i,iens)); }
+          for (int kk=0; kk<ord; kk++) { immersed(kk) =       fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk<ord; kk++) {
             if (l==idR && immersed(kk)) { stencil(kk) = hy_dens_cells(k+kk,iens); }
             if (l==idW && immersed(kk)) { stencil(kk) = 0; }
@@ -534,10 +534,10 @@ namespace modules {
           if (l==idU || l==idV) { modify_stencil_immersed_der0( stencil , immersed ); }
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
 
-          for (int ii=0; ii<2; ii++) {
+          for (int kk=0; kk<2; kk++) {
             real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,kk) * weno_coefs(s); }
+            gll(kk) = tmp;
           }
           state_limits_z(1,l,k  ,j,i,iens) = gll(0);
           state_limits_z(0,l,k+1,j,i,iens) = gll(1);
@@ -563,10 +563,10 @@ namespace modules {
           modify_stencil_immersed_der0( stencil , immersed );
           Limiter::apply_limited_weights( stencil , weights_tot , weno_coefs );
 
-          for (int ii=0; ii<2; ii++) {
+          for (int kk=0; kk<2; kk++) {
             real tmp = 0;
-            for (int s=0; s < ord; s++) { tmp += c2g(s,ii) * weno_coefs(s); }
-            gll(ii) = tmp;
+            for (int s=0; s < ord; s++) { tmp += c2g(s,kk) * weno_coefs(s); }
+            gll(kk) = tmp;
           }
           pressure_limits_z(1,k  ,j,i,iens) = gll(0);
           pressure_limits_z(0,k+1,j,i,iens) = gll(1);
@@ -787,7 +787,7 @@ namespace modules {
           // Apply boundary conditions if encountering an immersed boundary
           bool left_cell_immersed  = fully_immersed_halos(hs+k-1,hs+j,hs+i,iens);
           bool right_cell_immersed = fully_immersed_halos(hs+k  ,hs+j,hs+i,iens);
-          if (!left_cell_immersed && right_cell_immersed && k != 0 && k != nz) {
+          if (!left_cell_immersed && right_cell_immersed) {
             // Use only left values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;
@@ -803,7 +803,7 @@ namespace modules {
               tracers_limits_z(1,tr,k,j,i,iens) = 0;
             }
           }
-          if (!right_cell_immersed && left_cell_immersed && k != 0 && k != nz) {
+          if (!right_cell_immersed && left_cell_immersed) {
             // Use only right values
             state_limits_z   (0,idW,k,j,i,iens) = 0;
             state_limits_z   (1,idW,k,j,i,iens) = 0;

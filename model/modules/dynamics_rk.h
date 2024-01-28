@@ -308,27 +308,27 @@ namespace modules {
         halo_boundary_conditions( coupler , state , tracers , pressure );
       }
 
-      // typedef limiter::WenoLimiter<ord> Limiter;
+      typedef limiter::WenoLimiter<ord> Limiter;
 
-      struct Limiter {
-        struct Params { };
-        Params params;
-        void set_params() { }
-        typedef SArray<real,1,1> Weights;
-        YAKL_INLINE static void compute_limited_coefs( SArray<real,1,5> const &s         ,
-                                                       SArray<real,1,5>       &coefs_H   ,
-                                                       Params           const &params_in ) {
-          TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
-        }
-        YAKL_INLINE static void compute_limited_weights( SArray<float,1,5> const &s         ,
-                                                         Weights                 &weights   ,
-                                                         Params            const &params_in ) { }
-        YAKL_INLINE static void apply_limited_weights( SArray<real ,1,5> const &s       ,
-                                                       Weights           const &weights ,
-                                                       SArray<real ,1,5>       &coefs_H ) {
-          TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
-        }
-      };
+      // struct Limiter {
+      //   struct Params { };
+      //   Params params;
+      //   void set_params() { }
+      //   typedef SArray<real,1,1> Weights;
+      //   YAKL_INLINE static void compute_limited_coefs( SArray<real,1,5> const &s         ,
+      //                                                  SArray<real,1,5>       &coefs_H   ,
+      //                                                  Params           const &params_in ) {
+      //     TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+      //   }
+      //   YAKL_INLINE static void compute_limited_weights( SArray<float,1,5> const &s         ,
+      //                                                    Weights                 &weights   ,
+      //                                                    Params            const &params_in ) { }
+      //   YAKL_INLINE static void apply_limited_weights( SArray<real ,1,5> const &s       ,
+      //                                                  Weights           const &weights ,
+      //                                                  SArray<real ,1,5>       &coefs_H ) {
+      //     TransformMatrices::coefs5( coefs_H , s(0) , s(1) , s(2) , s(3) , s(4) );
+      //   }
+      // };
 
       Limiter lim;
       lim.set_params();

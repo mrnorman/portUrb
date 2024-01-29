@@ -49,107 +49,23 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<3> {
-    struct Params {
-      real cutoff, idl_L, idl_R, idl_H;
-    };
-    Params params;
-    typedef SArray<real,1,3> Weights;
-
-    void set_params( real cutoff_in = 0.100 ,
-                     real idl_L_in  = 1     ,
-                     real idl_R_in  = 1     ,
-                     real idl_H_in  = 250   ) {
-      params.cutoff = cutoff_in;
-      params.idl_L  = idl_L_in;
-      params.idl_R  = idl_R_in;
-      params.idl_H  = idl_H_in;
-      convexify( params.idl_L , params.idl_R , params.idl_H );
-    }
-
-    YAKL_INLINE static void compute_limited_coefs( SArray<real,1,3> const &s         ,
-                                                   SArray<real,1,3>       &coefs_H   ,
-                                                   Params           const &params_in ) {
-      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
-      SArray<real,1,2> coefs_L, coefs_R;
-      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
-      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
-      real w_L = TransformMatrices::coefs_to_tv( coefs_L );
-      real w_R = TransformMatrices::coefs_to_tv( coefs_R );
-      real w_H = TransformMatrices::coefs_to_tv( coefs_H );
-      convexify( w_L , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20_fp);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20_fp);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20_fp);
-      convexify( w_L , w_R , w_H );
-      if (w_L <= params_in.cutoff) w_L = 0;
-      if (w_R <= params_in.cutoff) w_R = 0;
-      convexify( w_L , w_R , w_H );
-      coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_R(0)*w_R;
-      coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_R(1)*w_R;
-      coefs_H(2) = coefs_H(2)*w_H;
-    }
-
-    YAKL_INLINE static void compute_limited_weights( SArray<real,1,3> const &s         ,
-                                                     Weights                 &weights   ,
-                                                     Params            const &params_in ) {
-      SArray<real,1,3> coefs_H;
-      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
-      SArray<real,1,2> coefs_L, coefs_R;
-      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
-      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
-      real w_L = TransformMatrices::coefs_to_tv( coefs_L );
-      real w_R = TransformMatrices::coefs_to_tv( coefs_R );
-      real w_H = TransformMatrices::coefs_to_tv( coefs_H );
-      convexify( w_L , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20_fp);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20_fp);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20_fp);
-      convexify( w_L , w_R , w_H );
-      if (w_L <= params_in.cutoff) w_L = 0;
-      if (w_R <= params_in.cutoff) w_R = 0;
-      convexify( w_L , w_R , w_H );
-      weights(0) = w_H;
-      weights(1) = w_L;
-      weights(2) = w_R;
-    }
-
-    YAKL_INLINE static void apply_limited_weights( SArray<real ,1,3> const &s       ,
-                                                   Weights           const &weights ,
-                                                   SArray<real ,1,3>       &coefs_H ) {
-      TransformMatrices::coefs3_shift2( coefs_H , s(0) , s(1) , s(2) );
-      SArray<real,1,2> coefs_L, coefs_R;
-      TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
-      TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
-      real w_H = weights(0);
-      real w_L = weights(1);
-      real w_R = weights(2);
-      convexify( w_L , w_R , w_H );
-      coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_R(0)*w_R;
-      coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_R(1)*w_R;
-      coefs_H(2) = coefs_H(2)*w_H;
-    }
-  };
-
-
-
   template <> struct WenoLimiter<5> {
     struct Params {
-      real cutoff, idl_L, idl_C, idl_R, idl_H;
+      real sigma, idl_L, idl_C, idl_R, idl_H;
     };
     Params params;
     typedef SArray<real,1,4> Weights;
 
-    void set_params( real cutoff_in = 0.100 ,
+    void set_params( real sigma_in = 0.7356 ,
                      real idl_L_in  = 1     ,
-                     real idl_C_in  = 2     ,
+                     real idl_C_in  = 73.56 ,
                      real idl_R_in  = 1     ,
-                     real idl_H_in  = 1000  ) {
-      params.cutoff = cutoff_in;
-      params.idl_L  = idl_L_in;
-      params.idl_C  = idl_C_in;
-      params.idl_R  = idl_R_in;
-      params.idl_H  = idl_H_in;
+                     real idl_H_in  = 1585  ) {
+      params.sigma = sigma_in;
+      params.idl_L = idl_L_in;
+      params.idl_C = idl_C_in;
+      params.idl_R = idl_R_in;
+      params.idl_H = idl_H_in;
       convexify( params.idl_L , params.idl_C , params.idl_R , params.idl_H );
     }
 
@@ -161,19 +77,24 @@ namespace limiter {
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
       TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      auto idl_L = params_in.idl_L;
+      auto idl_C = params_in.idl_C;
+      auto idl_R = params_in.idl_R;
+      auto idl_H = params_in.idl_H;
+      auto sigma = params_in.sigma;
+      for (int ii=0; ii < 3; ii++) { coefs_H(ii) -= coefs_L(ii)*idl_L + coefs_C(ii)*idl_C + coefs_R(ii)*idl_R; }
+      for (int ii=0; ii < 5; ii++) { coefs_H(ii) /= idl_H; }
       real w_L = TransformMatrices::coefs_to_tv( coefs_L );
       real w_C = TransformMatrices::coefs_to_tv( coefs_C );
       real w_R = TransformMatrices::coefs_to_tv( coefs_R );
       real w_H = TransformMatrices::coefs_to_tv( coefs_H );
+      real avg = (w_L + w_C + w_R) / 3._fp;
+      w_H = avg + sigma * ( w_H - avg );
       convexify( w_L , w_C , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20_fp);
-      w_C = params_in.idl_C / (w_C*w_C + 1.e-20_fp);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20_fp);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20_fp);
-      convexify( w_L , w_C , w_R , w_H );
-      if (w_L <= params_in.cutoff) w_L = 0;
-      if (w_C <= params_in.cutoff) w_C = 0;
-      if (w_R <= params_in.cutoff) w_R = 0;
+      w_L = idl_L / (w_L*w_L + 1.e-20_fp);
+      w_C = idl_C / (w_C*w_C + 1.e-20_fp);
+      w_R = idl_R / (w_R*w_R + 1.e-20_fp);
+      w_H = idl_H / (w_H*w_H + 1.e-20_fp);
       convexify( w_L , w_C , w_R , w_H );
       coefs_H(0) = coefs_H(0)*w_H + coefs_L(0)*w_L + coefs_C(0)*w_C + coefs_R(0)*w_R;
       coefs_H(1) = coefs_H(1)*w_H + coefs_L(1)*w_L + coefs_C(1)*w_C + coefs_R(1)*w_R;
@@ -196,19 +117,24 @@ namespace limiter {
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
       TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      auto idl_L = params_in.idl_L;
+      auto idl_C = params_in.idl_C;
+      auto idl_R = params_in.idl_R;
+      auto idl_H = params_in.idl_H;
+      auto sigma = params_in.sigma;
+      for (int ii=0; ii < 3; ii++) { coefs_H(ii) -= coefs_L(ii)*idl_L + coefs_C(ii)*idl_C + coefs_R(ii)*idl_R; }
+      for (int ii=0; ii < 5; ii++) { coefs_H(ii) /= idl_H; }
       real w_L = TransformMatrices::coefs_to_tv( coefs_L );
       real w_C = TransformMatrices::coefs_to_tv( coefs_C );
       real w_R = TransformMatrices::coefs_to_tv( coefs_R );
       real w_H = TransformMatrices::coefs_to_tv( coefs_H );
+      real avg = (w_L + w_C + w_R) / 3._fp;
+      w_H = avg + sigma * ( w_H - avg );
       convexify( w_L , w_C , w_R , w_H );
-      w_L = params_in.idl_L / (w_L*w_L + 1.e-20_fp);
-      w_C = params_in.idl_C / (w_C*w_C + 1.e-20_fp);
-      w_R = params_in.idl_R / (w_R*w_R + 1.e-20_fp);
-      w_H = params_in.idl_H / (w_H*w_H + 1.e-20_fp);
-      convexify( w_L , w_C , w_R , w_H );
-      if (w_L <= params_in.cutoff) w_L = 0;
-      if (w_C <= params_in.cutoff) w_C = 0;
-      if (w_R <= params_in.cutoff) w_R = 0;
+      w_L = idl_L / (w_L*w_L + 1.e-20_fp);
+      w_C = idl_C / (w_C*w_C + 1.e-20_fp);
+      w_R = idl_R / (w_R*w_R + 1.e-20_fp);
+      w_H = idl_H / (w_H*w_H + 1.e-20_fp);
       convexify( w_L , w_C , w_R , w_H );
       weights(0) = w_H;
       weights(1) = w_L;
@@ -236,7 +162,6 @@ namespace limiter {
       coefs_H(4) = coefs_H(4)*w_H;
     }
   };
-
 
 }
 

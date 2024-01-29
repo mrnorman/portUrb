@@ -4,9 +4,6 @@
 #include "main_header.h"
 #include "MultipleFields.h"
 #include "TransformMatrices.h"
-#include "WenoLimiter.h"
-#include "PPM_Limiter.h"
-#include "MinmodLimiter.h"
 #include <random>
 #include <sstream>
 

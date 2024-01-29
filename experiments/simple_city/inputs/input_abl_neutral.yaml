@@ -34,5 +34,5 @@ restart_file: none
 
 roughness: 0.1
 
-dyn_cycle: 10
+dyn_cycle: 1
 

@@ -43,26 +43,10 @@ def spectra(T,nbins,dx = 1) :
 
 
 
-nbins = 3000
-dx = 5
+nbins = 1000
+dx = 10
 
-# nc = Dataset("abl_weno/test_00000004.nc", "r")
-# nz = nc.dimensions["z"].size
-# u = nc.variables["uvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# v = nc.variables["vvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# w = nc.variables["wvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# freq,spd = spectra((u*u+v*v+w*w)/2,nbins,dx)
-# plt.loglog( freq , spd )
-# 
-# nc = Dataset("abl_noweno_withles/test_00000004.nc", "r")
-# nz = nc.dimensions["z"].size
-# u = nc.variables["uvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# v = nc.variables["vvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# w = nc.variables["wvel"][int(100./1000.*nz):int(400./1000.*nz),:,:,0]
-# freq,spd = spectra((u*u+v*v+w*w)/2,nbins,dx)
-# plt.loglog( freq , spd )
-
-nc = Dataset("test_00000001.nc", "r")
+nc = Dataset("test_00000002.nc", "r")
 nz = nc.dimensions["z"].size
 u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
 v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
@@ -71,12 +55,40 @@ ke = (u*u+v*v+w*w)/2
 freq,spd = spectra(ke - np.mean(ke),nbins,dx)
 plt.loglog( freq , spd )
 
+nc = Dataset("test_00000004.nc", "r")
+nz = nc.dimensions["z"].size
+u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+w = nc.variables["wvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+ke = (u*u+v*v+w*w)/2
+freq,spd = spectra(ke - np.mean(ke),nbins,dx)
+plt.loglog( freq , spd )
+# 
+# nc = Dataset("test_00000006.nc", "r")
+# nz = nc.dimensions["z"].size
+# u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# w = nc.variables["wvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# ke = (u*u+v*v+w*w)/2
+# freq,spd = spectra(ke - np.mean(ke),nbins,dx)
+# plt.loglog( freq , spd )
+# 
+# nc = Dataset("test_00000008.nc", "r")
+# nz = nc.dimensions["z"].size
+# u = nc.variables["uvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# v = nc.variables["vvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# w = nc.variables["wvel"][int(80./700.*nz):int(80./700.*nz)+1,:,:,0]
+# ke = (u*u+v*v+w*w)/2
+# freq,spd = spectra(ke - np.mean(ke),nbins,dx)
+# plt.loglog( freq , spd )
+
 # ind1 = next(x for x, val in enumerate(freq) if val > 0.02)
 # ind1 = len(freq)
 # plt.loglog( freq[:ind1] , 1.5e0 * freq[:ind1]**(-3.   ) )
 # plt.loglog( freq[ind1:] , 5.0e2 * freq[ind1:]**(-5./3.) )
 plt.loglog( freq[:] , 5.0e2 * freq[:]**(-5./3.) )
-plt.legend(["WENO,LES,RK95","NOWENO,LES,RK33","NOWENO,NOLES,RK33","$k^{-3}$","$k^{-5/3}$"],loc='lower left')
+# plt.legend(["0.5hr","1.0hr","1.5hr","2hr","$k^{-5/3}$"],loc='lower left')
+plt.legend(["0.5hr","1.0hr","$k^{-5/3}$"],loc='lower left')
 plt.xlabel("Spatial wavenumber")
 plt.ylabel("Spectral power of kinetic energy")
 plt.gcf().set_size_inches(8,4)

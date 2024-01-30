@@ -46,7 +46,7 @@ def spectra(T,nbins,dx = 1) :
 nbins = 1000
 dx = 10
 
-nc = Dataset("test_00000015.nc", "r")
+nc = Dataset("test_00000011.nc", "r")
 nz = nc.dimensions["z"].size
 u = nc.variables["uvel"][int(100./700.*nz):int(150./700.*nz)+1,:,:,0]
 v = nc.variables["vvel"][int(100./700.*nz):int(150./700.*nz)+1,:,:,0]

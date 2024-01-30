@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 5;
+      int  static constexpr ord = 7;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -353,10 +353,10 @@ namespace modules {
         #pragma no_unroll
         for (int l=0; l < state_fields.size(); l++) {
           Limiter::Weights weights_loc;
-          SArray<float,1,ord> stencil;
+          SArray<real,1,ord> stencil;
           SArray<bool,1,ord> immersed;
-          for (int ii=0; ii<ord; ii++) { stencil (ii) = static_cast<float>(state_fields(l,hs+k,hs+j,i+ii,iens)); }
-          for (int ii=0; ii<ord; ii++) { immersed(ii) =              fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii<ord; ii++) { stencil (ii) = state_fields      (l,hs+k,hs+j,i+ii,iens); }
+          for (int ii=0; ii<ord; ii++) { immersed(ii) = fully_immersed_halos(hs+k,hs+j,i+ii,iens); }
           for (int ii=0; ii<ord; ii++) {
             if (l==idR && immersed(ii)) { stencil(ii) = hy_dens_cells(hs+k,iens); }
             if (l==idU && immersed(ii)) { stencil(ii) = 0; }
@@ -392,10 +392,10 @@ namespace modules {
         #pragma no_unroll
         for (int l=0; l < state_fields.size(); l++) {
           Limiter::Weights weights_loc;
-          SArray<float,1,ord> stencil;
+          SArray<real,1,ord> stencil;
           SArray<bool,1,ord> immersed;
-          for (int jj=0; jj<ord; jj++) { stencil (jj) = static_cast<float>(state_fields(l,hs+k,j+jj,hs+i,iens)); }
-          for (int jj=0; jj<ord; jj++) { immersed(jj) =              fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj<ord; jj++) { stencil (jj) = state_fields      (l,hs+k,j+jj,hs+i,iens); }
+          for (int jj=0; jj<ord; jj++) { immersed(jj) = fully_immersed_halos(hs+k,j+jj,hs+i,iens); }
           for (int jj=0; jj<ord; jj++) {
             if (l==idR && immersed(jj)) { stencil(jj) = hy_dens_cells(hs+k,iens); }
             if (l==idV && immersed(jj)) { stencil(jj) = 0; }
@@ -430,10 +430,10 @@ namespace modules {
         #pragma no_unroll
         for (int l=0; l < state_fields.size(); l++) {
           Limiter::Weights weights_loc;
-          SArray<float,1,ord> stencil;
+          SArray<real,1,ord> stencil;
           SArray<bool,1,ord> immersed;
-          for (int kk=0; kk<ord; kk++) { stencil (kk) = static_cast<float>(state_fields(l,k+kk,hs+j,hs+i,iens)); }
-          for (int kk=0; kk<ord; kk++) { immersed(kk) =              fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk<ord; kk++) { stencil (kk) = state_fields      (l,k+kk,hs+j,hs+i,iens); }
+          for (int kk=0; kk<ord; kk++) { immersed(kk) = fully_immersed_halos(k+kk,hs+j,hs+i,iens); }
           for (int kk=0; kk<ord; kk++) {
             if (l==idR && immersed(kk)) { stencil(kk) = hy_dens_cells(k+kk,iens); }
             if (l==idW && immersed(kk)) { stencil(kk) = 0; }

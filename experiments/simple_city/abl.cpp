@@ -3,7 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
-#include "les_closure.h"
+#include "les_smag.h"
 #include "windmill_actuators.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
@@ -72,7 +72,6 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    modules::WindmillActuators                 windmills;
     modules::ColumnNudger                      column_nudger;
     custom_modules::EdgeSponge                 edge_sponge;
 
@@ -86,7 +85,6 @@ int main(int argc, char** argv) {
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
     column_nudger.set_column    ( coupler , {"uvel"} );
     time_averager.init          ( coupler );
-    windmills    .init          ( coupler );
     edge_sponge  .init          ( coupler );
     modules::perturb_temperature( coupler , false , true );
 

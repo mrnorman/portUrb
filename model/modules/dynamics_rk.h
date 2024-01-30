@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 7;
+      int  static constexpr ord = 5;
     #else
       int  static constexpr ord = MW_ORD;
     #endif

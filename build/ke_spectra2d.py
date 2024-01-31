@@ -44,13 +44,13 @@ def spectra(T,nbins,dx = 1) :
 
 
 nbins = 1000
-dx = 10
+dx = 5
 
-nc = Dataset("test_00000011.nc", "r")
+nc = Dataset("test_00000008.nc", "r")
 nz = nc.dimensions["z"].size
-u = nc.variables["uvel"][int(100./700.*nz):int(150./700.*nz)+1,:,:,0]
-v = nc.variables["vvel"][int(100./700.*nz):int(150./700.*nz)+1,:,:,0]
-w = nc.variables["wvel"][int(100./700.*nz):int(150./700.*nz)+1,:,:,0]
+u = nc.variables["uvel"][int(30./700.*nz):int(150./700.*nz)+1,:,:,0]
+v = nc.variables["vvel"][int(30./700.*nz):int(150./700.*nz)+1,:,:,0]
+w = nc.variables["wvel"][int(30./700.*nz):int(150./700.*nz)+1,:,:,0]
 ke = (u*u+v*v+w*w)/2
 freq,spd = spectra(ke - np.mean(ke),nbins,dx)
 plt.loglog( freq , spd )
@@ -86,9 +86,9 @@ plt.loglog( freq , spd )
 # ind1 = len(freq)
 # plt.loglog( freq[:ind1] , 1.5e0 * freq[:ind1]**(-3.   ) )
 # plt.loglog( freq[ind1:] , 5.0e2 * freq[ind1:]**(-5./3.) )
-plt.loglog( freq[:] , 5.0e2 * freq[:]**(-5./3.) )
+plt.loglog( freq[:] , 1.e4 * freq[:]**(-5./3.) )
 # plt.legend(["0.5hr","1.0hr","1.5hr","2hr","$k^{-5/3}$"],loc='lower left')
-plt.legend(["0.5hr","1.0hr","$k^{-5/3}$"],loc='lower left')
+plt.legend(["2hr","$k^{-5/3}$"],loc='lower left')
 plt.xlabel("Spatial wavenumber")
 plt.ylabel("Spectral power of kinetic energy")
 plt.gcf().set_size_inches(8,4)
@@ -96,11 +96,11 @@ wn_dx2  = 2*np.pi/( 2*dx);
 wn_dx4  = 2*np.pi/( 4*dx);
 wn_dx8  = 2*np.pi/( 8*dx);
 wn_dx16 = 2*np.pi/(16*dx);
-plt.vlines([wn_dx2,wn_dx4,wn_dx8,wn_dx16],1.e-4,1.e5,linestyles="dashed",colors="black")
-plt.text(wn_dx2 *0.9,2.e5,"$2\Delta x$" ,size=14)
-plt.text(wn_dx4 *0.9,2.e5,"$4\Delta x$" ,size=14)
-plt.text(wn_dx8 *0.9,2.e5,"$8\Delta x$" ,size=14)
-plt.text(wn_dx16*0.9,2.e5,"$16\Delta x$",size=14)
+plt.vlines([wn_dx2,wn_dx4,wn_dx8,wn_dx16],1.e1,1.e8,linestyles="dashed",colors="black")
+plt.text(wn_dx2 *0.9,2.e8,"$2\Delta x$" ,size=14)
+plt.text(wn_dx4 *0.9,2.e8,"$4\Delta x$" ,size=14)
+plt.text(wn_dx8 *0.9,2.e8,"$8\Delta x$" ,size=14)
+plt.text(wn_dx16*0.9,2.e8,"$16\Delta x$",size=14)
 # plt.savefig("ke_spectra.eps")
 plt.show()
 plt.close()

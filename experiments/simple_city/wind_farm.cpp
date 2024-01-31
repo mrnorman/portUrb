@@ -9,6 +9,7 @@
 #include "column_nudging.h"
 #include "perturb_temperature.h"
 #include "EdgeSponge.h"
+#include "sponge_layer.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -33,6 +34,7 @@ int main(int argc, char** argv) {
     auto ylen         = config["ylen"        ].as<real       >();
     auto zlen         = config["zlen"        ].as<real       >();
     auto dtphys_in    = config["dt_phys"     ].as<real       >();
+    auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
     auto nens         = config["nens"        ].as<int        >(1            );
@@ -79,7 +81,7 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler );
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler );
+    column_nudger.set_column    ( coupler , {"uvel"} );
     time_averager.init          ( coupler );
     windmills    .init          ( coupler );
     edge_sponge  .init          ( coupler );
@@ -146,10 +148,11 @@ int main(int argc, char** argv) {
         auto mpi_data_type = coupler.get_mpi_data_type();
         MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
         if (coupler.is_mainproc()) {
-          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
+          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag , dt: "
                     << std::scientific << std::setw(10) << etime            << " , " 
                     << std::scientific << std::setw(10) << dur_step.count() << " , "
-                    << std::scientific << std::setw(10) << wind_mag         << std::endl;
+                    << std::scientific << std::setw(10) << wind_mag         << " , "
+                    << std::scientific << std::setw(10) << dtphys           << std::endl;
         }
         inform_counter.reset();
       } // End informing user section

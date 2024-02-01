@@ -3,7 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
-#include "les_smag.h"
+#include "les_closure.h"
 #include "windmill_actuators.h"
 #include "surface_flux.h"
 #include "column_nudging.h"

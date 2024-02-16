@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 3;
+      int  static constexpr ord = 9;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -329,7 +329,6 @@ namespace modules {
       real6d tracers_limits_x ("tracers_limits_x" ,2,num_tracers,nz,ny,nx+1,nens);
       real6d tracers_limits_y ("tracers_limits_y" ,2,num_tracers,nz,ny+1,nx,nens);
       real6d tracers_limits_z ("tracers_limits_z" ,2,num_tracers,nz+1,ny,nx,nens);
-      int constexpr idP = 5;
 
       /////////////////////////////////////////////////////////
       // Acoustic pressue, momentum
@@ -1371,16 +1370,25 @@ namespace modules {
         auto hy_theta_cells = dm.get<real const,2>("hy_theta_cells");
         auto hy_dens_edges  = dm.get<real      ,2>("hy_dens_edges" );
         auto hy_theta_edges = dm.get<real      ,2>("hy_theta_edges");
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
-          hy_dens_edges(k,iens) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2,iens)) +
-                                             7./12.*std::log(hy_dens_cells(hs+k-1,iens)) +
-                                             7./12.*std::log(hy_dens_cells(hs+k  ,iens)) +
-                                            -1./12.*std::log(hy_dens_cells(hs+k+1,iens)) );
-          hy_theta_edges(k,iens) = -1./12.*hy_theta_cells(hs+k-2,iens) +
-                                    7./12.*hy_theta_cells(hs+k-1,iens) +
-                                    7./12.*hy_theta_cells(hs+k  ,iens) +
-                                   -1./12.*hy_theta_cells(hs+k+1,iens);
-        });
+        if (ord < 5) {
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
+            hy_dens_edges(k,iens) = std::exp( 0.5_fp*std::log(hy_dens_cells(hs+k-1,iens)) +
+                                              0.5_fp*std::log(hy_dens_cells(hs+k  ,iens)) );
+            hy_theta_edges(k,iens) = 0.5_fp*hy_theta_cells(hs+k-1,iens) +
+                                     0.5_fp*hy_theta_cells(hs+k  ,iens) ;
+          });
+        } else {
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+1,nens) , YAKL_LAMBDA (int k, int iens) {
+            hy_dens_edges(k,iens) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2,iens)) +
+                                               7./12.*std::log(hy_dens_cells(hs+k-1,iens)) +
+                                               7./12.*std::log(hy_dens_cells(hs+k  ,iens)) +
+                                              -1./12.*std::log(hy_dens_cells(hs+k+1,iens)) );
+            hy_theta_edges(k,iens) = -1./12.*hy_theta_cells(hs+k-2,iens) +
+                                      7./12.*hy_theta_cells(hs+k-1,iens) +
+                                      7./12.*hy_theta_cells(hs+k  ,iens) +
+                                     -1./12.*hy_theta_cells(hs+k+1,iens);
+          });
+        }
       };
 
       create_immersed_proportion_halos( coupler );

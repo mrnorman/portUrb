@@ -137,7 +137,7 @@ namespace limiter {
         real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
         real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
         convexify( w_L , w_R );
-        qL = 0.5000000000000000000_fp*w_L*s(0)+0.5000000000000000000_fp*(w_L+3*w_R)*s(1)-0.5000000000000000000_fp*w_R*s(2);
+        qL = 0.5000000000000000000_fp*(s(0)+s(1))*w_L+0.5000000000000000000_fp*(3*s(1)-s(2))*w_R;
       }
       // Right evaluation
       {
@@ -146,8 +146,10 @@ namespace limiter {
         real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
         real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
         convexify( w_L , w_R );
-        qR = -0.5000000000000000000_fp*w_L*s(0)+0.5000000000000000000_fp*(3*w_L+w_R)*s(1)+0.5000000000000000000_fp*w_R*s(2);
+        qR = -0.5000000000000000000_fp*(s(0)-3*s(1))*w_L+0.5000000000000000000_fp*(s(1)+s(2))*w_R;
       }
+      qL = 0.3333333333333333333_fp*s(0)+0.8333333333333333333_fp*s(1)-0.1666666666666666667_fp*s(2);
+      qR = -0.1666666666666666667_fp*s(0)+0.8333333333333333333_fp*s(1)+0.3333333333333333333_fp*s(2);
     }
 
     YAKL_INLINE static void compute_limited_weights( SArray<real,1,3> const &s         ,
@@ -171,6 +173,7 @@ namespace limiter {
                                                    Params           const &params_in ) {
       real TV_L = weights(0);
       real TV_R = weights(1);
+      convexify( TV_L , TV_R );
       // Left evaluation
       {
         real i_L = 2._fp/3._fp;
@@ -178,7 +181,7 @@ namespace limiter {
         real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
         real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
         convexify( w_L , w_R );
-        qL = 0.5000000000000000000_fp*w_L*s(0)+0.5000000000000000000_fp*(w_L+3*w_R)*s(1)-0.5000000000000000000_fp*w_R*s(2);
+        qL = 0.5000000000000000000_fp*(s(0)+s(1))*w_L+0.5000000000000000000_fp*(3*s(1)-s(2))*w_R;
       }
       // Right evaluation
       {
@@ -187,8 +190,10 @@ namespace limiter {
         real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
         real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
         convexify( w_L , w_R );
-        qR = -0.5000000000000000000_fp*w_L*s(0)+0.5000000000000000000_fp*(3*w_L+w_R)*s(1)+0.5000000000000000000_fp*w_R*s(2);
+        qR = -0.5000000000000000000_fp*(s(0)-3*s(1))*w_L+0.5000000000000000000_fp*(s(1)+s(2))*w_R;
       }
+      qL = 0.3333333333333333333_fp*s(0)+0.8333333333333333333_fp*s(1)-0.1666666666666666667_fp*s(2);
+      qR = -0.1666666666666666667_fp*s(0)+0.8333333333333333333_fp*s(1)+0.3333333333333333333_fp*s(2);
     }
 
     YAKL_INLINE static void compute_non_limited_edges( SArray<real,1,3> const &s , real &qL , real &qR ) {
@@ -433,7 +438,7 @@ namespace limiter {
       TransformMatrices::coefs5_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) );
       TransformMatrices::coefs5_shift3( coefs_3 , s(2) , s(3) , s(4) , s(5) , s(6) );
       TransformMatrices::coefs5_shift4( coefs_4 , s(3) , s(4) , s(5) , s(6) , s(7) );
-      TransformMatrices::coefs5_shift5( coefs_4 , s(4) , s(5) , s(6) , s(7) , s(8) );
+      TransformMatrices::coefs5_shift5( coefs_5 , s(4) , s(5) , s(6) , s(7) , s(8) );
       // Compute TV
       real TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
       real TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
@@ -481,7 +486,7 @@ namespace limiter {
       TransformMatrices::coefs5_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) );
       TransformMatrices::coefs5_shift3( coefs_3 , s(2) , s(3) , s(4) , s(5) , s(6) );
       TransformMatrices::coefs5_shift4( coefs_4 , s(3) , s(4) , s(5) , s(6) , s(7) );
-      TransformMatrices::coefs5_shift5( coefs_4 , s(4) , s(5) , s(6) , s(7) , s(8) );
+      TransformMatrices::coefs5_shift5( coefs_5 , s(4) , s(5) , s(6) , s(7) , s(8) );
       // Compute TV
       real TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
       real TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
@@ -539,7 +544,7 @@ namespace limiter {
       }
     }
 
-    YAKL_INLINE static void compute_non_limited_edges( SArray<real,1,7> const &s , real &qL , real &qR ) {
+    YAKL_INLINE static void compute_non_limited_edges( SArray<real,1,9> const &s , real &qL , real &qR ) {
       qL = -0.001984126984126984127_fp*s(0)+0.02182539682539682540_fp*s(1)-0.1210317460317460317_fp*s(2)+0.5456349206349206349_fp*s(3)+0.7456349206349206349_fp*s(4)-0.2543650793650793651_fp*s(5)+0.07896825396825396825_fp*s(6)-0.01626984126984126984_fp*s(7)+0.001587301587301587302_fp*s(8);
       qR = 0.001587301587301587302_fp*s(0)-0.01626984126984126984_fp*s(1)+0.07896825396825396825_fp*s(2)-0.2543650793650793651_fp*s(3)+0.7456349206349206349_fp*s(4)+0.5456349206349206349_fp*s(5)-0.1210317460317460317_fp*s(6)+0.02182539682539682540_fp*s(7)-0.001984126984126984127_fp*s(8);
     }

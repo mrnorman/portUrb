@@ -47,6 +47,7 @@ int main(int argc, char** argv) {
     auto latitude     = config["latitude"    ].as<real       >(0            );
     auto roughness    = config["roughness"   ].as<real       >(0.1          );
     auto use_weno     = config["use_weno"    ].as<bool       >(true         );
+    auto wind_angle   = config["wind_angle"  ].as<real       >(0.           );
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"   , out_prefix   );
@@ -57,6 +58,7 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "restart_file" , restart_file );
     coupler.set_option<real       >( "latitude"     , latitude     );
     coupler.set_option<real       >( "roughness"    , roughness    );
+    coupler.set_option<real       >( "wind_angle"   , wind_angle   );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -83,7 +85,7 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler );
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler , {"uvel"} );
+    column_nudger.set_column    ( coupler , {"uvel","vvel"} );
     time_averager.init          ( coupler );
     edge_sponge  .init          ( coupler );
     modules::perturb_temperature( coupler , false , true );

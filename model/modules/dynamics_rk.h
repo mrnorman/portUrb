@@ -4,7 +4,7 @@
 #include "main_header.h"
 #include "MultipleFields.h"
 #include "TransformMatrices.h"
-#include "WenoLimiter3.h"
+#include "WenoLimiter.h"
 #include <random>
 #include <sstream>
 
@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef MW_ORD
-      int  static constexpr ord = 7;
+      int  static constexpr ord = 3;
     #else
       int  static constexpr ord = MW_ORD;
     #endif
@@ -292,8 +292,17 @@ namespace modules {
 
       // Compute pressure
       real4d pressure("pressure",nz+2*hs,ny+2*hs,nx+2*hs,nens); // Holds pressure perturbation
+      // bool4d any_immersed("any_immersed",nz,ny,nx,nens);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         pressure(hs+k,hs+j,hs+i,iens) = C0*std::pow(state(idT,hs+k,hs+j,hs+i,iens),gamma) - hy_pressure_cells(hs+k,iens);
+        // any_immersed(k,j,i,iens) = false;
+        // for (int kk=0; kk<ord; kk++) {
+        //   for (int jj=0; jj<ord; jj++) {
+        //     for (int ii=0; ii<ord; ii++) {
+        //       if (fully_immersed_halos(k+kk,j+jj,i+ii,iens)) any_immersed(k,j,i,iens) = true;
+        //     }
+        //   }
+        // }
       });
 
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
@@ -495,7 +504,7 @@ namespace modules {
               if (l>3  && immersed(ii)) { stencil(ii) = 0; }
             }
             if (l==1 || l==2) { modify_stencil_immersed_der0( stencil , immersed ); }
-            Limiter::compute_limited_coefs( stencil , lim_x_R(l,k,j,i,iens) , lim_x_L(l,k,j,i+1,iens) , lim_params );
+            Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i,iens) , lim_x_L(l,k,j,i+1,iens) , lim_params );
           }
         });
       }
@@ -544,7 +553,7 @@ namespace modules {
               if (l>3  && immersed(jj)) { stencil(jj) = 0; }
             }
             if (l==1 || l==2) { modify_stencil_immersed_der0( stencil , immersed ); }
-            Limiter::compute_limited_coefs( stencil , lim_y_R(l,k,j,i,iens) , lim_y_L(l,k,j+1,i,iens) , lim_params );
+            Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i,iens) , lim_y_L(l,k,j+1,i,iens) , lim_params );
           }
         });
       }
@@ -593,7 +602,7 @@ namespace modules {
               if (l>3  && immersed(kk)) { stencil(kk) = 0; }
             }
             if (l==1 || l==2) { modify_stencil_immersed_der0( stencil , immersed ); }
-            Limiter::compute_limited_coefs( stencil , lim_z_R(l,k,j,i,iens) , lim_z_L(l,k+1,j,i,iens) , lim_params );
+            Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i,iens) , lim_z_L(l,k+1,j,i,iens) , lim_params );
           }
         });
       }
@@ -807,41 +816,6 @@ namespace modules {
           if (fully_immersed_halos(hs+k,hs+j,hs+i,iens)) tracers_tend(l,k,j,i,iens) = 0;
         }
       });
-    }
-
-
-
-    // Use a WENO limiter (or any limiter) to compute coefficients. Then sample polynomial at cell edges
-    template <yakl::index_t ord, class LIMITER, class LIMITER_PARAMS>
-    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>     const & stencil        ,
-                                                    SArray<real,1,2  >           & gll            ,
-                                                    SArray<real,2,ord,2>   const & coefs_to_gll   ,
-                                                    LIMITER                const & limiter        ,
-                                                    LIMITER_PARAMS         const & limiter_params ) {
-      // Apply WENO to compute coefficients from the stencil
-      SArray<real,1,ord> wenoCoefs;
-      LIMITER::compute_limited_coefs( stencil , wenoCoefs , limiter_params);
-      // Compute left and right cell edge estimates from coefficients
-      for (int ii=0; ii<2; ii++) {
-        real tmp = 0;
-        for (int s=0; s < ord; s++) { tmp += coefs_to_gll(s,ii) * wenoCoefs(s); }
-        gll(ii) = tmp;
-      }
-    }
-
-
-
-    // Project stencil averages to cell-edge interpolations (No limiter)
-    template <yakl::index_t ord>
-    YAKL_INLINE static void reconstruct_gll_values( SArray<real,1,ord>   const & stencil     ,
-                                                    SArray<real,1,2  >         & gll         ,
-                                                    SArray<real,2,ord,2> const & sten_to_gll ) {
-      // Compute left and right cell edge estimates from stencil cell averages
-      for (int ii=0; ii<2; ii++) {
-        real tmp = 0;
-        for (int s=0; s < ord; s++) { tmp += sten_to_gll(s,ii) * stencil(s); }
-        gll(ii) = tmp;
-      }
     }
 
 

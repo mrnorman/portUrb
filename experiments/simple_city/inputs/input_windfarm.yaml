@@ -9,12 +9,15 @@ nens   : 1
 # nz     : 140
 nx_glob: 2000
 ny_glob: 2000
-nz     : 70
+nz     : 100
+# nx_glob: 10
+# ny_glob: 10
+# nz     : 10
 
 # Domain size of the CRMs
 xlen: 20000
 ylen: 20000
-zlen: 700
+zlen: 1000
 
 init_data: ABL_neutral2
 
@@ -38,4 +41,6 @@ restart_file: none
 roughness: 0.0002
 
 dyn_cycle: 2
+
+turbine_file: ./inputs/IEA-15-240-RWT.yaml
 

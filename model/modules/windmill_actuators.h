@@ -63,8 +63,10 @@ namespace modules {
       auto templ = templ_host.createDeviceCopy();
       std::vector<int> xind_vec ;
       std::vector<int> yind0_vec;
-      for (int i=nx_glob/4; i <= 3*nx_glob/4; i += (int) std::ceil(rad*2*10/dx)) { xind_vec .push_back(i); }
-      for (int j=ny_glob/4; j <= 3*ny_glob/4; j += (int) std::ceil(rad*2*5 /dy)) { yind0_vec.push_back(j); }
+      int xinc = (int) std::ceil(rad*2*10/dx);
+      int yinc = (int) std::ceil(rad*2*5 /dy);
+      for (int i=xinc; i < nx_glob; i += xinc) { xind_vec .push_back(i); }
+      for (int j=yinc; j < ny_glob; j += yinc) { yind0_vec.push_back(j); }
       intHost1d xind_host ("wf_xind" ,xind_vec .size());
       intHost1d yind0_host("wf_yind0",yind0_vec.size());
       for (int i=0; i < xind_vec .size(); i++) { xind_host (i) = xind_vec [i]; }

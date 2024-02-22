@@ -8,16 +8,16 @@ nens   : 1
 # ny_glob: 500
 # nz     : 140
 nx_glob: 2000
-ny_glob: 2000
-nz     : 100
+ny_glob: 1000
+nz     : 70
 # nx_glob: 10
 # ny_glob: 10
 # nz     : 10
 
 # Domain size of the CRMs
 xlen: 20000
-ylen: 20000
-zlen: 1000
+ylen: 10000
+zlen: 700
 
 init_data: ABL_neutral2
 

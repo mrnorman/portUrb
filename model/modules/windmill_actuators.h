@@ -29,33 +29,54 @@ namespace modules {
       auto nx_glob = coupler.get_nx_glob();
       auto ny_glob = coupler.get_ny_glob();
       auto &dm     = coupler.get_data_manager_readwrite();
-      YAML::Node config = YAML::LoadFile( coupler.get_option<std::string>("turbine_file") );
-      if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
-      coupler.set_option<real>( "hub_height"   , config["hub_height"  ].as<real>() );
-      coupler.set_option<real>( "blade_radius" , config["blade_radius"].as<real>() );
-      auto velmag_vec      = config["velocity_magnitude"].as<std::vector<real>>();
-      auto thrust_coef_vec = config["thrust_coef"       ].as<std::vector<real>>();
-      auto power_coef_vec  = config["power_coef"        ].as<std::vector<real>>();
-      auto power_vec       = config["power_megawatts"   ].as<std::vector<real>>();
-      realHost1d velmag_host     ("velmag"     ,velmag_vec     .size());
-      realHost1d thrust_coef_host("thrust_coef",thrust_coef_vec.size());
-      realHost1d power_coef_host ("power_coef" ,power_coef_vec .size());
-      realHost1d power_host      ("power"      ,power_vec      .size());
-      if ( velmag_host.size() != thrust_coef_host.size() ||
-           velmag_host.size() != power_coef_host .size() ||
-           velmag_host.size() != power_host      .size() ) {
-        yakl::yakl_throw("ERROR: turbine arrays not all the same size");
+      realHost1d velmag_host , thrust_coef_host , power_coef_host , power_host;
+      int sz;
+      real hub_height, blade_radius;
+      if (coupler.get_myrank() == 0) {
+        YAML::Node config = YAML::LoadFile( coupler.get_option<std::string>("turbine_file") );
+        if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
+        hub_height   = config["hub_height"  ].as<real>();
+        blade_radius = config["blade_radius"].as<real>();
+        auto velmag_vec      = config["velocity_magnitude"].as<std::vector<real>>();
+        auto thrust_coef_vec = config["thrust_coef"       ].as<std::vector<real>>();
+        auto power_coef_vec  = config["power_coef"        ].as<std::vector<real>>();
+        auto power_vec       = config["power_megawatts"   ].as<std::vector<real>>();
+        velmag_host      = realHost1d("velmag"     ,velmag_vec     .size());
+        thrust_coef_host = realHost1d("thrust_coef",thrust_coef_vec.size());
+        power_coef_host  = realHost1d("power_coef" ,power_coef_vec .size());
+        power_host       = realHost1d("power"      ,power_vec      .size());
+        if ( velmag_host.size() != thrust_coef_host.size() ||
+             velmag_host.size() != power_coef_host .size() ||
+             velmag_host.size() != power_host      .size() ) {
+          yakl::yakl_throw("ERROR: turbine arrays not all the same size");
+        }
+        for (int i=0; i < velmag_host.size(); i++) {
+          velmag_host     (i) = velmag_vec     [i];
+          thrust_coef_host(i) = thrust_coef_vec[i];
+          power_coef_host (i) = power_coef_vec [i];
+          power_host      (i) = power_vec      [i];
+        }
+        sz = velmag_host.size();
       }
-      for (int i=0; i < velmag_host.size(); i++) {
-        velmag_host     (i) = velmag_vec     [i];
-        thrust_coef_host(i) = thrust_coef_vec[i];
-        power_coef_host (i) = power_coef_vec [i];
-        power_host      (i) = power_vec      [i];
+      MPI_Bcast( &sz           , 1 , MPI_INT                     , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( &hub_height   , 1 , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( &blade_radius , 1 , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      coupler.set_option<real>( "hub_height"   , hub_height   );
+      coupler.set_option<real>( "blade_radius" , blade_radius );
+      if (coupler.get_myrank() != 0) {
+        velmag_host      = realHost1d("velmag"     ,sz);
+        thrust_coef_host = realHost1d("thrust_coef",sz);
+        power_coef_host  = realHost1d("power_coef" ,sz);
+        power_host       = realHost1d("power"      ,sz);
       }
-      dm.register_and_allocate<real>( "turbine_velmag"      , "" , {static_cast<int>(velmag_host.size())} , {"turb_points"} );
-      dm.register_and_allocate<real>( "turbine_thrust_coef" , "" , {static_cast<int>(velmag_host.size())} , {"turb_points"} );
-      dm.register_and_allocate<real>( "turbine_power_coef"  , "" , {static_cast<int>(velmag_host.size())} , {"turb_points"} );
-      dm.register_and_allocate<real>( "turbine_power"       , "" , {static_cast<int>(velmag_host.size())} , {"turb_points"} );
+      MPI_Bcast( velmag_host     .data() , velmag_host     .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( thrust_coef_host.data() , thrust_coef_host.size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( power_coef_host .data() , power_coef_host .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      MPI_Bcast( power_host      .data() , power_host      .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      dm.register_and_allocate<real>( "turbine_velmag"      , "" , {sz} , {"turb_points"} );
+      dm.register_and_allocate<real>( "turbine_thrust_coef" , "" , {sz} , {"turb_points"} );
+      dm.register_and_allocate<real>( "turbine_power_coef"  , "" , {sz} , {"turb_points"} );
+      dm.register_and_allocate<real>( "turbine_power"       , "" , {sz} , {"turb_points"} );
       auto velmag      = dm.get<real,1>("turbine_velmag"     );
       auto thrust_coef = dm.get<real,1>("turbine_thrust_coef");
       auto power_coef  = dm.get<real,1>("turbine_power_coef" );
@@ -65,10 +86,6 @@ namespace modules {
       power_coef_host .deep_copy_to(power_coef );
       power_host      .deep_copy_to(power      );
       yakl::fence();
-      std::cout << velmag      << std::endl;
-      std::cout << thrust_coef << std::endl;
-      std::cout << power_coef  << std::endl;
-      std::cout << power       << std::endl;
       dm.register_and_allocate<real>( "windmill_prop" , "" , {nz,ny,nx,nens} , {"z","y","x","nens"} );
       auto windmill_prop = dm.get<real,4>("windmill_prop");
       windmill_prop = 0;
@@ -105,8 +122,8 @@ namespace modules {
       std::vector<int> yind0_vec;
       int xinc = (int) std::ceil(rad*2*10/dx);
       int yinc = (int) std::ceil(rad*2*5 /dy);
-      for (int i=xinc; i < nx_glob; i += xinc) { xind_vec .push_back(i); }
-      for (int j=yinc; j < ny_glob; j += yinc) { yind0_vec.push_back(j); }
+      for (int i=xinc; i < nx_glob-xinc; i += xinc) { xind_vec .push_back(i); }
+      for (int j=yinc; j < ny_glob-yinc; j += yinc) { yind0_vec.push_back(j); }
       intHost1d xind_host ("wf_xind" ,xind_vec .size());
       intHost1d yind0_host("wf_yind0",yind0_vec.size());
       for (int i=0; i < xind_vec .size(); i++) { xind_host (i) = xind_vec [i]; }

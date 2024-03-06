@@ -92,12 +92,15 @@ namespace modules {
         // But we're using a coordinate system rotated by pi such that zero faces west.
         // That is, we're using an "upwind" coordinate system
         real dir_upwind = std::atan2(vavg,uavg);
+        // Compute difference between time-averaged upwind direction and current yaw
         real diff = dir_upwind - yaw;
         if (diff >  M_PI) diff -= 2*M_PI;
         if (diff < -M_PI) diff += 2*M_PI;
+        // Limit to the max yaw speed of the turbine
         real tend = diff / dt;
         if (tend > 0) { tend = std::min(  max_yaw_speed , tend ); }
         else          { tend = std::max( -max_yaw_speed , tend ); }
+        // Return the new yaw angle
         return yaw+dt*tend;
       }
     };
@@ -162,10 +165,13 @@ namespace modules {
         // Get the sub-communicator for tasks this turbine could affect
         MPI_Comm_split( MPI_COMM_WORLD , active ? 1 : 0 , myrank , &(loc.mpi_comm) );
         if (active) {
+          // Get subcommunicator size and rank id
           MPI_Comm_size( loc.mpi_comm , &(loc.nranks    ) );
           MPI_Comm_rank( loc.mpi_comm , &(loc.sub_rankid) );
+          // Determine if I "own" the turbine (if the hub's in my domain)
           bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
                        base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
+          // Gather who owns the turbine, so yaw angles can be broadcast later
           if ( loc.nranks == 1) {
             loc.owning_sub_rankid = 0;
           } else {
@@ -176,10 +182,12 @@ namespace modules {
             for (int i=0; i < loc.nranks; i++) { if (owner_arr(i)) loc.owning_sub_rankid = i; }
           }
         } else {
+          // Don't want comparisons to give true for any of these
           loc.nranks = -1;
           loc.sub_rankid = -2;
           loc.owning_sub_rankid = -3;
         }
+        // Add the turbine, and increment the turbine counter
         turbines(num_turbines) = loc;
         num_turbines++;
       }
@@ -293,10 +301,13 @@ namespace modules {
       for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++) {
         auto &turbine = turbine_group.turbines(iturb);
         if (turbine.active) {
+          ///////////////////////////////////////////////////
+          // Monte Carlo sampling of turbine disk
+          ///////////////////////////////////////////////////
           // Pre-compute rotation matrix terms
           real cos_yaw = std::cos(turbine.yaw_angle);
           real sin_yaw = std::sin(turbine.yaw_angle);
-          // These are th eglobal extents of this MPI task's domain
+          // These are the global extents of this MPI task's domain
           real dom_x1 = (i_beg+0 )*dx;
           real dom_x2 = (i_beg+nx)*dx;
           real dom_y1 = (j_beg+0 )*dy;
@@ -341,6 +352,9 @@ namespace modules {
               yakl::atomicAdd( mc_count(k,j,i,iens) , 1 );
             }
           });
+          ///////////////////////////////////////////////////
+          // Aggregation of disk integrals
+          ///////////////////////////////////////////////////
           // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
           real4d turb_prop("turb_prop",nz,ny,nx,nens);
           real4d disk_mag ("disk_mag" ,nz,ny,nx,nens);
@@ -373,6 +387,9 @@ namespace modules {
             glob_v   = sum_glob(1);
             glob_mag = sum_glob(2);
           }
+          ///////////////////////////////////////////////////
+          // Computation of disk properties
+          ///////////////////////////////////////////////////
           // Iterate out the induction factor and thrust coefficient, which depend on each other
           real a = 0.3; // Starting guess for axial induction factor based on ... chatGPT. Yeah, I know
           real C_T;
@@ -392,6 +409,9 @@ namespace modules {
           // Add this turbine's tendencies to the overall tendencies for this MPI task
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           // Compute thrust tendencies on velocities and TKE production in each cell
+          ///////////////////////////////////////////////////
+          // Application of disk onto tendencies
+          ///////////////////////////////////////////////////
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
             real r       = rho_d(k,j,i,iens);         // Needed for tendency on mass-weighted TKE tracer
@@ -405,6 +425,9 @@ namespace modules {
             tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0             *turb_prop(k,j,i,iens)*turb_factor;
             tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*magloc0*magloc0*turb_prop(k,j,i,iens)*turb_factor;
           });
+          ///////////////////////////////////////////////////
+          // Update the disk's yaw angle
+          ///////////////////////////////////////////////////
           // If this cell contains the turbine hub, update the turbine's yaw angle based on hub wind velocity
           if (turbine.sub_rankid == turbine.owning_sub_rankid) {
             real hub_height = turbine.ref_turbine.hub_height;
@@ -429,6 +452,9 @@ namespace modules {
         } // if (turbine.active)
       } // for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++)
 
+      ///////////////////////////////////////////////////
+      // Application of tendencies onto model variables
+      ///////////////////////////////////////////////////
       // Update velocities and TKE based on tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         uvel(k,j,i,iens) += dt * tend_u  (k,j,i,iens);
@@ -436,6 +462,7 @@ namespace modules {
         tke (k,j,i,iens) += dt * tend_tke(k,j,i,iens);
       });
 
+      // So all tasks know how large the trace is. Makes PNetCDF output easier to manage
       trace_size++;
     }
 

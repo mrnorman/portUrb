@@ -4,12 +4,12 @@ sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-# nx_glob: 1000
-# ny_glob: 1000
-# nz     : 100
-nx_glob: 400
-ny_glob: 400
-nz     : 40
+nx_glob: 1000
+ny_glob: 1000
+nz     : 100
+# nx_glob: 400
+# ny_glob: 400
+# nz     : 40
 # nx_glob: 10
 # ny_glob: 10
 # nz     : 10

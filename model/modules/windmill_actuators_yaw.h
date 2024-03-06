@@ -80,8 +80,7 @@ namespace modules {
 
 
     // Yaw will change as if it were an active yaw system that moves at a certain max speed. It will react
-    //   to some time average of the wind velocities. The operator() outputs the yaw angle tendency in 
-    //   radians per second.
+    //   to some time average of the wind velocities. The operator() outputs the new yaw angle in radians.
     struct YawTend {
       real tau, uavg, vavg;
       YawTend( real tau_in=60 , real uavg_in=0, real vavg_in=0 ) { tau=tau_in; uavg=uavg_in; vavg=vavg_in; }
@@ -93,13 +92,13 @@ namespace modules {
         // But we're using a coordinate system rotated by pi such that zero faces west.
         // That is, we're using an "upwind" coordinate system
         real dir_upwind = std::atan2(vavg,uavg);
-        // If the upwind direction and current yaw angle are of different sign, we've hit the sign change
-        //    discontinuity in describing the angle. So make the negative value positive in this case
-        if (dir_upwind < 0 && yaw > 0) dir_upwind += 2*M_PI;
-        if (dir_upwind > 0 && yaw < 0) yaw        += 2*M_PI;
-        real tend = (dir_upwind - yaw) / dt;
-        if (tend > 0) { return std::min(  max_yaw_speed , tend ); }
-        else          { return std::max( -max_yaw_speed , tend ); }
+        real diff = dir_upwind - yaw;
+        if (diff >  M_PI) diff -= 2*M_PI;
+        if (diff < -M_PI) diff += 2*M_PI;
+        real tend = diff / dt;
+        if (tend > 0) { tend = std::min(  max_yaw_speed , tend ); }
+        else          { tend = std::max( -max_yaw_speed , tend ); }
+        return yaw+dt*tend;
       }
     };
 
@@ -116,6 +115,8 @@ namespace modules {
       RefTurbine         ref_turbine; // The reference turbine to use for this turbine
       MPI_Comm           mpi_comm;    // MPI communicator for this turbine
       int                nranks;      // Number of MPI ranks involved with this turbine
+      int                sub_rankid;  // My process's rank ID in the sub communicator
+      int                owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
     };
 
 
@@ -124,11 +125,32 @@ namespace modules {
       yakl::SArray<Turbine,1,MAX_TURBINES> turbines;
       int num_turbines;
       TurbineGroup() { num_turbines = 0; }
-      void add_turbine( bool               active      ,
-                        real               base_loc_x  ,
-                        real               base_loc_y  ,
-                        int                my_rank_id  ,
-                        RefTurbine const & ref_turbine ) {
+      void add_turbine( core::Coupler const & coupler     ,
+                        real                  base_loc_x  ,
+                        real                  base_loc_y  ,
+                        RefTurbine    const & ref_turbine ) {
+        auto i_beg  = coupler.get_i_beg();
+        auto j_beg  = coupler.get_j_beg();
+        auto nx     = coupler.get_nx();
+        auto ny     = coupler.get_ny();
+        auto dx     = coupler.get_dx();
+        auto dy     = coupler.get_dy();
+        auto myrank = coupler.get_myrank();
+        // bounds of this MPI task's domain
+        real dom_x1  = (i_beg+0 )*dx;
+        real dom_x2  = (i_beg+nx)*dx;
+        real dom_y1  = (j_beg+0 )*dy;
+        real dom_y2  = (j_beg+ny)*dy;
+        // Rectangular bounds of this turbine's potential influence
+        real turb_x1 = base_loc_x-ref_turbine.blade_radius;
+        real turb_x2 = base_loc_x+ref_turbine.blade_radius;
+        real turb_y1 = base_loc_y-ref_turbine.blade_radius;
+        real turb_y2 = base_loc_y+ref_turbine.blade_radius;
+        // Determine if the two domains overlap
+        bool active = !( turb_x1 > dom_x2 || // Turbine's to the right
+                         turb_x2 < dom_x1 || // Turbine's to the left
+                         turb_y1 > dom_y2 || // Turbine's above
+                         turb_y2 < dom_y1 ); // Turbine's below
         Turbine loc;
         loc.turbine_id  = num_turbines;
         loc.active      = active;
@@ -137,9 +159,27 @@ namespace modules {
         loc.yaw_angle   = 0.;
         loc.yaw_tend    = YawTend();
         loc.ref_turbine = ref_turbine;
-        MPI_Comm_split( MPI_COMM_WORLD , active ? 1 : 0 , my_rank_id , &(loc.mpi_comm) );
-        if (active) { MPI_Comm_size( loc.mpi_comm, &(loc.nranks) ); }
-        else        { loc.nranks = 0;                               }
+        // Get the sub-communicator for tasks this turbine could affect
+        MPI_Comm_split( MPI_COMM_WORLD , active ? 1 : 0 , myrank , &(loc.mpi_comm) );
+        if (active) {
+          MPI_Comm_size( loc.mpi_comm , &(loc.nranks    ) );
+          MPI_Comm_rank( loc.mpi_comm , &(loc.sub_rankid) );
+          bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
+                       base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
+          if ( loc.nranks == 1) {
+            loc.owning_sub_rankid = 0;
+          } else {
+            boolHost1d owner_arr("owner_arr",loc.nranks);
+            bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
+                         base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
+            MPI_Allgather( &owner , 1 , MPI_C_BOOL , owner_arr.data() , 1 , MPI_C_BOOL , loc.mpi_comm );
+            for (int i=0; i < loc.nranks; i++) { if (owner_arr(i)) loc.owning_sub_rankid = i; }
+          }
+        } else {
+          loc.nranks = -1;
+          loc.sub_rankid = -2;
+          loc.owning_sub_rankid = -3;
+        }
         turbines(num_turbines) = loc;
         num_turbines++;
       }
@@ -148,6 +188,7 @@ namespace modules {
 
     // Class data members
     TurbineGroup<>  turbine_group;
+    int             trace_size;
 
 
     void init( core::Coupler &coupler ) {
@@ -166,8 +207,11 @@ namespace modules {
       auto j_beg   = coupler.get_j_beg();
       auto nx_glob = coupler.get_nx_glob();
       auto ny_glob = coupler.get_ny_glob();
+      auto dtype   = coupler.get_mpi_data_type();
       auto myrank  = coupler.get_myrank();
       auto &dm     = coupler.get_data_manager_readwrite();
+
+      trace_size = 0;
       
       RefTurbine ref_turbine;
       ref_turbine.init( coupler.get_option<std::string>("turbine_file") , dx , dy , dz );
@@ -176,31 +220,44 @@ namespace modules {
       real xinc = ref_turbine.blade_radius*2*10;
       real yinc = ref_turbine.blade_radius*2*10;
       // Determine the x and y bounds of this MPI task's domain
-      real dom_x1  = (i_beg+0 )*dx;
-      real dom_x2  = (i_beg+nx)*dx;
-      real dom_y1  = (j_beg+0 )*dy;
-      real dom_y2  = (j_beg+ny)*dy;
-      int counter = 0;
       for (real y = yinc; y < ylen-yinc; y += yinc) {
         for (real x = xinc; x < xlen-xinc; x += xinc) {
-          MPI_Barrier(MPI_COMM_WORLD);
-          // Determine this turbine's domain of influence
-          real turb_x1 = x-ref_turbine.blade_radius;
-          real turb_x2 = x+ref_turbine.blade_radius;
-          real turb_y1 = y-ref_turbine.blade_radius;
-          real turb_y2 = y+ref_turbine.blade_radius;
-          // If the turbine's domain of influence overlaps with this MPI task's domain, then add it to this task
-          bool inactive = ( turb_x1 > dom_x2 || // Turbine's to the right
-                            turb_x2 < dom_x1 || // Turbine's to the left
-                            turb_y1 > dom_y2 || // Turbine's above
-                            turb_y2 < dom_y1 ); // Turbine's below
-          turbine_group.add_turbine( ! inactive , x , y , myrank , ref_turbine );
-          counter++;
+          turbine_group.add_turbine( coupler , x , y , ref_turbine );
         }
       }
 
       dm.register_and_allocate<real>("windmill_prop","",{nz,ny,nx,nens});
       coupler.register_output_variable<real>( "windmill_prop" , core::Coupler::DIMS_3D );
+      // Create an output module in the coupler to dump the windmill portions and the power trace from task zero
+      coupler.register_write_output_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+        if (trace_size > 0) {
+          nc.redef();
+          nc.create_dim( "num_time_steps" , trace_size );
+          for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
+            std::string pow_vname = std::string("power_trace_turb_") + std::to_string(iturb);
+            std::string yaw_vname = std::string("yaw_trace_turb_"  ) + std::to_string(iturb);
+            nc.create_var<real>( pow_vname , {"num_time_steps"} );
+            nc.create_var<real>( yaw_vname , {"num_time_steps"} );
+          }
+          nc.enddef();
+          nc.begin_indep_data();
+          for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
+            auto &turbine = turbine_group.turbines(iturb);
+            if (turbine.active && turbine.sub_rankid == turbine.owning_sub_rankid) {
+              realHost1d power_arr("power_arr",trace_size);
+              realHost1d yaw_arr  ("yaw_arr"  ,trace_size);
+              for (int i=0; i < trace_size; i++) { power_arr(i) = turbine.power_trace[i]; }
+              for (int i=0; i < trace_size; i++) { yaw_arr  (i) = turbine.yaw_trace  [i]/M_PI*180; }
+              std::string pow_vname = std::string("power_trace_turb_") + std::to_string(iturb);
+              std::string yaw_vname = std::string("yaw_trace_turb_"  ) + std::to_string(iturb);
+              nc.write( power_arr , pow_vname );
+              nc.write( yaw_arr   , yaw_vname );
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+          }
+          nc.end_indep_data();
+        }
+      });
     }
 
 
@@ -224,10 +281,6 @@ namespace modules {
       auto vvel          = dm.get<real      ,4>("vvel"       );
       auto tke           = dm.get<real      ,4>("TKE"        );
       auto turb_prop_tot = dm.get<real      ,4>("windmill_prop");
-
-      // Bring class data member turbine_group into local scope so that it is captured by value in the lambda
-      //   passed to parallel_for.
-      YAKL_SCOPE( tubine_group , this->turbine_group );
 
       real4d tend_u  ("tend_u"  ,nz,ny,nx,nens);
       real4d tend_v  ("tend_v"  ,nz,ny,nx,nens);
@@ -320,8 +373,6 @@ namespace modules {
             glob_v   = sum_glob(1);
             glob_mag = sum_glob(2);
           }
-          // std::cout << "Rank: "  << myrank <<  " , Turbine: " << iturb << " , glob_mag: " << glob_mag << std::endl;
-          // if (iturb == 0) std::cout << turbine.yaw_angle << std::endl;
           // Iterate out the induction factor and thrust coefficient, which depend on each other
           real a = 0.3; // Starting guess for axial induction factor based on ... chatGPT. Yeah, I know
           real C_T;
@@ -355,8 +406,7 @@ namespace modules {
             tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*magloc0*magloc0*turb_prop(k,j,i,iens)*turb_factor;
           });
           // If this cell contains the turbine hub, update the turbine's yaw angle based on hub wind velocity
-          if (turbine.base_loc_x >= i_beg*dx && turbine.base_loc_x < (i_beg+nx)*dx &&
-              turbine.base_loc_y >= j_beg*dy && turbine.base_loc_y < (j_beg+ny)*dy ) {
+          if (turbine.sub_rankid == turbine.owning_sub_rankid) {
             real hub_height = turbine.ref_turbine.hub_height;
             int i = static_cast<int>(std::floor((turbine.base_loc_x-dom_x1)/dx));
             int j = static_cast<int>(std::floor((turbine.base_loc_y-dom_y1)/dy));
@@ -370,14 +420,14 @@ namespace modules {
             real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
             real uvel = vel_host(0,0);
             real vvel = vel_host(1,0);
-            turbine.yaw_angle += dt * turbine.yaw_tend( uvel , vvel , dt , turbine.yaw_angle , max_yaw_speed );
-            // TODO: Broadcast the new yaw_angle
-            // TODO: The disk appears to be in the wrong plane at the moment.
+            turbine.yaw_angle = turbine.yaw_tend( uvel , vvel , dt , turbine.yaw_angle , max_yaw_speed );
+          }
+          // Broadcast the hub-owning new yaw angle to the other processes on this task
+          if (turbine.nranks > 1) {
+            MPI_Bcast( &(turbine.yaw_angle) , 1 , dtype , turbine.owning_sub_rankid, turbine.mpi_comm );
           }
         } // if (turbine.active)
       } // for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++)
-
-      // std::cout << yakl::intrinsics::sum(turb_prop_tot) << std::endl;
 
       // Update velocities and TKE based on tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
@@ -385,6 +435,8 @@ namespace modules {
         vvel(k,j,i,iens) += dt * tend_v  (k,j,i,iens);
         tke (k,j,i,iens) += dt * tend_tke(k,j,i,iens);
       });
+
+      trace_size++;
     }
 
 

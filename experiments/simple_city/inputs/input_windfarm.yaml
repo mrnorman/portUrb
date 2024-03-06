@@ -7,9 +7,9 @@ nens   : 1
 # nx_glob: 1000
 # ny_glob: 1000
 # nz     : 100
-nx_glob: 500
-ny_glob: 500
-nz     : 50
+nx_glob: 400
+ny_glob: 400
+nz     : 40
 # nx_glob: 10
 # ny_glob: 10
 # nz     : 10

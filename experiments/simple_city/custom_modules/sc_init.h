@@ -190,6 +190,56 @@ namespace custom_modules {
         }
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "sphere") {
+
+      real constexpr uref       = 10;   // Velocity at hub height
+      real constexpr theta0     = 300;
+      real constexpr href       = 100;   // Height of hub / center of windmills
+      real constexpr von_karman = 0.40;
+      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+      realHost1d press_host("press",nz);
+      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+      auto press = press_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+        real zloc = (k+0.5_fp)*dz;
+        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
+        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
+        real p     = press(k);
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i,iens) = rt / theta0;
+        dm_uvel (k,j,i,iens) = u;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = T;
+        dm_rho_v(k,j,i,iens) = 0;
+        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
+        real x0 = 0.5 *xlen;
+        real y0 = 0.5 *ylen;
+        real z0 = 0.2 *zlen;
+        real rad = 0.05*zlen;
+        int N = 10;
+        int count = 0;
+        for (int kk=0; kk < N; kk++) {
+          for (int jj=0; jj < N; jj++) {
+            for (int ii=0; ii < N; ii++) {
+              real x = (i_beg+i)*dx+ii*dx/(N-1);
+              real y = (j_beg+j)*dy+jj*dy/(N-1);
+              real z = (      k)*dz+kk*dz/(N-1);
+              if ( (x-x0)*(x-x0) + (y-y0)*(y-y0) + (z-z0)*(z-z0) <= rad*rad ) count++;
+            }
+          }
+        }
+        dm_immersed_proportion(k,j,i,iens) = static_cast<real>(count)/(N*N*N);
+        if (count == N*N*N) dm_immersed_proportion(k,j,i,iens) = 1;
+        dm_uvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
+        dm_vvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
+        dm_wvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
       real constexpr uref       = 10;

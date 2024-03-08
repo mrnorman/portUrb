@@ -215,6 +215,10 @@ namespace limiter {
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
+      real mn=s(0), mx=s(0);
+      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
+      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
+      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
@@ -246,11 +250,17 @@ namespace limiter {
         convexify( w_L , w_C , w_R );
         qR = -0.1666666666666666667_fp*(s(1)-5*s(2)-2*s(3))*w_C+0.1666666666666666667_fp*(2*s(0)-7*s(1)+11*s(2))*w_L+0.1666666666666666667_fp*(2*s(2)+5*s(3)-s(4))*w_R;
       }
+      qL = qL*sc+mn;
+      qR = qR*sc+mn;
     }
 
     YAKL_INLINE static void compute_limited_weights( SArray<real,1,5> const &s          ,
                                                      Weights                 &weights   ,
                                                      Params            const &params_in ) {
+      real mn=s(0), mx=s(0);
+      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
+      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
+      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
@@ -317,6 +327,10 @@ namespace limiter {
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
+      real mn=s(0), mx=s(0);
+      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
+      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
+      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,4> coefs_1, coefs_2, coefs_3, coefs_4;
       TransformMatrices::coefs4_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) );
       TransformMatrices::coefs4_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) );
@@ -354,11 +368,17 @@ namespace limiter {
         convexify( w_1 , w_2 , w_3 , w_4 );
         qR = -0.08333333333333333333_fp*(3*s(0)-13*s(1)+23*s(2)-25*s(3))*w_1+0.08333333333333333333_fp*(s(1)-5*s(2)+13*s(3)+3*s(4))*w_2-0.08333333333333333333_fp*(s(2)-7*s(3)-7*s(4)+s(5))*w_3+0.08333333333333333333_fp*(3*s(3)+13*s(4)-5*s(5)+s(6))*w_4;
       }
+      qL = qL*sc+mn;
+      qR = qR*sc+mn;
     }
 
     YAKL_INLINE static void compute_limited_weights( SArray<real,1,7>       &s         ,
                                                      Weights                 &weights   ,
                                                      Params            const &params_in ) {
+      real mn=s(0), mx=s(0);
+      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
+      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
+      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,4> coefs_1, coefs_2, coefs_3, coefs_4;
       TransformMatrices::coefs4_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) );
       TransformMatrices::coefs4_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) );

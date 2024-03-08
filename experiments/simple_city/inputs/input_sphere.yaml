@@ -1,25 +1,22 @@
 ---
 # Simulation time in seconds
-sim_time: 14400.  # 86400
+sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 1000
-ny_glob: 1000
-nz     : 100
-# nx_glob: 400
-# ny_glob: 400
-# nz     : 40
-# nx_glob: 10
-# ny_glob: 10
-# nz     : 10
+# nx_glob: 500
+# ny_glob: 250
+# nz     : 125
+nx_glob: 200
+ny_glob: 200
+nz     : 200
 
 # Domain size of the CRMs
-xlen: 10000
-ylen: 10000
+xlen: 1000
+ylen: 1000
 zlen: 1000
 
-init_data: ABL_neutral2
+init_data: sphere
 
 # Output filename
 out_prefix: test
@@ -28,7 +25,7 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 900.
+out_freq: 100.
 
 inform_freq: 10.
 
@@ -38,9 +35,9 @@ is_restart: false
 
 restart_file: none
 
-roughness: 0.0002
+roughness: 0.1
 
-dyn_cycle: 2
+use_weno: true
 
-turbine_file: ./inputs/IEA-15-240-RWT.yaml
+dyn_cycle: 10
 

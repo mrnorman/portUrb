@@ -394,10 +394,10 @@ namespace modules {
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
             turb_prop(k,j,i,iens) = static_cast<real>(mc_count(k,j,i,iens))/static_cast<real>(npoints);
             turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
+            disk_u  (k,j,i,iens) = turb_prop(k,j,i,iens)*uvel(k,j,i,iens);
+            disk_v  (k,j,i,iens) = turb_prop(k,j,i,iens)*vvel(k,j,i,iens);
             real u = uvel(k,j,i,iens)*cos_yaw;
             real v = vvel(k,j,i,iens)*sin_yaw;
-            disk_u  (k,j,i,iens) = turb_prop(k,j,i,iens)*u;
-            disk_v  (k,j,i,iens) = turb_prop(k,j,i,iens)*v;
             disk_mag(k,j,i,iens) = turb_prop(k,j,i,iens)*std::sqrt(u*u+v*v);
           });
           // Calculate local sums
@@ -459,26 +459,31 @@ namespace modules {
           // Update the disk's yaw angle
           ///////////////////////////////////////////////////
           // If this cell contains the turbine hub, update the turbine's yaw angle based on hub wind velocity
-          if (turbine.sub_rankid == turbine.owning_sub_rankid) {
-            real hub_height = turbine.ref_turbine.hub_height;
-            int i = static_cast<int>(std::floor((turbine.base_loc_x-dom_x1)/dx));
-            int j = static_cast<int>(std::floor((turbine.base_loc_y-dom_y1)/dy));
-            int k = static_cast<int>(std::floor((hub_height               )/dz));
-            real2d vel("vel",2,nens);
-            parallel_for( YAKL_AUTO_LABEL() , nens , YAKL_LAMBDA (int iens) {
-              vel(0,iens) = uvel(k,j,i,iens);
-              vel(1,iens) = vvel(k,j,i,iens);
-            });
-            auto vel_host = vel.createHostCopy();
-            real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
-            real uvel = vel_host(0,0);
-            real vvel = vel_host(1,0);
-            turbine.yaw_angle = turbine.yaw_tend( uvel , vvel , dt , turbine.yaw_angle , max_yaw_speed );
-          }
-          // Broadcast the hub-owning new yaw angle to the other processes on this task
-          if (turbine.nranks > 1) {
-            MPI_Bcast( &(turbine.yaw_angle) , 1 , dtype , turbine.owning_sub_rankid, turbine.mpi_comm );
-          }
+          // if (turbine.sub_rankid == turbine.owning_sub_rankid) {
+          //   real hub_height = turbine.ref_turbine.hub_height;
+          //   int i = static_cast<int>(std::floor((turbine.base_loc_x-dom_x1)/dx));
+          //   int j = static_cast<int>(std::floor((turbine.base_loc_y-dom_y1)/dy));
+          //   int k = static_cast<int>(std::floor((hub_height               )/dz));
+          //   real2d vel("vel",2,nens);
+          //   parallel_for( YAKL_AUTO_LABEL() , nens , YAKL_LAMBDA (int iens) {
+          //     vel(0,iens) = uvel(k,j,i,iens);
+          //     vel(1,iens) = vvel(k,j,i,iens);
+          //   });
+          //   auto vel_host = vel.createHostCopy();
+          //   real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
+          //   real uvel = vel_host(0,0);
+          //   real vvel = vel_host(1,0);
+          //   turbine.yaw_angle = turbine.yaw_tend( uvel , vvel , dt , turbine.yaw_angle , max_yaw_speed );
+          // }
+          // // Broadcast the hub-owning new yaw angle to the other processes on this task
+          // if (turbine.nranks > 1) {
+          //   MPI_Bcast( &(turbine.yaw_angle) , 1 , dtype , turbine.owning_sub_rankid, turbine.mpi_comm );
+          // }
+
+          // Resolving the base leads to odd behavior at the hub grid cell. I'm going to use the disk-averaged
+          // u and v velocity instead (note it's *not* normal u an v velocity but just plain u and v)
+          real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
+          turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
         } // if (turbine.active)
       } // for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++)
 

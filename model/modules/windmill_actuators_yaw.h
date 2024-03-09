@@ -42,6 +42,7 @@ namespace modules {
       real       hub_height;       // Hub height                     (m)
       real       blade_radius;     // Blade radius                   (m)
       real       max_yaw_speed;    // Angular active yawing speed    (radians / sec)
+      real       base_diameter;    // Average diameter of the base   (m)
       void init( std::string fname , real dx , real dy , real dz ) {
         YAML::Node config = YAML::LoadFile( fname );
         if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
@@ -75,6 +76,7 @@ namespace modules {
         this->hub_height    = config["hub_height"   ].as<real>();
         this->blade_radius  = config["blade_radius" ].as<real>();
         this->max_yaw_speed = config["max_yaw_speed"].as<real>(0.5)/180.*M_PI;
+        this->base_diameter = config["base_diameter"].as<real>(9);
       }
     };
 
@@ -128,17 +130,23 @@ namespace modules {
       yakl::SArray<Turbine,1,MAX_TURBINES> turbines;
       int num_turbines;
       TurbineGroup() { num_turbines = 0; }
-      void add_turbine( core::Coupler const & coupler     ,
+      void add_turbine( core::Coupler       & coupler     ,
                         real                  base_loc_x  ,
                         real                  base_loc_y  ,
                         RefTurbine    const & ref_turbine ) {
+        using yakl::c::parallel_for;
+        using yakl::c::SimpleBounds;
         auto i_beg  = coupler.get_i_beg();
         auto j_beg  = coupler.get_j_beg();
+        auto nens   = coupler.get_nens();
         auto nx     = coupler.get_nx();
         auto ny     = coupler.get_ny();
+        auto nz     = coupler.get_nz();
         auto dx     = coupler.get_dx();
         auto dy     = coupler.get_dy();
+        auto dz     = coupler.get_dz();
         auto myrank = coupler.get_myrank();
+        auto imm    = coupler.get_data_manager_readwrite().get<real,4>("immersed_proportion");
         // bounds of this MPI task's domain
         real dom_x1  = (i_beg+0 )*dx;
         real dom_x2  = (i_beg+nx)*dx;
@@ -187,8 +195,30 @@ namespace modules {
           loc.sub_rankid = -2;
           loc.owning_sub_rankid = -3;
         }
-        // Add the turbine, and increment the turbine counter
+        // Add the turbine
         turbines(num_turbines) = loc;
+        // Add the base to immersed_proportion
+        int N = 10;
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+          int count = 0;
+          for (int kk=0; kk < N; kk++) {
+            for (int jj=0; jj < N; jj++) {
+              for (int ii=0; ii < N; ii++) {
+                int x = (i_beg+i)*dx + ii*dx/(N-1);
+                int y = (j_beg+j)*dy + jj*dy/(N-1);
+                int z = (      k)*dz + kk*dz/(N-1);
+                auto bx  = base_loc_x;
+                auto by  = base_loc_y;
+                auto rad = ref_turbine.base_diameter;
+                auto h   = ref_turbine.hub_height;
+                if ( (x-bx)*(x-bx) + (y-by)*(y-by) <= rad*rad  && z <= h ) count++;
+              }
+            }
+          }
+          imm(k,j,i,iens) += static_cast<real>(count)/(N*N*N);
+        });
+        // Increment the turbine counter
         num_turbines++;
       }
     };

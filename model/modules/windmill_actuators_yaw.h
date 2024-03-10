@@ -448,16 +448,15 @@ namespace modules {
           real C_TKE   = f_TKE * (C_T - C_P);       // Proportion out some of the unused energy to go into TKE
           real u0      = glob_unorm/(1-a);          // u-velocity at infinity
           real v0      = glob_vnorm/(1-a);          // v-velocity at infinity
-          real magloc0 = std::sqrt(u0*u0 + v0*v0);  // This cell's velocity magnitude at infinity
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
             real r       = rho_d(k,j,i,iens);         // Needed for tendency on mass-weighted TKE tracer
-            tend_u  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*u0             *turb_prop(k,j,i,iens)*turb_factor;
-            tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0             *turb_prop(k,j,i,iens)*turb_factor;
-            tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*magloc0*magloc0*turb_prop(k,j,i,iens)*turb_factor;
+            tend_u  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*u0       *turb_prop(k,j,i,iens)*turb_factor;
+            tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0       *turb_prop(k,j,i,iens)*turb_factor;
+            tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*turb_prop(k,j,i,iens)*turb_factor;
           });
           ///////////////////////////////////////////////////
           // Update the disk's yaw angle

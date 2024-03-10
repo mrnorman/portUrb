@@ -4,7 +4,7 @@
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
-#include "windmill_actuators_yaw.h"
+#include "windmill_actuators_yaw_rotating.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"

@@ -326,8 +326,6 @@ namespace modules {
           real dom_y1 = (j_beg+0 )*dy;
           real dom_y2 = (j_beg+ny)*dy;
           // Use monte carlo to compute proportion of the turbine in each cell
-          int4d mc_count("mc_count",nz,ny,nx,nens);   // Hit count for each cell
-          mc_count = 0;
           // Get reference data for later computations
           real rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
           real hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
@@ -342,17 +340,19 @@ namespace modules {
           int  ncells = static_cast<int>(std::ceil(turb_area/grid_area)); // number of cells in the turbine area
           int  points_per_cell = 1000;               // Desired average number of samples per cell
           int  npoints = ncells * points_per_cell;   // Total samples to randomly select
+          real4d mc_weight("mc_weight",nz,ny,nx,nens);   // Hit count for each cell
+          mc_weight = 0;
           // Using yakl::Random with a common seed for all MPI tasks to ensure we get the exact same values per task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(npoints,nens) , YAKL_LAMBDA (int ipoint, int iens) {
             // Randomly sample the radius and angle of a circle at [0,0,0] facing westward
             yakl::Random rand(ipoint);
             // Polar coordinates
             real theta = rand.genFP<real>()*2*static_cast<real>(M_PI);
-            real r     = std::sqrt( rand.genFP<real>() )*rad;
+            real r     = std::sqrt( rand.genFP<real>() );
             // Transorm to cartesian coordinates
             real x     = 0;
-            real y     = r*std::cos(theta);
-            real z     = r*std::sin(theta);
+            real y     = rad*r*std::cos(theta);
+            real z     = rad*r*std::sin(theta);
             // Now rotate x and y according to the yaw angle, and translate to base location
             real xp = base_x + cos_yaw*x - sin_yaw*y;
             real yp = base_y + sin_yaw*x + cos_yaw*y;
@@ -362,9 +362,23 @@ namespace modules {
               int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
               int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
               int k = static_cast<int>(std::floor((zp       )/dz));
-              yakl::atomicAdd( mc_count(k,j,i,iens) , 1 );
+              // Calculate distance from center
+              real r2 = r*r;
+              real r4 = r2*r2;
+              real r8 = r4*r4;
+              real weight = -0.39_fp*r8 + 3.95_fp*r4; 
+              weight = std::max(0._fp,std::min(1._fp,weight));
+              weight = std::pow( weight , 0.25_fp );
+              yakl::atomicAdd( mc_weight(k,j,i,iens) , weight );
             }
           });
+          real weight_tot_loc = yakl::intrinsics::sum(mc_weight);
+          real weight_tot;
+          if (turbine.nranks == 1) {
+            weight_tot = weight_tot_loc;
+          } else {
+            MPI_Allreduce( &weight_tot_loc , &weight_tot , 1 , dtype , MPI_SUM , turbine.mpi_comm );
+          }
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
@@ -378,7 +392,7 @@ namespace modules {
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
-            turb_prop(k,j,i,iens) = static_cast<real>(mc_count(k,j,i,iens))/static_cast<real>(npoints);
+            turb_prop(k,j,i,iens) = mc_weight(k,j,i,iens)/weight_tot;
             turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
             real u = uvel(k,j,i,iens)*cos_yaw;
             real v = vvel(k,j,i,iens)*sin_yaw;
@@ -430,7 +444,6 @@ namespace modules {
           turbine.power_trace.push_back( pwr               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
-          // Add this turbine's tendencies to the overall tendencies for this MPI task
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE   = f_TKE * (C_T - C_P);       // Proportion out some of the unused energy to go into TKE
           real u0      = glob_unorm/(1-a);          // u-velocity at infinity

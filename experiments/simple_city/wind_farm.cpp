@@ -4,7 +4,7 @@
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
-#include "windmill_actuators_yaw_rotating.h"
+#include "windmill_actuators_yaw.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"
@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
       // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler); }
+      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
 

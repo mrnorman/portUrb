@@ -343,16 +343,17 @@ namespace modules {
           real4d mc_weight("mc_weight",nz,ny,nx,nens);   // Hit count for each cell
           mc_weight = 0;
           // Using yakl::Random with a common seed for all MPI tasks to ensure we get the exact same values per task
+          YAKL_SCOPE( trace_size , this->trace_size ); // Bring into local scope to be captured by value by lambda
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(npoints,nens) , YAKL_LAMBDA (int ipoint, int iens) {
             // Randomly sample the radius and angle of a circle at [0,0,0] facing westward
-            yakl::Random rand(ipoint);
+            yakl::Random rand(ipoint+trace_size);
             // Polar coordinates
             real theta = rand.genFP<real>()*2*static_cast<real>(M_PI);
             real r     = std::sqrt( rand.genFP<real>() );
             // Transorm to cartesian coordinates
-            real x     = 0;
-            real y     = rad*r*std::cos(theta);
-            real z     = rad*r*std::sin(theta);
+            real x = 0;
+            real y = rad*r*std::cos(theta);
+            real z = rad*r*std::sin(theta);
             // Now rotate x and y according to the yaw angle, and translate to base location
             real xp = base_x + cos_yaw*x - sin_yaw*y;
             real yp = base_y + sin_yaw*x + cos_yaw*y;
@@ -387,51 +388,50 @@ namespace modules {
           real4d disk_mag  ("disk_mag"  ,nz,ny,nx,nens);
           real4d disk_u    ("disk_u"    ,nz,ny,nx,nens);
           real4d disk_v    ("disk_v"    ,nz,ny,nx,nens);
-          real4d disk_unorm("disk_unorm",nz,ny,nx,nens);
-          real4d disk_vnorm("disk_vnorm",nz,ny,nx,nens);
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
-            turb_prop(k,j,i,iens) = mc_weight(k,j,i,iens)/weight_tot;
-            turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
-            real u = uvel(k,j,i,iens)*cos_yaw;
-            real v = vvel(k,j,i,iens)*sin_yaw;
-            disk_u    (k,j,i,iens) = turb_prop(k,j,i,iens)*uvel(k,j,i,iens);
-            disk_v    (k,j,i,iens) = turb_prop(k,j,i,iens)*vvel(k,j,i,iens);
-            disk_mag  (k,j,i,iens) = turb_prop(k,j,i,iens)*std::sqrt(u*u+v*v);
-            disk_unorm(k,j,i,iens) = turb_prop(k,j,i,iens)*u;
-            disk_vnorm(k,j,i,iens) = turb_prop(k,j,i,iens)*v;
+            if (mc_weight(k,j,i,iens) > 0 ) {
+              real u = uvel(k,j,i,iens);
+              real v = vvel(k,j,i,iens);
+              turb_prop    (k,j,i,iens)  = mc_weight(k,j,i,iens)/weight_tot;
+              turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
+              disk_u       (k,j,i,iens)  = turb_prop(k,j,i,iens)*u;
+              disk_v       (k,j,i,iens)  = turb_prop(k,j,i,iens)*v;
+              disk_mag     (k,j,i,iens)  = turb_prop(k,j,i,iens)*std::sqrt(u*u+v*v);
+            } else {
+              turb_prop    (k,j,i,iens)  = 0;
+              disk_u       (k,j,i,iens)  = 0;
+              disk_v       (k,j,i,iens)  = 0;
+              disk_mag     (k,j,i,iens)  = 0;
+            }
           });
           // Calculate local sums
-          SArray<real,1,5> sum_loc, sum_glob;
-          sum_loc(0) = yakl::intrinsics::sum( disk_u    );
-          sum_loc(1) = yakl::intrinsics::sum( disk_v    );
-          sum_loc(2) = yakl::intrinsics::sum( disk_mag  );
-          sum_loc(3) = yakl::intrinsics::sum( disk_unorm);
-          sum_loc(4) = yakl::intrinsics::sum( disk_vnorm);
+          SArray<real,1,3> sum_loc, sum_glob;
+          sum_loc(0) = yakl::intrinsics::sum( disk_u   );
+          sum_loc(1) = yakl::intrinsics::sum( disk_v   );
+          sum_loc(2) = yakl::intrinsics::sum( disk_mag );
           // Calculate global sums
-          real glob_u, glob_v, glob_mag, glob_unorm, glob_vnorm;
+          real glob_u, glob_v, glob_mag;
           if (turbine.nranks == 1) {
-            glob_u     = sum_loc(0);
-            glob_v     = sum_loc(1);
-            glob_mag   = sum_loc(2);
-            glob_unorm = sum_loc(3);
-            glob_vnorm = sum_loc(4);
+            glob_u   = sum_loc(0);
+            glob_v   = sum_loc(1);
+            glob_mag = sum_loc(2);
           } else {
             MPI_Allreduce( sum_loc.data() , sum_glob.data() , sum_loc.size() , dtype , MPI_SUM , turbine.mpi_comm );
-            glob_u     = sum_glob(0);
-            glob_v     = sum_glob(1);
-            glob_mag   = sum_glob(2);
-            glob_unorm = sum_glob(3);
-            glob_vnorm = sum_glob(4);
+            glob_u   = sum_glob(0);
+            glob_v   = sum_glob(1);
+            glob_mag = sum_glob(2);
           }
+          real glob_unorm = glob_u*cos_yaw;
+          real glob_vnorm = glob_v*sin_yaw;
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
           // Iterate out the induction factor and thrust coefficient, which depend on each other
           real a = 0.3; // Starting guess for axial induction factor based on ... chatGPT. Yeah, I know
           real C_T;
-          for (int iter = 0; iter < 100; iter++) {
+          for (int iter = 0; iter < 10; iter++) {
             C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
             a   = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
           }
@@ -444,46 +444,27 @@ namespace modules {
           turbine.power_trace.push_back( pwr               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
+          // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
-          real C_TKE   = f_TKE * (C_T - C_P);       // Proportion out some of the unused energy to go into TKE
-          real u0      = glob_unorm/(1-a);          // u-velocity at infinity
-          real v0      = glob_vnorm/(1-a);          // v-velocity at infinity
+          real C_TKE = f_TKE * (C_T - C_P);
+          real u0    = glob_unorm/(1-a); // u-velocity at infinity
+          real v0    = glob_vnorm/(1-a); // v-velocity at infinity
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
-            real r       = rho_d(k,j,i,iens);         // Needed for tendency on mass-weighted TKE tracer
-            tend_u  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*u0       *turb_prop(k,j,i,iens)*turb_factor;
-            tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0       *turb_prop(k,j,i,iens)*turb_factor;
-            tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*turb_prop(k,j,i,iens)*turb_factor;
+            if (turb_prop(k,j,i,iens) > 0) {
+              real r       = rho_d(k,j,i,iens);         // Needed for tendency on mass-weighted TKE tracer
+              tend_u  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*u0       *turb_prop(k,j,i,iens)*turb_factor;
+              tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0       *turb_prop(k,j,i,iens)*turb_factor;
+              tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*turb_prop(k,j,i,iens)*turb_factor;
+            }
           });
           ///////////////////////////////////////////////////
           // Update the disk's yaw angle
           ///////////////////////////////////////////////////
-          // If this cell contains the turbine hub, update the turbine's yaw angle based on hub wind velocity
-          // if (turbine.sub_rankid == turbine.owning_sub_rankid) {
-          //   real hub_height = turbine.ref_turbine.hub_height;
-          //   int i = static_cast<int>(std::floor((turbine.base_loc_x-dom_x1)/dx));
-          //   int j = static_cast<int>(std::floor((turbine.base_loc_y-dom_y1)/dy));
-          //   int k = static_cast<int>(std::floor((hub_height               )/dz));
-          //   real2d vel("vel",2,nens);
-          //   parallel_for( YAKL_AUTO_LABEL() , nens , YAKL_LAMBDA (int iens) {
-          //     vel(0,iens) = uvel(k,j,i,iens);
-          //     vel(1,iens) = vvel(k,j,i,iens);
-          //   });
-          //   auto vel_host = vel.createHostCopy();
-          //   real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
-          //   real uvel = vel_host(0,0);
-          //   real vvel = vel_host(1,0);
-          //   turbine.yaw_angle = turbine.yaw_tend( uvel , vvel , dt , turbine.yaw_angle , max_yaw_speed );
-          // }
-          // // Broadcast the hub-owning new yaw angle to the other processes on this task
-          // if (turbine.nranks > 1) {
-          //   MPI_Bcast( &(turbine.yaw_angle) , 1 , dtype , turbine.owning_sub_rankid, turbine.mpi_comm );
-          // }
-
-          // Resolving the base leads to odd behavior at the hub grid cell. I'm going to use the disk-averaged
+          // Using only the hub cell's velocity leads to odd behavior. I'm going to use the disk-averaged
           // u and v velocity instead (note it's *not* normal u an v velocity but just plain u and v)
           real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
           turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
@@ -524,3 +505,5 @@ namespace modules {
   };
 
 }
+
+

@@ -40,7 +40,7 @@ restart_file: none
 
 roughness: 0.0002
 
-dyn_cycle: 2
+dyn_cycle: 10
 
 turbine_file: ./inputs/IEA-15-240-RWT.yaml
 

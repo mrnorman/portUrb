@@ -1,12 +1,12 @@
 ---
 # Simulation time in seconds
-sim_time: 14400.  # 86400
+sim_time: 7200.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 1250
-ny_glob: 1250
-nz     : 125
+nx_glob: 1000
+ny_glob: 1000
+nz     : 200
 # nx_glob: 400
 # ny_glob: 400
 # nz     : 40
@@ -15,9 +15,9 @@ nz     : 125
 # nz     : 10
 
 # Domain size of the CRMs
-xlen: 10000
-ylen: 10000
-zlen: 1000
+xlen: 2500
+ylen: 2500
+zlen: 500
 
 init_data: ABL_neutral2
 
@@ -40,7 +40,7 @@ restart_file: none
 
 roughness: 0.0002
 
-dyn_cycle: 10
+dyn_cycle: 1
 
 turbine_file: ./inputs/IEA-15-240-RWT.yaml
 

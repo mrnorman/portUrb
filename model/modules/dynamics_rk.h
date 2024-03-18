@@ -173,13 +173,13 @@ namespace modules {
       auto nx             = coupler.get_nx();
       auto ny             = coupler.get_ny();
       auto nz             = coupler.get_nz();
-      auto immersed_power = coupler.get_option<real>("immersed_power",6);
+      auto immersed_power = coupler.get_option<real>("immersed_power",4);
       auto &dm            = coupler.get_data_manager_readonly();
       auto hy_dens_cells  = dm.get<real const,2>("hy_dens_cells" ); // Hydrostatic density
       auto hy_theta_cells = dm.get<real const,2>("hy_theta_cells"); // Hydrostatic potential temperature
       auto immersed_prop  = dm.get<real const,4>("immersed_proportion_halos"); // Immersed Proportion
 
-      immersed_tau = dt*4;
+      real immersed_tau = dt*4;
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {

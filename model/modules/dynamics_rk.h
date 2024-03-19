@@ -263,6 +263,7 @@ namespace modules {
       auto dy                = coupler.get_dy();    // grid spacing
       auto dz                = coupler.get_dz();    // grid spacing
       auto sim2d             = coupler.is_sim2d();  // Is this a 2-D simulation?
+      auto enable_gravity    = coupler.get_option<bool>("enable_gravity",true);
       auto C0                = coupler.get_option<real>("C0"     );  // pressure = C0*pow(rho*theta,gamma)
       auto grav              = coupler.get_option<real>("grav"   );  // Gravity
       auto gamma             = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
@@ -663,7 +664,9 @@ namespace modules {
                                      -( state_flux_y(l,k,j+1,i,iens) - state_flux_y(l,k,j,i,iens) ) * r_dy
                                      -( state_flux_z(l,k+1,j,i,iens) - state_flux_z(l,k,j,i,iens) ) * r_dz;
           if (l == idV && sim2d) state_tend(l,k,j,i,iens) = 0;
-          if (l == idW) state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
+          if (l == idW && enable_gravity) {
+            state_tend(l,k,j,i,iens) += -grav*(state(idR,hs+k,hs+j,hs+i,iens) - hy_dens_cells(hs+k,iens));
+          }
           if (latitude != 0 && !sim2d && l == idU) state_tend(l,k,j,i,iens) += fcor*state(idV,hs+k,hs+j,hs+i,iens);
           if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i,iens) -= fcor*state(idU,hs+k,hs+j,hs+i,iens);
         }
@@ -797,36 +800,55 @@ namespace modules {
       auto nx             = coupler.get_nx();
       auto ny             = coupler.get_ny();
       auto nz             = coupler.get_nz();
-      auto dz             = coupler.get_dz();
       auto num_tracers    = coupler.get_num_tracers();
-      auto &neigh         = coupler.get_neighbor_rankid_matrix();
-      auto dtype          = coupler.get_mpi_data_type();
-      auto grav           = coupler.get_option<real>("grav");
-      auto gamma          = coupler.get_option<real>("gamma_d");
-      auto C0             = coupler.get_option<real>("C0");
       auto hy_dens_cells  = coupler.get_data_manager_readonly().get<real const,2>("hy_dens_cells" );
       auto hy_theta_cells = coupler.get_data_manager_readonly().get<real const,2>("hy_theta_cells");
+      auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
 
       // z-direction BC's
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
-                                        YAKL_LAMBDA (int kk, int j, int i, int iens) {
-        state(idR,kk,j,i,iens) = hy_dens_cells(kk,iens);
-        state(idT,kk,j,i,iens) = hy_dens_cells(kk,iens)*hy_theta_cells(kk,iens);
-        state(idU,kk,j,i,iens) = state(idU,hs+0,j,i,iens)/hy_dens_cells(hs+0,iens)*hy_dens_cells(kk,iens);
-        state(idV,kk,j,i,iens) = state(idV,hs+0,j,i,iens)/hy_dens_cells(hs+0,iens)*hy_dens_cells(kk,iens);
-        pressure( kk,j,i,iens) = pressure(hs+0,j,i,iens);
-        state(idW,kk,j,i,iens) = 0;
-        state(idR,hs+nz+kk,j,i,iens) = hy_dens_cells(hs+nz+kk,iens);
-        state(idT,hs+nz+kk,j,i,iens) = hy_dens_cells(hs+nz+kk,iens)*hy_theta_cells(hs+nz+kk,iens);
-        state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+nz-1,j,i,iens)/hy_dens_cells(hs+nz-1,iens)*hy_dens_cells(hs+nz+kk,iens);
-        state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+nz-1,j,i,iens)/hy_dens_cells(hs+nz-1,iens)*hy_dens_cells(hs+nz+kk,iens);
-        pressure( hs+nz+kk,j,i,iens) = pressure(hs+nz-1,j,i,iens);
-        state(idW,hs+nz+kk,j,i,iens) = 0;
-        for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i,iens) = 0;
-          tracers(l,hs+nz+kk,j,i,iens) = 0;
-        }
-      });
+      if (bc_z == "solid_wall") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int kk, int j, int i, int iens) {
+          state(idR,kk,j,i,iens) = hy_dens_cells(kk,iens);
+          state(idT,kk,j,i,iens) = hy_dens_cells(kk,iens)*hy_theta_cells(kk,iens);
+          state(idU,kk,j,i,iens) = state(idU,hs+0,j,i,iens)/hy_dens_cells(hs+0,iens)*hy_dens_cells(kk,iens);
+          state(idV,kk,j,i,iens) = state(idV,hs+0,j,i,iens)/hy_dens_cells(hs+0,iens)*hy_dens_cells(kk,iens);
+          pressure( kk,j,i,iens) = pressure(hs+0,j,i,iens);
+          state(idW,kk,j,i,iens) = 0;
+          state(idR,hs+nz+kk,j,i,iens) = hy_dens_cells(hs+nz+kk,iens);
+          state(idT,hs+nz+kk,j,i,iens) = hy_dens_cells(hs+nz+kk,iens)*hy_theta_cells(hs+nz+kk,iens);
+          state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+nz-1,j,i,iens)/hy_dens_cells(hs+nz-1,iens)*hy_dens_cells(hs+nz+kk,iens);
+          state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+nz-1,j,i,iens)/hy_dens_cells(hs+nz-1,iens)*hy_dens_cells(hs+nz+kk,iens);
+          pressure( hs+nz+kk,j,i,iens) = pressure(hs+nz-1,j,i,iens);
+          state(idW,hs+nz+kk,j,i,iens) = 0;
+          for (int l=0; l < num_tracers; l++) {
+            tracers(l,      kk,j,i,iens) = 0;
+            tracers(l,hs+nz+kk,j,i,iens) = 0;
+          }
+        });
+      } else if (bc_z == "periodic") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int kk, int j, int i, int iens) {
+          state(idR,      kk,j,i,iens) = state(idR,nz+kk,j,i,iens);
+          state(idU,      kk,j,i,iens) = state(idU,nz+kk,j,i,iens);
+          state(idV,      kk,j,i,iens) = state(idV,nz+kk,j,i,iens);
+          state(idW,      kk,j,i,iens) = state(idW,nz+kk,j,i,iens);
+          state(idT,      kk,j,i,iens) = state(idT,nz+kk,j,i,iens);
+          pressure(       kk,j,i,iens) = pressure( nz+kk,j,i,iens);
+          state(idR,hs+nz+kk,j,i,iens) = state(idR,hs+kk,j,i,iens);
+          state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+kk,j,i,iens);
+          state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+kk,j,i,iens);
+          state(idW,hs+nz+kk,j,i,iens) = state(idW,hs+kk,j,i,iens);
+          state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+kk,j,i,iens);
+          pressure( hs+nz+kk,j,i,iens) = pressure( hs+kk,j,i,iens);
+          for (int l=0; l < num_tracers; l++) {
+            tracers(tr,      kk,j,i,iens) = tracers(tr,nz+kk,j,i,iens);
+            tracers(tr,hs+nz+kk,j,i,iens) = tracers(tr,hs+kk,j,i,iens);
+          }
+        });
+      } else {
+        yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+      }
     }
 
 
@@ -1021,17 +1043,18 @@ namespace modules {
     void init(core::Coupler &coupler) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nens        = coupler.get_nens();
-      auto nx          = coupler.get_nx();
-      auto ny          = coupler.get_ny();
-      auto nz          = coupler.get_nz();
-      auto dz          = coupler.get_dz();
-      auto nx_glob     = coupler.get_nx_glob();
-      auto ny_glob     = coupler.get_ny_glob();
-      auto num_tracers = coupler.get_num_tracers();
-      auto gamma       = coupler.get_option<real>("gamma_d");
-      auto C0          = coupler.get_option<real>("C0"     );
-      auto grav        = coupler.get_option<real>("grav"   );
+      auto nens           = coupler.get_nens();
+      auto nx             = coupler.get_nx();
+      auto ny             = coupler.get_ny();
+      auto nz             = coupler.get_nz();
+      auto dz             = coupler.get_dz();
+      auto nx_glob        = coupler.get_nx_glob();
+      auto ny_glob        = coupler.get_ny_glob();
+      auto num_tracers    = coupler.get_num_tracers();
+      auto gamma          = coupler.get_option<real>("gamma_d");
+      auto C0             = coupler.get_option<real>("C0"     );
+      auto grav           = coupler.get_option<real>("grav"   );
+      auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
 
       num_tracers = coupler.get_num_tracers();
       bool1d tracer_adds_mass("tracer_adds_mass",num_tracers);
@@ -1065,55 +1088,57 @@ namespace modules {
       auto r = dm.get<real,2>("hy_dens_cells"    );    r = 0;
       auto t = dm.get<real,2>("hy_theta_cells"   );    t = 0;
       auto p = dm.get<real,2>("hy_pressure_cells");    p = 0;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
-        for (int j = 0; j < ny; j++) {
-          for (int i = 0; i < nx; i++) {
-            r(k,iens) += state(idR,k,hs+j,hs+i,iens);
-            t(k,iens) += state(idT,k,hs+j,hs+i,iens) / state(idR,k,hs+j,hs+i,iens);
-            p(k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
+      if (enable_gravity) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
+          for (int j = 0; j < ny; j++) {
+            for (int i = 0; i < nx; i++) {
+              r(k,iens) += state(idR,k,hs+j,hs+i,iens);
+              t(k,iens) += state(idT,k,hs+j,hs+i,iens) / state(idR,k,hs+j,hs+i,iens);
+              p(k,iens) += C0 * std::pow( state(idT,k,hs+j,hs+i,iens) , gamma );
+            }
           }
-        }
-      });
-      auto r_loc = r .createHostCopy();    auto r_glob = r .createHostObject();
-      auto t_loc = t .createHostCopy();    auto t_glob = t .createHostObject();
-      auto p_loc = p .createHostCopy();    auto p_glob = p .createHostObject();
-      auto dtype = coupler.get_mpi_data_type();
-      MPI_Allreduce( r_loc.data() , r_glob.data() , r.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( t_loc.data() , t_glob.data() , t.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( p_loc.data() , p_glob.data() , p.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      r_glob.deep_copy_to(r);
-      t_glob.deep_copy_to(t);
-      p_glob.deep_copy_to(p);
-      real r_nx_ny = 1./(nx_glob*ny_glob);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
-        r(k,iens) *= r_nx_ny;
-        t(k,iens) *= r_nx_ny;
-        p(k,iens) *= r_nx_ny;
-      });
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(hs,nens) , YAKL_LAMBDA (int kk, int iens) {
-        {
-          int  k0       = hs;
-          int  k        = k0-1-kk;
-          real rho0     = r(k0,iens);
-          real theta0   = t(k0,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          r(k,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
-          t(k,iens) = theta0;
-          p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
-        }
-        {
-          int  k0       = hs+nz-1;
-          int  k        = k0+1+kk;
-          real rho0     = r(k0,iens);
-          real theta0   = t(k0,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          r(k,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
-          t(k,iens) = theta0;
-          p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
-        }
-      });
+        });
+        auto r_loc = r .createHostCopy();    auto r_glob = r .createHostObject();
+        auto t_loc = t .createHostCopy();    auto t_glob = t .createHostObject();
+        auto p_loc = p .createHostCopy();    auto p_glob = p .createHostObject();
+        auto dtype = coupler.get_mpi_data_type();
+        MPI_Allreduce( r_loc.data() , r_glob.data() , r.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+        MPI_Allreduce( t_loc.data() , t_glob.data() , t.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+        MPI_Allreduce( p_loc.data() , p_glob.data() , p.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
+        r_glob.deep_copy_to(r);
+        t_glob.deep_copy_to(t);
+        p_glob.deep_copy_to(p);
+        real r_nx_ny = 1./(nx_glob*ny_glob);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz+2*hs,nens) , YAKL_LAMBDA (int k, int iens) {
+          r(k,iens) *= r_nx_ny;
+          t(k,iens) *= r_nx_ny;
+          p(k,iens) *= r_nx_ny;
+        });
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(hs,nens) , YAKL_LAMBDA (int kk, int iens) {
+          {
+            int  k0       = hs;
+            int  k        = k0-1-kk;
+            real rho0     = r(k0,iens);
+            real theta0   = t(k0,iens);
+            real rho0_gm1 = std::pow(rho0  ,gamma-1);
+            real theta0_g = std::pow(theta0,gamma  );
+            r(k,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+            t(k,iens) = theta0;
+            p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
+          }
+          {
+            int  k0       = hs+nz-1;
+            int  k        = k0+1+kk;
+            real rho0     = r(k0,iens);
+            real theta0   = t(k0,iens);
+            real rho0_gm1 = std::pow(rho0  ,gamma-1);
+            real theta0_g = std::pow(theta0,gamma  );
+            r(k,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+            t(k,iens) = theta0;
+            p(k,iens) = C0*std::pow(r(k,iens)*theta0,gamma);
+          }
+        });
+      }
 
       auto create_immersed_proportion_halos = [] (core::Coupler &coupler) {
         using yakl::c::parallel_for;

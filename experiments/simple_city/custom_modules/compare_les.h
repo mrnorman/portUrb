@@ -62,14 +62,10 @@ namespace custom_modules {
       real delta = std::pow( dx*dy*dz , 1._fp/3._fp );
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
-      SArray<real,2,ord,ord> s2c, c2g, c2d, s2g, s2d2g, g2c, g2d2g;
+      SArray<real,2,ord,ord> s2c, c2g, s2g;
       TransformMatrices::sten_to_coefs (s2c);
       TransformMatrices::coefs_to_gll  (c2g);
-      TransformMatrices::gll_to_coefs  (g2c);
-      TransformMatrices::coefs_to_deriv(c2d);
       s2g   = matmul_cr(c2g,s2c);
-      s2d2g = matmul_cr(c2g,matmul_cr(c2d,s2c));
-      g2d2g = matmul_cr(c2g,matmul_cr(c2d,g2c));
       real r_dx = 1./dx; // reciprocal of grid spacing
       real r_dy = 1./dy; // reciprocal of grid spacing
       real r_dz = 1./dz; // reciprocal of grid spacing

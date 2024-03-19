@@ -280,11 +280,6 @@ namespace modules {
       auto hy_pressure_cells = dm.get<real const,2>("hy_pressure_cells"        ); // Hydrostatic pressure
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
-      SArray<real,2,ord,2  > c2g, s2g;
-      SArray<real,2,ord,ord> s2c;
-      TransformMatrices::coefs_to_gll_lower(c2g);
-      TransformMatrices::sten_to_coefs     (s2c);
-      s2g = yakl::intrinsics::matmul_cr(c2g,s2c); // Matrix-matrix multiply in column-row format
       real r_dx = 1./dx; // reciprocal of grid spacing
       real r_dy = 1./dy; // reciprocal of grid spacing
       real r_dz = 1./dz; // reciprocal of grid spacing
@@ -842,8 +837,8 @@ namespace modules {
           state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+kk,j,i,iens);
           pressure( hs+nz+kk,j,i,iens) = pressure( hs+kk,j,i,iens);
           for (int l=0; l < num_tracers; l++) {
-            tracers(tr,      kk,j,i,iens) = tracers(tr,nz+kk,j,i,iens);
-            tracers(tr,hs+nz+kk,j,i,iens) = tracers(tr,hs+kk,j,i,iens);
+            tracers(l,      kk,j,i,iens) = tracers(l,nz+kk,j,i,iens);
+            tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+kk,j,i,iens);
           }
         });
       } else {

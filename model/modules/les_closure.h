@@ -386,6 +386,9 @@ namespace modules {
       auto grav           = coupler.get_option<real>("grav");
       auto gamma          = coupler.get_option<real>("gamma_d");
       auto C0             = coupler.get_option<real>("C0");
+      auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
+      auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
+      if (!enable_gravity) grav = 0;
       MPI_Request sReq [2];
       MPI_Request rReq [2];
       MPI_Status  sStat[2];
@@ -518,43 +521,65 @@ namespace modules {
       }
 
       // z-direction BC's
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
-                                        YAKL_LAMBDA (int kk, int j, int i, int iens) {
-        state(idU,      kk,j,i,iens) = state(idU,hs+0   ,j,i,iens);
-        state(idV,      kk,j,i,iens) = state(idV,hs+0   ,j,i,iens);
-        state(idW,      kk,j,i,iens) = 0;
-        state(idT,      kk,j,i,iens) = state(idT,hs+0   ,j,i,iens);
-        tke  (          kk,j,i,iens) = 0;
-        state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+nz-1,j,i,iens);
-        state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+nz-1,j,i,iens);
-        state(idW,hs+nz+kk,j,i,iens) = 0;
-        state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+nz-1,j,i,iens);
-        tke  (    hs+nz+kk,j,i,iens) = tke  (    hs+nz-1,j,i,iens);
-        for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i,iens) = tracers(l,hs+0   ,j,i,iens);
-          tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+nz-1,j,i,iens);
-        }
-        {
-          int  k0       = hs;
-          int  k        = k0-1-kk;
-          real rho0     = state(idR,k0,j,i,iens);
-          real theta0   = state(idT,k0,j,i,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          state(idR,k,j,i,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
-                                            1._fp/(gamma-1) );
-        }
-        {
-          int  k0       = hs+nz-1;
-          int  k        = k0+1+kk;
-          real rho0     = state(idR,k0,j,i,iens);
-          real theta0   = state(idT,k0,j,i,iens);
-          real rho0_gm1 = std::pow(rho0  ,gamma-1);
-          real theta0_g = std::pow(theta0,gamma  );
-          state(idR,k,j,i,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
-                                            1._fp/(gamma-1) );
-        }
-      });
+      if (bc_z == "solid_wall") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int kk, int j, int i, int iens) {
+          state(idU,      kk,j,i,iens) = state(idU,hs+0   ,j,i,iens);
+          state(idV,      kk,j,i,iens) = state(idV,hs+0   ,j,i,iens);
+          state(idW,      kk,j,i,iens) = 0;
+          state(idT,      kk,j,i,iens) = state(idT,hs+0   ,j,i,iens);
+          tke  (          kk,j,i,iens) = 0;
+          state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+nz-1,j,i,iens);
+          state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+nz-1,j,i,iens);
+          state(idW,hs+nz+kk,j,i,iens) = 0;
+          state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+nz-1,j,i,iens);
+          tke  (    hs+nz+kk,j,i,iens) = tke  (    hs+nz-1,j,i,iens);
+          for (int l=0; l < num_tracers; l++) {
+            tracers(l,      kk,j,i,iens) = tracers(l,hs+0   ,j,i,iens);
+            tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+nz-1,j,i,iens);
+          }
+          {
+            int  k0       = hs;
+            int  k        = k0-1-kk;
+            real rho0     = state(idR,k0,j,i,iens);
+            real theta0   = state(idT,k0,j,i,iens);
+            real rho0_gm1 = std::pow(rho0  ,gamma-1);
+            real theta0_g = std::pow(theta0,gamma  );
+            state(idR,k,j,i,iens) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
+                                              1._fp/(gamma-1) );
+          }
+          {
+            int  k0       = hs+nz-1;
+            int  k        = k0+1+kk;
+            real rho0     = state(idR,k0,j,i,iens);
+            real theta0   = state(idT,k0,j,i,iens);
+            real rho0_gm1 = std::pow(rho0  ,gamma-1);
+            real theta0_g = std::pow(theta0,gamma  );
+            state(idR,k,j,i,iens) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
+                                              1._fp/(gamma-1) );
+          }
+        });
+      } else if (bc_z == "periodic") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int kk, int j, int i, int iens) {
+          state(idR,      kk,j,i,iens) = state(idR,nz+kk,j,i,iens);
+          state(idU,      kk,j,i,iens) = state(idU,nz+kk,j,i,iens);
+          state(idV,      kk,j,i,iens) = state(idV,nz+kk,j,i,iens);
+          state(idW,      kk,j,i,iens) = state(idW,nz+kk,j,i,iens);
+          state(idT,      kk,j,i,iens) = state(idT,nz+kk,j,i,iens);
+          state(idR,hs+nz+kk,j,i,iens) = state(idR,hs+kk,j,i,iens);
+          state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+kk,j,i,iens);
+          state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+kk,j,i,iens);
+          state(idW,hs+nz+kk,j,i,iens) = state(idW,hs+kk,j,i,iens);
+          state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+kk,j,i,iens);
+          for (int l=0; l < num_tracers; l++) {
+            tracers(l,      kk,j,i,iens) = tracers(l,nz+kk,j,i,iens);
+            tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+kk,j,i,iens);
+          }
+        });
+      } else {
+        yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+      }
     }
 
 

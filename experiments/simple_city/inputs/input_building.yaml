@@ -8,13 +8,13 @@ nens   : 1
 # ny_glob: 250
 # nz     : 125
 nx_glob: 100
-ny_glob: 50
-nz     : 25
+ny_glob: 100
+nz     : 50
 
 # Domain size of the CRMs
 xlen: 2000
-ylen: 1000
-zlen: 500
+ylen: 2000
+zlen: 1000
 
 init_data: building
 

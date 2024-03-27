@@ -46,9 +46,11 @@ namespace limiter {
 
 
 
+  template <class real>
   YAKL_INLINE void static map( real &w , real d ) { w = w*(d+d*d-3*d*w+w*w)/(d*d+(1-2*d)*w); }
 
 
+  template <class real>
   YAKL_INLINE void static map_im( real &w , real d , int k=2, real A=0.1_fp ) {
     real term = w-d;
     for (int i=1; i<k; i++) { term *= w-d; }
@@ -56,6 +58,7 @@ namespace limiter {
   }
 
 
+  template <class real>
   YAKL_INLINE void static map_rs( real &w , real d , int k=6 , int m=3 , real s=2000._fp ) {
     real term1 = w-d;
     for (int i=1; i<k; i++) { term1 *= w-d; }
@@ -65,7 +68,7 @@ namespace limiter {
   }
 
 
-  template <yakl::index_t N>
+  template <yakl::index_t N, class real>
   YAKL_INLINE void static normalize( SArray<real,1,N> &s , real &mn , real &scale ) {
     mn = s(0);
     real mx = s(0);
@@ -227,76 +230,70 @@ namespace limiter {
   template <> struct WenoLimiter<5> {
     struct Params { bool do_map; };
     Params params;
-    typedef SArray<real,1,3> Weights;
+    typedef SArray<float,1,3> Weights;
 
     void set_params( bool do_map = true ) { params.do_map = do_map; }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,5>       &s         ,
+    YAKL_INLINE static void compute_limited_edges( SArray<real,1,5> const &s         ,
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
-      real mn, scale;
-      normalize( s , mn , scale );
-      SArray<real,1,3> coefs_L, coefs_C, coefs_R;
-      TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
-      TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
-      TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      SArray<float,1,3> coefs_L, coefs_C, coefs_R;
+      TransformMatrices::coefs3_shift1( coefs_L , static_cast<float>(s(0)) , static_cast<float>(s(1)) , static_cast<float>(s(2)) );
+      TransformMatrices::coefs3_shift2( coefs_C , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) );
+      TransformMatrices::coefs3_shift3( coefs_R , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) );
       // Compute TV
-      real TV_L = TransformMatrices::coefs_to_tv( coefs_L );
-      real TV_C = TransformMatrices::coefs_to_tv( coefs_C );
-      real TV_R = TransformMatrices::coefs_to_tv( coefs_R );
+      float TV_L = TransformMatrices::coefs_to_tv( coefs_L );
+      float TV_C = TransformMatrices::coefs_to_tv( coefs_C );
+      float TV_R = TransformMatrices::coefs_to_tv( coefs_R );
       convexify( TV_L , TV_C , TV_R );
       // Left evaluation
       {
-        real i_L = 0.3;
-        real i_C = 0.6;
-        real i_R = 0.1;
-        real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
-        real w_C = i_C / (TV_C*TV_C + 1.e-20_fp);
-        real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
+        float i_L = 0.3;
+        float i_C = 0.6;
+        float i_R = 0.1;
+        float w_L = i_L / (TV_L*TV_L + 1.e-20f);
+        float w_C = i_C / (TV_C*TV_C + 1.e-20f);
+        float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map( w_L , i_L );
-          map( w_C , i_C );
-          map( w_R , i_R );
+          map_im( w_L , i_L );
+          map_im( w_C , i_C );
+          map_im( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qL = 0.1666666666666666667_fp*(2*s(1)+5*s(2)-s(3))*w_C-0.1666666666666666667_fp*(s(0)-5*s(1)-2*s(2))*w_L+0.1666666666666666667_fp*(11*s(2)-7*s(3)+2*s(4))*w_R;
       }
       // Right evaluation
       {
-        real i_L = 0.1;
-        real i_C = 0.6;
-        real i_R = 0.3;
-        real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
-        real w_C = i_C / (TV_C*TV_C + 1.e-20_fp);
-        real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
+        float i_L = 0.1;
+        float i_C = 0.6;
+        float i_R = 0.3;
+        float w_L = i_L / (TV_L*TV_L + 1.e-20f);
+        float w_C = i_C / (TV_C*TV_C + 1.e-20f);
+        float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map( w_L , i_L );
-          map( w_C , i_C );
-          map( w_R , i_R );
+          map_im( w_L , i_L );
+          map_im( w_C , i_C );
+          map_im( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qR = -0.1666666666666666667_fp*(s(1)-5*s(2)-2*s(3))*w_C+0.1666666666666666667_fp*(2*s(0)-7*s(1)+11*s(2))*w_L+0.1666666666666666667_fp*(2*s(2)+5*s(3)-s(4))*w_R;
       }
-      qL = qL*scale+mn;
-      qR = qR*scale+mn;
     }
 
-    YAKL_INLINE static void compute_limited_weights( SArray<real,1,5>       &s         ,
+    YAKL_INLINE static void compute_limited_weights( SArray<real,1,5> const &s         ,
                                                      Weights                &weights   ,
                                                      Params           const &params_in ) {
-      real mn, scale;
-      normalize( s , mn , scale );
-      SArray<real,1,3> coefs_L, coefs_C, coefs_R;
-      TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
-      TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
-      TransformMatrices::coefs3_shift3( coefs_R , s(2) , s(3) , s(4) );
+      SArray<float,1,3> coefs_L, coefs_C, coefs_R;
+      TransformMatrices::coefs3_shift1( coefs_L , static_cast<float>(s(0)) , static_cast<float>(s(1)) , static_cast<float>(s(2)) );
+      TransformMatrices::coefs3_shift2( coefs_C , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) );
+      TransformMatrices::coefs3_shift3( coefs_R , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) );
       // Compute TV
-      real TV_L = TransformMatrices::coefs_to_tv( coefs_L );
-      real TV_C = TransformMatrices::coefs_to_tv( coefs_C );
-      real TV_R = TransformMatrices::coefs_to_tv( coefs_R );
+      float TV_L = TransformMatrices::coefs_to_tv( coefs_L );
+      float TV_C = TransformMatrices::coefs_to_tv( coefs_C );
+      float TV_R = TransformMatrices::coefs_to_tv( coefs_R );
       convexify( TV_L , TV_C , TV_R );
       weights(0) = TV_L;
       weights(1) = TV_C;
@@ -308,40 +305,40 @@ namespace limiter {
                                                    real                    &qL        ,
                                                    real                    &qR        ,
                                                    Params            const &params_in ) {
-      real TV_L = weights(0);
-      real TV_C = weights(1);
-      real TV_R = weights(2);
+      float TV_L = weights(0);
+      float TV_C = weights(1);
+      float TV_R = weights(2);
       convexify( TV_L , TV_C , TV_R );
       // Left evaluation
       {
-        real i_L = 0.3;
-        real i_C = 0.6;
-        real i_R = 0.1;
-        real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
-        real w_C = i_C / (TV_C*TV_C + 1.e-20_fp);
-        real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
+        float i_L = 0.3f;
+        float i_C = 0.6f;
+        float i_R = 0.1f;
+        float w_L = i_L / (TV_L*TV_L + 1.e-20f);
+        float w_C = i_C / (TV_C*TV_C + 1.e-20f);
+        float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map( w_L , i_L );
-          map( w_C , i_C );
-          map( w_R , i_R );
+          map_im( w_L , i_L );
+          map_im( w_C , i_C );
+          map_im( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qL = 0.1666666666666666667_fp*(2*s(1)+5*s(2)-s(3))*w_C-0.1666666666666666667_fp*(s(0)-5*s(1)-2*s(2))*w_L+0.1666666666666666667_fp*(11*s(2)-7*s(3)+2*s(4))*w_R;
       }
       // Right evaluation
       {
-        real i_L = 0.1;
-        real i_C = 0.6;
-        real i_R = 0.3;
-        real w_L = i_L / (TV_L*TV_L + 1.e-20_fp);
-        real w_C = i_C / (TV_C*TV_C + 1.e-20_fp);
-        real w_R = i_R / (TV_R*TV_R + 1.e-20_fp);
+        float i_L = 0.1f;
+        float i_C = 0.6f;
+        float i_R = 0.3f;
+        float w_L = i_L / (TV_L*TV_L + 1.e-20f);
+        float w_C = i_C / (TV_C*TV_C + 1.e-20f);
+        float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map( w_L , i_L );
-          map( w_C , i_C );
-          map( w_R , i_R );
+          map_im( w_L , i_L );
+          map_im( w_C , i_C );
+          map_im( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qR = -0.1666666666666666667_fp*(s(1)-5*s(2)-2*s(3))*w_C+0.1666666666666666667_fp*(2*s(0)-7*s(1)+11*s(2))*w_L+0.1666666666666666667_fp*(2*s(2)+5*s(3)-s(4))*w_R;
@@ -363,14 +360,10 @@ namespace limiter {
 
     void set_params( bool do_map = true ) { params.do_map = do_map; }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,7>       &s         ,
+    YAKL_INLINE static void compute_limited_edges( SArray<real,1,7> const &s         ,
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
-      real mn=s(0), mx=s(0);
-      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
-      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
-      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,4> coefs_1, coefs_2, coefs_3, coefs_4;
       TransformMatrices::coefs4_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) );
       TransformMatrices::coefs4_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) );
@@ -422,17 +415,11 @@ namespace limiter {
         }
         qR = -0.08333333333333333333_fp*(3*s(0)-13*s(1)+23*s(2)-25*s(3))*w_1+0.08333333333333333333_fp*(s(1)-5*s(2)+13*s(3)+3*s(4))*w_2-0.08333333333333333333_fp*(s(2)-7*s(3)-7*s(4)+s(5))*w_3+0.08333333333333333333_fp*(3*s(3)+13*s(4)-5*s(5)+s(6))*w_4;
       }
-      qL = qL*sc+mn;
-      qR = qR*sc+mn;
     }
 
-    YAKL_INLINE static void compute_limited_weights( SArray<real,1,7>       &s         ,
+    YAKL_INLINE static void compute_limited_weights( SArray<real,1,7>  const &s         ,
                                                      Weights                 &weights   ,
                                                      Params            const &params_in ) {
-      real mn=s(0), mx=s(0);
-      for (int i=1; i < s.size(); i++) { mn = std::min(mn,s(i)); mx = std::max(mx,s(i)); }
-      real sc = mx-mn > 1.e-10 ? mx-mn : 1;
-      for (int i=0; i < s.size(); i++) { s(i) = (s(i)-mn)/sc; }
       SArray<real,1,4> coefs_1, coefs_2, coefs_3, coefs_4;
       TransformMatrices::coefs4_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) );
       TransformMatrices::coefs4_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) );
@@ -513,7 +500,7 @@ namespace limiter {
   template <> struct WenoLimiter<9> {
     struct Params { bool do_map; };
     Params params;
-    typedef SArray<real,1,5> Weights;
+    typedef SArray<float,1,5> Weights;
 
     void set_params( bool do_map = true ) { params.do_map = do_map; }
 
@@ -521,31 +508,31 @@ namespace limiter {
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
-      SArray<real,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
-      TransformMatrices::coefs5_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) , s(4) );
-      TransformMatrices::coefs5_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) );
-      TransformMatrices::coefs5_shift3( coefs_3 , s(2) , s(3) , s(4) , s(5) , s(6) );
-      TransformMatrices::coefs5_shift4( coefs_4 , s(3) , s(4) , s(5) , s(6) , s(7) );
-      TransformMatrices::coefs5_shift5( coefs_5 , s(4) , s(5) , s(6) , s(7) , s(8) );
+      SArray<float,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
+      TransformMatrices::coefs5_shift1( coefs_1 , static_cast<float>(s(0)) , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) );
+      TransformMatrices::coefs5_shift2( coefs_2 , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) );
+      TransformMatrices::coefs5_shift3( coefs_3 , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) );
+      TransformMatrices::coefs5_shift4( coefs_4 , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) , static_cast<float>(s(7)) );
+      TransformMatrices::coefs5_shift5( coefs_5 , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) , static_cast<float>(s(7)) , static_cast<float>(s(8)) );
       // Compute TV
-      real TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
-      real TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
-      real TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
-      real TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
-      real TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
+      float TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
+      float TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
+      float TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
+      float TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
+      float TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
       convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       // Left evaluation
       {
-        real i_1 =  0.03968253968253968254_fp;
-        real i_2 =   0.3174603174603174603_fp;
-        real i_3 =   0.4761904761904761905_fp;
-        real i_4 =   0.1587301587301587302_fp;
-        real i_5 = 0.007936507936507936508_fp;
-        real w_1 = i_1 / (TV_1*TV_1 + 1.e-20_fp);
-        real w_2 = i_2 / (TV_2*TV_2 + 1.e-20_fp);
-        real w_3 = i_3 / (TV_3*TV_3 + 1.e-20_fp);
-        real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
-        real w_5 = i_5 / (TV_5*TV_5 + 1.e-20_fp);
+        float i_1 =  0.03968253968253968254f;
+        float i_2 =   0.3174603174603174603f;
+        float i_3 =   0.4761904761904761905f;
+        float i_4 =   0.1587301587301587302f;
+        float i_5 = 0.007936507936507936508f;
+        float w_1 = i_1 / (TV_1*TV_1 + 1.e-20f);
+        float w_2 = i_2 / (TV_2*TV_2 + 1.e-20f);
+        float w_3 = i_3 / (TV_3*TV_3 + 1.e-20f);
+        float w_4 = i_4 / (TV_4*TV_4 + 1.e-20f);
+        float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
           map( w_1 , i_1 );
@@ -559,16 +546,16 @@ namespace limiter {
       }
       // Right evaluation
       {
-        real i_1 = 0.007936507936507936508_fp;
-        real i_2 =   0.1587301587301587302_fp;
-        real i_3 =   0.4761904761904761905_fp;
-        real i_4 =   0.3174603174603174603_fp;
-        real i_5 =  0.03968253968253968254_fp;
-        real w_1 = i_1 / (TV_1*TV_1 + 1.e-20_fp);
-        real w_2 = i_2 / (TV_2*TV_2 + 1.e-20_fp);
-        real w_3 = i_3 / (TV_3*TV_3 + 1.e-20_fp);
-        real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
-        real w_5 = i_5 / (TV_5*TV_5 + 1.e-20_fp);
+        float i_1 = 0.007936507936507936508f;
+        float i_2 =   0.1587301587301587302f;
+        float i_3 =   0.4761904761904761905f;
+        float i_4 =   0.3174603174603174603f;
+        float i_5 =  0.03968253968253968254f;
+        float w_1 = i_1 / (TV_1*TV_1 + 1.e-20f);
+        float w_2 = i_2 / (TV_2*TV_2 + 1.e-20f);
+        float w_3 = i_3 / (TV_3*TV_3 + 1.e-20f);
+        float w_4 = i_4 / (TV_4*TV_4 + 1.e-20f);
+        float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
           map( w_1 , i_1 );
@@ -585,18 +572,18 @@ namespace limiter {
     YAKL_INLINE static void compute_limited_weights( SArray<real,1,9>       &s         ,
                                                      Weights                 &weights   ,
                                                      Params            const &params_in ) {
-      SArray<real,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
-      TransformMatrices::coefs5_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) , s(4) );
-      TransformMatrices::coefs5_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) );
-      TransformMatrices::coefs5_shift3( coefs_3 , s(2) , s(3) , s(4) , s(5) , s(6) );
-      TransformMatrices::coefs5_shift4( coefs_4 , s(3) , s(4) , s(5) , s(6) , s(7) );
-      TransformMatrices::coefs5_shift5( coefs_5 , s(4) , s(5) , s(6) , s(7) , s(8) );
+      SArray<float,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
+      TransformMatrices::coefs5_shift1( coefs_1 , static_cast<float>(s(0)) , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) );
+      TransformMatrices::coefs5_shift2( coefs_2 , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) );
+      TransformMatrices::coefs5_shift3( coefs_3 , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) );
+      TransformMatrices::coefs5_shift4( coefs_4 , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) , static_cast<float>(s(7)) );
+      TransformMatrices::coefs5_shift5( coefs_5 , static_cast<float>(s(4)) , static_cast<float>(s(5)) , static_cast<float>(s(6)) , static_cast<float>(s(7)) , static_cast<float>(s(8)) );
       // Compute TV
-      real TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
-      real TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
-      real TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
-      real TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
-      real TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
+      float TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
+      float TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
+      float TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
+      float TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
+      float TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
       convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       weights(0) = TV_1;
       weights(1) = TV_2;
@@ -610,24 +597,24 @@ namespace limiter {
                                                    real                    &qL        ,
                                                    real                    &qR        ,
                                                    Params            const &params_in ) {
-      real TV_1 = weights(0);
-      real TV_2 = weights(1);
-      real TV_3 = weights(2);
-      real TV_4 = weights(3);
-      real TV_5 = weights(4);
+      float TV_1 = weights(0);
+      float TV_2 = weights(1);
+      float TV_3 = weights(2);
+      float TV_4 = weights(3);
+      float TV_5 = weights(4);
       convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       // Left evaluation
       {
-        real i_1 =  0.03968253968253968254_fp;
-        real i_2 =   0.3174603174603174603_fp;
-        real i_3 =   0.4761904761904761905_fp;
-        real i_4 =   0.1587301587301587302_fp;
-        real i_5 = 0.007936507936507936508_fp;
-        real w_1 = i_1 / (TV_1*TV_1 + 1.e-20_fp);
-        real w_2 = i_2 / (TV_2*TV_2 + 1.e-20_fp);
-        real w_3 = i_3 / (TV_3*TV_3 + 1.e-20_fp);
-        real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
-        real w_5 = i_5 / (TV_5*TV_5 + 1.e-20_fp);
+        float i_1 =  0.03968253968253968254f;
+        float i_2 =   0.3174603174603174603f;
+        float i_3 =   0.4761904761904761905f;
+        float i_4 =   0.1587301587301587302f;
+        float i_5 = 0.007936507936507936508f;
+        float w_1 = i_1 / (TV_1*TV_1 + 1.e-20f);
+        float w_2 = i_2 / (TV_2*TV_2 + 1.e-20f);
+        float w_3 = i_3 / (TV_3*TV_3 + 1.e-20f);
+        float w_4 = i_4 / (TV_4*TV_4 + 1.e-20f);
+        float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
           map( w_1 , i_1 );
@@ -641,16 +628,16 @@ namespace limiter {
       }
       // Right evaluation
       {
-        real i_1 = 0.007936507936507936508_fp;
-        real i_2 =   0.1587301587301587302_fp;
-        real i_3 =   0.4761904761904761905_fp;
-        real i_4 =   0.3174603174603174603_fp;
-        real i_5 =  0.03968253968253968254_fp;
-        real w_1 = i_1 / (TV_1*TV_1 + 1.e-20_fp);
-        real w_2 = i_2 / (TV_2*TV_2 + 1.e-20_fp);
-        real w_3 = i_3 / (TV_3*TV_3 + 1.e-20_fp);
-        real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
-        real w_5 = i_5 / (TV_5*TV_5 + 1.e-20_fp);
+        float i_1 = 0.007936507936507936508f;
+        float i_2 =   0.1587301587301587302f;
+        float i_3 =   0.4761904761904761905f;
+        float i_4 =   0.3174603174603174603f;
+        float i_5 =  0.03968253968253968254f;
+        float w_1 = i_1 / (TV_1*TV_1 + 1.e-20f);
+        float w_2 = i_2 / (TV_2*TV_2 + 1.e-20f);
+        float w_3 = i_3 / (TV_3*TV_3 + 1.e-20f);
+        float w_4 = i_4 / (TV_4*TV_4 + 1.e-20f);
+        float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
           map( w_1 , i_1 );

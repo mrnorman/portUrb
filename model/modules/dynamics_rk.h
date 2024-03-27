@@ -123,11 +123,12 @@ namespace modules {
       //////////////
       compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,dt_dyn);
       // Apply tendencies
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        for (int l = 0; l < num_state  ; l++) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_state+num_tracers,nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        if (l < num_state) {
           state_tmp  (l,hs+k,hs+j,hs+i,iens) = state  (l,hs+k,hs+j,hs+i,iens) + dt_dyn * state_tend  (l,k,j,i,iens);
-        }
-        for (int l = 0; l < num_tracers; l++) {
+        } else {
+          l -= num_state;
           tracers_tmp(l,hs+k,hs+j,hs+i,iens) = tracers(l,hs+k,hs+j,hs+i,iens) + dt_dyn * tracers_tend(l,k,j,i,iens);
           // Ensure positive tracers stay positive
           if (tracer_positive(l)) tracers_tmp(l,hs+k,hs+j,hs+i,iens) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i,iens) );
@@ -138,13 +139,14 @@ namespace modules {
       //////////////
       compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,dt_dyn/4.);
       // Apply tendencies
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        for (int l = 0; l < num_state  ; l++) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_state+num_tracers,nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        if (l < num_state) {
           state_tmp  (l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * state      (l,hs+k,hs+j,hs+i,iens) + 
                                                (1._fp/4._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
                                                (1._fp/4._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
-        }
-        for (int l = 0; l < num_tracers; l++) {
+        } else {
+          l -= num_state;
           tracers_tmp(l,hs+k,hs+j,hs+i,iens) = (3._fp/4._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) + 
                                                (1._fp/4._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
                                                (1._fp/4._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
@@ -157,13 +159,14 @@ namespace modules {
       //////////////
       compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,2.*dt_dyn/3.);
       // Apply tendencies
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        for (int l = 0; l < num_state  ; l++) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_state+num_tracers,nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        if (l < num_state) {
           state  (l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * state      (l,hs+k,hs+j,hs+i,iens) +
                                            (2._fp/3._fp) * state_tmp  (l,hs+k,hs+j,hs+i,iens) +
                                            (2._fp/3._fp) * dt_dyn * state_tend  (l,k,j,i,iens);
-        }
-        for (int l = 0; l < num_tracers; l++) {
+        } else {
+          l -= num_state;
           tracers(l,hs+k,hs+j,hs+i,iens) = (1._fp/3._fp) * tracers    (l,hs+k,hs+j,hs+i,iens) +
                                            (2._fp/3._fp) * tracers_tmp(l,hs+k,hs+j,hs+i,iens) +
                                            (2._fp/3._fp) * dt_dyn * tracers_tend(l,k,j,i,iens);
@@ -320,7 +323,7 @@ namespace modules {
 
       typedef limiter::WenoLimiter<ord> Limiter;
       Limiter lim;
-      lim.set_params(false);
+      lim.set_params(true);
       auto lim_params = lim.params;
 
       real6d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1,nens);
@@ -339,9 +342,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<bool,1,ord> immersed;
-        for (int ii=0; ii<ord; ii++) {
-          immersed(ii) = immersed_prop(hs+k,hs+j,i+ii,iens) > 0;
-        }
+        for (int ii=0; ii<ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii,iens) > 0; }
         Limiter::Weights weights_tot;
         // Compute common weights
         {
@@ -389,9 +390,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<bool,1,ord> immersed;
-        for (int jj=0; jj<ord; jj++) {
-          immersed(jj) = immersed_prop(hs+k,j+jj,hs+i,iens) > 0;
-        }
+        for (int jj=0; jj<ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i,iens) > 0; }
         Limiter::Weights weights_tot;
         // Compute common weights
         {
@@ -417,11 +416,11 @@ namespace modules {
         SArray<real,1,ord> stencil;
         // u-momentum
         for (int jj=0; jj<ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed );
         Limiter::apply_limited_weights( stencil , weights_tot , state_limits_y(1,idU,k,j  ,i,iens) ,
                                                                 state_limits_y(0,idU,k,j+1,i,iens) , lim_params );
         // v-momentum
         for (int jj=0; jj<ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
         Limiter::apply_limited_weights( stencil , weights_tot , state_limits_y(1,idV,k,j  ,i,iens) ,
                                                                 state_limits_y(0,idV,k,j+1,i,iens) , lim_params );
         // w-momentum
@@ -439,9 +438,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         SArray<bool,1,ord> immersed;
-        for (int kk=0; kk<ord; kk++) {
-          immersed(kk) = immersed_prop(k+kk,hs+j,hs+i,iens) > 0;
-        }
+        for (int kk=0; kk<ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i,iens) > 0; }
         Limiter::Weights weights_tot;
         // Compute common weights
         {
@@ -467,6 +464,7 @@ namespace modules {
         SArray<real,1,ord> stencil;
         // u-momentum
         for (int kk=0; kk<ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
+        modify_stencil_immersed_der0( stencil , immersed );
         Limiter::apply_limited_weights( stencil , weights_tot , state_limits_z(1,idU,k  ,j,i,iens) ,
                                                                 state_limits_z(0,idU,k+1,j,i,iens) , lim_params );
         // v-momentum
@@ -476,7 +474,6 @@ namespace modules {
                                                                 state_limits_z(0,idV,k+1,j,i,iens) , lim_params );
         // w-momentum
         for (int kk=0; kk<ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
         Limiter::apply_limited_weights( stencil , weights_tot , state_limits_z(1,idW,k  ,j,i,iens) ,
                                                                 state_limits_z(0,idW,k+1,j,i,iens) , lim_params );
         // pressure
@@ -511,9 +508,7 @@ namespace modules {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int ii=0; ii<ord; ii++) {
-            stencil(ii) = fields(l,hs+k,hs+j,i+ii,iens);
-          }
+          for (int ii=0; ii<ord; ii++) { stencil(ii) = fields(l,hs+k,hs+j,i+ii,iens); }
           Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i,iens) , lim_x_L(l,k,j,i+1,iens) , lim_params );
         });
       }
@@ -543,9 +538,7 @@ namespace modules {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int jj=0; jj<ord; jj++) {
-            stencil(jj) = fields(l,hs+k,j+jj,hs+i,iens);
-          }
+          for (int jj=0; jj<ord; jj++) { stencil(jj) = fields(l,hs+k,j+jj,hs+i,iens); }
           Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i,iens) , lim_y_L(l,k,j+1,i,iens) , lim_params );
         });
       }
@@ -575,9 +568,7 @@ namespace modules {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int kk=0; kk<ord; kk++) {
-            stencil(kk) = fields(l,k+kk,hs+j,hs+i,iens);
-          }
+          for (int kk=0; kk<ord; kk++) { stencil(kk) = fields(l,k+kk,hs+j,hs+i,iens); }
           Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i,iens) , lim_z_L(l,k+1,j,i,iens) , lim_params );
         });
       }

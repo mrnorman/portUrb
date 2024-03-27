@@ -217,6 +217,40 @@ namespace modules {
     };
 
 
+    struct DefaultThrustShape {
+      YAKL_INLINE real operator() ( real r , int a = 5 , int b = 2 , real c = 0.5 ) const {
+        // Compute c^a and r^a
+        real c_a = c;
+        real r_a = r;
+        for (int i=0; i < a-1; i++) {
+          c_a *= c;
+          r_a *= r;
+        }
+        // Compute c^b
+        real c_b = c;
+        for (int i=0; i < b-1; i++) {
+          c_b *= c;
+        }
+        // Compute r^(2a)
+        real r_2a = r;
+        for (int i=0; i < 2*a-1; i++) {
+          r_2a *= r;
+        }
+        return std::pow( ( 2*r_2a*(c_a-2*c_b) - r_a*(c_a - 4*c_b) ) / c_b , 1.f/(a-b) );
+      }
+    };
+
+
+    struct DefaultProjectionShape {
+      YAKL_INLINE real operator() ( real r , int p = 2 ) const {
+        real term = r*r-1;
+        real term_p = term;
+        for (int i = 0; i < p-1; i++) { term_p *= term; }
+        return term_p;
+      }
+    };
+
+
     // Class data members
     TurbineGroup<>  turbine_group;
     int             trace_size;
@@ -247,12 +281,13 @@ namespace modules {
       RefTurbine ref_turbine;
       ref_turbine.init( coupler.get_option<std::string>("turbine_file") , dx , dy , dz );
 
-      // Increment turbines in terms of 10 diameters in each direction
-      real xinc = ref_turbine.blade_radius*2*10;
-      real yinc = ref_turbine.blade_radius*2*10;
+      int num_x = (int) std::round( xlen / 10 / (2*ref_turbine.blade_radius) );
+      int num_y = (int) std::round( ylen / 10 / (2*ref_turbine.blade_radius) );
+      real xinc = xlen/num_x;
+      real yinc = ylen/num_y;
       // Determine the x and y bounds of this MPI task's domain
-      for (real y = yinc/2; y < ylen-yinc/2; y += yinc) {
-        for (real x = xinc/2; x < xlen-xinc/2; x += xinc) {
+      for (real y = yinc/2; y < ylen; y += yinc) {
+        for (real x = xinc/2; x < xlen; x += xinc) {
           turbine_group.add_turbine( coupler , x , y , ref_turbine );
         }
       }
@@ -294,7 +329,12 @@ namespace modules {
     }
 
 
-    void apply( core::Coupler &coupler , real dt ) {
+    template < class THRUST_SHAPE = DefaultThrustShape     ,
+               class PROJ_SHAPE   = DefaultProjectionShape >
+    void apply( core::Coupler      & coupler                                 ,
+                real                 dt                                      ,
+                THRUST_SHAPE const & thrust_shape = DefaultThrustShape()     ,
+                PROJ_SHAPE   const & proj_shape   = DefaultProjectionShape() ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       auto nx             = coupler.get_nx   ();
@@ -354,6 +394,12 @@ namespace modules {
           real blade1_theta = turbine.rot_angle + (0./3.)*2*M_PI;
           real blade2_theta = turbine.rot_angle + (1./3.)*2*M_PI;
           real blade3_theta = turbine.rot_angle + (2./3.)*2*M_PI;
+          real cos_blade1_theta = std::cos(blade1_theta);
+          real cos_blade2_theta = std::cos(blade2_theta);
+          real cos_blade3_theta = std::cos(blade3_theta);
+          real sin_blade1_theta = std::sin(blade1_theta);
+          real sin_blade2_theta = std::sin(blade2_theta);
+          real sin_blade3_theta = std::sin(blade3_theta);
           real4d blade1_weight("blade1_weight",nz,ny,nx,nens);
           real4d blade2_weight("blade2_weight",nz,ny,nx,nens);
           real4d blade3_weight("blade3_weight",nz,ny,nx,nens);
@@ -387,14 +433,7 @@ namespace modules {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
-                // Calculate distance from center
-                real r2 = r*r;
-                real r4 = r2*r2;
-                real r8 = r4*r4;
-                real weight = -0.39_fp*r8 + 3.95_fp*r4;
-                weight = std::max(0._fp,std::min(1._fp,weight));
-                weight = std::pow( weight , 0.25_fp );
-                yakl::atomicAdd( disk_weight(k,j,i,iens) , weight );
+                yakl::atomicAdd( disk_weight(k,j,i,iens) , thrust_shape(r) );
               }
             }
           });
@@ -409,8 +448,8 @@ namespace modules {
             if (itheta < num_t_loc) {
               real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
               real x = 0;                               // Point x-location
-              real y = rad*r*cos(blade1_theta);         // Point y location
-              real z = rad*r*sin(blade1_theta);         // Point z location
+              real y = rad*r*cos_blade1_theta;          // Point y location
+              real z = rad*r*sin_blade1_theta;          // Point z location
               real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
               real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
               y += proj_rad*rp*cos(tp);                          // Add perturbation x
@@ -423,25 +462,15 @@ namespace modules {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
-                // Calculate thrust weighting
-                real r2 = r*r;
-                real r4 = r2*r2;
-                real r8 = r4*r4;
-                real weight_thrust = -0.39_fp*r8 + 3.95_fp*r4; 
-                weight_thrust = std::max(0._fp,std::min(1._fp,weight_thrust));
-                weight_thrust = std::pow( weight_thrust , 0.25_fp );
-                // Calculate radial weighting for circle sample
-                real weight_circ = 1 - rp*rp;
-                weight_circ *= weight_circ;
-                yakl::atomicAdd( blade1_weight(k,j,i,iens) , weight_thrust*weight_circ );
+                yakl::atomicAdd( blade1_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
               }
             }
             // Sample Blade 2
             if (itheta < num_t_loc) {
               real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
               real x = 0;                               // Point x-location
-              real y = rad*r*cos(blade2_theta);         // Point y location
-              real z = rad*r*sin(blade2_theta);         // Point z location
+              real y = rad*r*cos_blade2_theta;          // Point y location
+              real z = rad*r*sin_blade2_theta;          // Point z location
               real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
               real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
               y += proj_rad*rp*cos(tp);                          // Add perturbation x
@@ -454,25 +483,15 @@ namespace modules {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
-                // Calculate thrust weighting
-                real r2 = r*r;
-                real r4 = r2*r2;
-                real r8 = r4*r4;
-                real weight_thrust = -0.39_fp*r8 + 3.95_fp*r4; 
-                weight_thrust = std::max(0._fp,std::min(1._fp,weight_thrust));
-                weight_thrust = std::pow( weight_thrust , 0.25_fp );
-                // Calculate radial weighting for circle sample
-                real weight_circ = 1 - rp*rp;
-                weight_circ *= weight_circ;
-                yakl::atomicAdd( blade2_weight(k,j,i,iens) , weight_thrust*weight_circ );
+                yakl::atomicAdd( blade2_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
               }
             }
             // Sample Blade 3
             if (itheta < num_t_loc) {
               real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
               real x = 0;                               // Point x-location
-              real y = rad*r*cos(blade3_theta);         // Point y location
-              real z = rad*r*sin(blade3_theta);         // Point z location
+              real y = rad*r*cos_blade3_theta;          // Point y location
+              real z = rad*r*sin_blade3_theta;          // Point z location
               real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
               real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
               y += proj_rad*rp*cos(tp);                          // Add perturbation x
@@ -485,17 +504,7 @@ namespace modules {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
-                // Calculate thrust weighting
-                real r2 = r*r;
-                real r4 = r2*r2;
-                real r8 = r4*r4;
-                real weight_thrust = -0.39_fp*r8 + 3.95_fp*r4; 
-                weight_thrust = std::max(0._fp,std::min(1._fp,weight_thrust));
-                weight_thrust = std::pow( weight_thrust , 0.25_fp );
-                // Calculate radial weighting for circle sample
-                real weight_circ = 1 - rp*rp;
-                weight_circ *= weight_circ;
-                yakl::atomicAdd( blade3_weight(k,j,i,iens) , weight_thrust*weight_circ );
+                yakl::atomicAdd( blade3_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
               }
             }
           });

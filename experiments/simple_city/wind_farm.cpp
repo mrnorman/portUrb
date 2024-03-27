@@ -118,7 +118,6 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*100);           } , "column_nudger"     );
-        coupler.run_module( [&] (Coupler &coupler) { edge_sponge.apply            (coupler,dtphys,dtphys*10,0,0,0,0,10); } , "edge_sponge"       );
         coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);                      } , "dycore"            );
         coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);                      } , "surface_fluxes"    );
         coupler.run_module( [&] (Coupler &coupler) { windmills.apply              (coupler,dtphys);                      } , "windmillactuators" );

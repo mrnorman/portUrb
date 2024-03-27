@@ -344,6 +344,7 @@ namespace modules {
       auto dx             = coupler.get_dx   ();
       auto dy             = coupler.get_dy   ();
       auto dz             = coupler.get_dz   ();
+      auto zlen           = coupler.get_zlen();
       auto i_beg          = coupler.get_i_beg();
       auto j_beg          = coupler.get_j_beg();
       auto dtype          = coupler.get_mpi_data_type();
@@ -458,7 +459,7 @@ namespace modules {
               real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
               real zp = hub_height + z;                 // Raise z to hub height
               // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
+              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
@@ -479,7 +480,7 @@ namespace modules {
               real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
               real zp = hub_height + z;                 // Raise z to hub height
               // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
+              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));
@@ -500,7 +501,7 @@ namespace modules {
               real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
               real zp = hub_height + z;                 // Raise z to hub height
               // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
+              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
                 int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int k = static_cast<int>(std::floor((zp       )/dz));

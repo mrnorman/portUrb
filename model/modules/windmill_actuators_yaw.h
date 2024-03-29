@@ -116,7 +116,7 @@ namespace modules {
     };
 
 
-    template <yakl::index_t MAX_TURBINES=200>
+    template <yakl::index_t MAX_TURBINES=10000>
     struct TurbineGroup {
       yakl::SArray<Turbine,1,MAX_TURBINES> turbines;
       int num_turbines;

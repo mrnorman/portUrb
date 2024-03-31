@@ -54,7 +54,9 @@ namespace custom_modules {
     auto sum_glob_host = sum_loc_host.createHostObject();
     auto comm = MPI_COMM_WORLD;
     auto dtype = coupler.get_mpi_data_type();
+    yakl::timer_start("Domain_nudger_Allreduce");
     MPI_Allreduce( sum_loc_host.data() , sum_glob_host.data() , sum_loc_host.size() , dtype , MPI_SUM , comm );
+    yakl::timer_stop("Domain_nudger_Allreduce");
     auto sum_glob = sum_glob_host.createDeviceCopy();
     real r_nx_ny_nz = 1./(nx_glob*ny_glob*nz);
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {

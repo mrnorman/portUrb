@@ -69,13 +69,17 @@ namespace modules {
       #ifdef MW_GPU_AWARE_MPI
         auto column_total = column_loc.createDeviceObject();
         yakl::fence();
+        yakl::timer_start("column_nudging_Allreduce");
         MPI_Allreduce( column_loc.data() , column_total.data() , column_total.size() ,
                        coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
+        yakl::timer_stop("column_nudging_Allreduce");
       #else
+        yakl::timer_start("column_nudging_Allreduce");
         auto column_total_host = column_loc.createHostObject();
         MPI_Allreduce( column_loc.createHostCopy().data() , column_total_host.data() , column_total_host.size() ,
                        coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
         auto column_total = column_total_host.createDeviceCopy();
+        yakl::timer_stop("column_nudging_Allreduce");
       #endif
       parallel_for( YAKL_AUTO_LABEL() , Bounds<3>(names.size(),nz,nens) , YAKL_LAMBDA (int l, int k, int iens) {
         column_loc(l,k,iens) = column_total(l,k,iens) / (nx_glob*ny_glob);

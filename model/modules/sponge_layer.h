@@ -50,14 +50,18 @@ namespace modules {
 
     #ifdef MW_GPU_AWARE_MPI
       auto havg_fields_loc = havg_fields.createDeviceCopy(); // Has an implicit fence()
+      yakl::timer_start("sponge_Allreduce");
       MPI_Allreduce( havg_fields_loc.data() , havg_fields.data() , havg_fields.size() ,
                      coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
+      yakl::timer_stop("sponge_Allreduce");
     #else
+      yakl::timer_start("sponge_Allreduce");
       auto havg_fields_loc_host = havg_fields.createHostCopy();
       auto havg_fields_host = havg_fields_loc_host.createHostObject();
       MPI_Allreduce( havg_fields_loc_host.data() , havg_fields_host.data() , havg_fields_host.size() ,
                      coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
       havg_fields_host.deep_copy_to(havg_fields);  // After this, havg_fields has the sum, not average, over tasks
+      yakl::timer_stop("sponge_Allreduce");
     #endif
 
     real time_factor = dt / time_scale;

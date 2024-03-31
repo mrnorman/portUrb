@@ -517,8 +517,10 @@ namespace modules {
           if (turbine.nranks == 1) {
             weight_tot = weight_tot_loc;
           } else {
+            yakl::timer_start("windmill_actuators_Allreduce1");
             MPI_Allreduce( weight_tot_loc.data() , weight_tot.data() , weight_tot.size() , dtype , MPI_SUM ,
                            turbine.mpi_comm );
+            yakl::timer_stop("windmill_actuators_Allreduce1");
           }
           real blade1_tot = weight_tot(0);
           real blade2_tot = weight_tot(1);
@@ -565,7 +567,9 @@ namespace modules {
           if (turbine.nranks == 1) {
             sum_glob = sum_loc;
           } else {
+            yakl::timer_start("windmill_actuators_Allreduce2");
             MPI_Allreduce( sum_loc.data() , sum_glob.data() , sum_loc.size() , dtype , MPI_SUM , turbine.mpi_comm );
+            yakl::timer_stop("windmill_actuators_Allreduce2");
           }
           real glob_u    = sum_glob(0);
           real glob_v    = sum_glob(1);

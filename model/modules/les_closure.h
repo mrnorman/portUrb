@@ -415,7 +415,7 @@ namespace modules {
             halo_send_buf_E(v,k,j,ii,iens) = tke(hs+k,hs+j,nx+ii,iens);
           }
         });
-        yakl::timer_start("halo_exchange_mpi");
+        yakl::timer_start("les_halo_exchange_mpi");
         #ifdef MW_GPU_AWARE_MPI
           yakl::fence();
           MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
@@ -424,7 +424,7 @@ namespace modules {
           MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi");
+          yakl::timer_stop("les_halo_exchange_mpi");
         #else
           realHost5d halo_send_buf_W_host("halo_send_buf_W_host",npack,nz,ny,hs,nens);
           realHost5d halo_send_buf_E_host("halo_send_buf_E_host",npack,nz,ny,hs,nens);
@@ -439,7 +439,7 @@ namespace modules {
           MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi");
+          yakl::timer_stop("les_halo_exchange_mpi");
           halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
           halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
         #endif
@@ -477,7 +477,7 @@ namespace modules {
             halo_send_buf_N(v,k,jj,i,iens) = tke(hs+k,ny+jj,i,iens);
           }
         });
-        yakl::timer_start("halo_exchange_mpi");
+        yakl::timer_start("les_halo_exchange_mpi");
         #ifdef MW_GPU_AWARE_MPI
           yakl::fence();
           MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
@@ -486,7 +486,7 @@ namespace modules {
           MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi");
+          yakl::timer_stop("les_halo_exchange_mpi");
         #else
           realHost5d halo_send_buf_S_host("halo_send_buf_S_host",npack,nz,hs,nx+2*hs,nens);
           realHost5d halo_send_buf_N_host("halo_send_buf_N_host",npack,nz,hs,nx+2*hs,nens);
@@ -501,7 +501,7 @@ namespace modules {
           MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi");
+          yakl::timer_stop("les_halo_exchange_mpi");
           halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
           halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
         #endif

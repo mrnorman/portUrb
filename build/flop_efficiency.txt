@@ -1,0 +1,338 @@
+==893128== Profiling application: ./wind_farm ./inputs/input_windfarm.yaml
+==893128== Profiling result:
+==893128== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "Tesla V100-SXM2-16GB (0)"
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS7_14MultipleFieldsILi50ENS5_IT_Li4ELi1ELi1EEEEEEUliiiE_Li3ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESC_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: void cub::DeviceReduceSingleTileKernel<cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*, double*, int, cub::Sum, double>(double, int, cub::Sum, cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*)
+          8                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          8                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       2.52%       2.53%       2.52%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules20apply_surface_fluxesERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      34.79%      34.79%      34.79%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.73%       0.73%       0.73%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      12.39%      12.39%      12.39%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.03%       0.03%       0.03%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE0_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV27convert_coupler_to_dynamicsERKN4core7CouplerERNS_5ArrayIdLi5ELi1ELi1EEESA_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          2                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      14.69%      14.79%      14.74%
+          2                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.17%       0.17%       0.17%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      41.73%      41.73%      41.73%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.95%       0.95%       0.95%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules11LES_Closure5applyERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      22.14%      22.14%      22.14%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.79%       0.79%       0.79%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV27convert_dynamics_to_couplerERN4core7CouplerENS_5ArrayIKdLi5ELi1ELi1EEES9_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      19.00%      19.00%      19.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.44%       0.44%       0.44%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelRefIZNK7modules11LES_Closure27convert_dynamics_to_couplerERN4core7CouplerENS_5ArrayIKdLi5ELi1ELi1EEES9_NS7_IS8_Li4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      17.16%      17.16%      17.16%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.35%       0.35%       0.35%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIKdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS8_14MultipleFieldsILi50ENS6_IT_Li4ELi1ELi1EEEEEEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESD_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS7_14MultipleFieldsILi50ENS5_IT_Li4ELi1ELi1EEEEEEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESC_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      38.22%      38.22%      38.22%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.83%       0.83%       0.83%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       7.06%       7.09%       7.07%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)      12.40%      12.52%      12.45%
+    Kernel: _ZN4yakl1c13cudaKernelRefIZNK7modules11LES_Closure27convert_coupler_to_dynamicsERKN4core7CouplerERNS_5ArrayIdLi5ELi1ELi1EEESA_RNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      16.97%      16.97%      16.97%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.32%       0.32%       0.32%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       2.12%       2.16%       2.14%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.15%       0.15%       0.15%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      18.85%      18.86%      18.85%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)      33.07%      33.08%      33.08%
+    Kernel: _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      18.27%      18.29%      18.28%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)      32.06%      32.09%      32.08%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules12ColumnNudger15nudge_to_columnERN4core7CouplerEddEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      14.10%      14.10%      14.10%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.39%       0.39%       0.39%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       1.90%       1.90%       1.90%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE5_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIKdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS8_14MultipleFieldsILi50ENS6_IT_Li4ELi1ELi1EEEEEEUliiiE_Li3ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESD_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.90%       0.90%       0.90%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.86%       0.86%       0.86%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE1_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV27enforce_immersed_boundariesERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_dEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          2                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      12.83%      12.85%      12.84%
+          2                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.08%       0.08%       0.08%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E0_clES6_EUliiE0_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.03%       0.03%       0.03%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators12TurbineGroupILm10000EE11add_turbineERN4core7CouplerEddRKNS3_10RefTurbineEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      68.02%      68.02%      68.02%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       3.00%       3.00%       3.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      44.55%      44.72%      44.66%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV24halo_boundary_conditionsERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       4.12%       5.10%       4.48%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.20%       0.20%       0.20%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      19.78%      19.80%      19.79%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)      34.71%      34.73%      34.72%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN14custom_modules13Time_Averager10accumulateERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       1.47%       1.47%       1.47%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules20apply_surface_fluxesERN4core7CouplerEdEUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       9.24%       9.24%       9.24%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.21%       0.21%       0.21%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       8.04%       8.28%       8.13%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)      14.16%      14.59%      14.35%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       4.01%       4.03%       4.02%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       7.09%       7.12%       7.11%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules11LES_Closure5applyERN4core7CouplerEdEUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      15.51%      15.51%      15.51%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.56%       0.56%       0.56%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.06%       0.07%       0.07%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNS_6memsetIdLi4ELi1ELi1EdEEvRKNS_5ArrayIT_XT0_EXT1_EXT2_EEET3_NS_6StreamEEUliE_Li1ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEES4_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN14custom_modules10EdgeSponge4initERN4core7CouplerEEUliiE_Li2ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          3                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          3                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       1.90%       1.90%       1.90%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE4_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE6_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       0.00%       0.00%       0.00%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules19perturb_temperatureERN4core7CouplerEbbEUliiiiE_Li4ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       4.98%       4.98%       4.98%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.23%       0.23%       0.23%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN14custom_modules7sc_initERN4core7CouplerEEUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      55.64%      55.64%      55.64%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       1.29%       1.29%       1.29%
+    Kernel: void cub::DeviceReduceKernel<cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*, double*, int, cub::Sum>(double, int, cub::Sum, cub::GridEvenShare<int>, cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600)
+          8                        flop_dp_efficiency              FLOP Efficiency(Peak Double)       1.43%       1.51%       1.48%
+          8                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.00%       0.00%       0.00%
+    Kernel: _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+          1                        flop_dp_efficiency              FLOP Efficiency(Peak Double)      13.72%      13.72%      13.72%
+          1                        flop_sp_efficiency              FLOP Efficiency(Peak Single)       0.42%       0.42%       0.42%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   20.57%  24.4898s      5202  4.7078ms  4.6859ms  5.1493ms  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                   11.90%  14.1678s      5202  2.7235ms  2.6954ms  2.7451ms  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                   10.34%  12.3153s      5202  2.3674ms  2.3393ms  2.3951ms  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    9.03%  10.7456s      5202  2.0657ms  1.9046ms  2.1701ms  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    8.86%  10.5511s      1734  6.0848ms  6.0080ms  6.3627ms  _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS7_14MultipleFieldsILi50ENS5_IT_Li4ELi1ELi1EEEEEEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESC_NS_12LaunchConfigIXT2_EXT3_EEE
+                    4.49%  5.34121s      5202  1.0268ms  1.0252ms  1.0881ms  _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+                    4.35%  5.17884s      5202  995.55us  994.55us  1.5763ms  _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+                    4.23%  5.03683s      5202  968.25us  962.27us  974.65us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    4.14%  4.92625s      5202  946.99us  945.95us  1.4053ms  _ZN4yakl1c13cudaKernelRefIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+                    4.11%  4.89499s      1734  2.8229ms  2.7962ms  3.3090ms  _ZN4yakl1c13cudaKernelValIZN7modules11LES_Closure5applyERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    1.96%  2.33418s      1734  1.3461ms  1.3391ms  1.3586ms  _ZN4yakl1c13cudaKernelValIZN7modules11LES_Closure5applyERN4core7CouplerEdEUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    1.50%  1.78791s      3468  515.54us  513.69us  517.60us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV27enforce_immersed_boundariesERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_dEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    1.32%  1.56837s      1734  904.48us  901.56us  907.51us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    1.32%  1.56827s      1734  904.42us  901.53us  908.25us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    1.26%  1.50056s      1734  865.38us  861.05us  917.75us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.97%  1.15989s      1734  668.91us  667.39us  672.12us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV16time_step_rk_3_3ERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_dEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.95%  1.13680s    221954  5.1210us  1.2750us  18.492us  [CUDA memcpy DtoD]
+                    0.76%  902.93ms      1734  520.72us  518.27us  523.87us  _ZN4yakl1c13cudaKernelRefIZNK7modules11LES_Closure27convert_coupler_to_dynamicsERKN4core7CouplerERNS_5ArrayIdLi5ELi1ELi1EEESA_RNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.70%  829.01ms      1735  477.82us  474.01us  482.43us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV27convert_coupler_to_dynamicsERKN4core7CouplerERNS_5ArrayIdLi5ELi1ELi1EEESA_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.69%  826.76ms      1734  476.79us  473.98us  480.67us  _ZN4yakl1c13cudaKernelRefIZNK7modules11LES_Closure27convert_dynamics_to_couplerERN4core7CouplerENS_5ArrayIKdLi5ELi1ELi1EEES9_NS7_IS8_Li4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEERKT_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.68%  805.29ms      1734  464.41us  462.52us  467.22us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV27convert_dynamics_to_couplerERN4core7CouplerENS_5ArrayIKdLi5ELi1ELi1EEES9_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.54%  644.07ms      1734  371.43us  370.71us  372.76us  _ZN4yakl1c13cudaKernelValIZN14custom_modules13Time_Averager10accumulateERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.50%  592.58ms      1734  341.74us  339.68us  355.96us  _ZN4yakl1c13cudaKernelValIZN7modules20apply_surface_fluxesERN4core7CouplerEdEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.48%  576.37ms      5202  110.80us  110.33us  117.34us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV18compute_tendenciesERN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESA_SA_SA_dEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.44%  518.89ms      1734  299.25us  297.44us  302.27us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.42%  505.85ms      1734  291.73us  285.95us  305.34us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.40%  478.07ms      1734  275.71us  275.10us  276.67us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.39%  465.72ms     13872  33.572us  31.675us  39.899us  void cub::DeviceReduceKernel<cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*, double*, int, cub::Sum>(double, int, cub::Sum, cub::GridEvenShare<int>, cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600)
+                    0.32%  384.49ms      5202  73.912us  72.027us  76.987us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.27%  318.65ms     12152  26.221us  1.3100us  176.89us  [CUDA memset]
+                    0.24%  279.81ms      5202  53.788us  52.219us  56.156us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.23%  278.87ms      5202  53.607us  52.539us  55.229us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.19%  223.38ms      5202  42.941us  41.212us  45.211us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.17%  206.00ms      1734  118.80us  118.33us  119.71us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.17%  200.29ms      5202  38.502us  37.628us  40.093us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13halo_exchangeERKN4core7CouplerERNS4_14MultipleFieldsILi50ENS_5ArrayIdLi4ELi1ELi1EEEEEEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.15%  176.18ms      5202  33.867us  33.051us  35.548us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.14%  167.66ms      1734  96.691us  96.188us  101.82us  _ZN4yakl1c13cudaKernelValIZN7modules12ColumnNudger15nudge_to_columnERN4core7CouplerEddEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.14%  166.57ms      5202  32.021us  30.044us  36.252us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV24halo_boundary_conditionsERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.10%  114.48ms      1734  66.021us  65.371us  67.260us  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators5applyINS3_18DefaultThrustShapeENS3_22DefaultProjectionShapeEEEvRN4core7CouplerEdRKT_RKT0_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESA_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.09%  104.35ms      1734  60.177us  57.627us  62.908us  _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE0_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.08%  93.870ms      5202  18.044us  16.923us  20.029us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.07%  84.102ms      5202  16.167us  15.388us  19.196us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.06%  69.155ms      5202  13.293us  12.283us  14.427us  _ZN4yakl1c13cudaKernelValIZNK7modules32Dynamics_Euler_Stratified_WenoFV13edge_exchangeERKN4core7CouplerERKNS_5ArrayIdLi6ELi1ELi1EEESB_RKNS8_IdLi5ELi1ELi1EEESB_SB_SE_SB_SB_SE_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.04%  49.691ms         1  49.691ms  49.691ms  49.691ms  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.04%  49.133ms      1734  28.335us  27.357us  30.171us  _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.04%  41.781ms     20824  2.0060us  1.3100us  28.126us  [CUDA memcpy HtoD]
+                    0.03%  37.566ms     13872  2.7080us  2.2990us  4.4760us  void cub::DeviceReduceSingleTileKernel<cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*, double*, int, cub::Sum, double>(double, int, cub::Sum, cub::DeviceReducePolicy<double, double, int, cub::Sum>::Policy600, double*)
+                    0.03%  37.406ms      1734  21.572us  20.156us  22.909us  _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.03%  31.182ms      1734  17.982us  16.859us  19.357us  _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE1_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.03%  29.880ms     17358  1.7210us  1.5990us  36.032us  [CUDA memcpy DtoH]
+                    0.02%  21.452ms      1734  12.371us  11.546us  13.819us  _ZN4yakl1c13cudaKernelValIZNK7modules11LES_Closure13halo_exchangeERKN4core7CouplerERKNS_5ArrayIdLi5ELi1ELi1EEESB_RKNS8_IdLi4ELi1ELi1EEEEUliiiiiE2_Li5ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.02%  17.886ms         1  17.886ms  17.886ms  17.886ms  _ZN4yakl1c13cudaKernelValIZN7modules17WindmillActuators12TurbineGroupILm10000EE11add_turbineERN4core7CouplerEddRKNS3_10RefTurbineEEUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.01%  16.095ms      1734  9.2810us  8.6360us  10.331us  _ZN4yakl1c13cudaKernelValIZN7modules20apply_surface_fluxesERN4core7CouplerEdEUliiiE_Li3ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.01%  6.4094ms         1  6.4094ms  6.4094ms  6.4094ms  _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIKdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS8_14MultipleFieldsILi50ENS6_IT_Li4ELi1ELi1EEEEEEUliiiiiE_Li5ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESD_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  4.1352ms      1734  2.3840us  2.2990us  3.3860us  _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS7_14MultipleFieldsILi50ENS5_IT_Li4ELi1ELi1EEEEEEUliiiE_Li3ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESC_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  3.1727ms         1  3.1727ms  3.1727ms  3.1727ms  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE6_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  297.82us         1  297.82us  297.82us  297.82us  _ZN4yakl1c13cudaKernelValIZN14custom_modules7sc_initERN4core7CouplerEEUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  127.48us         1  127.48us  127.48us  127.48us  _ZN4yakl1c13cudaKernelValIZ4mainEUliE_Li1ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  68.699us         1  68.699us  68.699us  68.699us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  64.603us         1  64.603us  64.603us  64.603us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE5_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  45.692us         1  45.692us  45.692us  45.692us  _ZN4yakl1c13cudaKernelValIZN7modules19perturb_temperatureERN4core7CouplerEbbEUliiiiE_Li4ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  43.707us         1  43.707us  43.707us  43.707us  _ZN4yakl1c13cudaKernelValIZNS_6memsetIdLi4ELi1ELi1EdEEvRKNS_5ArrayIT_XT0_EXT1_EXT2_EEET3_NS_6StreamEEUliE_Li1ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEES4_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  37.436us         1  37.436us  37.436us  37.436us  void cub::DeviceReduceKernel<cub::DeviceReducePolicy<double, double, int, cub::Max>::Policy600, double*, double*, int, cub::Max>(double, int, cub::Max, cub::GridEvenShare<int>, cub::DeviceReducePolicy<double, double, int, cub::Max>::Policy600)
+                    0.00%  13.756us         1  13.756us  13.756us  13.756us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE1_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  9.2440us         1  9.2440us  9.2440us  9.2440us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE0_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  8.7940us         1  8.7940us  8.7940us  8.7940us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE2_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  7.3550us         1  7.3550us  7.3550us  7.3550us  _ZN4yakl1c13cudaKernelValIZN14custom_modules10EdgeSponge4initERN4core7CouplerEEUliiE_Li2ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  6.3000us         1  6.3000us  6.3000us  6.3000us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE3_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  6.2360us         1  6.2360us  6.2360us  6.2360us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E0_clES6_EUliiE0_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  5.6270us         1  5.6270us  5.6270us  5.6270us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE4_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  5.5640us         1  5.5640us  5.5640us  5.5640us  _ZN4yakl1c13cudaKernelValIZZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEENKUlS6_E_clES6_EUliiiiE1_Li4ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  4.6360us         1  4.6360us  4.6360us  4.6360us  void cub::DeviceReduceSingleTileKernel<cub::DeviceReducePolicy<double, double, int, cub::Max>::Policy600, double*, double*, int, cub::Max, double>(double, int, cub::Max, cub::DeviceReducePolicy<double, double, int, cub::Max>::Policy600, double*)
+                    0.00%  3.0370us         1  3.0370us  3.0370us  3.0370us  _ZN4yakl1c13cudaKernelValIZNK7modules12ColumnNudger18get_column_averageIKdEENS_5ArrayIdLi3ELi1ELi1EEERKN4core7CouplerERNS8_14MultipleFieldsILi50ENS6_IT_Li4ELi1ELi1EEEEEEUliiiE_Li3ELb0ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEESD_NS_12LaunchConfigIXT2_EXT3_EEE
+                    0.00%  2.3970us         1  2.3970us  2.3970us  2.3970us  _ZN4yakl1c13cudaKernelValIZN7modules32Dynamics_Euler_Stratified_WenoFV4initERN4core7CouplerEEUliiE0_Li2ELb1ELi128ELb0EEEvNS0_6BoundsIXT0_EXT1_EEET_NS_12LaunchConfigIXT2_EXT3_EEE
+      API calls:   90.67%  112.009s    225450  496.82us  5.6740us  13.014ms  cudaDeviceSynchronize
+                    3.99%  4.92637s    143955  34.221us  6.0760us  50.317ms  cudaMemcpyAsync
+                    2.33%  2.88075s    116181  24.795us  17.396us  296.26us  cudaMemcpy
+                    1.57%  1.94294s    175157  11.092us  7.1070us  134.20us  cudaLaunchKernel
+                    0.43%  532.49ms    110976  4.7980us  3.3260us  120.29us  cudaEventRecord
+                    0.19%  238.82ms    659116     362ns     220ns  115.81us  cudaGetLastError
+                    0.14%  175.20ms         3  58.399ms  3.0793ms  168.96ms  cudaMallocHost
+                    0.13%  164.05ms    122150  1.3420us     796ns  116.25us  cudaEventQuery
+                    0.11%  135.06ms     12152  11.114us  6.1380us  295.73us  cudaMemsetAsync
+                    0.10%  117.56ms         1  117.56ms  117.56ms  117.56ms  cudaMemGetInfo
+                    0.09%  110.87ms         3  36.956ms  33.639ms  40.535ms  cudaMalloc
+                    0.07%  89.921ms         3  29.974ms  367.10us  84.803ms  cudaFree
+                    0.07%  87.565ms     48552  1.8030us  1.1130us  93.095us  cudaIpcOpenMemHandle
+                    0.04%  47.893ms     55494     863ns     536ns  69.019us  cudaGetDevice
+                    0.03%  37.546ms     27746  1.3530us     820ns  66.228us  cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags
+                    0.02%  25.363ms     27746     914ns     567ns  98.381us  cudaDeviceGetAttribute
+                    0.01%  17.589ms     55492     316ns     232ns  69.181us  cudaPeekAtLastError
+                    0.00%  910.08us       199  4.5730us     227ns  206.55us  cuDeviceGetAttribute
+                    0.00%  450.61us        32  14.081us  1.4330us  402.97us  cudaEventCreateWithFlags
+                    0.00%  424.65us         1  424.65us  424.65us  424.65us  cudaGetDeviceProperties
+                    0.00%  135.17us       365     370ns     268ns  1.2390us  cuGetProcAddress
+                    0.00%  106.81us        64  1.6680us  1.3380us  9.1720us  cudaEventCreate
+                    0.00%  48.016us         4  12.004us  4.9100us  24.673us  cudaStreamCreateWithFlags
+                    0.00%  41.348us        32  1.2920us  1.1270us  2.8460us  cudaEventDestroy
+                    0.00%  32.052us        32  1.0010us     871ns  2.6530us  cudaIpcGetEventHandle
+                    0.00%  27.765us         1  27.765us  27.765us  27.765us  cudaStreamDestroy
+                    0.00%  24.608us         2  12.304us  11.523us  13.085us  cuDeviceGetName
+                    0.00%  7.5140us         1  7.5140us  7.5140us  7.5140us  cudaFuncGetAttributes
+                    0.00%  4.2260us         1  4.2260us  4.2260us  4.2260us  cuDeviceGetPCIBusId
+                    0.00%  2.4760us         4     619ns     334ns  1.0880us  cuDeviceGetCount
+                    0.00%  2.1010us         1  2.1010us  2.1010us  2.1010us  cuInit
+                    0.00%  1.6870us         3     562ns     352ns     975ns  cuDeviceGet
+                    0.00%  1.5240us         2     762ns     471ns  1.0530us  cuModuleGetLoadingMode
+                    0.00%  1.2870us         2     643ns     641ns     646ns  cuDeviceTotalMem
+                    0.00%     913ns         2     456ns     425ns     488ns  cudaGetDeviceCount
+                    0.00%     752ns         2     376ns     367ns     385ns  cuDeviceGetUuid
+                    0.00%     729ns         1     729ns     729ns     729ns  cuCtxGetCurrent
+                    0.00%     535ns         1     535ns     535ns     535ns  cuCtxGetDevice
+                    0.00%     375ns         1     375ns     375ns     375ns  cuDriverGetVersion
+

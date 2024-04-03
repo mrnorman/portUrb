@@ -2,7 +2,7 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 
-nc = Dataset("test_00000001.nc","r")
+nc = Dataset("test_00000006.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size
@@ -34,9 +34,9 @@ nlevs = 200
 # 
 
 X,Y = np.meshgrid(x,y)
-prop = nc.variables["windmill_prop"][int(150./1000.)-1,:,:,0]
+tke = nc.variables["TKE"][int(150.*nz/500.)-1,:,:,0]
 fig1, ax2 = plt.subplots(layout='constrained')
-CS = ax2.contourf(X,Y,prop,nlevs, cmap="gist_rainbow")
+CS = ax2.contourf(X,Y,tke,nlevs, cmap="gist_rainbow")
 ax2.set_title('u at z = '+str(int(150))+' m')
 ax2.set_xlabel('$x$-location (km)')
 ax2.set_ylabel('$y$-location (km)')

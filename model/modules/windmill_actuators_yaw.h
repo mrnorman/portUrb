@@ -219,6 +219,7 @@ namespace modules {
 
     struct DefaultThrustShape {
       YAKL_INLINE real operator() ( real r , int a = 5 , int b = 2 , real c = 0.5 ) const {
+        if ( r > 1 ) return 0;
         // Compute c^a and r^a
         real c_a = c;
         real r_a = r;
@@ -241,9 +242,21 @@ namespace modules {
     };
 
 
-    struct DefaultProjectionShape {
-      YAKL_INLINE real operator() ( real r , int p = 2 ) const {
-        real term = r*r-1;
+    struct DefaultProjectionShape1D {
+      YAKL_INLINE real operator() ( real x , real xr , int p = 2 ) const {
+        real term = 1-(x/xr)*(x/xr);
+        if (term <= 0) return 0;
+        real term_p = term;
+        for (int i = 0; i < p-1; i++) { term_p *= term; }
+        return term_p;
+      }
+    };
+
+
+    struct DefaultProjectionShape2D {
+      YAKL_INLINE real operator() ( real x , real y , real xr , real yr , int p = 2 ) const {
+        real term = 1-(x/xr)*(x/xr)-(y/yr)*(y/yr);
+        if (term <= 0) return 0;
         real term_p = term;
         for (int i = 0; i < p-1; i++) { term_p *= term; }
         return term_p;
@@ -329,12 +342,14 @@ namespace modules {
     }
 
 
-    template < class THRUST_SHAPE = DefaultThrustShape     ,
-               class PROJ_SHAPE   = DefaultProjectionShape >
-    void apply( core::Coupler      & coupler                                 ,
-                real                 dt                                      ,
-                THRUST_SHAPE const & thrust_shape = DefaultThrustShape()     ,
-                PROJ_SHAPE   const & proj_shape   = DefaultProjectionShape() ) {
+    template < class THRUST_SHAPE  = DefaultThrustShape       ,
+               class PROJ_SHAPE_1D = DefaultProjectionShape1D ,
+               class PROJ_SHAPE_2D = DefaultProjectionShape2D >
+    void apply( core::Coupler      & coupler                                     ,
+                real                 dt                                          ,
+                THRUST_SHAPE  const & thrust_shape  = DefaultThrustShape()       ,
+                PROJ_SHAPE_1D const & proj_shape_1d = DefaultProjectionShape1D() ,
+                PROJ_SHAPE_2D const & proj_shape_2d = DefaultProjectionShape2D() ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       auto nx             = coupler.get_nx   ();
@@ -370,7 +385,7 @@ namespace modules {
         auto &turbine = turbine_group.turbines(iturb);
         if (turbine.active) {
           ///////////////////////////////////////////////////
-          // Monte Carlo sampling of turbine disk and blades
+          // Sampling of turbine disk and blades
           ///////////////////////////////////////////////////
           // Pre-compute rotation matrix terms
           real cos_yaw = std::cos(turbine.yaw_angle);
@@ -413,102 +428,99 @@ namespace modules {
             blade2_weight(k,j,i,iens) = 0;
             blade3_weight(k,j,i,iens) = 0;
           });
-          int num_r = 1000;
-          int num_t = int(num_r*2*M_PI);
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_r,num_t,nens) ,
-                                            YAKL_LAMBDA (int irad, int itheta, int iens) {
-            int num_t_loc = std::max( 1 , static_cast<int>( static_cast<real>(num_t*irad)/static_cast<real>(num_r-1) ) );
-            if (itheta < num_t_loc) {
-              real r     = static_cast<real>(irad         )/static_cast<real>(num_r-1  );
-              real theta = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc);
-              // Transorm to cartesian coordinates
-              real x = 0;
-              real y = rad*r*std::cos(theta);
-              real z = rad*r*std::sin(theta);
+          {
+            real xr = 1.5*dx;
+            int nper  = 10;
+            int num_x = (int)std::ceil(xr*2 /dx*nper);
+            int num_y = (int)std::ceil(rad*2/dy*nper);
+            int num_z = (int)std::ceil(rad*2/dz*nper);
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_z,num_y,num_x,nens) ,
+                                              YAKL_LAMBDA (int k, int j, int i, int iens) {
+              real x = -xr  + 2*xr *i/(num_x-1);
+              real y = -rad + 2*rad*j/(num_y-1);
+              real z = -rad + 2*rad*k/(num_z-1);
               // Now rotate x and y according to the yaw angle, and translate to base location
-              real xp = base_x + cos_yaw*x - sin_yaw*y;
-              real yp = base_y + sin_yaw*x + cos_yaw*y;
+              real xp = base_x     + cos_yaw*x - sin_yaw*y;
+              real yp = base_y     + sin_yaw*x + cos_yaw*y;
               real zp = hub_height + z;
               // if it's in this task's domain, then increment the appropriate cell count atomically
               if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
-                int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int k = static_cast<int>(std::floor((zp       )/dz));
-                yakl::atomicAdd( disk_weight(k,j,i,iens) , thrust_shape(r) );
+                int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
+                int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
+                int  k = static_cast<int>(std::floor((zp       )/dz));
+                yakl::atomicAdd( disk_weight(k,j,i,iens) , thrust_shape(std::sqrt(y*y+z*z)/rad)*proj_shape_1d(x,xr) );
               }
-            }
-          });
-          int num_r_blade = 1000;
-          int num_r_circ  = 30;
-          int num_t_circ  = num_r_circ*2*M_PI;
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_r_blade,num_r_circ,num_t_circ,nens) ,
-                                            YAKL_LAMBDA (int irad_blade, int irad, int itheta, int iens) {
-
-            // Sample Blade 1
-            int num_t_loc = std::max( 1 , static_cast<int>( static_cast<real>(num_t_circ*irad)/static_cast<real>(num_r_circ-1) ) );
-            if (itheta < num_t_loc) {
-              real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
-              real x = 0;                               // Point x-location
-              real y = rad*r*cos_blade1_theta;          // Point y location
-              real z = rad*r*sin_blade1_theta;          // Point z location
-              real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
-              real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
-              y += proj_rad*rp*cos(tp);                          // Add perturbation x
-              z += proj_rad*rp*sin(tp);                          // Add perturbation y
-              real xp = base_x + cos_yaw*x - sin_yaw*y; // Rotate x according to yaw
-              real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
-              real zp = hub_height + z;                 // Raise z to hub height
-              // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int k = static_cast<int>(std::floor((zp       )/dz));
-                yakl::atomicAdd( blade1_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
+            });
+          }
+          {
+            int nper = 20;
+            real xr = 5*dx;
+            real yr = 5*dy;
+            int num_x = 2*xr/dx*nper;
+            int num_y = 2*yr/dy*nper;
+            int num_z = rad /dz*nper;
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_z,num_y,num_x,nens) ,
+                                              YAKL_LAMBDA (int k, int j, int i, int iens) {
+              real x = -xr + 2*xr*i/(num_x-1);
+              real y = -yr + 2*yr*j/(num_y-1);
+              real z =        rad*k/(num_z-1);
+              real proj2d = proj_shape_2d(x,y,xr,yr);
+              // Sample Blade 1
+              {
+                // Rotate about x-axis to account for rotation
+                real xr = x;
+                real yr = cos_blade1_theta*y - sin_blade1_theta*z;
+                real zr = sin_blade1_theta*y + cos_blade1_theta*z;
+                // Rotate about z-axis to account for yaw, and translate to hub center
+                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
+                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
+                real zp = hub_height + zr;                     
+                // if it's in this task's domain, then increment the appropriate cell count atomically
+                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
+                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
+                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
+                  int k = static_cast<int>(std::floor((zp       )/dz));
+                  yakl::atomicAdd( blade1_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                }
               }
-            }
-            // Sample Blade 2
-            if (itheta < num_t_loc) {
-              real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
-              real x = 0;                               // Point x-location
-              real y = rad*r*cos_blade2_theta;          // Point y location
-              real z = rad*r*sin_blade2_theta;          // Point z location
-              real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
-              real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
-              y += proj_rad*rp*cos(tp);                          // Add perturbation x
-              z += proj_rad*rp*sin(tp);                          // Add perturbation y
-              real xp = base_x + cos_yaw*x - sin_yaw*y; // Rotate x according to yaw
-              real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
-              real zp = hub_height + z;                 // Raise z to hub height
-              // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int k = static_cast<int>(std::floor((zp       )/dz));
-                yakl::atomicAdd( blade2_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
+              // Sample Blade 2
+              {
+                // Rotate about x-axis to account for rotation
+                real xr = x;
+                real yr = cos_blade2_theta*y - sin_blade2_theta*z;
+                real zr = sin_blade2_theta*y + cos_blade2_theta*z;
+                // Rotate about z-axis to account for yaw, and translate to hub center
+                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
+                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
+                real zp = hub_height + zr;                     
+                // if it's in this task's domain, then increment the appropriate cell count atomically
+                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
+                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
+                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
+                  int k = static_cast<int>(std::floor((zp       )/dz));
+                  yakl::atomicAdd( blade2_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                }
               }
-            }
-            // Sample Blade 3
-            if (itheta < num_t_loc) {
-              real r = static_cast<real>(irad_blade) / static_cast<real>(num_r_blade-1);
-              real x = 0;                               // Point x-location
-              real y = rad*r*cos_blade3_theta;          // Point y location
-              real z = rad*r*sin_blade3_theta;          // Point z location
-              real rp = static_cast<real>(irad         )/static_cast<real>(num_r_circ-1);
-              real tp = static_cast<real>(2*M_PI*itheta)/static_cast<real>(num_t_loc   );
-              y += proj_rad*rp*cos(tp);                          // Add perturbation x
-              z += proj_rad*rp*sin(tp);                          // Add perturbation y
-              real xp = base_x + cos_yaw*x - sin_yaw*y; // Rotate x according to yaw
-              real yp = base_y + sin_yaw*x + cos_yaw*y; // Rotate y according to yaw
-              real zp = hub_height + z;                 // Raise z to hub height
-              // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int k = static_cast<int>(std::floor((zp       )/dz));
-                yakl::atomicAdd( blade3_weight(k,j,i,iens) , thrust_shape(r)*proj_shape(r) );
+              // Sample Blade 3
+              {
+                // Rotate about x-axis to account for rotation
+                real xr = x;
+                real yr = cos_blade3_theta*y - sin_blade3_theta*z;
+                real zr = sin_blade3_theta*y + cos_blade3_theta*z;
+                // Rotate about z-axis to account for yaw, and translate to hub center
+                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
+                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
+                real zp = hub_height + zr;                     
+                // if it's in this task's domain, then increment the appropriate cell count atomically
+                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
+                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
+                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
+                  int k = static_cast<int>(std::floor((zp       )/dz));
+                  yakl::atomicAdd( blade3_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                }
               }
-            }
-          });
+            });
+          }
           yakl::SArray<real,1,4> weight_tot_loc, weight_tot;
           weight_tot_loc(0) = yakl::intrinsics::sum(blade1_weight);
           weight_tot_loc(1) = yakl::intrinsics::sum(blade2_weight);

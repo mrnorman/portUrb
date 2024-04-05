@@ -323,7 +323,7 @@ namespace modules {
 
       typedef limiter::WenoLimiter<ord> Limiter;
       Limiter lim;
-      lim.set_params(true);
+      lim.set_params(false);
       auto lim_params = lim.params;
 
       real6d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1,nens);

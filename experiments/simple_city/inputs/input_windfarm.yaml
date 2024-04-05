@@ -1,12 +1,12 @@
 ---
 # Simulation time in seconds
-sim_time: 10.  # 86400
+sim_time: 86400.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 200
-ny_glob: 200
-nz     : 100
+nx_glob: 2000
+ny_glob: 2000
+nz     : 500
 # nx_glob: 400
 # ny_glob: 400
 # nz     : 40
@@ -15,9 +15,9 @@ nz     : 100
 # nz     : 10
 
 # Domain size of the CRMs
-xlen: 2000
-ylen: 2000
-zlen: 1000
+xlen: 7200
+ylen: 7200
+zlen: 500
 
 init_data: ABL_neutral2
 

@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler );
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler , {"temp","density_dry"} );
+    column_nudger.set_column    ( coupler , {"density_dry","uvel","vvel","temp","water_vapor"} );
     time_averager.init          ( coupler );
     modules::perturb_temperature( coupler , true , false );
     data_generator.init         ( coupler );

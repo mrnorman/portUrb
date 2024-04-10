@@ -64,7 +64,7 @@ namespace modules {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      real constexpr maxwave = 350 + 40;
+      real constexpr maxwave = 350 + 100;
       real cfl = 0.45;
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }

@@ -286,7 +286,7 @@ namespace modules {
       auto C0                = coupler.get_option<real>("C0"     );  // pressure = C0*pow(rho*theta,gamma)
       auto grav              = coupler.get_option<real>("grav"   );  // Gravity
       auto gamma             = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
-      auto latitude          = coupler.get_option<real>("latitude"); // For coriolis
+      auto latitude          = coupler.get_option<real>("latitude",0); // For coriolis
       auto num_tracers       = coupler.get_num_tracers();            // Number of tracers
       auto &dm               = coupler.get_data_manager_readonly();  // Grab read-only data manager
       auto tracer_positive   = dm.get<bool const,1>("tracer_positive"          ); // Is a tracer positive-definite?

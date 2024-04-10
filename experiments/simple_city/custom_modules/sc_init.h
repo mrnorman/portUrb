@@ -85,7 +85,6 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_x","periodic");
     coupler.add_option<std::string>("bc_y","periodic");
     coupler.add_option<std::string>("bc_z","solid_wall");
-    coupler.set_option<bool>("use_immersed_boundaries",true);
 
     if (coupler.get_option<std::string>("init_data") == "city") {
       real height_mean = 60;

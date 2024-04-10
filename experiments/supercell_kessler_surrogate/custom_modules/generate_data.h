@@ -43,7 +43,7 @@ namespace custom_modules {
       auto j_beg   = coupler.get_j_beg();
       size_t total_samples = coupler.get_option<int>("total_samples",1000000);
       size_t num_time_steps = static_cast<size_t>(std::ceil(coupler.get_option<real>("sim_time") / dt));
-      size_t num_points = static_cast<size_t>(nz)*static_cast<size_t>(ny_glob)*static_cast<size_t>(nx)*nens;
+      size_t num_points = static_cast<size_t>(nz)*static_cast<size_t>(ny_glob)*static_cast<size_t>(nx_glob)*nens;
       real probability = static_cast<real>(total_samples) / static_cast<real>(num_time_steps*num_points);
 
       real4d c_to_v   ("c_to_v"   ,nz,ny,nx,nens);

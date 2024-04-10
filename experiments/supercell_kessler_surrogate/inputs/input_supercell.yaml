@@ -20,7 +20,7 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 900.
+out_freq: 3600.
 
 inform_freq: 100.
 

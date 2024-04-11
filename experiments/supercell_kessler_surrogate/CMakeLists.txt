@@ -22,3 +22,8 @@ yakl_process_target(generate_training_data)
 target_link_libraries(generate_training_data model "${MW_LINK_FLAGS}")
 target_include_directories(generate_training_data PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
+add_executable(deploy_surrogate deploy_surrogate.cpp)
+include(${YAKL_HOME}/yakl_utils.cmake)
+yakl_process_target(deploy_surrogate)
+target_link_libraries(deploy_surrogate model "${MW_LINK_FLAGS}")
+target_include_directories(deploy_surrogate PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)

@@ -1,0 +1,46 @@
+---
+# Simulation time in seconds
+sim_time: 7200.  # 86400
+
+# Number of cells to use in the CRMs
+nens   : 1
+nx_glob: 960
+ny_glob: 480
+nz     : 200
+# nx_glob: 400
+# ny_glob: 400
+# nz     : 40
+# nx_glob: 10
+# ny_glob: 10
+# nz     : 10
+
+# Domain size of the CRMs
+xlen: 2400
+ylen: 1200
+zlen: 500
+
+init_data: ABL_neutral2
+
+# Output filename
+out_prefix: test
+
+# CRM physics time step
+dt_phys: 0.
+
+# Output frequency in seconds
+out_freq: 100.
+
+inform_freq: 10.
+
+latitude: 0.
+
+is_restart: false
+
+restart_file: none
+
+roughness: 0.0002
+
+dyn_cycle: 1
+
+turbine_file: ./inputs/IEA-15-240-RWT.yaml
+

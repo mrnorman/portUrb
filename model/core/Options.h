@@ -54,6 +54,9 @@ namespace core {
       else if (options[id].type_hash == get_type_hash<bool>                  ()) { delete_specific<bool>                  (id); }
       else if (options[id].type_hash == get_type_hash<char>                  ()) { delete_specific<char>                  (id); }
       else if (options[id].type_hash == get_type_hash<std::string>           ()) { delete_specific<std::string>           (id); }
+      else if (options[id].type_hash == get_type_hash<std::vector<int>>      ()) { delete_specific<std::vector<int>>      (id); }
+      else if (options[id].type_hash == get_type_hash<std::vector<float>>    ()) { delete_specific<std::vector<float>>    (id); }
+      else if (options[id].type_hash == get_type_hash<std::vector<double>>   ()) { delete_specific<std::vector<double>>   (id); }
     }
 
 
@@ -154,7 +157,10 @@ namespace core {
            get_type_hash<T>() == get_type_hash<long double>           () ||
            get_type_hash<T>() == get_type_hash<bool>                  () ||
            get_type_hash<T>() == get_type_hash<char>                  () ||
-           get_type_hash<T>() == get_type_hash<std::string>           () ) return true;
+           get_type_hash<T>() == get_type_hash<std::string>           () ||
+           get_type_hash<T>() == get_type_hash<std::vector<int>>      () ||
+           get_type_hash<T>() == get_type_hash<std::vector<float>>    () ||
+           get_type_hash<T>() == get_type_hash<std::vector<double>>   () ) return true;
       return false;
     }
 

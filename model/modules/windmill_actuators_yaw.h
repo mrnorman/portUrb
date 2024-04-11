@@ -299,9 +299,17 @@ namespace modules {
       real xinc = xlen/num_x;
       real yinc = ylen/num_y;
       // Determine the x and y bounds of this MPI task's domain
-      for (real y = yinc/2; y < ylen; y += yinc) {
-        for (real x = xinc/2; x < xlen; x += xinc) {
-          turbine_group.add_turbine( coupler , x , y , ref_turbine );
+      if (coupler.option_exists("turbine_x_locs") && coupler.option_exists("turbine_y_locs")) {
+        auto x_locs = coupler.get_option<std::vector<real>>("turbine_x_locs");
+        auto y_locs = coupler.get_option<std::vector<real>>("turbine_y_locs");
+        for (int iturb = 0; iturb < x_locs.size(); iturb++) {
+          turbine_group.add_turbine( coupler , x_locs[iturb] , y_locs[iturb] , ref_turbine );
+        }
+      } else {
+        for (real y = yinc/2; y < ylen; y += yinc) {
+          for (real x = xinc/2; x < xlen; x += xinc) {
+            turbine_group.add_turbine( coupler , x , y , ref_turbine );
+          }
         }
       }
 

@@ -1,12 +1,8 @@
 
 #include "coupler.h"
 #include "dynamics_rk.h"
-#include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
-#include "windmill_actuators_yaw.h"
-#include "perturb_temperature.h"
-#include "EdgeSponge.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -40,22 +36,15 @@ int main(int argc, char** argv) {
     auto out_prefix   = config["out_prefix"  ].as<std::string>("test"       );
     auto is_restart   = config["is_restart"  ].as<bool       >(false        );
     auto restart_file = config["restart_file"].as<std::string>(""           );
-    auto latitude     = config["latitude"    ].as<real       >(0            );
-    auto roughness    = config["roughness"   ].as<real       >(0.1          );
-    auto turbine_file = config["turbine_file"].as<std::string>();
+    auto use_weno     = config["use_weno"    ].as<bool       >(true         );
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"   , out_prefix   );
     coupler.set_option<std::string>( "init_data"    , init_data    );
     coupler.set_option<real       >( "out_freq"     , out_freq     );
     coupler.set_option<bool       >( "is_restart"   , is_restart   );
+    coupler.set_option<bool       >( "use_weno"     , use_weno     );
     coupler.set_option<std::string>( "restart_file" , restart_file );
-    coupler.set_option<real       >( "latitude"     , latitude     );
-    coupler.set_option<real       >( "roughness"    , roughness    );
-    coupler.set_option<std::string>( "turbine_file" , turbine_file );
-
-    coupler.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen});
-    coupler.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -69,12 +58,7 @@ int main(int argc, char** argv) {
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
-    custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    modules::WindmillActuators                 windmills;
-    custom_modules::EdgeSponge                 edge_sponge;
-
-    int num_turbines = windmills.turbine_group.num_turbines;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -83,12 +67,7 @@ int main(int argc, char** argv) {
     // Run the initialization modules
     custom_modules::sc_init( coupler );
     les_closure  .init     ( coupler );
-    windmills    .init     ( coupler );
     dycore       .init     ( coupler ); // Dycore should initialize its own state here
-    time_averager.init     ( coupler );
-    edge_sponge  .init     ( coupler );
-    // modules::perturb_temperature( coupler , false , true );
-    edge_sponge.override_tke(0);
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -102,7 +81,7 @@ int main(int argc, char** argv) {
       output_counter = core::Counter( out_freq    , etime-((int)(etime/out_freq   ))*out_freq    );
       inform_counter = core::Counter( inform_freq , etime-((int)(etime/inform_freq))*inform_freq );
     } else {
-      if (out_freq >= 0) coupler.write_output_file( out_prefix );
+      coupler.write_output_file( out_prefix );
     }
 
     // Begin main simulation loop over time steps
@@ -118,17 +97,10 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        auto run_dycore = [&] (Coupler &coupler) { dycore.time_step        (coupler,dtphys);            };
-        auto run_turb   = [&] (Coupler &coupler) { windmills.apply         (coupler,dtphys);            };
-        auto run_edge   = [&] (Coupler &coupler) { edge_sponge.apply       (coupler,dtphys,dtphys*100,20,20,0,0,20); };
-        auto run_les    = [&] (Coupler &coupler) { les_closure.apply       (coupler,dtphys);            };
-        auto run_tavg   = [&] (Coupler &coupler) { time_averager.accumulate(coupler,dtphys);            };
-        coupler.run_module( run_dycore , "dycore           " );
-        coupler.run_module( run_turb   , "windmillactuators" );
-        coupler.run_module( run_edge   , "edge_sponge      " );
-        coupler.run_module( run_les    , "les_closure      " );
-        coupler.run_module( run_tavg   , "time_averager    " );
-        for (int i = 0; i < num_turbines; i++) { windmills.turbine_group.turbines(i).yaw_angle = 0; }
+        auto run_dycore = [&] (Coupler &coupler) { dycore.time_step (coupler,dtphys); };
+        auto run_les    = [&] (Coupler &coupler) { les_closure.apply(coupler,dtphys); };
+        coupler.run_module( run_dycore , "dycore"      );
+        coupler.run_module( run_les    , "les_closure" );
       }
 
       // Update time step

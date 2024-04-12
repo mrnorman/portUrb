@@ -461,7 +461,7 @@ namespace modules {
             });
           }
           {
-            int nper = 20;
+            int nper = 10;
             real xr = 5*dx;
             real yr = 5*dy;
             int num_x = 2*xr/dx*nper;

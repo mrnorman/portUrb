@@ -33,7 +33,7 @@ namespace modules {
       auto dx             = coupler.get_dx  ();
       auto dy             = coupler.get_dy  ();
       auto dz             = coupler.get_dz  ();
-      auto enable_gravity = coupler.get_option<real>("enable_gravity" , true );
+      auto enable_gravity = coupler.get_option<bool>("enable_gravity" , true );
       auto grav           = coupler.get_option<real>("grav");
       auto &dm            = coupler.get_data_manager_readwrite();
       real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
@@ -567,11 +567,13 @@ namespace modules {
           state(idV,      kk,j,i,iens) = state(idV,nz+kk,j,i,iens);
           state(idW,      kk,j,i,iens) = state(idW,nz+kk,j,i,iens);
           state(idT,      kk,j,i,iens) = state(idT,nz+kk,j,i,iens);
+          tke  (          kk,j,i,iens) = tke  (    nz+kk,j,i,iens);
           state(idR,hs+nz+kk,j,i,iens) = state(idR,hs+kk,j,i,iens);
           state(idU,hs+nz+kk,j,i,iens) = state(idU,hs+kk,j,i,iens);
           state(idV,hs+nz+kk,j,i,iens) = state(idV,hs+kk,j,i,iens);
           state(idW,hs+nz+kk,j,i,iens) = state(idW,hs+kk,j,i,iens);
           state(idT,hs+nz+kk,j,i,iens) = state(idT,hs+kk,j,i,iens);
+          tke  (    hs+nz+kk,j,i,iens) = tke  (    hs+kk,j,i,iens);
           for (int l=0; l < num_tracers; l++) {
             tracers(l,      kk,j,i,iens) = tracers(l,nz+kk,j,i,iens);
             tracers(l,hs+nz+kk,j,i,iens) = tracers(l,hs+kk,j,i,iens);

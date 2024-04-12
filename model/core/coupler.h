@@ -344,10 +344,16 @@ namespace core {
         dm.clean_all_entries();
       #endif
       #ifdef PORTURB_FUNCTION_TIMERS
+        #ifdef YAKL_AUTO_PROFILE
+          MPI_Barrier(MPI_COMM_WORLD);
+        #endif
         yakl::timer_start( name.c_str() );
       #endif
       func( *this );
       #ifdef PORTURB_FUNCTION_TIMERS
+        #ifdef YAKL_AUTO_PROFILE
+          MPI_Barrier(MPI_COMM_WORLD);
+        #endif
         yakl::timer_stop ( name.c_str() );
       #endif
       #ifdef PORTURB_FUNCTION_TRACE

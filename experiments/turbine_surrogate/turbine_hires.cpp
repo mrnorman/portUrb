@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "roughness"    , roughness    );
     coupler.set_option<std::string>( "turbine_file" , turbine_file );
 
-    coupler.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen});
+    coupler.set_option<std::vector<real>>("turbine_x_locs",{0.1_fp*xlen});
     coupler.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature

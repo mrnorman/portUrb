@@ -147,13 +147,27 @@ namespace core {
         nproc_x = nranks;
         nproc_y = 1;
       } else {
-        // Find integer nproc_y * nproc_x == nranks such that nproc_y and nproc_x are as close as possible
-        nproc_y = (int) std::ceil( std::sqrt((double) nranks) );
-        while (nproc_y >= 1) {
-          if (nranks % nproc_y == 0) { break; }
-          nproc_y--;
+        std::vector<real> nproc_y_choices;
+        for (nproc_y = 1; nproc_y <= nranks; nproc_y++) {
+          if (nranks % nproc_y == 0) { nproc_y_choices.push_back(nproc_y); }
+        }
+        real aspect_real = static_cast<double>(ny_glob)/nx_glob;
+        nproc_y = nproc_y_choices[0];
+        real aspect = static_cast<double>(nproc_y)/(nranks/nproc_y);
+        real min_dist = std::abs(aspect-aspect_real);
+        for (int i=1; i < nproc_y_choices.size(); i++) {
+          aspect = static_cast<double>(nproc_y_choices[i])/(nranks/nproc_y);
+          real dist = std::abs(aspect-aspect_real);
+          if (dist < min_dist) {
+            nproc_y = nproc_y_choices[i];
+            min_dist = dist;
+          }
         }
         nproc_x = nranks / nproc_y;
+      }
+      
+      if (is_mainproc()) {
+        std::cout << "MPI Decomposition using " << nproc_x << " x " << nproc_y << " tasks" << std::endl;
       }
 
       // Get my ID within each dimension's number of ranks

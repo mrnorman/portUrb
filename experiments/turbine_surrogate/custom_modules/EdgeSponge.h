@@ -6,221 +6,135 @@
 namespace custom_modules {
   
   struct EdgeSponge {
-    real2d col_rho_d;
-    real2d col_uvel;
-    real2d col_vvel;
-    real2d col_wvel;
-    real2d col_temp;
-    real2d col_rho_v;
-    real2d col_tke;
 
-    inline void init( core::Coupler &coupler ) {
+    std::vector<std::string> varnames;
+    real3d                   col_avg;
+
+
+    void init( core::Coupler &coupler , std::vector<std::string> names ) {
       using yakl::c::parallel_for;
-      using yakl::c::Bounds;
-
-      YAKL_SCOPE( col_rho_d , this->col_rho_d );
-      YAKL_SCOPE( col_uvel  , this->col_uvel  );
-      YAKL_SCOPE( col_vvel  , this->col_vvel  );
-      YAKL_SCOPE( col_wvel  , this->col_wvel  );
-      YAKL_SCOPE( col_temp  , this->col_temp  );
-      YAKL_SCOPE( col_rho_v , this->col_rho_v );
-      YAKL_SCOPE( col_tke   , this->col_tke   );
-
-      auto nens = coupler.get_nens();
-      auto nz   = coupler.get_nz();
-
-      auto &dm = coupler.get_data_manager_readonly();
-      auto rho_d = dm.get<real const,4>("density_dry");
-      auto uvel  = dm.get<real const,4>("uvel");
-      auto vvel  = dm.get<real const,4>("vvel");
-      auto wvel  = dm.get<real const,4>("wvel");
-      auto temp  = dm.get<real const,4>("temp");
-      auto rho_v = dm.get<real const,4>("water_vapor");
-      auto tke   = dm.get<real const,4>("TKE");
-
-      col_rho_d = real2d("col_rho_d",nz,nens);
-      col_uvel  = real2d("col_uvel ",nz,nens);
-      col_vvel  = real2d("col_vvel ",nz,nens);
-      col_wvel  = real2d("col_wvel ",nz,nens);
-      col_temp  = real2d("col_temp ",nz,nens);
-      col_rho_v = real2d("col_rho_v",nz,nens);
-      col_tke   = real2d("col_tke  ",nz,nens);
-
-      auto col_rho_d_host = col_rho_d.createHostObject();
-      auto col_uvel_host  = col_uvel .createHostObject();
-      auto col_vvel_host  = col_vvel .createHostObject();
-      auto col_wvel_host  = col_wvel .createHostObject();
-      auto col_temp_host  = col_temp .createHostObject();
-      auto col_rho_v_host = col_rho_v.createHostObject();
-      auto col_tke_host   = col_tke  .createHostObject();
-
-      if (coupler.is_mainproc()) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
-          col_rho_d(k,iens) = rho_d(k,0,0,iens);
-          col_uvel (k,iens) = uvel (k,0,0,iens);
-          col_vvel (k,iens) = vvel (k,0,0,iens);
-          col_wvel (k,iens) = wvel (k,0,0,iens);
-          col_temp (k,iens) = temp (k,0,0,iens);
-          col_rho_v(k,iens) = rho_v(k,0,0,iens);
-          col_tke  (k,iens) = tke  (k,0,0,iens);
-        });
-        col_rho_d.deep_copy_to(col_rho_d_host);
-        col_uvel .deep_copy_to(col_uvel_host );
-        col_vvel .deep_copy_to(col_vvel_host );
-        col_wvel .deep_copy_to(col_wvel_host );
-        col_temp .deep_copy_to(col_temp_host );
-        col_rho_v.deep_copy_to(col_rho_v_host);
-        col_tke  .deep_copy_to(col_tke_host  );
+      using yakl::c::SimpleBounds;
+      varnames = names;
+      auto nx_glob    = coupler.get_nx_glob();
+      auto ny_glob    = coupler.get_ny_glob();
+      auto nens       = coupler.get_nens();
+      auto nx         = coupler.get_nx();
+      auto ny         = coupler.get_ny();
+      auto nz         = coupler.get_nz();
+      auto num_fields = varnames.size();
+      auto &dm        = coupler.get_data_manager_readonly();
+      core::MultiField<real const,4> fields;
+      for (int i=0; i < num_fields; i++) { fields.add_field( dm.get<real const,4>(varnames[i]) ); }
+      col_avg = real3d("col_avg",num_fields,nz,nens);
+      col_avg = 0;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        yakl::atomicAdd( col_avg(l,k,iens) , fields(l,k,j,i,iens) );
+      });
+      #ifdef MW_GPU_AWARE_MPI
+        auto column_total = col_avg.createDeviceObject();
         yakl::fence();
+        yakl::timer_start("column_nudging_Allreduce");
+        MPI_Allreduce( col_avg.data() , column_total.data() , column_total.size() ,
+                       coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
+        yakl::timer_stop("column_nudging_Allreduce");
+      #else
+        yakl::timer_start("column_nudging_Allreduce");
+        auto column_total_host = col_avg.createHostObject();
+        MPI_Allreduce( col_avg.createHostCopy().data() , column_total_host.data() , column_total_host.size() ,
+                       coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
+        auto column_total = column_total_host.createDeviceCopy();
+        yakl::timer_stop("column_nudging_Allreduce");
+      #endif
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_fields,nz,nens) , YAKL_LAMBDA (int l, int k, int iens) {
+        col_avg(l,k,iens) = column_total(l,k,iens) / (nx_glob*ny_glob);
+      });
+    }
+
+
+    template <class T>
+    void override_var( std::string name , T val ) {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto nz   = col_avg.extent(1);
+      auto nens = col_avg.extent(2);
+      int varid = -1;
+      for (int l=0; l < varnames.size(); l++) {
+        if (varnames[l] == name) { varid = l; break; }
       }
-
-      MPI_Bcast( col_rho_d_host.data(), col_rho_d_host.size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_uvel_host .data(), col_uvel_host .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_vvel_host .data(), col_vvel_host .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_wvel_host .data(), col_wvel_host .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_temp_host .data(), col_temp_host .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_rho_v_host.data(), col_rho_v_host.size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( col_tke_host  .data(), col_tke_host  .size() , coupler.get_mpi_data_type() , 0 , MPI_COMM_WORLD );
-
-      if (! coupler.is_mainproc()) {
-        col_rho_d_host.deep_copy_to(col_rho_d);
-        col_uvel_host .deep_copy_to(col_uvel );
-        col_vvel_host .deep_copy_to(col_vvel );
-        col_wvel_host .deep_copy_to(col_wvel );
-        col_temp_host .deep_copy_to(col_temp );
-        col_rho_v_host.deep_copy_to(col_rho_v);
-        col_tke_host  .deep_copy_to(col_tke  );
+      if (varid > 0) {
+        YAKL_SCOPE( col_avg , this->col_avg );
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nens) , YAKL_LAMBDA (int k, int iens) {
+          col_avg(varid,k,iens) = val;
+        });
       }
     }
 
 
-    void override_rho_d(real val) { col_rho_d = val; }
-    void override_uvel (real val) { col_uvel  = val; }
-    void override_vvel (real val) { col_vvel  = val; }
-    void override_wvel (real val) { col_wvel  = val; }
-    void override_temp (real val) { col_temp  = val; }
-    void override_rho_v(real val) { col_rho_v = val; }
-    void override_tke  (real val) { col_tke   = val; }
-
-
-    inline void apply( core::Coupler &coupler , real dt , real time_scale ,
-                       int cells_x1=0 , int cells_x2=0 , int cells_y1=0 , int cells_y2=0 , int cells_z2=0 ) {
+    void apply( core::Coupler & coupler    ,
+                real            dt         ,
+                real            time_scale ,
+                int             cells_x1=0 ,
+                int             cells_x2=0 ,
+                int             cells_y1=0 ,
+                int             cells_y2=0  ) const {
       using yakl::c::parallel_for;
-      using yakl::c::Bounds;
-
-      auto nens    = coupler.get_nens();
-      auto nx      = coupler.get_nx();
-      auto ny      = coupler.get_ny();
-      auto nz      = coupler.get_nz();
-      auto i_beg   = coupler.get_i_beg();
-      auto j_beg   = coupler.get_j_beg();
-      auto nx_glob = coupler.get_nx_glob();
-      auto ny_glob = coupler.get_ny_glob();
-
-      real R_d   = coupler.get_option<real>("R_d" );
-      real cp_d  = coupler.get_option<real>("cp_d");
-      real p0    = coupler.get_option<real>("p0"  );
-      real kappa = R_d / cp_d;
-      real gamma = cp_d / (cp_d - R_d);
-      real C0    = pow( R_d * pow( p0 , -kappa ) , gamma );
-
-
-      auto &dm = coupler.get_data_manager_readwrite();
-      auto rho_d = dm.get<real,4>("density_dry");
-      auto uvel  = dm.get<real,4>("uvel");
-      auto vvel  = dm.get<real,4>("vvel");
-      auto wvel  = dm.get<real,4>("wvel");
-      auto temp  = dm.get<real,4>("temp");
-      auto rho_v = dm.get<real,4>("water_vapor");
-      auto tke   = dm.get<real,4>("TKE");
-
-      YAKL_SCOPE( col_rho_d , this->col_rho_d );
-      YAKL_SCOPE( col_uvel  , this->col_uvel  );
-      YAKL_SCOPE( col_vvel  , this->col_vvel  );
-      YAKL_SCOPE( col_wvel  , this->col_wvel  );
-      YAKL_SCOPE( col_temp  , this->col_temp  );
-      YAKL_SCOPE( col_rho_v , this->col_rho_v );
-      YAKL_SCOPE( col_tke   , this->col_tke   );
-
+      using yakl::c::SimpleBounds;
+      auto nens       = coupler.get_nens();
+      auto nx         = coupler.get_nx();
+      auto ny         = coupler.get_ny();
+      auto nz         = coupler.get_nz();
+      auto nx_glob    = coupler.get_nx_glob();
+      auto ny_glob    = coupler.get_ny_glob();
+      auto dtype      = coupler.get_mpi_data_type();
+      auto &dm        = coupler.get_data_manager_readwrite();
+      int  num_fields = varnames.size();
+      core::MultiField<real,4> fields;
+      for (int i=0; i < num_fields; i++) { fields.add_field( dm.get<real,4>(varnames[i]) ); }
       real time_factor = dt / time_scale;
+      YAKL_SCOPE( col_avg , this->col_avg );
 
       if (coupler.get_px() == 0 && cells_x1 > 0) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,cells_x1,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,ny,cells_x1,nens) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           real xloc   = i / (cells_x1-1._fp);
           real weight = (cos(M_PI*xloc)+1)/2;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
-          tke  (k,j,i,iens) = weight*col_tke  (k,iens) + (1-weight)*tke  (k,j,i,iens);
+          fields(l,k,j,i,iens) = weight*col_avg(l,k,iens) + (1-weight)*fields(l,k,j,i,iens);
         });
       }
       if (coupler.get_px() == coupler.get_nproc_x()-1 && cells_x2 > 0) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,ny,cells_x2,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,ny,cells_x2,nens) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           real xloc   = i / (cells_x2-1._fp);
           real weight = (cos(M_PI*xloc)+1)/2;
           weight *= time_factor;
-          rho_d(k,j,nx-1-i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,nx-1-i,iens);
-          uvel (k,j,nx-1-i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,nx-1-i,iens);
-          vvel (k,j,nx-1-i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,nx-1-i,iens);
-          wvel (k,j,nx-1-i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,nx-1-i,iens);
-          temp (k,j,nx-1-i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,nx-1-i,iens);
-          rho_v(k,j,nx-1-i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,nx-1-i,iens);
-          tke  (k,j,nx-1-i,iens) = weight*col_tke  (k,iens) + (1-weight)*tke  (k,j,nx-1-i,iens);
+          fields(l,k,j,nx-1-i,iens) = weight*col_avg(l,k,iens) + (1-weight)*fields(l,k,j,nx-1-i,iens);
         });
       }
       if (coupler.get_py() == 0 && cells_y1 > 0) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,cells_y1,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,cells_y1,nx,nens) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           real yloc   = j / (cells_y1-1._fp);
           real weight = (cos(M_PI*yloc)+1)/2;
           weight *= time_factor;
-          rho_d(k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,j,i,iens);
-          uvel (k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,j,i,iens);
-          vvel (k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,j,i,iens);
-          wvel (k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,j,i,iens);
-          temp (k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,j,i,iens);
-          rho_v(k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,j,i,iens);
-          tke  (k,j,i,iens) = weight*col_tke  (k,iens) + (1-weight)*tke  (k,j,i,iens);
+          fields(l,k,j,i,iens) = weight*col_avg(l,k,iens) + (1-weight)*fields(l,k,j,i,iens);
         });
       }
       if (coupler.get_py() == coupler.get_nproc_y()-1 && cells_y2 > 0) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(nz,cells_y2,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,cells_y2,nx,nens) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           real yloc   = j / (cells_y2-1._fp);
           real weight = (cos(M_PI*yloc)+1)/2;
           weight *= time_factor;
-          rho_d(k,ny-1-j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(k,ny-1-j,i,iens);
-          uvel (k,ny-1-j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (k,ny-1-j,i,iens);
-          vvel (k,ny-1-j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (k,ny-1-j,i,iens);
-          wvel (k,ny-1-j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (k,ny-1-j,i,iens);
-          temp (k,ny-1-j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (k,ny-1-j,i,iens);
-          rho_v(k,ny-1-j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(k,ny-1-j,i,iens);
-          tke  (k,ny-1-j,i,iens) = weight*col_tke  (k,iens) + (1-weight)*tke  (k,ny-1-j,i,iens);
-        });
-      }
-      if (cells_z2 > 0) {
-        parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(cells_z2,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          real zloc   = k / (cells_z2-1._fp);
-          real weight = (cos(M_PI*zloc)+1)/2;
-          weight *= time_factor;
-          rho_d(nz-1-k,j,i,iens) = weight*col_rho_d(k,iens) + (1-weight)*rho_d(nz-1-k,j,i,iens);
-          uvel (nz-1-k,j,i,iens) = weight*col_uvel (k,iens) + (1-weight)*uvel (nz-1-k,j,i,iens);
-          vvel (nz-1-k,j,i,iens) = weight*col_vvel (k,iens) + (1-weight)*vvel (nz-1-k,j,i,iens);
-          wvel (nz-1-k,j,i,iens) = weight*col_wvel (k,iens) + (1-weight)*wvel (nz-1-k,j,i,iens);
-          temp (nz-1-k,j,i,iens) = weight*col_temp (k,iens) + (1-weight)*temp (nz-1-k,j,i,iens);
-          rho_v(nz-1-k,j,i,iens) = weight*col_rho_v(k,iens) + (1-weight)*rho_v(nz-1-k,j,i,iens);
-          tke  (nz-1-k,j,i,iens) = weight*col_tke  (k,iens) + (1-weight)*tke  (nz-1-k,j,i,iens);
+          fields(l,k,ny-1-j,i,iens) = weight*col_avg(l,k,iens) + (1-weight)*fields(l,k,ny-1-j,i,iens);
         });
       }
     }
+
+
   };
+
 }
 
 

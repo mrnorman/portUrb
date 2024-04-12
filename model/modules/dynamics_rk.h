@@ -222,6 +222,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         real mult = dt/immersed_tau * std::pow( immersed_prop(hs+k,hs+j,hs+i,iens) , immersed_power );
+        // TODO: Find a way to calculate drag in here
         // Density
         {
           auto &var = state(idR,hs+k,hs+j,hs+i,iens);

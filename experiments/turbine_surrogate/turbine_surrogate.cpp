@@ -6,6 +6,8 @@
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
 #include "EdgeSponge.h"
+#include "sponge_layer.h"
+#include "column_nudging.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -72,6 +74,7 @@ int main(int argc, char** argv) {
     modules::LES_Closure                       les_closure;
     modules::WindmillActuators                 windmills;
     custom_modules::EdgeSponge                 edge_sponge;
+    modules::ColumnNudger                      column_nudger;
 
     int num_turbines = windmills.turbine_group.num_turbines;
 
@@ -80,13 +83,14 @@ int main(int argc, char** argv) {
     coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
 
     // Run the initialization modules
-    custom_modules::sc_init( coupler );
-    les_closure  .init     ( coupler );
-    windmills    .init     ( coupler );
-    dycore       .init     ( coupler ); // Dycore should initialize its own state here
-    time_averager.init     ( coupler );
-    edge_sponge  .init     ( coupler );
-    edge_sponge.override_tke(0);
+    custom_modules::sc_init ( coupler );
+    les_closure  .init      ( coupler );
+    windmills    .init      ( coupler );
+    dycore       .init      ( coupler ); // Dycore should initialize its own state here
+    time_averager.init      ( coupler );
+    edge_sponge  .init      ( coupler , {"density_dry","uvel","vvel","wvel","temp","TKE"} );
+    edge_sponge.override_var("TKE",0);
+    column_nudger.set_column( coupler , {"density_dry","uvel","vvel"       ,"temp"      } );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -104,37 +108,42 @@ int main(int argc, char** argv) {
     }
 
     // Begin main simulation loop over time steps
-    real dtphys = dtphys_in;
+    real dt = dtphys_in;
     yakl::fence();
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
-      // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler)*dyn_cycle; }
+      // If dt <= 0, then set it to the dynamical core's max stable time step
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
-      if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
+      if (etime + dt > sim_time) { dt = sim_time - etime; }
 
       // Run modules
       {
         using core::Coupler;
-        auto run_dycore = [&] (Coupler &coupler) { dycore.time_step        (coupler,dtphys);            };
-        auto run_turb   = [&] (Coupler &coupler) { windmills.apply         (coupler,dtphys);            };
-        auto run_edge   = [&] (Coupler &coupler) { edge_sponge.apply       (coupler,dtphys,dtphys*100,20,20,0,0,20); };
-        auto run_les    = [&] (Coupler &coupler) { les_closure.apply       (coupler,dtphys);            };
-        auto run_tavg   = [&] (Coupler &coupler) { time_averager.accumulate(coupler,dtphys);            };
+        std::vector<std::string> vnames = {"density_dry","uvel","vvel","wvel","temp","TKE"};
+        auto run_dycore = [&] (Coupler &coupler) { dycore.time_step        (coupler,dt);               };
+        auto run_turb   = [&] (Coupler &coupler) { windmills.apply         (coupler,dt);               };
+        auto run_edge   = [&] (Coupler &coupler) { edge_sponge.apply       (coupler,dt,dt*10,5,5,0,0); };
+        auto run_sponge = [&] (Coupler &coupler) { modules::sponge_layer   (coupler,dt,dt*10,5);       };
+        auto run_nudger = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dt,dt*100);   };
+        auto run_les    = [&] (Coupler &coupler) { les_closure.apply       (coupler,dt);               };
+        auto run_tavg   = [&] (Coupler &coupler) { time_averager.accumulate(coupler,dt);               };
         coupler.run_module( run_dycore , "dycore           " );
         coupler.run_module( run_turb   , "windmillactuators" );
-        coupler.run_module( run_edge   , "edge_sponge      " );
         coupler.run_module( run_les    , "les_closure      " );
+        coupler.run_module( run_edge   , "edge_sponge      " );
+        coupler.run_module( run_sponge , "sponge_layer     " );
+        coupler.run_module( run_nudger , "column_nudging   " );
         coupler.run_module( run_tavg   , "time_averager    " );
         for (int i = 0; i < num_turbines; i++) { windmills.turbine_group.turbines(i).yaw_angle = 0; }
       }
 
       // Update time step
-      etime += dtphys; // Advance elapsed time
+      etime += dt; // Advance elapsed time
       coupler.set_option<real>("elapsed_time",etime);
 
       // Inform the user of progress if it's time.
-      if (inform_freq >= 0. && inform_counter.update_and_check(dtphys)) {
+      if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
         yakl::fence();
         auto t2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> dur_step = t2 - tm;
@@ -157,13 +166,13 @@ int main(int argc, char** argv) {
                     << std::scientific << std::setw(10) << etime            << " , " 
                     << std::scientific << std::setw(10) << dur_step.count() << " , "
                     << std::scientific << std::setw(10) << wind_mag         << " , "
-                    << std::scientific << std::setw(10) << dtphys           << std::endl;
+                    << std::scientific << std::setw(10) << dt           << std::endl;
         }
         inform_counter.reset();
       } // End informing user section
 
       // Perform output if it's time
-      if (out_freq >= 0. && output_counter.update_and_check(dtphys)) {
+      if (out_freq >= 0. && output_counter.update_and_check(dt)) {
         yakl::fence();
         auto t1 = std::chrono::high_resolution_clock::now();
         coupler.write_output_file( out_prefix );

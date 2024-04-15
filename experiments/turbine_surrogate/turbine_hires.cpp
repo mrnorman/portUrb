@@ -5,7 +5,6 @@
 #include "sc_init.h"
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
-#include "perturb_temperature.h"
 #include "EdgeSponge.h"
 #include "sponge_layer.h"
 #include "column_nudging.h"

@@ -52,6 +52,8 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "use_weno"     , use_weno     );
     coupler.set_option<std::string>( "restart_file" , restart_file );
     coupler.set_option<real       >( "roughness"    , roughness    );
+    coupler.set_option<real       >( "kinematic_viscosity" , config["kinematic_viscosity"].as<real>(0) );
+    coupler.set_option<bool       >( "dns" , config["dns"].as<real>(false) );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!)
@@ -113,11 +115,11 @@ int main(int argc, char** argv) {
         auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);            };
         auto run_les       = [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);            };
         auto run_tavg      = [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);            };
-        // coupler.run_module( run_nudger    , "column_nudger"  );
+        coupler.run_module( run_nudger    , "column_nudger"  );
         coupler.run_module( run_sponge    , "sponge_layer"   );
         coupler.run_module( run_micro     , "microphysics"   );
         coupler.run_module( run_dycore    , "dycore"         );
-        coupler.run_module( run_surf_flux , "surface_fluxes" );
+        // coupler.run_module( run_surf_flux , "surface_fluxes" ); // TODO: Surface fluxes are doing bad things
         coupler.run_module( run_les       , "les_closure"    );
         coupler.run_module( run_tavg      , "time_averager"  );
       }

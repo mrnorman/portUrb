@@ -98,6 +98,7 @@ namespace modules {
           real dw_dx = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j,hs+i-1,iens))/dx;
           real dt_dx = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j,hs+i-1,iens))/dx;
           real dK_dx = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k,hs+j,hs+i-1,iens))/dx;
+          if (imm) { dv_dx=0; dw_dx=0; dt_dx=0; dK_dx=0; }
           // Quantities at interface i-1/2
           real rho  = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K    = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1,iens) + tke      (hs+k,hs+j,hs+i,iens) );
@@ -108,14 +109,14 @@ namespace modules {
           real Pr_t = delta / (1+2*ell);
           real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_x );
           real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_x );
-          real visc_tot_yz = imm ? nu : visc_tot;
           flux_ru_x (k,j,i,iens) = -rho*visc_tot   *(du_dx + du_dx - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
-          flux_rv_x (k,j,i,iens) = -rho*visc_tot_yz*(dv_dx + du_dy                                  );
-          flux_rw_x (k,j,i,iens) = -rho*visc_tot_yz*(dw_dx + du_dz                                  );
+          flux_rv_x (k,j,i,iens) = -rho*visc_tot   *(dv_dx + du_dy                                  );
+          flux_rw_x (k,j,i,iens) = -rho*visc_tot   *(dw_dx + du_dz                                  );
           flux_rt_x (k,j,i,iens) = -rho*visc_tot_th*(dt_dx                                          );
           flux_tke_x(k,j,i,iens) = -rho*visc_tot*2 *(dK_dx                                          );
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dx = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j,hs+i-1,iens))/dx;
+            if (imm) { dt_dx=0; }
             flux_tracers_x(tr,k,j,i,iens) = -rho*visc_tot*dt_dx;
           }
         }
@@ -137,6 +138,7 @@ namespace modules {
           real dw_dy = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k,hs+j-1,hs+i,iens))/dy;
           real dt_dy = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k,hs+j-1,hs+i,iens))/dy;
           real dK_dy = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k,hs+j-1,hs+i,iens))/dy;
+          if (imm) { du_dy=0; dw_dy=0; dt_dy=0; dK_dy=0; }
           // Quantities at interface j-1/2
           real rho  = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K    = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
@@ -147,14 +149,14 @@ namespace modules {
           real Pr_t = delta / (1+2*ell);
           real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_y );
           real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_y );
-          real visc_tot_xz = imm ? nu : visc_tot;
-          flux_ru_y (k,j,i,iens) = -rho*visc_tot_xz*(du_dy + dv_dx                                  );
+          flux_ru_y (k,j,i,iens) = -rho*visc_tot   *(du_dy + dv_dx                                  );
           flux_rv_y (k,j,i,iens) = -rho*visc_tot   *(dv_dy + dv_dy - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
-          flux_rw_y (k,j,i,iens) = -rho*visc_tot_xz*(dw_dy + dv_dz                                  );
+          flux_rw_y (k,j,i,iens) = -rho*visc_tot   *(dw_dy + dv_dz                                  );
           flux_rt_y (k,j,i,iens) = -rho*visc_tot_th*(dt_dy                                          );
           flux_tke_y(k,j,i,iens) = -rho*visc_tot*2 *(dK_dy                                          );
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dy = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k,hs+j-1,hs+i,iens))/dy;
+            if (imm) { dt_dy=0; }
             flux_tracers_y(tr,k,j,i,iens) = -rho*visc_tot*dt_dy;
           }
         }
@@ -174,6 +176,7 @@ namespace modules {
           real dw_dz = (state(idW,hs+k,hs+j,hs+i,iens) - state(idW,hs+k-1,hs+j,hs+i,iens))/dz;
           real dt_dz = (state(idT,hs+k,hs+j,hs+i,iens) - state(idT,hs+k-1,hs+j,hs+i,iens))/dz;
           real dK_dz = (tke      (hs+k,hs+j,hs+i,iens) - tke      (hs+k-1,hs+j,hs+i,iens))/dz;
+          if (imm) { du_dz=0; dv_dz=0; dt_dz=0; dK_dz=0; }
           // Quantities at interface k-1/2
           real rho  = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i,iens) + state(idR,hs+k,hs+j,hs+i,iens) );
           real K    = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i,iens) + tke      (hs+k,hs+j,hs+i,iens) );
@@ -184,14 +187,14 @@ namespace modules {
           real Pr_t = delta / (1+2*ell);
           real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_z );
           real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_z );
-          real visc_tot_xy = imm ? nu : visc_tot;
-          flux_ru_z (k,j,i,iens) = -rho*visc_tot_xy*(du_dz + dw_dx                                  );
-          flux_rv_z (k,j,i,iens) = -rho*visc_tot_xy*(dv_dz + dw_dy                                  );
+          flux_ru_z (k,j,i,iens) = -rho*visc_tot   *(du_dz + dw_dx                                  );
+          flux_rv_z (k,j,i,iens) = -rho*visc_tot   *(dv_dz + dw_dy                                  );
           flux_rw_z (k,j,i,iens) = -rho*visc_tot   *(dw_dz + dw_dz - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
           flux_rt_z (k,j,i,iens) = -rho*visc_tot_th*(dt_dz                                          );
           flux_tke_z(k,j,i,iens) = -rho*visc_tot*2 *(dK_dz                                          );
           for (int tr=0; tr < num_tracers; tr++) {
             dt_dz = (tracers(tr,hs+k,hs+j,hs+i,iens) - tracers(tr,hs+k-1,hs+j,hs+i,iens))/dz;
+            if (imm) { dt_dz=0; }
             flux_tracers_z(tr,k,j,i,iens) = -rho*visc_tot*dt_dz;
           }
         }

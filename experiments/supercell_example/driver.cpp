@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
         coupler.run_module( run_sponge    , "sponge_layer"   );
         coupler.run_module( run_micro     , "microphysics"   );
         coupler.run_module( run_dycore    , "dycore"         );
-        // coupler.run_module( run_surf_flux , "surface_fluxes" ); // TODO: Surface fluxes are doing bad things
+        coupler.run_module( run_surf_flux , "surface_fluxes" );
         coupler.run_module( run_les       , "les_closure"    );
         coupler.run_module( run_tavg      , "time_averager"  );
       }

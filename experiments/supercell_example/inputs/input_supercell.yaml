@@ -34,7 +34,7 @@ roughness: 0.1
 
 dyn_cycle: 1
 
-kinematic_viscosity: 500
+kinematic_viscosity: 0
 
-dns: true
+dns: false
 

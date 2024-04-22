@@ -267,6 +267,8 @@ namespace modules {
     // Class data members
     TurbineGroup<>  turbine_group;
     int             trace_size;
+    realConst1d     platform_time;
+    realConst1d     platform_pert;
 
 
     void init( core::Coupler &coupler ) {
@@ -347,6 +349,18 @@ namespace modules {
           nc.end_indep_data();
         }
       });
+
+      auto config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
+      if (config["platform_motions_file"]) {
+        real1d platform_time_loc, platform_pert_loc;
+        yakl::SimpleNetCDF nc;
+        nc.open( config["platform_motions_file"].as<std::string>() , yakl::NETCDF_MODE_READ );
+        nc.read( platform_time_loc , "time" );
+        nc.read( platform_pert_loc , "pert" );
+        nc.close();
+        platform_time = platform_time_loc;
+        platform_pert = platform_pert_loc;
+      }
     }
 
 

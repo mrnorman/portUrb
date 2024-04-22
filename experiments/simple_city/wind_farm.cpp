@@ -48,14 +48,15 @@ int main(int argc, char** argv) {
     auto turbine_file = config["turbine_file"].as<std::string>();
 
     // Things the coupler might need to know about
-    coupler.set_option<std::string>( "out_prefix"   , out_prefix   );
-    coupler.set_option<std::string>( "init_data"    , init_data    );
-    coupler.set_option<real       >( "out_freq"     , out_freq     );
-    coupler.set_option<bool       >( "is_restart"   , is_restart   );
-    coupler.set_option<std::string>( "restart_file" , restart_file );
-    coupler.set_option<real       >( "latitude"     , latitude     );
-    coupler.set_option<real       >( "roughness"    , roughness    );
-    coupler.set_option<std::string>( "turbine_file" , turbine_file );
+    coupler.set_option<std::string>( "out_prefix"            , out_prefix   );
+    coupler.set_option<std::string>( "init_data"             , init_data    );
+    coupler.set_option<real       >( "out_freq"              , out_freq     );
+    coupler.set_option<bool       >( "is_restart"            , is_restart   );
+    coupler.set_option<std::string>( "restart_file"          , restart_file );
+    coupler.set_option<real       >( "latitude"              , latitude     );
+    coupler.set_option<real       >( "roughness"             , roughness    );
+    coupler.set_option<std::string>( "turbine_file"          , turbine_file );
+    coupler.set_option<std::string>( "standalone_input_file" , inFile       );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -63,9 +64,6 @@ int main(int argc, char** argv) {
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler.set_grid( xlen , ylen , zlen );
-
-    // This is for the dycore to pull out to determine how to do idealized test cases
-    coupler.set_option<std::string>( "standalone_input_file" , inFile );
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;

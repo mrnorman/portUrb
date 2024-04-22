@@ -267,8 +267,9 @@ namespace modules {
     // Class data members
     TurbineGroup<>  turbine_group;
     int             trace_size;
-    realConst1d     platform_time;
-    realConst1d     platform_pert;
+    realHost1d      platform_time;
+    realHost1d      platform_pert;
+    real            etime;
 
 
     void init( core::Coupler &coupler ) {
@@ -350,16 +351,15 @@ namespace modules {
         }
       });
 
+      etime = 0;
+
       auto config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
       if (config["platform_motions_file"]) {
-        real1d platform_time_loc, platform_pert_loc;
         yakl::SimpleNetCDF nc;
         nc.open( config["platform_motions_file"].as<std::string>() , yakl::NETCDF_MODE_READ );
-        nc.read( platform_time_loc , "time" );
-        nc.read( platform_pert_loc , "pert" );
+        nc.read( platform_time , "time" );
+        nc.read( platform_pert , "pert" );
         nc.close();
-        platform_time = platform_time_loc;
-        platform_pert = platform_pert_loc;
       }
     }
 
@@ -564,10 +564,10 @@ namespace modules {
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
           // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
-          real4d turb_prop ("turb_prop" ,nz,ny,nx,nens);
-          real4d disk_mag  ("disk_mag"  ,nz,ny,nx,nens);
-          real4d disk_u    ("disk_u"    ,nz,ny,nx,nens);
-          real4d disk_v    ("disk_v"    ,nz,ny,nx,nens);
+          real4d turb_prop   ("turb_prop"   ,nz,ny,nx,nens);
+          real4d disk_mag    ("disk_mag"    ,nz,ny,nx,nens);
+          real4d disk_u      ("disk_u"      ,nz,ny,nx,nens);
+          real4d disk_v      ("disk_v"      ,nz,ny,nx,nens);
           real4d blade_weight("blade_weight",nz,ny,nx,nens);
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
@@ -611,6 +611,24 @@ namespace modules {
           real blade_tot = sum_glob(3);
           real glob_unorm = glob_u*cos_yaw;
           real glob_vnorm = glob_v*sin_yaw;
+          ///////////////////////////////////////////////////
+          // Add platform motions if they are allocated
+          ///////////////////////////////////////////////////
+          if (platform_time.initialized() && platform_pert.initialized()) {
+            real te = platform_time(platform_time.size()-1); // Last time entry in platform file
+            real tnorm = etime;                       // Current simulation length
+            while (tnorm >= 2*te) { tnorm -= 2*te; }  // wrap at 2*(last_time)
+            if (tnorm >= te) tnorm = 2*te - tnorm;    // Make domain smoothly infinite / periodic
+            real pert = interp( platform_time , platform_pert , tnorm ); // Interpolate platform pert
+            real glob_mag_new = std::max( 0._fp , glob_mag+pert ); // Ensure new magnitude is non-negative
+            // Only apply a multiplier if original magnitude is non-zero
+            real mult = std::abs(glob_mag) > 1.e-7 ? glob_mag_new / glob_mag : 0;
+            glob_mag   *= mult;
+            glob_u     *= mult;
+            glob_v     *= mult;
+            glob_unorm *= mult;
+            glob_vnorm *= mult;
+          }
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
@@ -674,6 +692,7 @@ namespace modules {
 
       // So all tasks know how large the trace is. Makes PNetCDF output easier to manage
       trace_size++;
+      etime += dt;
     }
 
 

@@ -44,5 +44,5 @@ dyn_cycle: 1
 
 turbine_file: ./inputs/IEA-15-240-RWT.yaml
 
-platform_motions_file: ./inputs/platform_motions.nc
+# platform_motions_file: ./inputs/platform_motions.nc
 

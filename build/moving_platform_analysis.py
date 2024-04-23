@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-nc_orig = Dataset('without_platform_motions/test_00000004.nc','r')
-nc_pert = Dataset('random_platform_motions/test_00000004.nc','r')
+nc_orig = Dataset('platform_motion_off_00000008.nc','r')
+nc_pert = Dataset('platform_motion_on_00000008.nc','r')
 nx = nc_orig.dimensions["x"].size
 ny = nc_orig.dimensions["y"].size
 nz = nc_orig.dimensions["z"].size
@@ -31,72 +31,9 @@ plt.show()
 
 plt.close()
 
-yind = int(ny/2 - ny/8)
-u_orig = nc_orig.variables["avg_u"][zhub,yind,:,0]
-u_pert = nc_pert.variables["avg_u"][zhub,yind,:,0]
-plt.plot(x,u_orig,color="black",label="original")
-plt.plot(x,u_pert,color="red"  ,label="moving_platform")
-plt.title(f"u-vel x-cross-section, z=150m (hub height), y={y[yind]}km")
-# plt.axis('scaled')
-# plt.margins(x=0)
-plt.tight_layout()
-plt.xlabel("x-location (km)")
-plt.ylabel("u-velocity")
-plt.legend()
-plt.show()
-
-plt.close()
-
-yind = int(ny/2)
-u_orig = nc_orig.variables["avg_u"][zhub,yind,:,0]
-u_pert = nc_pert.variables["avg_u"][zhub,yind,:,0]
-plt.plot(x,u_orig,color="black",label="original")
-plt.plot(x,u_pert,color="red"  ,label="moving_platform")
-plt.title(f"u-vel x-cross-section, z=150m (hub height), y={y[yind]}km")
-# plt.axis('scaled')
-# plt.margins(x=0)
-plt.tight_layout()
-plt.xlabel("x-location (km)")
-plt.ylabel("u-velocity")
-plt.legend()
-plt.show()
-
-plt.close()
-
-yind = int(ny/2 + ny/8)
-u_orig = nc_orig.variables["avg_u"][zhub,yind,:,0]
-u_pert = nc_pert.variables["avg_u"][zhub,yind,:,0]
-plt.plot(x,u_orig,color="black",label="original")
-plt.plot(x,u_pert,color="red"  ,label="moving_platform")
-plt.title(f"u-vel x-cross-section, z=150m (hub height), y={y[yind]}km")
-# plt.axis('scaled')
-# plt.margins(x=0)
-plt.tight_layout()
-plt.xlabel("x-location (km)")
-plt.ylabel("u-velocity")
-plt.legend()
-plt.show()
-
-plt.close()
-
-xind = int(nx/2+1*nx/8)
-plt.plot(y,nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
-plt.plot(y,nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
-plt.title(f"u-vel y-cross-sections, z=150m (hub height), x={x[xind]}km")
-# plt.axis('scaled')
-# plt.margins(x=0)
-plt.tight_layout()
-plt.xlabel("x-location (km)")
-plt.ylabel("u-velocity")
-plt.legend()
-plt.show()
-
-
-plt.close()
-
-xind = int(nx/2+2*nx/8)
-plt.plot(y,nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
-plt.plot(y,nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
+xind = int(nx/3)
+plt.plot(nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
+plt.plot(nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
 plt.title(f"u-vel y-cross-sections, z=150m (hub height), x={x[xind]}km")
 # plt.axis('scaled')
 # plt.margins(x=0)
@@ -108,9 +45,9 @@ plt.show()
 
 plt.close()
 
-xind = int(nx/2+3*nx/8)
-plt.plot(y,nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
-plt.plot(y,nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
+xind = int(2*nx/3)
+plt.plot(nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
+plt.plot(nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
 plt.title(f"u-vel y-cross-sections, z=150m (hub height), x={x[xind]}km")
 # plt.axis('scaled')
 # plt.margins(x=0)
@@ -122,9 +59,9 @@ plt.show()
 
 plt.close()
 
-xind = int(nx/2+4*nx/8)-1
-plt.plot(y,nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
-plt.plot(y,nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
+xind = nx-1
+plt.plot(nc_orig.variables["avg_u"][zhub,:,xind,0],color="black",label="original")
+plt.plot(nc_pert.variables["avg_u"][zhub,:,xind,0],color="red"  ,label="moving_platform")
 plt.title(f"u-vel y-cross-sections, z=150m (hub height), x={x[xind]}km")
 # plt.axis('scaled')
 # plt.margins(x=0)
@@ -136,18 +73,22 @@ plt.show()
 
 plt.close()
 
-xind = int(nx/2+4*nx/8)-1
-plt.plot(nc_orig.variables["power_trace_turb_0"][:],color="black",label="original")
-plt.plot(nc_pert.variables["power_trace_turb_0"][:],color="red"  ,label="moving_platform")
-plt.title(f"u-vel y-cross-sections, z=150m (hub height), x={x[xind]}km")
-# plt.axis('scaled')
-# plt.margins(x=0)
-plt.tight_layout()
-plt.xlabel("x-location (km)")
-plt.ylabel("u-velocity")
-plt.legend()
-plt.show()
-
-print("Orig Mean MW: ",np.mean(nc_orig.variables["power_trace_turb_0"][:]))
-print("Pert Mean MW: ",np.mean(nc_pert.variables["power_trace_turb_0"][:]))
+print("Orig Mean MW: ",np.mean(nc_orig.variables["power_trace_turb_0"][:]+
+                               nc_orig.variables["power_trace_turb_1"][:]+
+                               nc_orig.variables["power_trace_turb_2"][:]+
+                               nc_orig.variables["power_trace_turb_3"][:]+
+                               nc_orig.variables["power_trace_turb_4"][:]+
+                               nc_orig.variables["power_trace_turb_5"][:]+
+                               nc_orig.variables["power_trace_turb_6"][:]+
+                               nc_orig.variables["power_trace_turb_7"][:]+
+                               nc_orig.variables["power_trace_turb_8"][:]))
+print("Pert Mean MW: ",np.mean(nc_pert.variables["power_trace_turb_0"][:]+
+                               nc_pert.variables["power_trace_turb_1"][:]+
+                               nc_pert.variables["power_trace_turb_2"][:]+
+                               nc_pert.variables["power_trace_turb_3"][:]+
+                               nc_pert.variables["power_trace_turb_4"][:]+
+                               nc_pert.variables["power_trace_turb_5"][:]+
+                               nc_pert.variables["power_trace_turb_6"][:]+
+                               nc_pert.variables["power_trace_turb_7"][:]+
+                               nc_pert.variables["power_trace_turb_8"][:]))
 

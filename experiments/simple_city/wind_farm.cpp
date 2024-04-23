@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     les_closure  .init          ( coupler );
     windmills    .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler , {"uvel"} );
+    column_nudger.set_column    ( coupler , {"uvel","vvel"} );
     time_averager.init          ( coupler );
     edge_sponge  .init          ( coupler );
     modules::perturb_temperature( coupler , false , true );

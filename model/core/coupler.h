@@ -243,6 +243,20 @@ namespace core {
       dm.add_dimension( "y"    , ny   );
       dm.add_dimension( "z"    , nz   );
       set_option<real>("elapsed_time",0._fp);
+      if (is_mainproc()) {
+        std::cout << "There are a total of " << nz << " x "
+                                             << ny_glob << " x "
+                                             << nx_glob << " x "
+                                             << nens << " = "
+                                             << nz*ny_glob*nx_glob*nens << " DOFs" << std::endl;
+        std::cout << "MPI Decomposition using " << nproc_x << " x " << nproc_y << " = " << nranks << " tasks" << std::endl;
+        std::cout << "There are roughly " << nz << " x "
+                                          << ny << " x "
+                                          << nx << " x "
+                                          << nens << " = "
+                                          << nz*ny*nx*nens << " DOFs per task" << std::endl;
+      }
+
     }
 
 
@@ -349,6 +363,14 @@ namespace core {
       this->xlen = xlen;
       this->ylen = ylen;
       this->zlen = zlen;
+      if (is_mainproc()) {
+        std::cout << "The domain is " << get_xlen()/1000 << "km x "
+                                      << get_ylen()/1000 << "km x "
+                                      << get_zlen()/1000 << "km in the x, y, and z directions" << std::endl;
+        std::cout << "The grid spacing is " << get_dx() << "m , "
+                                            << get_dy() << "m , and "
+                                            << get_dz() << "m in the x, y, and z directions" << std::endl;
+      }
     }
 
 

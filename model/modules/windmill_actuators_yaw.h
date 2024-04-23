@@ -633,8 +633,6 @@ namespace modules {
             // Only apply a multiplier if original magnitude is non-zero
             real mult = std::abs(glob_mag) > 1.e-7 ? glob_mag_new / glob_mag : 0;
             glob_mag   *= mult;
-            glob_u     *= mult;
-            glob_v     *= mult;
             glob_unorm *= mult;
             glob_vnorm *= mult;
           }

@@ -270,6 +270,7 @@ namespace modules {
     realHost1d      platform_time;
     realHost1d      platform_pert;
     real            etime;
+    std::mt19937    gen;
 
 
     void init( core::Coupler &coupler ) {
@@ -361,6 +362,9 @@ namespace modules {
         nc.read( platform_pert , "pert" );
         nc.close();
       }
+
+      std::random_device rd{};
+      gen = std::mt19937{rd()};
     }
 
 
@@ -621,6 +625,11 @@ namespace modules {
             if (tnorm >= te) tnorm = 2*te - tnorm;    // Make domain smoothly infinite / periodic
             real pert = interp( platform_time , platform_pert , tnorm ); // Interpolate platform pert
             real glob_mag_new = std::max( 0._fp , glob_mag+pert ); // Ensure new magnitude is non-negative
+
+            // std::normal_distribution dist{0.0, 1.3833573558249463};
+            // if (coupler.get_myrank() == 0) glob_mag_new = std::max( 0._fp , glob_mag+dist(gen) );
+            // MPI_Bcast( &glob_mag_new , 1 , dtype , 0 , turbine.mpi_comm );
+
             // Only apply a multiplier if original magnitude is non-zero
             real mult = std::abs(glob_mag) > 1.e-7 ? glob_mag_new / glob_mag : 0;
             glob_mag   *= mult;

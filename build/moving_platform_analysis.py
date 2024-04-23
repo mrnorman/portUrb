@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 nc_orig = Dataset('without_platform_motions/test_00000004.nc','r')
-nc_pert = Dataset('with_platform_motions/test_00000004.nc','r')
+nc_pert = Dataset('random_platform_motions/test_00000004.nc','r')
 nx = nc_orig.dimensions["x"].size
 ny = nc_orig.dimensions["y"].size
 nz = nc_orig.dimensions["z"].size

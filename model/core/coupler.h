@@ -65,6 +65,8 @@ namespace core {
     std::vector<std::function<void(core::Coupler &coupler , yakl::SimplePNetCDF &nc)>> out_write_funcs;
     std::vector<std::function<void(core::Coupler &coupler , yakl::SimplePNetCDF &nc)>> restart_read_funcs;
 
+    std::chrono::time_point<std::chrono::high_resolution_clock> inform_timer;
+
 
   public:
 
@@ -78,6 +80,7 @@ namespace core {
       this->zlen   = -1;
       this->dt_gcm = -1;
       this->file_counter = 0;
+      this->inform_timer = std::chrono::high_resolution_clock::now();
     }
 
 
@@ -99,28 +102,33 @@ namespace core {
     }
 
 
-    void clone_into( Coupler &coupler ) {
-      coupler.xlen     = this->xlen    ;
-      coupler.ylen     = this->ylen    ;
-      coupler.zlen     = this->zlen    ;
-      coupler.dt_gcm   = this->dt_gcm  ;
-      coupler.tracers  = this->tracers ;
-      coupler.nranks   = this->nranks  ;
-      coupler.myrank   = this->myrank  ;
-      coupler.nens     = this->nens    ;
-      coupler.nx_glob  = this->nx_glob ;
-      coupler.ny_glob  = this->ny_glob ;
-      coupler.nproc_x  = this->nproc_x ;
-      coupler.nproc_y  = this->nproc_y ;
-      coupler.px       = this->px      ;
-      coupler.py       = this->py      ;
-      coupler.i_beg    = this->i_beg   ;
-      coupler.j_beg    = this->j_beg   ;
-      coupler.i_end    = this->i_end   ;
-      coupler.j_end    = this->j_end   ;
-      coupler.mainproc = this->mainproc;
-      coupler.neigh    = this->neigh   ;
-      this->dm.clone_into( coupler.dm );
+    void clone_into( Coupler &coupler ) const {
+      coupler.xlen               = this->xlen              ;
+      coupler.ylen               = this->ylen              ;
+      coupler.zlen               = this->zlen              ;
+      coupler.dt_gcm             = this->dt_gcm            ;
+      coupler.nranks             = this->nranks            ;
+      coupler.myrank             = this->myrank            ;
+      coupler.nens               = this->nens              ;
+      coupler.nx_glob            = this->nx_glob           ;
+      coupler.ny_glob            = this->ny_glob           ;
+      coupler.nproc_x            = this->nproc_x           ;
+      coupler.nproc_y            = this->nproc_y           ;
+      coupler.px                 = this->px                ;
+      coupler.py                 = this->py                ;
+      coupler.i_beg              = this->i_beg             ;
+      coupler.j_beg              = this->j_beg             ;
+      coupler.i_end              = this->i_end             ;
+      coupler.j_end              = this->j_end             ;
+      coupler.mainproc           = this->mainproc          ;
+      coupler.neigh              = this->neigh             ;
+      coupler.file_counter       = this->file_counter      ;
+      coupler.tracers            = this->tracers           ;
+      coupler.output_vars        = this->output_vars       ;
+      coupler.out_write_funcs    = this->out_write_funcs   ;
+      coupler.restart_read_funcs = this->restart_read_funcs;
+      this->dm     .clone_into( coupler.dm      );
+      this->options.clone_into( coupler.options );
     }
 
 
@@ -165,10 +173,6 @@ namespace core {
         }
         nproc_x = nranks / nproc_y;
       }
-      
-      if (is_mainproc()) {
-        std::cout << "MPI Decomposition using " << nproc_x << " x " << nproc_y << " tasks" << std::endl;
-      }
 
       // Get my ID within each dimension's number of ranks
       py = myrank / nproc_x;
@@ -208,35 +212,6 @@ namespace core {
           neigh(j,i) = pyloc * nproc_x + pxloc;
         }
       }
-
-      // Debug output for the parallel decomposition
-      #if 0
-        if (mainproc) {
-          std::cout << "There are " << nranks << " ranks, with " << nproc_x << " in the x-direction and "
-                                                                 << nproc_y << " in the y-direction.\n\n";
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-        for (int rr=0; rr < nranks; rr++) {
-          MPI_Barrier(MPI_COMM_WORLD);
-          if (rr == myrank) {
-            std::cout << "Hello! My Rank is    : " << myrank << std::endl;
-            std::cout << "My proc grid ID is   : " << px << " , " << py << std::endl;
-            std::cout << "I have               : " << nx << " x " << ny << " x " << nz <<  " columns." << std::endl;
-            std::cout << "I start at index     : " << i_beg << " x " << j_beg << std::endl;
-            std::cout << "I end at index       : " << i_end << " x " << j_end << std::endl;
-            std::cout << "My neighbor matrix is:" << std::endl;
-            for (int j = 2; j >= 0; j--) {
-              for (int i = 0; i < 3; i++) {
-                std::cout << std::setw(6) << neigh(j,i) << " ";
-              }
-              std::cout << std::endl;
-            }
-            std::cout << std::endl;
-          }
-          MPI_Barrier(MPI_COMM_WORLD);
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-      #endif
 
       dm.add_dimension( "nens" , nens );
       dm.add_dimension( "x"    , nx   );
@@ -380,16 +355,10 @@ namespace core {
         dm.clean_all_entries();
       #endif
       #ifdef PORTURB_FUNCTION_TIMERS
-        #ifdef YAKL_AUTO_PROFILE
-          MPI_Barrier(MPI_COMM_WORLD);
-        #endif
         yakl::timer_start( name.c_str() );
       #endif
       func( *this );
       #ifdef PORTURB_FUNCTION_TIMERS
-        #ifdef YAKL_AUTO_PROFILE
-          MPI_Barrier(MPI_COMM_WORLD);
-        #endif
         yakl::timer_stop ( name.c_str() );
       #endif
       #ifdef PORTURB_FUNCTION_TRACE
@@ -473,11 +442,38 @@ namespace core {
     };
 
 
-    void write_output_file( std::string prefix ) {
+    void inform_user( ) {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      yakl::fence();
+      auto t2 = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> dur_step = t2 - inform_timer;
+      inform_timer = t2;
+      auto u = get_data_manager_readonly().get_collapsed<real const>("uvel");
+      auto v = get_data_manager_readonly().get_collapsed<real const>("vvel");
+      auto w = get_data_manager_readonly().get_collapsed<real const>("wvel");
+      auto mag = u.createDeviceObject();
+      parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
+        mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
+      });
+      real wind_mag_loc = yakl::intrinsics::maxval(mag);
+      real wind_mag;
+      auto mpi_data_type = get_mpi_data_type();
+      MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
+      if (is_mainproc()) {
+        std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
+                  << std::scientific << std::setw(10) << get_option<real>("elapsed_time") << " , " 
+                  << std::scientific << std::setw(10) << dur_step.count()                 << " , "
+                  << std::scientific << std::setw(10) << wind_mag                         << std::endl;
+      }
+    }
+
+
+    void write_output_file( std::string prefix , bool verbose = true ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       typedef unsigned char uchar;
-      yakl::timer_start("output");
+      yakl::timer_start("coupler_output");
       auto nens        = get_nens();
       auto nx          = get_nx();
       auto ny          = get_ny();
@@ -598,7 +594,12 @@ namespace core {
       for (int i=0; i < out_write_funcs.size(); i++) { out_write_funcs[i](*this,nc); }
       nc.close();
       file_counter++;
-      yakl::timer_stop("output");
+      yakl::timer_stop("coupler_output");
+      if (verbose && is_mainproc()) {
+        std::cout << "*** Output/restart file written ***  -->  Etime , Output time: "
+                  << std::scientific << std::setw(10) << etime            << " , " 
+                  << std::scientific << std::setw(10) << timer_last("coupler_output") << std::endl;
+      }
     }
 
 

@@ -63,6 +63,7 @@ template <class T> inline void debug_print_val( T var , char const * file , int 
 #define DEBUG_PRINT_MAIN_MAX(var) { debug_print_max((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_VAL(var) { debug_print_val((var),__FILE__,__LINE__,#var); }
 
+
 int constexpr max_fields = 50;
 
 typedef double real;
@@ -75,6 +76,9 @@ YAKL_INLINE real constexpr operator"" _fp( long double x ) {
 YAKL_INLINE void endrun(char const * msg) {
   yakl::yakl_throw(msg);
 };
+
+
+inline real timer_last(std::string label) { return yakl::get_yakl_instance().timer.get_last_duration(label); }
 
 
 typedef Array<real,1,memDevice,styleC> real1d;

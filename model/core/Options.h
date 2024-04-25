@@ -39,6 +39,35 @@ namespace core {
     }
 
 
+    void clone_into( Options & rhs ) const {
+      for (int i=0; i < this->options.size(); i++) {
+        if      (options[i].type_hash == get_type_hash<short int>             ()) { clone_specific<short int>             (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<int>                   ()) { clone_specific<int>                   (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<long int>              ()) { clone_specific<long int>              (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<long long int>         ()) { clone_specific<long long int>         (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<unsigned short int>    ()) { clone_specific<unsigned short int>    (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<unsigned int>          ()) { clone_specific<unsigned int>          (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<unsigned long int>     ()) { clone_specific<unsigned long int>     (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<unsigned long long int>()) { clone_specific<unsigned long long int>(i,rhs); }
+        else if (options[i].type_hash == get_type_hash<float>                 ()) { clone_specific<float>                 (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<double>                ()) { clone_specific<double>                (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<long double>           ()) { clone_specific<long double>           (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<bool>                  ()) { clone_specific<bool>                  (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<char>                  ()) { clone_specific<char>                  (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<std::string>           ()) { clone_specific<std::string>           (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<std::vector<int>>      ()) { clone_specific<std::vector<int>>      (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<std::vector<float>>    ()) { clone_specific<std::vector<float>>    (i,rhs); }
+        else if (options[i].type_hash == get_type_hash<std::vector<double>>   ()) { clone_specific<std::vector<double>>   (i,rhs); }
+      }
+    }
+
+
+    template <class T>
+    void clone_specific( int i , Options & rhs ) const {
+      rhs.add_option<T>( options[i].key , *static_cast<T *>(options[i].data) );
+    }
+
+
     void delete_generic(int id) {
       if      (options[id].type_hash == get_type_hash<short int>             ()) { delete_specific<short int>             (id); }
       else if (options[id].type_hash == get_type_hash<int>                   ()) { delete_specific<int>                   (id); }

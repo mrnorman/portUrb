@@ -76,7 +76,7 @@ namespace core {
 
     
     // Clone this DataManager object into the given DataManager object
-    void clone_into( DataManagerTemplate<memSpace> &dm ) {
+    void clone_into( DataManagerTemplate<memSpace> &dm ) const {
       dm.allocate          = this->allocate;
       dm.deallocate        = this->deallocate;
       dm.dimensions        = this->dimensions;

@@ -1,11 +1,11 @@
 ---
 # Simulation time in seconds
-sim_time: 21601.  # 86400
+sim_time: 7201.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 720
-ny_glob: 720
+nx_glob: 960
+ny_glob: 240
 nz     : 50
 # nx_glob: 400
 # ny_glob: 400
@@ -14,15 +14,17 @@ nz     : 50
 # ny_glob: 10
 # nz     : 10
 
+run_main: false
+
 # Domain size of the CRMs
-xlen: 7200
-ylen: 7200
+xlen: 9600
+ylen: 2400
 zlen: 500
 
 init_data: ABL_neutral2
 
 # Output filename
-out_prefix: platform_motion_off
+out_prefix: test
 
 # CRM physics time step
 dt_phys: 0.
@@ -34,9 +36,9 @@ inform_freq: 10.
 
 latitude: 0.
 
-is_restart: false
+restart_file: 
 
-restart_file: none
+restart_file_precursor: 
 
 roughness: 0.0002
 

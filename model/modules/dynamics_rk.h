@@ -72,7 +72,7 @@ namespace modules {
 
 
     // Perform a time step
-    void time_step(core::Coupler &coupler, real dt_phys) {
+    void time_step(core::Coupler &coupler, real dt_phys) const {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_start("time_step");
@@ -106,7 +106,7 @@ namespace modules {
     void time_step_rk_3_3( core::Coupler & coupler ,
                            real5d const  & state   ,
                            real5d const  & tracers ,
-                           real            dt_dyn  ) {
+                           real            dt_dyn  ) const {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_start("time_step_rk_3_3");
@@ -199,7 +199,7 @@ namespace modules {
     void enforce_immersed_boundaries( core::Coupler const & coupler ,
                                       real5d        const & state   ,
                                       real5d        const & tracers ,
-                                      real                  dt      ) {
+                                      real                  dt      ) const {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_start("enforce_immersed_boundaries");
@@ -1149,7 +1149,7 @@ namespace modules {
 
 
     // Initialize the class data as well as the state and tracers arrays and convert them back into the coupler state
-    void init(core::Coupler &coupler) {
+    void init(core::Coupler &coupler) const {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_start("init");

@@ -16,14 +16,14 @@ namespace modules {
     int static constexpr idT = 4;
 
 
-    void init( core::Coupler &coupler ) {
+    void init( core::Coupler &coupler ) const {
       coupler.add_tracer( "TKE" , "mass-weighted TKE" , true , false , false );
       coupler.get_data_manager_readwrite().get<real,4>("TKE") = 0.1;
     }
 
 
 
-    void apply( core::Coupler &coupler , real dtphys ) {
+    void apply( core::Coupler &coupler , real dtphys ) const {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       auto nx             = coupler.get_nx  ();

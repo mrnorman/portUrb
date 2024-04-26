@@ -8,7 +8,7 @@
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "perturb_temperature.h"
-#include "EdgeSponge.h"
+#include "precursor_sponge.h"
 #include "sponge_layer.h"
 
 int main(int argc, char** argv) {
@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler_main;
-    core::Coupler coupler_precursor;
+    core::Coupler coupler_prec;
 
     // Read the YAML input file for variables pertinent to running the driver
     if (argc <= 1) { endrun("ERROR: Must pass the input YAML filename as a parameter"); }
@@ -38,22 +38,22 @@ int main(int argc, char** argv) {
     auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
-    auto nens                   = config["nens"                  ].as<int        >(1                                   );
-    auto out_freq               = config["out_freq"              ].as<real       >(sim_time/10.                        );
-    auto inform_freq            = config["inform_freq"           ].as<real       >(sim_time/100.                       );
-    auto out_prefix             = config["out_prefix"            ].as<std::string>("test"                              );
-    auto out_prefix_precursor   = config["out_prefix_precursor"  ].as<std::string>(out_prefix+std::string("_precursor"));
-    auto restart_file           = config["restart_file"          ].as<std::string>(""                                  );
-    auto restart_file_precursor = config["restart_file_precursor"].as<std::string>(""                                  );
-    auto run_main               = config["run_main"              ].as<bool       >(true                                );
+    auto nens              = config["nens"                  ].as<int        >(1            );
+    auto out_freq          = config["out_freq"              ].as<real       >(sim_time/10. );
+    auto inform_freq       = config["inform_freq"           ].as<real       >(sim_time/100.);
+    auto out_prefix        = config["out_prefix"            ].as<std::string>("test"       );
+    auto out_prefix_prec   = config["out_prefix_precursor"  ].as<std::string>(out_prefix+std::string("_precursor"));
+    auto restart_file      = config["restart_file"          ].as<std::string>(""           );
+    auto restart_file_prec = config["restart_file_precursor"].as<std::string>(""           );
+    auto run_main          = config["run_main"              ].as<bool       >(true         );
 
     // Things the coupler might need to know about
-    coupler_main.set_option<std::string>( "standalone_input_file"  , inFile                 );
-    coupler_main.set_option<std::string>( "out_prefix"             , out_prefix             );
-    coupler_main.set_option<std::string>( "init_data"              , init_data              );
-    coupler_main.set_option<real       >( "out_freq"               , out_freq               );
-    coupler_main.set_option<std::string>( "restart_file"           , restart_file           );
-    coupler_main.set_option<std::string>( "restart_file_precursor" , restart_file_precursor );
+    coupler_main.set_option<std::string>( "standalone_input_file"  , inFile            );
+    coupler_main.set_option<std::string>( "out_prefix"             , out_prefix        );
+    coupler_main.set_option<std::string>( "init_data"              , init_data         );
+    coupler_main.set_option<real       >( "out_freq"               , out_freq          );
+    coupler_main.set_option<std::string>( "restart_file"           , restart_file      );
+    coupler_main.set_option<std::string>( "restart_file_precursor" , restart_file_prec );
     coupler_main.set_option<real       >( "latitude"               , config["latitude"    ].as<real       >(0  ) );
     coupler_main.set_option<real       >( "roughness"              , config["roughness"   ].as<real       >(0.1) );
     coupler_main.set_option<std::string>( "turbine_file"           , config["turbine_file"].as<std::string>()    );
@@ -87,17 +87,17 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler_main );
     les_closure  .init          ( coupler_main );
     dycore       .init          ( coupler_main );
-    modules::perturb_temperature( coupler_main , false , true );
+    modules::perturb_temperature( coupler_main , nz);
 
     /////////////////////////////////////////////////////////////////////////
     // Everything previous to this is now replicated in coupler_precursor
     // From here out, the will be treated separately
-    coupler_main.clone_into(coupler_precursor);
+    coupler_main.clone_into(coupler_prec);
     /////////////////////////////////////////////////////////////////////////
 
     windmills    .init      ( coupler_main );
     time_averager.init      ( coupler_main );
-    column_nudger.set_column( coupler_precursor , {"uvel","vvel"} );
+    column_nudger.set_column( coupler_prec , {"uvel","vvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -115,11 +115,18 @@ int main(int argc, char** argv) {
     }
 
     // if restart, overwrite with restart data, and set the counters appropriately. Otherwise, write initial output
-    if (restart_file_precursor != "" && restart_file_precursor != "null") {
-      coupler_precursor.set_option<std::string>("restart_file",restart_file_precursor);
-      coupler_precursor.overwrite_with_restart();
+    if (restart_file_prec != "" && restart_file_prec != "null") {
+      coupler_prec.set_option<std::string>("restart_file",restart_file_prec);
+      coupler_prec.overwrite_with_restart();
+      auto &dm_prec = coupler_prec.get_data_manager_readonly();
+      auto &dm_main = coupler_main     .get_data_manager_readwrite();
+      dm_prec.get<real const,4>("density_dry").deep_copy_to(dm_main.get<real,4>("density_dry"));
+      dm_prec.get<real const,4>("uvel"       ).deep_copy_to(dm_main.get<real,4>("uvel"       ));
+      dm_prec.get<real const,4>("vvel"       ).deep_copy_to(dm_main.get<real,4>("vvel"       ));
+      dm_prec.get<real const,4>("wvel"       ).deep_copy_to(dm_main.get<real,4>("wvel"       ));
+      dm_prec.get<real const,4>("temp"       ).deep_copy_to(dm_main.get<real,4>("temp"       ));
     } else {
-      if (out_freq >= 0) coupler_precursor.write_output_file( out_prefix_precursor );
+      if (out_freq >= 0) coupler_prec.write_output_file( out_prefix_prec );
     }
 
     // Begin main simulation loop over time steps
@@ -134,6 +141,10 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         if (run_main) {
+          custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
+                                            {"density_dry","uvel","vvel","wvel","temp"} ,
+                                            (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
+                                            (int) (0.1*ny_glob) , (int) (0.1*ny_glob) , (int) (0.1*nz) );
           coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
           coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
           coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
@@ -141,24 +152,24 @@ int main(int argc, char** argv) {
           coupler_main.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt); } , "time_averager"     );
         }
 
-        coupler_precursor.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column(c,dt,dt*100); } , "column_nudger"  );
-        coupler_precursor.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);        } , "dycore"         );
-        coupler_precursor.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);        } , "surface_fluxes" );
-        coupler_precursor.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);        } , "les_closure"    );
+        coupler_prec.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column(c,dt,dt*100); } , "column_nudger"  );
+        coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);        } , "dycore"         );
+        coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);        } , "surface_fluxes" );
+        coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);        } , "les_closure"    );
       }
 
       // Update time step
       etime += dt; // Advance elapsed time
-      coupler_main     .set_option<real>("elapsed_time",etime);
-      coupler_precursor.set_option<real>("elapsed_time",etime);
+      coupler_main.set_option<real>("elapsed_time",etime);
+      coupler_prec.set_option<real>("elapsed_time",etime);
       if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
-        if (run_main) { coupler_main     .inform_user(); }
-        else          { coupler_precursor.inform_user(); }
+        if (run_main) { coupler_main.inform_user(); }
+        else          { coupler_prec.inform_user(); }
         inform_counter.reset();
       }
       if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
-        if (run_main) coupler_main.write_output_file( out_prefix           , true );
-        coupler_precursor.write_output_file( out_prefix_precursor , true );
+        if (run_main) coupler_main.write_output_file( out_prefix , true );
+        coupler_prec.write_output_file( out_prefix_prec , true );
         output_counter.reset();
       }
     } // End main simulation loop

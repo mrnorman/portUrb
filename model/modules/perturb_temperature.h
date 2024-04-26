@@ -5,7 +5,7 @@
 
 namespace modules {
 
-  inline void perturb_temperature( core::Coupler &coupler , bool thermal = true , bool random = false ) {
+  inline void perturb_temperature( core::Coupler &coupler , int num_levels , bool thermal = false ) {
     using yakl::c::parallel_for;
     using yakl::c::Bounds;
 
@@ -23,23 +23,20 @@ namespace modules {
 
     auto &dm = coupler.get_data_manager_readwrite();
 
-    if (random) {
-      int  num_levels = nz / 4;
-      real magnitude  = 3.;
-      size_t seed = static_cast<size_t>(coupler.get_myrank()*nz*nx*ny*nens);
+    real magnitude  = 3.;
+    size_t seed = static_cast<size_t>(coupler.get_myrank()*nz*nx*ny*nens);
 
-      // ny*nx can all be globbed together for this routine
-      auto temp           = dm.get<real      ,4>("temp");
-      auto fully_immersed = dm.get<bool const,4>("fully_immersed_halos");
-      int hs = (fully_immersed.extent(0)-nz)/2;
+    // ny*nx can all be globbed together for this routine
+    auto temp           = dm.get<real      ,4>("temp");
+    auto fully_immersed = dm.get<bool const,4>("fully_immersed_halos");
+    int hs = (fully_immersed.extent(0)-nz)/2;
 
-      parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(num_levels,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        yakl::Random prng(seed+k*ny*nx*nens+j*nx*nens+i*nens+iens);  // seed is a globally unique identifier
-        real rand = prng.genFP<real>()*2._fp - 1._fp;  // Random number in [-1,1]
-        real scaling = ( num_levels - static_cast<real>(k) ) / num_levels;  // Less effect at higher levels
-        if (!fully_immersed(hs+k,hs+j,hs+i,iens)) temp(k,j,i,iens) += rand * magnitude * scaling;
-      });
-    }
+    parallel_for( YAKL_AUTO_LABEL() , Bounds<4>(num_levels,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
+      yakl::Random prng(seed+k*ny*nx*nens+j*nx*nens+i*nens+iens);  // seed is a globally unique identifier
+      real rand = prng.genFP<real>()*2._fp - 1._fp;  // Random number in [-1,1]
+      real scaling = ( num_levels - static_cast<real>(k) ) / num_levels;  // Less effect at higher levels
+      if (!fully_immersed(hs+k,hs+j,hs+i,iens)) temp(k,j,i,iens) += rand * magnitude * scaling;
+    });
 
     if (thermal) {
       auto temp = dm.get<real,4>("temp");

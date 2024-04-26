@@ -8,7 +8,6 @@
 #include "column_nudging.h"
 #include "perturb_temperature.h"
 #include "sponge_layer.h"
-#include "EdgeSponge.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -68,7 +67,6 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     modules::ColumnNudger                      column_nudger;
-    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -80,8 +78,7 @@ int main(int argc, char** argv) {
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
     column_nudger.set_column    ( coupler );
     time_averager.init          ( coupler );
-    edge_sponge  .init          ( coupler );
-    modules::perturb_temperature( coupler , false , true );
+    modules::perturb_temperature( coupler , nz );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -112,7 +109,6 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*100);           } , "column_nudger"  );
-        coupler.run_module( [&] (Coupler &coupler) { edge_sponge.apply            (coupler,dtphys,dtphys*10,0,0,0,0,10); } , "edge_sponge"    );
         coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);                      } , "dycore"         );
         coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);                      } , "surface_fluxes" );
         coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);                      } , "les_closure"    );

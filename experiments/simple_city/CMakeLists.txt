@@ -28,10 +28,4 @@ yakl_process_target(abl)
 target_link_libraries(abl model "${MW_LINK_FLAGS}")
 target_include_directories(abl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
-add_executable(compare_closures compare_closures.cpp)
-include(${YAKL_HOME}/yakl_utils.cmake)
-yakl_process_target(compare_closures)
-target_link_libraries(compare_closures model "${MW_LINK_FLAGS}")
-target_include_directories(compare_closures PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
-
 

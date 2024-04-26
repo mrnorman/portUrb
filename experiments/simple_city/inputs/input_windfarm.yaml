@@ -4,9 +4,9 @@ sim_time: 7201.  # 86400
 
 # Number of cells to use in the CRMs
 nens   : 1
-nx_glob: 960
-ny_glob: 240
-nz     : 50
+nx_glob: 1920
+ny_glob: 480
+nz     : 100
 # nx_glob: 400
 # ny_glob: 400
 # nz     : 40
@@ -14,17 +14,15 @@ nz     : 50
 # ny_glob: 10
 # nz     : 10
 
-run_main: false
-
 # Domain size of the CRMs
-xlen: 9600
-ylen: 2400
-zlen: 500
+xlen: 19200
+ylen: 4800
+zlen: 1000
 
 init_data: ABL_neutral2
 
 # Output filename
-out_prefix: test
+out_prefix: no_platform
 
 # CRM physics time step
 dt_phys: 0.
@@ -35,6 +33,8 @@ out_freq: 900.
 inform_freq: 10.
 
 latitude: 0.
+
+run_main: false
 
 restart_file: 
 

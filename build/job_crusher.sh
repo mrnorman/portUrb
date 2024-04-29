@@ -4,7 +4,7 @@
 #SBATCH -o %x-%j.out
 #SBATCH -t 2:00:00
 #SBATCH --partition testing
-#SBATCH -N 64
+#SBATCH -N 128
 
 num_tasks=`echo "$SLURM_JOB_NUM_NODES*8" | bc`
 cd /lustre/orion/stf006/scratch/imn/portUrb/build

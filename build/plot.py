@@ -1,121 +1,50 @@
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-nc = Dataset("test_00000001.nc","r")
+nc = Dataset("no_platform_00000001.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size
 x = nc.variables["x"][:]/1000.
 y = nc.variables["y"][:]/1000.
 z = nc.variables["z"][:]/1000.
-nlevs = 200
-
-
-
-
-# zind = int(90./700.*nz)
-# zloc = (zind+0.5)*(700./nz)
-# u = nc.variables["uvel"][zind,:,:,0]
-# v = nc.variables["vvel"][zind,:,:,0]
-# w = nc.variables["wvel"][zind,:,:,0]
-# mag = np.sqrt( u*u + v*v + w*w )
-# X,Y = np.meshgrid(x,y)
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,mag,nlevs, cmap="gist_rainbow")
-# ax2.set_title('Wind magnitude at z = '+str(int(zloc))+' m')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# ax2.set_aspect('equal')
-# cbar = fig1.colorbar(CS,orientation='horizontal')
-# cbar.ax.set_ylabel('wind magnitude (m/s)')
-# plt.show()
-# plt.close()
-# 
-
 X,Y = np.meshgrid(x,y)
-prop = nc.variables["windmill_prop"][int(150./1000.)-1,:,:,0]
-fig1, ax2 = plt.subplots(layout='constrained')
-CS = ax2.contourf(X,Y,prop,nlevs, cmap="gist_rainbow")
-ax2.set_title('u at z = '+str(int(150))+' m')
-ax2.set_xlabel('$x$-location (km)')
-ax2.set_ylabel('$y$-location (km)')
-ax2.set_aspect('equal')
-cbar = fig1.colorbar(CS,orientation='horizontal')
-cbar.ax.set_ylabel('wind magnitude (m/s)')
+
+zind = int(150./1000.*nz)
+TKE = ( nc.variables["avg_up_up"][zind,:,:,0] + \
+        nc.variables["avg_vp_vp"][zind,:,:,0] + \
+        nc.variables["avg_wp_wp"][zind,:,:,0] )
+
+CS = plt.contourf(X,Y,TKE,levels=100,cmap="jet",extend="both")
+plt.title("u_moving_platform - u_orig at hub height")
+plt.axis('scaled')
+plt.margins(x=0)
+plt.tight_layout()
+plt.xlabel("x-location (km)")
+plt.ylabel("y-location (km)")
+divider = make_axes_locatable(plt.gca())
+cax = divider.append_axes("bottom", size="5%", pad=0.5)
+plt.colorbar(CS,orientation="horizontal",cax=cax)
 plt.show()
+
 plt.close()
 
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,v,nlevs, cmap="gist_rainbow")
-# ax2.set_title('v at z = '+str(int(zloc))+' m')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# ax2.set_aspect('equal')
-# cbar = fig1.colorbar(CS,orientation='horizontal')
-# cbar.ax.set_ylabel('wind magnitude (m/s)')
-# plt.show()
-# plt.close()
-# 
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Y,w,nlevs, cmap="gist_rainbow")
-# ax2.set_title('w at z = '+str(int(zloc))+' m')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$y$-location (km)')
-# ax2.set_aspect('equal')
-# cbar = fig1.colorbar(CS,orientation='horizontal')
-# cbar.ax.set_ylabel('wind magnitude (m/s)')
-# plt.show()
-# plt.close()
-# 
-# 
-# 
-# yind = ny/2
-# yloc = (yind+0.5)*(4000./ny)
-# u = nc.variables["uvel"][:,yind,:,0]
-# v = nc.variables["vvel"][:,yind,:,0]
-# w = nc.variables["wvel"][:,yind,:,0]
-# mag = np.sqrt( u*u + v*v + w*w )
-# X,Z = np.meshgrid(x,z[:])
-# fig1, ax2 = plt.subplots(layout='constrained')
-# CS = ax2.contourf(X,Z,mag,nlevs, cmap="gist_stern")
-# ax2.set_title('Wind magnitude at y = '+str(int(yloc))+' m')
-# ax2.set_xlabel('$x$-location (km)')
-# ax2.set_ylabel('$z$-location (km)')
-# ax2.set_aspect('equal')
-# cbar = fig1.colorbar(CS,orientation='horizontal')
-# cbar.ax.set_ylabel('wind magnitude (m/s)')
-# plt.show()
-# plt.close()
+up = nc.variables["uvel"][zind,:,:,0]-nc.variables["avg_u"][zind,:,:,0]
+vp = nc.variables["vvel"][zind,:,:,0]-nc.variables["avg_v"][zind,:,:,0]
+wp = nc.variables["wvel"][zind,:,:,0]-nc.variables["avg_w"][zind,:,:,0]
+CS = plt.contourf(X,Y,(up*up+vp*vp+wp*wp)/2,levels=100,cmap="jet",extend="both")
+plt.title("u_moving_platform - u_orig at hub height")
+plt.axis('scaled')
+plt.margins(x=0)
+plt.tight_layout()
+plt.xlabel("x-location (km)")
+plt.ylabel("y-location (km)")
+divider = make_axes_locatable(plt.gca())
+cax = divider.append_axes("bottom", size="5%", pad=0.5)
+plt.colorbar(CS,orientation="horizontal",cax=cax)
+plt.show()
 
-
-
-# r = nc.variables["density_dry"][:,:,:,0]
-# u = nc.variables["uvel"       ][:,:,:,0]
-# v = nc.variables["vvel"       ][:,:,:,0]
-# w = nc.variables["wvel"       ][:,:,:,0]
-# T = nc.variables["temperature"][:,:,:,0]
-# 
-# p = r*287*T
-# th = T*(1.e5/p)**(287./1004.)
-# 
-# plt.plot(np.mean(u,(1,2)),z)
-# plt.title("u-velocity")
-# plt.show()
-# plt.close()
-# 
-# plt.plot(np.mean(v,(1,2)),z)
-# plt.title("v-velocity")
-# plt.show()
-# plt.close()
-# 
-# plt.plot(np.mean(np.sqrt(u*u+v*v+w*w),(1,2)),z)
-# plt.title("wind magintude")
-# plt.show()
-# plt.close()
-# 
-# plt.plot(np.mean(th,(1,2)),z)
-# plt.title("wind magintude")
-# plt.show()
-# plt.close()
+plt.close()
 

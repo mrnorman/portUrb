@@ -105,6 +105,9 @@ namespace modules {
       real               base_loc_y;  // y location of the tower base
       std::vector<real>  power_trace; // Time trace of power generation
       std::vector<real>  yaw_trace;   // Time trace of yaw of the turbine
+      std::vector<real>  mag_trace;      // Time trace of disk-integrated velocity
+      std::vector<real>  normmag_trace;  // Time trace of disk-integrated normal velocity
+      std::vector<real>  normmag0_trace; // Time trace of disk-integrated free-stream normal velocity used for look-ups
       real               yaw_angle;   // Current yaw angle   (radians going counter-clockwise from facing west)
       real               rot_angle;   // Current rotation angle (radians)
       YawTend            yaw_tend;    // Functor to compute the change in yaw
@@ -327,24 +330,42 @@ namespace modules {
           nc.redef();
           nc.create_dim( "num_time_steps" , trace_size );
           for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
-            std::string pow_vname = std::string("power_trace_turb_") + std::to_string(iturb);
-            std::string yaw_vname = std::string("yaw_trace_turb_"  ) + std::to_string(iturb);
-            nc.create_var<real>( pow_vname , {"num_time_steps"} );
-            nc.create_var<real>( yaw_vname , {"num_time_steps"} );
+            std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
+            std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
+            std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
+            std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
+            std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
+            nc.create_var<real>( pow_vname      , {"num_time_steps"} );
+            nc.create_var<real>( yaw_vname      , {"num_time_steps"} );
+            nc.create_var<real>( mag_vname      , {"num_time_steps"} );
+            nc.create_var<real>( normmag_vname  , {"num_time_steps"} );
+            nc.create_var<real>( normmag0_vname , {"num_time_steps"} );
           }
           nc.enddef();
           nc.begin_indep_data();
           for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
             auto &turbine = turbine_group.turbines(iturb);
             if (turbine.active && turbine.sub_rankid == turbine.owning_sub_rankid) {
-              realHost1d power_arr("power_arr",trace_size);
-              realHost1d yaw_arr  ("yaw_arr"  ,trace_size);
-              for (int i=0; i < trace_size; i++) { power_arr(i) = turbine.power_trace[i]; }
-              for (int i=0; i < trace_size; i++) { yaw_arr  (i) = turbine.yaw_trace  [i]/M_PI*180; }
-              std::string pow_vname = std::string("power_trace_turb_") + std::to_string(iturb);
-              std::string yaw_vname = std::string("yaw_trace_turb_"  ) + std::to_string(iturb);
-              nc.write( power_arr , pow_vname );
-              nc.write( yaw_arr   , yaw_vname );
+              realHost1d power_arr   ("power_arr"   ,trace_size);
+              realHost1d yaw_arr     ("yaw_arr"     ,trace_size);
+              realHost1d mag_arr     ("mag_arr"     ,trace_size);
+              realHost1d normmag_arr ("normmag_arr" ,trace_size);
+              realHost1d normmag0_arr("normmag0_arr",trace_size);
+              for (int i=0; i < trace_size; i++) { power_arr   (i) = turbine.power_trace   [i]; }
+              for (int i=0; i < trace_size; i++) { yaw_arr     (i) = turbine.yaw_trace     [i]/M_PI*180; }
+              for (int i=0; i < trace_size; i++) { mag_arr     (i) = turbine.mag_trace     [i]; }
+              for (int i=0; i < trace_size; i++) { normmag_arr (i) = turbine.normmag_trace [i]; }
+              for (int i=0; i < trace_size; i++) { normmag0_arr(i) = turbine.normmag0_trace[i]; }
+              std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
+              std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
+              std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
+              std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
+              std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
+              nc.write( power_arr    , pow_vname      );
+              nc.write( yaw_arr      , yaw_vname      );
+              nc.write( mag_arr      , mag_vname      );
+              nc.write( normmag_arr  , normmag_vname  );
+              nc.write( normmag0_arr , normmag0_vname );
             }
             MPI_Barrier(MPI_COMM_WORLD);
           }
@@ -569,26 +590,21 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
           real4d turb_prop   ("turb_prop"   ,nz,ny,nx,nens);
-          real4d disk_mag    ("disk_mag"    ,nz,ny,nx,nens);
           real4d disk_u      ("disk_u"      ,nz,ny,nx,nens);
           real4d disk_v      ("disk_v"      ,nz,ny,nx,nens);
           real4d blade_weight("blade_weight",nz,ny,nx,nens);
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                             YAKL_LAMBDA (int k, int j, int i, int iens) {
-            if (disk_weight(k,j,i,iens) > 0 ) {
-              real u = uvel(k,j,i,iens);
-              real v = vvel(k,j,i,iens);
+            if (disk_weight(k,j,i,iens) > 0) {
               turb_prop    (k,j,i,iens)  = disk_weight(k,j,i,iens)/disk_tot;
               turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
-              disk_u       (k,j,i,iens)  = turb_prop(k,j,i,iens)*u;
-              disk_v       (k,j,i,iens)  = turb_prop(k,j,i,iens)*v;
-              disk_mag     (k,j,i,iens)  = turb_prop(k,j,i,iens)*std::sqrt(u*u+v*v);
+              disk_u       (k,j,i,iens)  = turb_prop(k,j,i,iens)*uvel(k,j,i,iens);
+              disk_v       (k,j,i,iens)  = turb_prop(k,j,i,iens)*vvel(k,j,i,iens);
             } else {
               turb_prop    (k,j,i,iens)  = 0;
               disk_u       (k,j,i,iens)  = 0;
               disk_v       (k,j,i,iens)  = 0;
-              disk_mag     (k,j,i,iens)  = 0;
             }
             real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i,iens)/blade1_tot : 0;
             real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i,iens)/blade2_tot : 0;
@@ -596,11 +612,10 @@ namespace modules {
             blade_weight(k,j,i,iens) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
           });
           // Calculate local sums
-          SArray<real,1,4> sum_loc, sum_glob;
+          SArray<real,1,3> sum_loc, sum_glob;
           sum_loc(0) = yakl::intrinsics::sum( disk_u       );
           sum_loc(1) = yakl::intrinsics::sum( disk_v       );
-          sum_loc(2) = yakl::intrinsics::sum( disk_mag     );
-          sum_loc(3) = yakl::intrinsics::sum( blade_weight );
+          sum_loc(2) = yakl::intrinsics::sum( blade_weight );
           // Calculate global sums
           if (turbine.nranks == 1) {
             sum_glob = sum_loc;
@@ -611,10 +626,12 @@ namespace modules {
           }
           real glob_u    = sum_glob(0);
           real glob_v    = sum_glob(1);
-          real glob_mag  = sum_glob(2);
-          real blade_tot = sum_glob(3);
+          real blade_tot = sum_glob(2);
           real glob_unorm = glob_u*cos_yaw;
           real glob_vnorm = glob_v*sin_yaw;
+          real glob_mag   = std::sqrt(glob_unorm*glob_unorm + glob_vnorm*glob_vnorm);
+          turbine.mag_trace    .push_back(std::sqrt(glob_u    *glob_u    +glob_v    *glob_v    ));
+          turbine.normmag_trace.push_back(std::sqrt(glob_unorm*glob_unorm+glob_vnorm*glob_vnorm));
           ///////////////////////////////////////////////////
           // Add platform motions if they are allocated
           ///////////////////////////////////////////////////
@@ -642,7 +659,7 @@ namespace modules {
           // Iterate out the induction factor and thrust coefficient, which depend on each other
           real a = 0.3; // Starting guess for axial induction factor based on ... chatGPT. Yeah, I know
           real C_T;
-          for (int iter = 0; iter < 10; iter++) {
+          for (int iter = 0; iter < 100; iter++) {
             C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
             a   = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
           }
@@ -651,8 +668,9 @@ namespace modules {
           real pwr  = interp( ref_velmag , ref_power      , glob_mag/(1-a) ); // Interpolate power
           real mag0 = glob_mag/(1-a);                                         // wind magintude at infinity
           // Keep track of the turbine yaw angle and the power production for this time step
-          turbine.yaw_trace  .push_back( turbine.yaw_angle );
-          turbine.power_trace.push_back( pwr               );
+          turbine.yaw_trace     .push_back( turbine.yaw_angle );
+          turbine.power_trace   .push_back( pwr               );
+          turbine.normmag0_trace.push_back( mag0              );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
           // Fraction of thrust that didn't generate power to send into TKE

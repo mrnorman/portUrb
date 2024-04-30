@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-nc = Dataset("no_platform_00000001.nc","r")
+nc = Dataset("no_platform_00000008.nc","r")
 nz = nc.dimensions["z"].size
 ny = nc.dimensions["y"].size
 nx = nc.dimensions["x"].size
@@ -18,7 +18,7 @@ TKE = ( nc.variables["avg_up_up"][zind,:,:,0] + \
         nc.variables["avg_wp_wp"][zind,:,:,0] )
 
 CS = plt.contourf(X,Y,TKE,levels=100,cmap="jet",extend="both")
-plt.title("u_moving_platform - u_orig at hub height")
+plt.title("Time-averaged Resolved TKE")
 plt.axis('scaled')
 plt.margins(x=0)
 plt.tight_layout()
@@ -34,8 +34,8 @@ plt.close()
 up = nc.variables["uvel"][zind,:,:,0]-nc.variables["avg_u"][zind,:,:,0]
 vp = nc.variables["vvel"][zind,:,:,0]-nc.variables["avg_v"][zind,:,:,0]
 wp = nc.variables["wvel"][zind,:,:,0]-nc.variables["avg_w"][zind,:,:,0]
-CS = plt.contourf(X,Y,(up*up+vp*vp+wp*wp)/2,levels=100,cmap="jet",extend="both")
-plt.title("u_moving_platform - u_orig at hub height")
+CS = plt.contourf(X,Y,(up*up+vp*vp+wp*wp)/2,levels=100,cmap="jet",extend="both",vmax=5)
+plt.title("Instantaneous Resolved TKE")
 plt.axis('scaled')
 plt.margins(x=0)
 plt.tight_layout()

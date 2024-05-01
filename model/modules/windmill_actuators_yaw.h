@@ -476,7 +476,7 @@ namespace modules {
             blade3_weight(k,j,i,iens) = 0;
           });
           {
-            real xr = 1.5*dx;
+            real xr = 2*dx;
             int nper  = 10;
             int num_x = (int)std::ceil(xr*2 /dx*nper);
             int num_y = (int)std::ceil(rad*2/dy*nper);
@@ -495,13 +495,13 @@ namespace modules {
                 int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int  k = static_cast<int>(std::floor((zp       )/dz));
-                yakl::atomicAdd( disk_weight(k,j,i,iens) , thrust_shape(std::sqrt(y*y+z*z)/rad)*proj_shape_1d(x,xr) );
+                if (std::sqrt(y*y+z*z) <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i,iens) , 1._fp );
               }
             });
           }
           {
             int nper = 10;
-            real xr = 5*dx;
+            real xr = 2*dx;
             real yr = 5*dy;
             int num_x = 2*xr/dx*nper;
             int num_y = 2*yr/dy*nper;
@@ -632,41 +632,44 @@ namespace modules {
           real glob_mag   = std::sqrt(glob_unorm*glob_unorm + glob_vnorm*glob_vnorm);
           turbine.mag_trace    .push_back(std::sqrt(glob_u    *glob_u    +glob_v    *glob_v    ));
           turbine.normmag_trace.push_back(std::sqrt(glob_unorm*glob_unorm+glob_vnorm*glob_vnorm));
+          //////////////////////////////////////////////////////////////////
+          // Computation axial induction factor and freestream velocities
+          //////////////////////////////////////////////////////////////////
+          real a = 0;
+          for (int iter = 0; iter < 100; iter++) {
+            real C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
+            a        = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
+          }
+          real mag0 = glob_mag  /(1-a);  // wind magintude at infinity
+          real u0   = glob_unorm/(1-a);  // u-velocity at infinity
+          real v0   = glob_vnorm/(1-a);  // v-velocity at infinity
           ///////////////////////////////////////////////////
           // Add platform motions if they are allocated
           ///////////////////////////////////////////////////
+          // I'm adding the platform motions to the freestream velocity because otherwise, we get a very strange
+          //   wind distribution in the freestream
           if (platform_time.initialized() && platform_pert.initialized()) {
             real te = platform_time(platform_time.size()-1); // Last time entry in platform file
             real tnorm = etime;                       // Current simulation length
             while (tnorm >= 2*te) { tnorm -= 2*te; }  // wrap at 2*(last_time)
             if (tnorm >= te) tnorm = 2*te - tnorm;    // Make domain smoothly infinite / periodic
             real pert = interp( platform_time , platform_pert , tnorm ); // Interpolate platform pert
-            real glob_mag_new = std::max( 0._fp , glob_mag+pert ); // Ensure new magnitude is non-negative
-
-            // std::normal_distribution dist{0.0, 1.3833573558249463};
-            // if (coupler.get_myrank() == 0) glob_mag_new = std::max( 0._fp , glob_mag+dist(gen) );
-            // MPI_Bcast( &glob_mag_new , 1 , dtype , 0 , turbine.mpi_comm );
+            real mag0_new = std::max( 0._fp , mag0+pert ); // Ensure new magnitude is non-negative
 
             // Only apply a multiplier if original magnitude is non-zero
-            real mult = std::abs(glob_mag) > 1.e-7 ? glob_mag_new / glob_mag : 0;
-            glob_mag   *= mult;
-            glob_unorm *= mult;
-            glob_vnorm *= mult;
+            real mult = std::abs(mag0) > 1.e-7 ? mag0_new / mag0 : 0;
+            mag0 *= mult;
+            u0   *= mult;
+            v0   *= mult;
           }
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
-          // Iterate out the induction factor and thrust coefficient, which depend on each other
-          real a = 0.3; // Starting guess for axial induction factor based on ... chatGPT. Yeah, I know
-          real C_T;
-          for (int iter = 0; iter < 100; iter++) {
-            C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
-            a   = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
-          }
           // Using induction factor, interpolate power coefficient and power for normal wind magnitude at infinity
-          real C_P  = interp( ref_velmag , ref_power_coef , glob_mag/(1-a) ); // Interpolate power coef
-          real pwr  = interp( ref_velmag , ref_power      , glob_mag/(1-a) ); // Interpolate power
-          real mag0 = glob_mag/(1-a);                                         // wind magintude at infinity
+          real C_T       = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
+          real C_P       = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
+          real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
+          real rot_speed = interp( ref_velmag , ref_rotation    , mag0 ); // Interpolate rotation speed
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace     .push_back( turbine.yaw_angle );
           turbine.power_trace   .push_back( pwr               );
@@ -676,8 +679,6 @@ namespace modules {
           // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE = f_TKE * (C_T - C_P);
-          real u0    = glob_unorm/(1-a); // u-velocity at infinity
-          real v0    = glob_vnorm/(1-a); // v-velocity at infinity
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
@@ -699,7 +700,6 @@ namespace modules {
           // u and v velocity instead (note it's *not* normal u an v velocity but just plain u and v)
           real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
           turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
-          real rot_speed = interp( ref_velmag , ref_rotation , glob_mag/(1-a) ); // Interpolate rotation speed
           turbine.rot_angle -= rot_speed*dt;
           if (turbine.rot_angle < -2*M_PI) turbine.rot_angle += 2*M_PI;
         } // if (turbine.active)

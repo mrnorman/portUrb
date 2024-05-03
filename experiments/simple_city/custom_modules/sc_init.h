@@ -46,7 +46,6 @@ namespace custom_modules {
     if (! coupler.option_exists("C0")) coupler.set_option<real>("C0" , pow( R_d * pow( p0 , -kappa ) , gamma ));
     auto C0    = coupler.get_option<real>("C0");
     auto roughness = coupler.get_option<real>("roughness",0.1);
-
     auto &dm = coupler.get_data_manager_readwrite();
     auto dims3d = {nz,ny,nx,nens};
     auto dims2d = {   ny,nx,nens};
@@ -57,7 +56,9 @@ namespace custom_modules {
     if (! dm.entry_exists("temp"               )) dm.register_and_allocate<real>("temp"               ,"",dims3d);
     if (! dm.entry_exists("water_vapor"        )) dm.register_and_allocate<real>("water_vapor"        ,"",dims3d);
     if (! dm.entry_exists("immersed_proportion")) dm.register_and_allocate<real>("immersed_proportion","",dims3d);
-    if (! dm.entry_exists("surface_temp"       )) dm.register_and_allocate<real>("surface_temp"       ,"",dims2d);
+    if (! dm.entry_exists("immersed_roughness" )) dm.register_and_allocate<real>("immersed_roughness" ,"",dims3d);
+    if (! dm.entry_exists("immersed_temp"      )) dm.register_and_allocate<real>("immersed_temp"      ,"",dims3d);
+    if (! dm.entry_exists("immersed_khf"       )) dm.register_and_allocate<real>("immersed_khf"       ,"",dims3d);
     if (! coupler.option_exists("idWV")) {
       auto tracer_names = coupler.get_tracer_names();
       int idWV = -1;
@@ -65,16 +66,21 @@ namespace custom_modules {
       coupler.set_option<int>("idWV",idWV);
     }
     int idWV = coupler.get_option<int>("idWV");
-
-    auto dm_rho_d               = dm.get<real,4>("density_dry"        );
-    auto dm_uvel                = dm.get<real,4>("uvel"               );
-    auto dm_vvel                = dm.get<real,4>("vvel"               );
-    auto dm_wvel                = dm.get<real,4>("wvel"               );
-    auto dm_temp                = dm.get<real,4>("temp"               );
-    auto dm_rho_v               = dm.get<real,4>("water_vapor"        );
-    auto dm_surface_temp        = dm.get<real,3>("surface_temp"       );
-    auto dm_immersed_proportion = dm.get<real,4>("immersed_proportion");
-    dm_immersed_proportion = 0;
+    auto dm_rho_d          = dm.get<real,4>("density_dry"        );
+    auto dm_uvel           = dm.get<real,4>("uvel"               );
+    auto dm_vvel           = dm.get<real,4>("vvel"               );
+    auto dm_wvel           = dm.get<real,4>("wvel"               );
+    auto dm_temp           = dm.get<real,4>("temp"               );
+    auto dm_rho_v          = dm.get<real,4>("water_vapor"        );
+    auto dm_immersed_prop  = dm.get<real,4>("immersed_proportion");
+    auto dm_immersed_rough = dm.get<real,4>("immersed_roughness" );
+    auto dm_immersed_temp  = dm.get<real,4>("immersed_temp"      );
+    auto dm_immersed_khf   = dm.get<real,4>("immersed_khf"       );
+    dm_immersed_prop  = 0;
+    dm_immersed_rough = roughness;
+    dm_immersed_temp  = 0;
+    dm_immersed_khf   = 0;
+    dm_rho_v          = 0;
 
     const int nqpoints = 9;
     SArray<real,1,nqpoints> qpoints;
@@ -85,6 +91,7 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_x","periodic");
     coupler.add_option<std::string>("bc_y","periodic");
     coupler.add_option<std::string>("bc_z","solid_wall");
+    coupler.add_option<bool       >("enable_gravity",true);
 
     if (coupler.get_option<std::string>("init_data") == "city") {
       real height_mean = 60;
@@ -136,16 +143,15 @@ namespace custom_modules {
         dm_wvel (k,j,i,iens) = 0;
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
         int inorm = (static_cast<int>(i_beg)+i)/cells_per_building - buildings_pad;
         int jnorm = (static_cast<int>(j_beg)+j)/cells_per_building - buildings_pad;
         if ( ( inorm >= 0 && inorm < nblocks_x*3 && inorm%3 < 2 ) &&
              ( jnorm >= 0 && jnorm < nblocks_y*9 && jnorm%9 < 8 ) ) {
           if ( k <= std::ceil( building_heights(jnorm,inorm) / dz ) ) {
-            dm_immersed_proportion(k,j,i,iens) = 1;
-            dm_uvel               (k,j,i,iens) = 0;
-            dm_vvel               (k,j,i,iens) = 0;
-            dm_wvel               (k,j,i,iens) = 0;
+            dm_immersed_prop(k,j,i,iens) = 1;
+            dm_uvel         (k,j,i,iens) = 0;
+            dm_vvel         (k,j,i,iens) = 0;
+            dm_wvel         (k,j,i,iens) = 0;
           }
         }
       });
@@ -176,16 +182,15 @@ namespace custom_modules {
         dm_wvel (k,j,i,iens) = 0;
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
         real x0 = 0.2 *nx_glob;
         real y0 = 0.5 *ny_glob;
         real xr = 0.05*ny_glob;
         real yr = 0.05*ny_glob;
         if ( std::abs(i_beg+i-x0) <= xr && std::abs(j_beg+j-y0) <= yr && k <= 0.3*nz ) {
-          dm_immersed_proportion(k,j,i,iens) = 1;
-          dm_uvel               (k,j,i,iens) = 0;
-          dm_vvel               (k,j,i,iens) = 0;
-          dm_wvel               (k,j,i,iens) = 0;
+          dm_immersed_prop(k,j,i,iens) = 1;
+          dm_uvel         (k,j,i,iens) = 0;
+          dm_vvel         (k,j,i,iens) = 0;
+          dm_wvel         (k,j,i,iens) = 0;
         }
       });
 
@@ -215,7 +220,6 @@ namespace custom_modules {
         dm_wvel (k,j,i,iens) = 0;
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
         real x0 = 0.5 *xlen;
         real y0 = 0.5 *ylen;
         real z0 = 0.2 *zlen;
@@ -232,11 +236,11 @@ namespace custom_modules {
             }
           }
         }
-        dm_immersed_proportion(k,j,i,iens) = static_cast<real>(count)/(N*N*N);
-        if (count == N*N*N) dm_immersed_proportion(k,j,i,iens) = 1;
-        dm_uvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
-        dm_vvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
-        dm_wvel               (k,j,i,iens) *= (1-dm_immersed_proportion(k,j,i,iens));
+        dm_immersed_prop(k,j,i,iens) = static_cast<real>(count)/(N*N*N);
+        dm_uvel         (k,j,i,iens) *= (1-dm_immersed_prop(k,j,i,iens));
+        dm_vvel         (k,j,i,iens) *= (1-dm_immersed_prop(k,j,i,iens));
+        dm_wvel         (k,j,i,iens) *= (1-dm_immersed_prop(k,j,i,iens));
+        if (count == N*N*N) dm_immersed_prop(k,j,i,iens) = 1;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
@@ -318,7 +322,6 @@ namespace custom_modules {
         }
         yakl::Random rand(k*ny_glob*nx_glob*nens + (j_beg+j)*nx_glob*nens + (i_beg+i)*nens + iens);
         if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i,iens) += rand.genFP<real>(-0.25,0.25);
-        if (k == 0) dm_surface_temp(j,i,iens) = 300;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
@@ -347,12 +350,35 @@ namespace custom_modules {
         dm_wvel (k,j,i,iens) = 0;
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
-        if (k == 0) dm_surface_temp(j,i,iens) = theta0;
       });
 
     }
 
+    core::MultiField<real,4> fields;
+    fields.add_field( dm_immersed_prop  );
+    fields.add_field( dm_immersed_rough );
+    fields.add_field( dm_immersed_temp  );
+    fields.add_field( dm_immersed_khf   );
+    auto fields_halos = coupler.create_and_exchange_halos( fields , 1 );
+    dm.register_and_allocate<real>("immersed_proportion_halos","",{nz+2,ny+2,nx+2,nens},{"z_halo1","y_halo1","x_halo1","nens"});
+    dm.register_and_allocate<real>("immersed_roughness_halos" ,"",{nz+2,ny+2,nx+2,nens},{"z_halo1","y_halo1","x_halo1","nens"});
+    dm.register_and_allocate<real>("immersed_temp_halos"      ,"",{nz+2,ny+2,nx+2,nens},{"z_halo1","y_halo1","x_halo1","nens"});
+    dm.register_and_allocate<real>("immersed_khf_halos"       ,"",{nz+2,ny+2,nx+2,nens},{"z_halo1","y_halo1","x_halo1","nens"});
+    fields_halos.get_field(0).deep_copy_to( dm.get<real,4>("immersed_proportion_halos") );
+    fields_halos.get_field(1).deep_copy_to( dm.get<real,4>("immersed_roughness_halos" ) );
+    fields_halos.get_field(2).deep_copy_to( dm.get<real,4>("immersed_temp_halos"      ) );
+    fields_halos.get_field(3).deep_copy_to( dm.get<real,4>("immersed_khf_halos"       ) );
+    int hs = 1;
+    auto immersed_proportion_halos = dm.get<real,4>("immersed_proportion_halos");
+    if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                        YAKL_LAMBDA (int kk, int j, int i, int iens) {
+        immersed_proportion_halos(      kk,j,i,iens) = 1;
+        immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
+      });
+    }
   }
 
 }
+
 

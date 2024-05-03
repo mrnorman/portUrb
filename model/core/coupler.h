@@ -659,6 +659,198 @@ namespace core {
       yakl::timer_stop("overwrite_with_restart");
     }
 
+
+    template <class T>
+    MultiField<typename std::remove_cv<T>::type,4>
+    create_and_exchange_halos( MultiField<T,4> const &fields_in , int hs ) {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      typedef typename std::remove_cv<T>::type T_NOCV;
+      if (fields_in.get_num_fields() == 0) yakl::yakl_throw("ERROR: create_and_exchange_halos: create_halos input has zero fields");
+      auto num_fields = fields_in.get_num_fields();
+      auto nz         = fields_in.get_field(0).extent(0);
+      auto ny         = fields_in.get_field(0).extent(1);
+      auto nx         = fields_in.get_field(0).extent(2);
+      auto nens       = fields_in.get_field(0).extent(3);
+      MultiField<T_NOCV,4> fields_out;
+      for (int i=0; i < num_fields; i++) {
+        auto field = fields_in.get_field(i);
+        if ( field.extent(0) != nz || field.extent(1) != ny || field.extent(2) != nx || field.extent(3) != nens ) {
+          yakl::yakl_throw("ERROR: create_and_exchange_halos: sizes not equal among fields");
+        }
+        yakl::Array<T_NOCV,4,yakl::memDevice,yakl::styleC> ret(field.label(),nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        fields_out.add_field( ret );
+      }
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
+        fields_out(l,hs+k,hs+j,hs+i,iens) = fields_in(l,k,j,i,iens);
+      });
+      halo_exchange( fields_out , hs );
+      return fields_out;
+    }
+
+
+    // Exchange halo values periodically in the horizontal, and apply vertical no-slip solid-wall BC's
+    template <class T>
+    void halo_exchange( core::MultiField<T,4> & fields , int hs ) const {
+      #ifdef YAKL_AUTO_PROFILE
+        MPI_Barrier(MPI_COMM_WORLD);
+        yakl::timer_start("halo_exchange");
+      #endif
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      if (fields.get_num_fields() == 0) yakl::yakl_throw("ERROR: halo_exchange: create_halos input has zero fields");
+      int  npack  = fields.get_num_fields();
+      auto nz     = fields.get_field(0).extent(0)-2*hs;
+      auto ny     = fields.get_field(0).extent(1)-2*hs;
+      auto nx     = fields.get_field(0).extent(2)-2*hs;
+      auto nens   = fields.get_field(0).extent(3);
+      auto &neigh = get_neighbor_rankid_matrix();
+      MPI_Request sReq [2], rReq [2];
+      MPI_Status  sStat[2], rStat[2];
+      auto comm = MPI_COMM_WORLD;
+
+      MPI_Datatype dtype;
+      if      (std::is_same<T,float       >::value) { dtype = MPI_FLOAT;              }
+      else if (std::is_same<T,double      >::value) { dtype = MPI_DOUBLE;             }
+      else if (std::is_same<T,int         >::value) { dtype = MPI_INT;                }
+      else if (std::is_same<T,unsigned int>::value) { dtype = MPI_UNSIGNED;           }
+      else if (std::is_same<T,size_t      >::value) { dtype = MPI_UNSIGNED_LONG_LONG; }
+      else { yakl::yakl_throw("ERROR: halo_exchange: Need to add type to core::coupler::halo_exchange"); }
+
+      for (int i=0; i < npack; i++) {
+        auto field = fields.get_field(i);
+        if ( field.extent(0) != nz+2*hs ||
+             field.extent(1) != ny+2*hs ||
+             field.extent(2) != nx+2*hs ||
+             field.extent(3) != nens    ) {
+          yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
+        }
+      }
+
+      // x-direction exchanges
+      {
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
+          halo_send_buf_W(v,k,j,ii,iens) = fields(v,hs+k,hs+j,hs+ii,iens);
+          halo_send_buf_E(v,k,j,ii,iens) = fields(v,hs+k,hs+j,nx+ii,iens);
+        });
+        #ifdef MW_GPU_AWARE_MPI
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_start("halo_exchange_mpi_x_gpu_aware");
+          yakl::fence();
+          MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_E.data() , halo_recv_buf_E.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
+          MPI_Isend( halo_send_buf_W.data() , halo_send_buf_W.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_stop("halo_exchange_mpi_x_gpu_aware");
+        #else
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_start("halo_exchange_mpi_x");
+          auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
+          auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
+          auto halo_recv_buf_W_host = halo_recv_buf_W.createHostObject();
+          auto halo_recv_buf_E_host = halo_recv_buf_E.createHostObject();
+          MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
+          halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
+          halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
+          yakl::fence();
+          MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_stop("halo_exchange_mpi_x");
+          halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
+          halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
+          fields(v,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
+          fields(v,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
+        });
+      }
+
+      // y-direction exchanges
+      {
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx+2*hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx+2*hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs,nens);
+        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs,nens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
+          halo_send_buf_S(v,k,jj,i,iens) = fields(v,hs+k,hs+jj,i,iens);
+          halo_send_buf_N(v,k,jj,i,iens) = fields(v,hs+k,ny+jj,i,iens);
+        });
+        #ifdef MW_GPU_AWARE_MPI
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_start("halo_exchange_mpi_y_gpu_aware");
+          yakl::fence();
+          MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_N.data() , halo_recv_buf_N.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
+          MPI_Isend( halo_send_buf_S.data() , halo_send_buf_S.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_stop("halo_exchange_mpi_y_gpu_aware");
+        #else
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_start("halo_exchange_mpi_y");
+          auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
+          auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
+          auto halo_recv_buf_S_host = halo_recv_buf_S.createHostObject();
+          auto halo_recv_buf_N_host = halo_recv_buf_N.createHostObject();
+          MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
+          MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
+          halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
+          halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
+          yakl::fence();
+          MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
+          MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
+          MPI_Waitall(2, sReq, sStat);
+          MPI_Waitall(2, rReq, rStat);
+          #ifdef YAKL_AUTO_PROFILE
+            MPI_Barrier(MPI_COMM_WORLD);
+          #endif
+          yakl::timer_stop("halo_exchange_mpi_y");
+          halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
+          halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
+        #endif
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
+          fields(v,hs+k,      jj,i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
+          fields(v,hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
+        });
+      }
+      #ifdef YAKL_AUTO_PROFILE
+        MPI_Barrier(MPI_COMM_WORLD);
+        yakl::timer_stop("halo_exchange");
+      #endif
+    }
+
   };
 
 }

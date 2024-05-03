@@ -120,7 +120,6 @@ namespace modules {
       auto nz          = coupler.get_nz();
       auto &dm         = coupler.get_data_manager_readonly();
       auto tracer_positive = dm.get<bool const,1>("tracer_positive");
-      auto immersed = dm.get<bool const,4>("fully_immersed_halos"     ); // Is a cell fullly immersed?
       // SSPRK3 requires temporary arrays to hold intermediate state and tracers arrays
       real5d state_tmp   ("state_tmp"   ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs,nens);
       real5d tracers_tmp ("tracers_tmp" ,num_tracers,nz+2*hs,ny+2*hs,nx+2*hs,nens);
@@ -215,7 +214,7 @@ namespace modules {
       auto &dm            = coupler.get_data_manager_readonly();
       auto hy_dens_cells  = dm.get<real const,2>("hy_dens_cells" ); // Hydrostatic density
       auto hy_theta_cells = dm.get<real const,2>("hy_theta_cells"); // Hydrostatic potential temperature
-      auto immersed_prop  = dm.get<real const,4>("immersed_proportion_halos"); // Immersed Proportion
+      auto immersed_prop  = dm.get<real const,4>("dycore_immersed_proportion_halos"); // Immersed Proportion
 
       real immersed_tau = dt*4;
 
@@ -319,14 +318,12 @@ namespace modules {
       auto num_tracers       = coupler.get_num_tracers();            // Number of tracers
       auto &dm               = coupler.get_data_manager_readonly();  // Grab read-only data manager
       auto tracer_positive   = dm.get<bool const,1>("tracer_positive"          ); // Is a tracer positive-definite?
-      auto fully_immersed    = dm.get<bool const,4>("fully_immersed_halos"     ); // Is a cell fullly immersed?
-      auto immersed_prop     = dm.get<real const,4>("immersed_proportion_halos"); // Immersed Proportion
+      auto immersed_prop     = dm.get<real const,4>("dycore_immersed_proportion_halos"); // Immersed Proportion
       auto hy_dens_cells     = dm.get<real const,2>("hy_dens_cells"            ); // Hydrostatic density
       auto hy_theta_cells    = dm.get<real const,2>("hy_theta_cells"           ); // Hydrostatic potential temperature
       auto hy_dens_edges     = dm.get<real const,2>("hy_dens_edges"            ); // Hydrostatic density
       auto hy_theta_edges    = dm.get<real const,2>("hy_theta_edges"           ); // Hydrostatic potential temperature
       auto hy_pressure_cells = dm.get<real const,2>("hy_pressure_cells"        ); // Hydrostatic pressure
-      auto any_immersed      = dm.get<real const,4>("any_immersed"             );
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
       real r_dx = 1./dx; // reciprocal of grid spacing
@@ -346,7 +343,7 @@ namespace modules {
         for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<4>(l,0,0,0,0) ); }
         for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<4>(l,0,0,0,0) ); }
         fields.add_field( pressure );
-        if (ord > 1) halo_exchange( coupler , fields );
+        if (ord > 1) coupler.halo_exchange( fields , hs );
         halo_boundary_conditions( coupler , state , tracers , pressure );
       }
 
@@ -708,150 +705,6 @@ namespace modules {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_stop("compute_tendencies");
-      #endif
-    }
-
-
-
-    // Exchange halo values periodically in the horizontal, and apply vertical no-slip solid-wall BC's
-    void halo_exchange( core::Coupler const & coupler , core::MultiField<real,4> & fields ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        MPI_Barrier(MPI_COMM_WORLD);
-        yakl::timer_start("halo_exchange");
-      #endif
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-      auto nens   = coupler.get_nens();
-      auto nx     = coupler.get_nx();
-      auto ny     = coupler.get_ny();
-      auto nz     = coupler.get_nz();
-      auto &neigh = coupler.get_neighbor_rankid_matrix();
-      auto dtype  = coupler.get_mpi_data_type();
-      MPI_Request sReq [2], rReq [2];
-      MPI_Status  sStat[2], rStat[2];
-      auto comm = MPI_COMM_WORLD;
-      int npack = fields.size();
-
-      // x-direction exchanges
-      {
-        real5d halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs,nens);
-        real5d halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs,nens);
-        real5d halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs,nens);
-        real5d halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          halo_send_buf_W(v,k,j,ii,iens) = fields(v,hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(v,k,j,ii,iens) = fields(v,hs+k,hs+j,nx+ii,iens);
-        });
-        #ifdef MW_GPU_AWARE_MPI
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_start("halo_exchange_mpi_x_gpu_aware");
-          yakl::fence();
-          MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_E.data() , halo_recv_buf_E.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-          MPI_Isend( halo_send_buf_W.data() , halo_send_buf_W.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_stop("halo_exchange_mpi_x_gpu_aware");
-        #else
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_start("halo_exchange_mpi_x");
-          auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
-          auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
-          auto halo_recv_buf_W_host = halo_recv_buf_W.createHostObject();
-          auto halo_recv_buf_E_host = halo_recv_buf_E.createHostObject();
-          MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-          halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
-          halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
-          yakl::fence();
-          MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_stop("halo_exchange_mpi_x");
-          halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
-          halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
-        #endif
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          fields(v,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-          fields(v,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
-        });
-      }
-
-      // y-direction exchanges
-      {
-        real5d halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx+2*hs,nens);
-        real5d halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx+2*hs,nens);
-        real5d halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs,nens);
-        real5d halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          halo_send_buf_S(v,k,jj,i,iens) = fields(v,hs+k,hs+jj,i,iens);
-          halo_send_buf_N(v,k,jj,i,iens) = fields(v,hs+k,ny+jj,i,iens);
-        });
-        #ifdef MW_GPU_AWARE_MPI
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_start("halo_exchange_mpi_y_gpu_aware");
-          yakl::fence();
-          MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_N.data() , halo_recv_buf_N.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-          MPI_Isend( halo_send_buf_S.data() , halo_send_buf_S.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_stop("halo_exchange_mpi_y_gpu_aware");
-        #else
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_start("halo_exchange_mpi_y");
-          auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
-          auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
-          auto halo_recv_buf_S_host = halo_recv_buf_S.createHostObject();
-          auto halo_recv_buf_N_host = halo_recv_buf_N.createHostObject();
-          MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-          halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
-          halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
-          yakl::fence();
-          MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
-          #endif
-          yakl::timer_stop("halo_exchange_mpi_y");
-          halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
-          halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
-        #endif
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          fields(v,hs+k,      jj,i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-          fields(v,hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
-        });
-      }
-      #ifdef YAKL_AUTO_PROFILE
-        MPI_Barrier(MPI_COMM_WORLD);
-        yakl::timer_stop("halo_exchange");
       #endif
     }
 
@@ -1261,114 +1114,24 @@ namespace modules {
         auto nx     = coupler.get_nx  ();
         auto nens   = coupler.get_nens();
         auto bc_z   = coupler.get_option<std::string>("bc_z","solid_wall");
-        auto &neigh = coupler.get_neighbor_rankid_matrix();
-        auto dtype  = coupler.get_mpi_data_type();
         auto &dm    = coupler.get_data_manager_readwrite();
-        if (! dm.entry_exists("immersed_proportion_halos")) {
-          dm.register_and_allocate<real>("immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs,nens});
-        }
-        if (! dm.entry_exists("fully_immersed_halos")) {
-          dm.register_and_allocate<bool>("fully_immersed_halos","",{nz+2*hs,ny+2*hs,nx+2*hs,nens});
-        }
-        auto immersed_proportion       = dm.get<real const,4>("immersed_proportion"      );
-        auto immersed_proportion_halos = dm.get<real      ,4>("immersed_proportion_halos");  immersed_proportion_halos = 0;
-        auto fully_immersed_halos      = dm.get<bool      ,4>("fully_immersed_halos"     );  fully_immersed_halos      = false;
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-          immersed_proportion_halos(hs+k,hs+j,hs+i,iens) = immersed_proportion(k,j,i,iens);
-        });
-        MPI_Request sReq [2];
-        MPI_Request rReq [2];
-        MPI_Status  sStat[2];
-        MPI_Status  rStat[2];
-        auto comm = MPI_COMM_WORLD;
-        // x-direction exchange
-        real4d halo_send_buf_W("halo_send_buf_W",nz,ny,hs,nens);
-        real4d halo_send_buf_E("halo_send_buf_E",nz,ny,hs,nens);
-        real4d halo_recv_buf_W("halo_recv_buf_W",nz,ny,hs,nens);
-        real4d halo_recv_buf_E("halo_recv_buf_E",nz,ny,hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int ii, int iens) {
-          halo_send_buf_W(k,j,ii,iens) = immersed_proportion_halos(hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(k,j,ii,iens) = immersed_proportion_halos(hs+k,hs+j,nx+ii,iens);
-        });
-        realHost4d halo_send_buf_W_host("halo_send_buf_W_host",nz,ny,hs,nens);
-        realHost4d halo_send_buf_E_host("halo_send_buf_E_host",nz,ny,hs,nens);
-        realHost4d halo_recv_buf_W_host("halo_recv_buf_W_host",nz,ny,hs,nens);
-        realHost4d halo_recv_buf_E_host("halo_recv_buf_E_host",nz,ny,hs,nens);
-        MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-        halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
-        halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
-        yakl::fence();
-        MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
-        halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int ii, int iens) {
-          immersed_proportion_halos(hs+k,hs+j,      ii,iens) = halo_recv_buf_W(k,j,ii,iens);
-          immersed_proportion_halos(hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(k,j,ii,iens);
-        });
-        // y-direction exchange
-        real4d halo_send_buf_S("halo_send_buf_S",nz,hs,nx+2*hs,nens);
-        real4d halo_send_buf_N("halo_send_buf_N",nz,hs,nx+2*hs,nens);
-        real4d halo_recv_buf_S("halo_recv_buf_S",nz,hs,nx+2*hs,nens);
-        real4d halo_recv_buf_N("halo_recv_buf_N",nz,hs,nx+2*hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int k, int jj, int i, int iens) {
-          halo_send_buf_S(k,jj,i,iens) = immersed_proportion_halos(hs+k,hs+jj,i,iens);
-          halo_send_buf_N(k,jj,i,iens) = immersed_proportion_halos(hs+k,ny+jj,i,iens);
-        });
-        realHost4d halo_send_buf_S_host("halo_send_buf_S_host",nz,hs,nx+2*hs,nens);
-        realHost4d halo_send_buf_N_host("halo_send_buf_N_host",nz,hs,nx+2*hs,nens);
-        realHost4d halo_recv_buf_S_host("halo_recv_buf_S_host",nz,hs,nx+2*hs,nens);
-        realHost4d halo_recv_buf_N_host("halo_recv_buf_N_host",nz,hs,nx+2*hs,nens);
-        MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-        MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-        halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
-        halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
-        yakl::fence();
-        MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-        MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
-        halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int k, int jj, int i, int iens) {
-          immersed_proportion_halos(hs+k,      jj,i,iens) = halo_recv_buf_S(k,jj,i,iens);
-          immersed_proportion_halos(hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(k,jj,i,iens);
-        });
-        if (bc_z == "solid_wall") {
-          // z-direction boundaries
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
-                                            YAKL_LAMBDA (int kk, int j, int i, int iens) {
-            immersed_proportion_halos(      kk,j,i,iens) = 1;
-            immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
-          });
-        }
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz+2*hs,ny+2*hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          fully_immersed_halos(k,j,i,iens) = immersed_proportion_halos(k,j,i,iens) == 1;
-        });
-        if (! dm.entry_exists("any_immersed")) {
-          dm.register_and_allocate<real>("any_immersed","",{nz,ny,nx,nens});
-        }
-        auto any_immersed = dm.get<real,4>("any_immersed");
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
-          bool any = false;
-          for (int kk=0; kk < ord; kk++) {
-            for (int jj=0; jj < ord; jj++) {
-              for (int ii=0; ii < ord; ii++) {
-                if (immersed_proportion_halos(k+kk,j+jj,i+ii,iens)) any = true;
-              }
-            }
+        if (!dm.entry_exists("dycore_immersed_proportion_halos")) {
+          auto immersed_prop = dm.get<real,4>("immersed_proportion");
+          core::MultiField<real,4> fields;
+          fields.add_field( immersed_prop  );
+          auto fields_halos = coupler.create_and_exchange_halos( fields , hs );
+          dm.register_and_allocate<real>("dycore_immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs,nens},
+                                         {"z_halod","y_halod","x_halod","nens"});
+          auto immersed_proportion_halos = dm.get<real,4>("dycore_immersed_proportion_halos");
+          fields_halos.get_field(0).deep_copy_to( immersed_proportion_halos );
+          if (bc_z == "solid_wall") {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
+                                              YAKL_LAMBDA (int kk, int j, int i, int iens) {
+              immersed_proportion_halos(      kk,j,i,iens) = 1;
+              immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
+            });
           }
-          any_immersed(k,j,i,iens) = any;
-        });
+        }
       };
 
       auto compute_hydrostasis_edges = [] (core::Coupler &coupler) {

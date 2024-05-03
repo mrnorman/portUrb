@@ -24,7 +24,6 @@ namespace modules {
     auto dm_v      = coupler.get_data_manager_readwrite().get<real      ,4>("vvel");
     auto dm_w      = coupler.get_data_manager_readwrite().get<real      ,4>("wvel");
     auto dm_T      = coupler.get_data_manager_readwrite().get<real      ,4>("temp");
-    auto dm_Ts     = coupler.get_data_manager_readwrite().get<real      ,3>("surface_temp");
     auto immersed  = coupler.get_data_manager_readonly ().get<real const,4>("immersed_proportion_halos");
     int  hs        = (immersed.extent(2)-nx)/2;
 

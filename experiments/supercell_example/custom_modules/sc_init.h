@@ -187,11 +187,14 @@ namespace custom_modules {
     fields_halos.get_field(3).deep_copy_to( dm.get<real,4>("immersed_khf_halos"       ) );
     int hs = 1;
     auto immersed_proportion_halos = dm.get<real,4>("immersed_proportion_halos");
+    auto immersed_roughness_halos  = dm.get<real,4>("immersed_roughness_halos" );
     if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                         YAKL_LAMBDA (int kk, int j, int i, int iens) {
         immersed_proportion_halos(      kk,j,i,iens) = 1;
         immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
+        immersed_roughness_halos (      kk,j,i,iens) = roughness;
+        immersed_roughness_halos (hs+nz+kk,j,i,iens) = 0;
       });
     }
   }

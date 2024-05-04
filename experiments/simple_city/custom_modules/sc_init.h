@@ -93,6 +93,8 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_z","solid_wall");
     coupler.add_option<bool       >("enable_gravity",true);
 
+    YAML::Node config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
+
     if (coupler.get_option<std::string>("init_data") == "city") {
       real height_mean = 60;
       real height_std  = 10;
@@ -245,15 +247,11 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
-      real constexpr uref       = 10;
-      real constexpr href       = 450;
-      real constexpr von_karman = 0.40;
-
       auto compute_theta = YAKL_LAMBDA (real z) -> real {
-        if      (z <  500) { return 300;                 }
-        else               { return 300 + 0.01 *(z-500); }
+        if      (z <  500)            { return 300;                        }
+        else if (z >= 500 && z < 650) { return 300+0.08*(z-500);           }
+        else                          { return 300+0.08*150+0.003*(z-650); }
       };
-
       // Integrate RHS over GLL interval using GLL quadrature
       real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
       real3d rhs("rhs",nz,nqpoints-1,nens);
@@ -292,7 +290,8 @@ namespace custom_modules {
         }
       }
       auto pressGLL = pressGLL_host.createDeviceCopy();
-      auto latitude = coupler.get_option<real>("latitude");
+      auto u_g = config["geostrophic_u"].as<real>(10.);
+      auto v_g = config["geostrophic_v"].as<real>(0. );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
                                         YAKL_LAMBDA (int k, int j, int i, int iens) {
         dm_rho_d(k,j,i,iens) = 0;
@@ -307,15 +306,15 @@ namespace custom_modules {
           real p         = pressGLL(k,kk,iens);
           real rho_theta = std::pow( p/C0 , 1._fp/gamma );
           real rho       = rho_theta / theta;
-          real ustar     = von_karman * uref / std::log((href+roughness)/roughness);
-          real u         = ustar / von_karman * std::log((z+roughness)/roughness);
+          real u         = u_g;
+          real v         = v_g;
           real w         = 0;
           real T         = p/(rho*R_d);
           real rho_v     = 0;
           real wt = qweights(kk);
           dm_rho_d(k,j,i,iens) += rho   * wt;
           dm_uvel (k,j,i,iens) += u     * wt;
-          dm_vvel (k,j,i,iens) += 0     * wt;
+          dm_vvel (k,j,i,iens) += v     * wt;
           dm_wvel (k,j,i,iens) += w     * wt;
           dm_temp (k,j,i,iens) += T     * wt;
           dm_rho_v(k,j,i,iens) += rho_v * wt;
@@ -370,11 +369,14 @@ namespace custom_modules {
     fields_halos.get_field(3).deep_copy_to( dm.get<real,4>("immersed_khf_halos"       ) );
     int hs = 1;
     auto immersed_proportion_halos = dm.get<real,4>("immersed_proportion_halos");
+    auto immersed_roughness_halos  = dm.get<real,4>("immersed_roughness_halos" );
     if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                         YAKL_LAMBDA (int kk, int j, int i, int iens) {
         immersed_proportion_halos(      kk,j,i,iens) = 1;
         immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
+        immersed_roughness_halos (      kk,j,i,iens) = roughness;
+        immersed_roughness_halos (hs+nz+kk,j,i,iens) = 0;
       });
     }
   }

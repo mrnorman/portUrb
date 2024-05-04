@@ -23,7 +23,7 @@ namespace modules {
 
     auto &dm = coupler.get_data_manager_readwrite();
 
-    real magnitude  = 3.;
+    real magnitude  = 3;
     size_t seed = static_cast<size_t>(coupler.get_myrank()*nz*nx*ny*nens);
 
     // ny*nx can all be globbed together for this routine

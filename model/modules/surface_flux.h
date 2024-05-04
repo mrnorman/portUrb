@@ -25,6 +25,7 @@ namespace modules {
     auto dm_w      = coupler.get_data_manager_readwrite().get<real      ,4>("wvel");
     auto dm_T      = coupler.get_data_manager_readwrite().get<real      ,4>("temp");
     auto immersed  = coupler.get_data_manager_readonly ().get<real const,4>("immersed_proportion_halos");
+    auto imm_rough = coupler.get_data_manager_readonly ().get<real const,4>("immersed_roughness_halos" );
     int  hs        = (immersed.extent(2)-nx)/2;
 
     real4d tend_u("tend_u",nz,ny,nx,nens);
@@ -38,7 +39,7 @@ namespace modules {
     });
     parallel_for( YAKL_AUTO_LABEL() , Bounds<4>({-1,nz},{-1,ny},{-1,nx},nens) ,
                                       YAKL_LAMBDA (int k, int j, int i, int iens) {
-      if (immersed(hs+k,hs+j,hs+i,iens) > 0) {
+      if (immersed(hs+k,hs+j,hs+i,iens) > 0 && imm_rough(hs+k,hs+j,hs+i,iens) > 0) {
         real constexpr vk = 0.40;
         real lgx   = std::log((dx/2+roughness)/roughness);
         real lgy   = std::log((dy/2+roughness)/roughness);

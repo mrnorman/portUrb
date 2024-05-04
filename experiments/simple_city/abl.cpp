@@ -7,8 +7,7 @@
 #include "windmill_actuators.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
-#include "perturb_temperature.h"
-#include "domain_nudger.h"
+#include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
 
 int main(int argc, char** argv) {
@@ -34,30 +33,34 @@ int main(int argc, char** argv) {
     auto ylen         = config["ylen"        ].as<real       >();
     auto zlen         = config["zlen"        ].as<real       >();
     auto dtphys_in    = config["dt_phys"     ].as<real       >();
-    auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
-    auto nens         = config["nens"        ].as<int        >(1            );
-    auto out_freq     = config["out_freq"    ].as<real       >(sim_time/10. );
-    auto inform_freq  = config["inform_freq" ].as<real       >(sim_time/100.);
-    auto out_prefix   = config["out_prefix"  ].as<std::string>("test"       );
-    auto is_restart   = config["is_restart"  ].as<bool       >(false        );
-    auto restart_file = config["restart_file"].as<std::string>(""           );
-    auto latitude     = config["latitude"    ].as<real       >(0            );
-    auto roughness    = config["roughness"   ].as<real       >(0.1          );
-    auto use_weno     = config["use_weno"    ].as<bool       >(true         );
-    auto wind_angle   = config["wind_angle"  ].as<real       >(0.           );
+    auto dyn_cycle    = config["dyn_cycle"      ].as<int        >(1            );
+    auto nens         = config["nens"           ].as<int        >(1            );
+    auto out_freq     = config["out_freq"       ].as<real       >(sim_time/10. );
+    auto inform_freq  = config["inform_freq"    ].as<real       >(sim_time/100.);
+    auto out_prefix   = config["out_prefix"     ].as<std::string>("test"       );
+    auto is_restart   = config["is_restart"     ].as<bool       >(false        );
+    auto restart_file = config["restart_file"   ].as<std::string>(""           );
+    auto latitude     = config["latitude"       ].as<real       >(0            );
+    auto roughness    = config["roughness"      ].as<real       >(0.1          );
+    auto use_weno     = config["use_weno"       ].as<bool       >(true         );
+    auto wind_angle   = config["wind_angle"     ].as<real       >(0.           );
+    auto u_g          = config["geostrophic_u"  ].as<real       >(10.          );
+    auto v_g          = config["geostrophic_v"  ].as<real       >(0.           );
+    auto lat_g        = config["geostrophic_lat"].as<real       >(45.          );
 
     // Things the coupler might need to know about
-    coupler.set_option<std::string>( "out_prefix"   , out_prefix   );
-    coupler.set_option<std::string>( "init_data"    , init_data    );
-    coupler.set_option<real       >( "out_freq"     , out_freq     );
-    coupler.set_option<bool       >( "is_restart"   , is_restart   );
-    coupler.set_option<bool       >( "use_weno"     , use_weno     );
-    coupler.set_option<std::string>( "restart_file" , restart_file );
-    coupler.set_option<real       >( "latitude"     , latitude     );
-    coupler.set_option<real       >( "roughness"    , roughness    );
-    coupler.set_option<real       >( "wind_angle"   , wind_angle   );
+    coupler.set_option<std::string>( "out_prefix"            , out_prefix   );
+    coupler.set_option<std::string>( "init_data"             , init_data    );
+    coupler.set_option<real       >( "out_freq"              , out_freq     );
+    coupler.set_option<bool       >( "is_restart"            , is_restart   );
+    coupler.set_option<bool       >( "use_weno"              , use_weno     );
+    coupler.set_option<std::string>( "restart_file"          , restart_file );
+    coupler.set_option<real       >( "latitude"              , latitude     );
+    coupler.set_option<real       >( "roughness"             , roughness    );
+    coupler.set_option<real       >( "wind_angle"            , wind_angle   );
+    coupler.set_option<std::string>( "standalone_input_file" , inFile       );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -65,9 +68,6 @@ int main(int argc, char** argv) {
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler.set_grid( xlen , ylen , zlen );
-
-    // This is for the dycore to pull out to determine how to do idealized test cases
-    coupler.set_option<std::string>( "standalone_input_file" , inFile );
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
@@ -83,9 +83,8 @@ int main(int argc, char** argv) {
     custom_modules::sc_init     ( coupler );
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
-    column_nudger.set_column    ( coupler , {"uvel","vvel"} );
     time_averager.init          ( coupler );
-    modules::perturb_temperature( coupler , nz );
+    column_nudger.set_column    ( coupler , {"uvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -103,79 +102,45 @@ int main(int argc, char** argv) {
     }
 
     // Begin main simulation loop over time steps
-    real dtphys = dtphys_in;
+    real dt = dtphys_in;
     yakl::fence();
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
-      // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler)*dyn_cycle; }
+      // If dt <= 0, then set it to the dynamical core's max stable time step
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
-      if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
+      if (etime + dt > sim_time) { dt = sim_time - etime; }
 
       // Run modules
       {
         using core::Coupler;
-        auto run_nudger    = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*10);  };
-        auto run_dycore    = [&] (Coupler &coupler) { dycore.time_step     (coupler,dtphys);                    };
-        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dtphys,dtphys*10,10);       };
-        auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);            };
-        auto run_les       = [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);            };
-        auto run_tavg      = [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);            };
-        coupler.run_module( run_nudger    , "column_nudger"  );
-        coupler.run_module( run_dycore    , "dycore"         );
-        coupler.run_module( run_surf_flux , "surface_fluxes" );
-        coupler.run_module( run_les       , "les_closure"    );
-        coupler.run_module( run_tavg      , "time_averager"  );
+        // auto run_nudger    = [&] (Coupler &c) { column_nudger.nudge_to_column    (c,dt,dt*100)    };
+        auto run_geo       = [&] (Coupler &c) { modules::geostrophic_wind_forcing(c,dt,lat_g,u_g,v_g); };
+        auto run_dycore    = [&] (Coupler &c) { dycore.time_step                 (c,dt);               };
+        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer            (c,dt,dt*100,10);     };
+        auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes    (c,dt);               };
+        auto run_les       = [&] (Coupler &c) { les_closure.apply                (c,dt);               };
+        auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate         (c,dt);               };
+        // coupler.run_module( run_nudger    , "column_nudger"       );
+        coupler.run_module( run_geo       , "geostrophic_forcing" );
+        coupler.run_module( run_dycore    , "dycore"              );
+        coupler.run_module( run_sponge    , "sponge"              );
+        coupler.run_module( run_surf_flux , "surface_fluxes"      );
+        coupler.run_module( run_les       , "les_closure"         );
+        coupler.run_module( run_tavg      , "time_averager"       );
       }
 
       // Update time step
-      etime += dtphys; // Advance elapsed time
+      etime += dt; // Advance elapsed time
       coupler.set_option<real>("elapsed_time",etime);
-
-      // Inform the user of progress if it's time.
-      if (inform_freq >= 0. && inform_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_step = t2 - tm;
-        tm = t2;
-        // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
-        auto &dm = coupler.get_data_manager_readonly();
-        auto u = dm.get_collapsed<real const>("uvel");
-        auto v = dm.get_collapsed<real const>("vvel");
-        auto w = dm.get_collapsed<real const>("wvel");
-        auto mag = u.createDeviceObject();
-        yakl::c::parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
-          mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
-        });
-        real wind_mag_loc = yakl::intrinsics::maxval(mag);
-        real wind_mag;
-        auto mpi_data_type = coupler.get_mpi_data_type();
-        MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
-        if (coupler.is_mainproc()) {
-          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag , dt: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_step.count() << " , "
-                    << std::scientific << std::setw(10) << wind_mag         << " , "
-                    << std::scientific << std::setw(10) << dtphys           << std::endl;
-        }
+      if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
+        coupler.inform_user();
         inform_counter.reset();
-      } // End informing user section
-
-      // Perform output if it's time
-      if (out_freq >= 0. && output_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t1 = std::chrono::high_resolution_clock::now();
-        coupler.write_output_file( out_prefix );
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_io = t2 - t1;
-        if (coupler.is_mainproc()) {
-          std::cout << "*** Writing output/restart file ***  -->  Etime , Output time: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_io  .count() << std::endl;
-        }
+      }
+      if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
+        coupler.write_output_file( out_prefix , true );
         output_counter.reset();
-      } // End output section
+      }
     } // End main simulation loop
 
     yakl::timer_stop("main");

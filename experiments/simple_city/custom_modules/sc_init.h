@@ -323,6 +323,160 @@ namespace custom_modules {
         if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i,iens) += rand.genFP<real>(-0.25,0.25);
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "ABL_convective") {
+
+      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+        if   (z <  600) { return 309;               }
+        else            { return 309+0.004*(z-600); }
+      };
+      // Integrate RHS over GLL interval using GLL quadrature
+      real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
+      real3d rhs("rhs",nz,nqpoints-1,nens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,nqpoints-1,nens) ,
+                                        YAKL_LAMBDA (int k1, int k2, int iens) {
+        real z1 = (k1+0.5_fp)*dz + qpoints(k2  )*dz;
+        real z2 = (k1+0.5_fp)*dz + qpoints(k2+1)*dz;
+        rhs(k1,k2,iens) = 0;
+        for (int k3 = 0; k3 < nqpoints; k3++) {
+          real z = 0.5_fp*(z1+z2) + qpoints(k3)*(z2-z1);
+          rhs(k1,k2,iens) += cst/compute_theta(z) * qweights(k3);
+        }
+        rhs(k1,k2,iens) *= (z2-z1);
+      });
+      auto rhs_host = rhs.createHostCopy();
+      realHost3d pressGLL_host("pressGLL",nz,nqpoints,nens);
+      // Sum the pressure using RHS, and apply the correct power. Prefix sum over low dimensions, so do on host
+      for (int iens = 0; iens < nens; iens++) { pressGLL_host(0,0,iens) = std::pow( p0 , R_d/cp_d ); }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints-1; kk++) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk+1,iens) = pressGLL_host(k,kk,iens) + rhs_host(k,kk,iens);
+          }
+        }
+        if (k < nz-1) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k+1,0,iens) = pressGLL_host(k,nqpoints-1,iens);
+          }
+        }
+      }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints; kk++) { 
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk,iens) = std::pow( pressGLL_host(k,kk,iens) , cp_d/R_d );
+          }
+        }
+      }
+      auto pressGLL = pressGLL_host.createDeviceCopy();
+      auto u_g = config["geostrophic_u"].as<real>(10.);
+      auto v_g = config["geostrophic_v"].as<real>(0. );
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+        dm_rho_d(k,j,i,iens) = 0;
+        dm_uvel (k,j,i,iens) = 0;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = 0;
+        dm_rho_v(k,j,i,iens) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          real z         = (k+0.5)*dz + qpoints(kk)*dz;
+          real theta     = compute_theta(z);
+          real p         = pressGLL(k,kk,iens);
+          real rho_theta = std::pow( p/C0 , 1._fp/gamma );
+          real rho       = rho_theta / theta;
+          real u         = u_g;
+          real v         = v_g;
+          real w         = 0;
+          real T         = p/(rho*R_d);
+          real rho_v     = 0;
+          real wt = qweights(kk);
+          dm_rho_d(k,j,i,iens) += rho   * wt;
+          dm_uvel (k,j,i,iens) += u     * wt;
+          dm_vvel (k,j,i,iens) += v     * wt;
+          dm_wvel (k,j,i,iens) += w     * wt;
+          dm_temp (k,j,i,iens) += T     * wt;
+          dm_rho_v(k,j,i,iens) += rho_v * wt;
+        }
+        yakl::Random rand(k*ny_glob*nx_glob*nens + (j_beg+j)*nx_glob*nens + (i_beg+i)*nens + iens);
+        if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i,iens) += rand.genFP<real>(-0.25,0.25);
+      });
+
+    } else if (coupler.get_option<std::string>("init_data") == "ABL_stable") {
+
+      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+        if   (z <  100) { return 265;              }
+        else            { return 265+0.01*(z-100); }
+      };
+      // Integrate RHS over GLL interval using GLL quadrature
+      real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
+      real3d rhs("rhs",nz,nqpoints-1,nens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,nqpoints-1,nens) ,
+                                        YAKL_LAMBDA (int k1, int k2, int iens) {
+        real z1 = (k1+0.5_fp)*dz + qpoints(k2  )*dz;
+        real z2 = (k1+0.5_fp)*dz + qpoints(k2+1)*dz;
+        rhs(k1,k2,iens) = 0;
+        for (int k3 = 0; k3 < nqpoints; k3++) {
+          real z = 0.5_fp*(z1+z2) + qpoints(k3)*(z2-z1);
+          rhs(k1,k2,iens) += cst/compute_theta(z) * qweights(k3);
+        }
+        rhs(k1,k2,iens) *= (z2-z1);
+      });
+      auto rhs_host = rhs.createHostCopy();
+      realHost3d pressGLL_host("pressGLL",nz,nqpoints,nens);
+      // Sum the pressure using RHS, and apply the correct power. Prefix sum over low dimensions, so do on host
+      for (int iens = 0; iens < nens; iens++) { pressGLL_host(0,0,iens) = std::pow( p0 , R_d/cp_d ); }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints-1; kk++) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk+1,iens) = pressGLL_host(k,kk,iens) + rhs_host(k,kk,iens);
+          }
+        }
+        if (k < nz-1) {
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k+1,0,iens) = pressGLL_host(k,nqpoints-1,iens);
+          }
+        }
+      }
+      for (int k = 0; k < nz; k++) {
+        for (int kk = 0; kk < nqpoints; kk++) { 
+          for (int iens = 0; iens < nens; iens++) {
+            pressGLL_host(k,kk,iens) = std::pow( pressGLL_host(k,kk,iens) , cp_d/R_d );
+          }
+        }
+      }
+      auto pressGLL = pressGLL_host.createDeviceCopy();
+      auto u_g = config["geostrophic_u"].as<real>(10.);
+      auto v_g = config["geostrophic_v"].as<real>(0. );
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
+                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
+        dm_rho_d(k,j,i,iens) = 0;
+        dm_uvel (k,j,i,iens) = 0;
+        dm_vvel (k,j,i,iens) = 0;
+        dm_wvel (k,j,i,iens) = 0;
+        dm_temp (k,j,i,iens) = 0;
+        dm_rho_v(k,j,i,iens) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          real z         = (k+0.5)*dz + qpoints(kk)*dz;
+          real theta     = compute_theta(z);
+          real p         = pressGLL(k,kk,iens);
+          real rho_theta = std::pow( p/C0 , 1._fp/gamma );
+          real rho       = rho_theta / theta;
+          real u         = u_g;
+          real v         = v_g;
+          real w         = 0;
+          real T         = p/(rho*R_d);
+          real rho_v     = 0;
+          real wt = qweights(kk);
+          dm_rho_d(k,j,i,iens) += rho   * wt;
+          dm_uvel (k,j,i,iens) += u     * wt;
+          dm_vvel (k,j,i,iens) += v     * wt;
+          dm_wvel (k,j,i,iens) += w     * wt;
+          dm_temp (k,j,i,iens) += T     * wt;
+          dm_rho_v(k,j,i,iens) += rho_v * wt;
+        }
+        yakl::Random rand(k*ny_glob*nx_glob*nens + (j_beg+j)*nx_glob*nens + (i_beg+i)*nens + iens);
+        if ((k+0.5_fp)*dz <= 50) dm_temp(k,j,i,iens) += rand.genFP<real>(-0.10,0.10);
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
 
       real constexpr uref       = 12;   // Velocity at hub height
@@ -369,14 +523,20 @@ namespace custom_modules {
     fields_halos.get_field(3).deep_copy_to( dm.get<real,4>("immersed_khf_halos"       ) );
     int hs = 1;
     auto immersed_proportion_halos = dm.get<real,4>("immersed_proportion_halos");
+    auto immersed_khf_halos        = dm.get<real,4>("immersed_khf_halos"       );
     auto immersed_roughness_halos  = dm.get<real,4>("immersed_roughness_halos" );
     if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
+      auto khf = config["convective_khf"].as<real>(0.000348953);
+      bool abl_convective = coupler.get_option<std::string>("init_data") == "ABL_convective";
+      bool abl_stable     = coupler.get_option<std::string>("init_data") == "ABL_stable"    ;
+      if (coupler.is_mainproc()) std::cout << "Heat flux (K/s): " << khf*1003*3600 << std::endl;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(hs,ny+2*hs,nx+2*hs,nens) ,
                                         YAKL_LAMBDA (int kk, int j, int i, int iens) {
         immersed_proportion_halos(      kk,j,i,iens) = 1;
         immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
         immersed_roughness_halos (      kk,j,i,iens) = roughness;
         immersed_roughness_halos (hs+nz+kk,j,i,iens) = 0;
+        if (abl_convective || abl_stable) immersed_khf_halos(kk,j,i,iens) = khf;
       });
     }
   }

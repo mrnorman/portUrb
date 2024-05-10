@@ -107,9 +107,10 @@ namespace core {
       int dimid = find_dimension( name );
       if (dimid > 0) {
         if ( dimensions[dimid].len != len ) {
-          std::cerr << "ERROR: Attempting to add a dimension of name [" << name << "]. " <<
-                       "However, it already exists with length [" << dimensions[dimid].len << "].";
-          endrun("");
+          std::cerr << "ERROR: Attempting to add a dimension of name [" << name
+                    << "] with length [" << len 
+                    << "]. However, it already exists with length [" << dimensions[dimid].len << "].";
+          endrun();
         }
         return;  // Avoid adding a duplicate entry
       }
@@ -134,9 +135,22 @@ namespace core {
         endrun("ERROR: You cannot register_and_allocate with an empty string");
       }
       // Make sure we don't have a duplicate entry
-      if ( find_entry(name) != -1) {
-        std::cerr << "ERROR: Trying to register and allocate name [" << name << "], which already exists";
-        endrun("");
+      int entry_ind = find_entry(name);
+      if ( entry_ind != -1) {
+        if (dims != entries[entry_ind].dims) {
+          std::cerr << "ERROR: Trying to re-register name [" << name << "] with different dimensions";
+          endrun();
+        }
+        if (dim_names != entries[entry_ind].dim_names) {
+          std::cerr << "ERROR: Trying to re-register name [" << name << "] with different dimension names";
+          endrun();
+        }
+        if (positive != entries[entry_ind].positive) {
+          std::cerr << "ERROR: Trying to re-register name [" << name << "] with different positivity attribute";
+          endrun();
+        }
+        // It's OK to re-add a variable if it has the same attributes
+        return;
       }
 
       if (dim_names.size() > 0) {

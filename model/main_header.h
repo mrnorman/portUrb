@@ -73,7 +73,7 @@ YAKL_INLINE real constexpr operator"" _fp( long double x ) {
 }
 
 
-YAKL_INLINE void endrun(char const * msg) {
+YAKL_INLINE void endrun(char const * msg = "") {
   yakl::yakl_throw(msg);
 };
 

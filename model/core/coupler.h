@@ -300,6 +300,12 @@ namespace core {
 
 
     template <class T>
+    void add_option_if_empty( std::string key , T value ) {
+      if (!option_exists(key)) options.add_option<T>(key,value);
+    }
+
+
+    template <class T>
     void add_option( std::string key , T value ) {
       options.add_option<T>(key,value);
     }
@@ -378,6 +384,25 @@ namespace core {
                     bool positive  = true        ,
                     bool adds_mass = false       ,
                     bool diffuse   = true        ) {
+      int ind = get_tracer_index(tracer_name);
+      if (ind != -1) {
+        if (tracers[ind].positive != positive) {
+          std::cerr << "ERROR: adding tracer [" << tracer_name
+                    << "] that already exists with different positivity attribute";
+          endrun();
+        }
+        if (tracers[ind].adds_mass != adds_mass) {
+          std::cerr << "ERROR: adding tracer [" << tracer_name
+                    << "] that already exists with different add_mass attribute";
+          endrun();
+        }
+        if (tracers[ind].diffuse != diffuse) {
+          std::cerr << "ERROR: adding tracer [" << tracer_name
+                    << "] that already exists with different diffuse attribute";
+          endrun();
+        }
+        return ind;
+      }
       int nz   = get_nz();
       int ny   = get_ny();
       int nx   = get_nx();
@@ -412,11 +437,14 @@ namespace core {
     }
 
     
+    int get_tracer_index( std::string tracer_name ) const {
+      for (int i=0; i < tracers.size(); i++) { if (tracer_name == tracers[i].name) return i; }
+      return -1;
+    }
+
+    
     bool tracer_exists( std::string tracer_name ) const {
-      for (int i=0; i < tracers.size(); i++) {
-        if (tracer_name == tracers[i].name) return true;
-      }
-      return false;
+      return get_tracer_index(tracer_name) != -1;
     }
 
 

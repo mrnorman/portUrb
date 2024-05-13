@@ -228,11 +228,25 @@ namespace limiter {
 
 
   template <> struct WenoLimiter<5> {
-    struct Params { bool do_map; };
+    struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
     typedef SArray<float,1,3> Weights;
 
-    void set_params( bool do_map = true ) { params.do_map = do_map; }
+    void set_params( bool do_map = false , bool imm_L = false , bool imm_R = false ) {
+      params.do_map = do_map;
+      params.imm_L  = imm_L; 
+      params.imm_R  = imm_R;
+    }
+
+    // Don't allow the stencil that doesn't contain the left interface to dominate
+    YAKL_INLINE static void imm_L_alter( float &TV_1 , float &TV_2 , float &TV_3 ) {
+      TV_3 = std::max(std::max(TV_1,TV_2),TV_3);
+    }
+
+    // Don't allow the stencil that doesn't contain the right interface to dominate
+    YAKL_INLINE static void imm_R_alter( float &TV_1 , float &TV_2 , float &TV_3 ) {
+      TV_1 = std::max(std::max(TV_1,TV_2),TV_3);
+    }
 
     YAKL_INLINE static void compute_limited_edges( SArray<real,1,5> const &s         ,
                                                    real                   &qL        ,
@@ -247,6 +261,8 @@ namespace limiter {
       float TV_C = TransformMatrices::coefs_to_tv( coefs_C );
       float TV_R = TransformMatrices::coefs_to_tv( coefs_R );
       convexify( TV_L , TV_C , TV_R );
+      if (params_in.imm_L) { imm_L_alter(TV_L,TV_C,TV_R); }
+      if (params_in.imm_R) { imm_R_alter(TV_L,TV_C,TV_R); }
       // Left evaluation
       {
         float i_L = 0.3;
@@ -257,9 +273,9 @@ namespace limiter {
         float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map_im( w_L , i_L );
-          map_im( w_C , i_C );
-          map_im( w_R , i_R );
+          map_rs( w_L , i_L );
+          map_rs( w_C , i_C );
+          map_rs( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qL = 0.1666666666666666667_fp*(2*s(1)+5*s(2)-s(3))*w_C-0.1666666666666666667_fp*(s(0)-5*s(1)-2*s(2))*w_L+0.1666666666666666667_fp*(11*s(2)-7*s(3)+2*s(4))*w_R;
@@ -274,9 +290,9 @@ namespace limiter {
         float w_R = i_R / (TV_R*TV_R + 1.e-20f);
         convexify( w_L , w_C , w_R );
         if (params_in.do_map) {
-          map_im( w_L , i_L );
-          map_im( w_C , i_C );
-          map_im( w_R , i_R );
+          map_rs( w_L , i_L );
+          map_rs( w_C , i_C );
+          map_rs( w_R , i_R );
           convexify( w_L , w_C , w_R );
         }
         qR = -0.1666666666666666667_fp*(s(1)-5*s(2)-2*s(3))*w_C+0.1666666666666666667_fp*(2*s(0)-7*s(1)+11*s(2))*w_L+0.1666666666666666667_fp*(2*s(2)+5*s(3)-s(4))*w_R;
@@ -534,9 +550,9 @@ namespace limiter {
       float TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
       float TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
       float TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
+      convexify(TV_1,TV_2,TV_3,TV_4,TV_5);
       if (params_in.imm_L) { imm_L_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
       if (params_in.imm_R) { imm_R_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
-      convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       // Left evaluation
       {
         float i_1 =  0.03968253968253968254f;

@@ -160,6 +160,8 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "building") {
 
+      auto u_g = config["geostrophic_u"].as<real>(10.);
+      auto v_g = config["geostrophic_v"].as<real>(0. );
       real constexpr uref       = 10;   // Velocity at hub height
       real constexpr theta0     = 300;
       real constexpr href       = 100;   // Height of hub / center of windmills
@@ -172,15 +174,13 @@ namespace custom_modules {
       auto press = press_host.createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
         real zloc = (k+0.5_fp)*dz;
-        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
-        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
         real p     = press(k);
         real rt    = std::pow( p/C0 , 1._fp/gamma );
         real r     = rt / theta0;
         real T     = p/R_d/r;
         dm_rho_d(k,j,i,iens) = rt / theta0;
-        dm_uvel (k,j,i,iens) = u;
-        dm_vvel (k,j,i,iens) = 0;
+        dm_uvel (k,j,i,iens) = u_g;
+        dm_vvel (k,j,i,iens) = v_g;
         dm_wvel (k,j,i,iens) = 0;
         dm_temp (k,j,i,iens) = T;
         dm_rho_v(k,j,i,iens) = 0;
@@ -526,7 +526,7 @@ namespace custom_modules {
     auto immersed_khf_halos        = dm.get<real,4>("immersed_khf_halos"       );
     auto immersed_roughness_halos  = dm.get<real,4>("immersed_roughness_halos" );
     if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
-      auto khf = config["convective_khf"].as<real>(0.000348953);
+      auto khf = config["convective_khf"].as<real>(0);
       bool abl_convective = coupler.get_option<std::string>("init_data") == "ABL_convective";
       bool abl_stable     = coupler.get_option<std::string>("init_data") == "ABL_stable"    ;
       if (coupler.is_mainproc()) std::cout << "Heat flux (K/s): " << khf*1003*3600 << std::endl;
@@ -536,7 +536,7 @@ namespace custom_modules {
         immersed_proportion_halos(hs+nz+kk,j,i,iens) = 1;
         immersed_roughness_halos (      kk,j,i,iens) = roughness;
         immersed_roughness_halos (hs+nz+kk,j,i,iens) = 0;
-        if (abl_convective || abl_stable) immersed_khf_halos(kk,j,i,iens) = khf;
+        if (abl_convective) immersed_khf_halos(kk,j,i,iens) = khf;
       });
     }
   }

@@ -498,11 +498,25 @@ namespace limiter {
 
 
   template <> struct WenoLimiter<9> {
-    struct Params { bool do_map; };
+    struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
     typedef SArray<float,1,5> Weights;
 
-    void set_params( bool do_map = true ) { params.do_map = do_map; }
+    void set_params( bool do_map = false , bool imm_L = false , bool imm_R = false ) {
+      params.do_map = do_map;
+      params.imm_L  = imm_L; 
+      params.imm_R  = imm_R;
+    }
+
+    // Don't allow the stencil that doesn't contain the left interface to dominate
+    YAKL_INLINE static void imm_L_alter( float &TV_1 , float &TV_2 , float &TV_3 , float &TV_4 , float &TV_5 ) {
+      TV_5 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5)*2;
+    }
+
+    // Don't allow the stencil that doesn't contain the right interface to dominate
+    YAKL_INLINE static void imm_R_alter( float &TV_1 , float &TV_2 , float &TV_3 , float &TV_4 , float &TV_5 ) {
+      TV_1 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5)*2;
+    }
 
     YAKL_INLINE static void compute_limited_edges( SArray<real,1,9>       &s         ,
                                                    real                   &qL        ,
@@ -520,6 +534,8 @@ namespace limiter {
       float TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
       float TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
       float TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
+      if (params_in.imm_L) { imm_L_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
+      if (params_in.imm_R) { imm_R_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
       convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       // Left evaluation
       {
@@ -602,6 +618,8 @@ namespace limiter {
       float TV_3 = weights(2);
       float TV_4 = weights(3);
       float TV_5 = weights(4);
+      if (params_in.imm_L) { imm_L_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
+      if (params_in.imm_R) { imm_R_alter(TV_1,TV_2,TV_3,TV_4,TV_5); }
       convexify( TV_1 , TV_2 , TV_3 , TV_4 , TV_5 );
       // Left evaluation
       {

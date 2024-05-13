@@ -28,9 +28,9 @@ inform_freq: 10.
 
 latitude: 0.
 
-is_restart: false
+is_restart: true
 
-restart_file: 
+restart_file: abl_stable_2m_00000013.nc
 
 roughness: 0.05
 

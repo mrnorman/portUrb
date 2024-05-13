@@ -510,12 +510,12 @@ namespace limiter {
 
     // Don't allow the stencil that doesn't contain the left interface to dominate
     YAKL_INLINE static void imm_L_alter( float &TV_1 , float &TV_2 , float &TV_3 , float &TV_4 , float &TV_5 ) {
-      TV_5 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5)*2;
+      TV_5 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5);
     }
 
     // Don't allow the stencil that doesn't contain the right interface to dominate
     YAKL_INLINE static void imm_R_alter( float &TV_1 , float &TV_2 , float &TV_3 , float &TV_4 , float &TV_5 ) {
-      TV_1 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5)*2;
+      TV_1 = std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5);
     }
 
     YAKL_INLINE static void compute_limited_edges( SArray<real,1,9>       &s         ,

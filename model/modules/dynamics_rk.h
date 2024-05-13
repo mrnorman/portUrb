@@ -349,8 +349,6 @@ namespace modules {
 
       typedef limiter::WenoLimiter<ord> Limiter;
       Limiter lim;
-      lim.set_params(false);
-      auto lim_params = lim.params;
 
       real6d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1,nens);
       real6d state_limits_y   ("state_limits_y"   ,2,num_state  ,nz,ny+1,nx,nens);
@@ -362,192 +360,105 @@ namespace modules {
       real6d tracers_limits_y ("tracers_limits_y" ,2,num_tracers,nz,ny+1,nx,nens);
       real6d tracers_limits_z ("tracers_limits_z" ,2,num_tracers,nz+1,ny,nx,nens);
 
-      /////////////////////////////////////////////////////////
-      // Acoustic pressue, momentum
-      /////////////////////////////////////////////////////////
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        SArray<bool,1,ord> immersed;
-        for (int ii=0; ii<ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii,iens) > 0; }
-        SArray<real,1,ord> stencil;
-        // u-momentum
-        for (int ii=0; ii<ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii,iens); }
-        Limiter::compute_limited_edges( stencil , state_limits_x(1,idU,k,j,i  ,iens) ,
-                                                  state_limits_x(0,idU,k,j,i+1,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // v-momentum
-        for (int ii=0; ii<ord; ii++) { stencil(ii) = state(idV,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_x(1,idV,k,j,i  ,iens) ,
-                                                  state_limits_x(0,idV,k,j,i+1,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // w-momentum
-        for (int ii=0; ii<ord; ii++) { stencil(ii) = state(idW,hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_x(1,idW,k,j,i  ,iens) ,
-                                                  state_limits_x(0,idW,k,j,i+1,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // pressure
-        for (int ii=0; ii<ord; ii++) { stencil(ii) = pressure( hs+k,hs+j,i+ii,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , pressure_limits_x(1,k,j,i  ,iens) ,
-                                                  pressure_limits_x(0,k,j,i+1,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-      });
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        SArray<bool,1,ord> immersed;
-        for (int jj=0; jj<ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i,iens) > 0; }
-        SArray<real,1,ord> stencil;
-        // u-momentum
-        for (int jj=0; jj<ord; jj++) { stencil(jj) = state(idU,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_y(1,idU,k,j  ,i,iens) ,
-                                                  state_limits_y(0,idU,k,j+1,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // v-momentum
-        for (int jj=0; jj<ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i,iens); }
-        Limiter::compute_limited_edges( stencil , state_limits_y(1,idV,k,j  ,i,iens) ,
-                                                  state_limits_y(0,idV,k,j+1,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // w-momentum
-        for (int jj=0; jj<ord; jj++) { stencil(jj) = state(idW,hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_y(1,idW,k,j  ,i,iens) ,
-                                                  state_limits_y(0,idW,k,j+1,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // pressure
-        for (int jj=0; jj<ord; jj++) { stencil(jj) = pressure( hs+k,j+jj,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , pressure_limits_y(1,k,j  ,i,iens) ,
-                                                  pressure_limits_y(0,k,j+1,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-      });
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int k, int j, int i, int iens) {
-        SArray<bool,1,ord> immersed;
-        for (int kk=0; kk<ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i,iens) > 0; }
-        SArray<real,1,ord> stencil;
-        // u-momentum
-        for (int kk=0; kk<ord; kk++) { stencil(kk) = state(idU,k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_z(1,idU,k  ,j,i,iens) ,
-                                                  state_limits_z(0,idU,k+1,j,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // v-momentum
-        for (int kk=0; kk<ord; kk++) { stencil(kk) = state(idV,k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , state_limits_z(1,idV,k  ,j,i,iens) ,
-                                                  state_limits_z(0,idV,k+1,j,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // w-momentum
-        for (int kk=0; kk<ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i,iens); }
-        Limiter::compute_limited_edges( stencil , state_limits_z(1,idW,k  ,j,i,iens) ,
-                                                  state_limits_z(0,idW,k+1,j,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-        // pressure
-        for (int kk=0; kk<ord; kk++) { stencil(kk) = pressure( k+kk,hs+j,hs+i,iens); }
-        modify_stencil_immersed_der0( stencil , immersed );
-        Limiter::compute_limited_edges( stencil , pressure_limits_z(1,k  ,j,i,iens) ,
-                                                  pressure_limits_z(0,k+1,j,i,iens) ,
-                                                  {false , immersed(hs-1) , immersed(hs+1)} );
-      });
-
-      /////////////////////////////////////////////////////////
-      // Advective x
-      /////////////////////////////////////////////////////////
+      // X-direction interpolation
       {
         core::MultiField<real,4> fields;
         core::MultiField<real,4> lim_x_L;
         core::MultiField<real,4> lim_x_R;
-        // Density
-        fields .add_field(state         .slice<4>(  idR,0,0,0,0));
-        lim_x_L.add_field(state_limits_x.slice<4>(0,idR,0,0,0,0));
-        lim_x_R.add_field(state_limits_x.slice<4>(1,idR,0,0,0,0));
-        // rho*theta
-        fields .add_field(state         .slice<4>(  idT,0,0,0,0));
-        lim_x_L.add_field(state_limits_x.slice<4>(0,idT,0,0,0,0));
-        lim_x_R.add_field(state_limits_x.slice<4>(1,idT,0,0,0,0));
-        // rho*tracer
-        for (int tr=0; tr < num_tracers; tr++) {
-          fields .add_field(tracers         .slice<4>(  tr,0,0,0,0));
-          lim_x_L.add_field(tracers_limits_x.slice<4>(0,tr,0,0,0,0));
-          lim_x_R.add_field(tracers_limits_x.slice<4>(1,tr,0,0,0,0));
+        int idP = 5;
+        for (int l=0; l < num_state; l++) {
+          fields .add_field(state         .slice<4>(  l,0,0,0,0));
+          lim_x_L.add_field(state_limits_x.slice<4>(0,l,0,0,0,0));
+          lim_x_R.add_field(state_limits_x.slice<4>(1,l,0,0,0,0));
+        }
+        fields .add_field(pressure         .slice<4>(  0,0,0,0));
+        lim_x_L.add_field(pressure_limits_x.slice<4>(0,0,0,0,0));
+        lim_x_R.add_field(pressure_limits_x.slice<4>(1,0,0,0,0));
+        for (int l=0; l < num_tracers; l++) {
+          fields .add_field(tracers         .slice<4>(  l,0,0,0,0));
+          lim_x_L.add_field(tracers_limits_x.slice<4>(0,l,0,0,0,0));
+          lim_x_R.add_field(tracers_limits_x.slice<4>(1,l,0,0,0,0));
         }
         // Compute state limits in the x-direction
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int ii=0; ii<ord; ii++) { stencil(ii) = fields(l,hs+k,hs+j,i+ii,iens); }
+          SArray<bool,1,ord> immersed;
+          for (int ii=0; ii<ord; ii++) {
+            immersed(ii) = immersed_prop(hs+k,hs+j,i+ii,iens);
+            stencil (ii) = fields     (l,hs+k,hs+j,i+ii,iens);
+          }
+          if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
           Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i,iens) , lim_x_L(l,k,j,i+1,iens) , 
-                                                    {false , immersed_prop(hs+k,hs+j,hs+i-1,iens) > 0,
-                                                             immersed_prop(hs+k,hs+j,hs+i+1,iens) > 0} );
+                                                    {false , immersed(hs-1) , immersed(hs+1)} );
         });
       }
 
-      /////////////////////////////////////////////////////////
-      // Advective y
-      /////////////////////////////////////////////////////////
+      // Y-direction interpolation
       {
         core::MultiField<real,4> fields;
         core::MultiField<real,4> lim_y_L;
         core::MultiField<real,4> lim_y_R;
-        // Density
-        fields .add_field(state         .slice<4>(  idR,0,0,0,0));
-        lim_y_L.add_field(state_limits_y.slice<4>(0,idR,0,0,0,0));
-        lim_y_R.add_field(state_limits_y.slice<4>(1,idR,0,0,0,0));
-        // rho*theta
-        fields .add_field(state         .slice<4>(  idT,0,0,0,0));
-        lim_y_L.add_field(state_limits_y.slice<4>(0,idT,0,0,0,0));
-        lim_y_R.add_field(state_limits_y.slice<4>(1,idT,0,0,0,0));
-        // rho*tracer
-        for (int tr=0; tr < num_tracers; tr++) {
-          fields .add_field(tracers         .slice<4>(  tr,0,0,0,0));
-          lim_y_L.add_field(tracers_limits_y.slice<4>(0,tr,0,0,0,0));
-          lim_y_R.add_field(tracers_limits_y.slice<4>(1,tr,0,0,0,0));
+        int idP = 5;
+        for (int l=0; l < num_state; l++) {
+          fields .add_field(state         .slice<4>(  l,0,0,0,0));
+          lim_y_L.add_field(state_limits_y.slice<4>(0,l,0,0,0,0));
+          lim_y_R.add_field(state_limits_y.slice<4>(1,l,0,0,0,0));
+        }
+        fields .add_field(pressure         .slice<4>(  0,0,0,0));
+        lim_y_L.add_field(pressure_limits_y.slice<4>(0,0,0,0,0));
+        lim_y_R.add_field(pressure_limits_y.slice<4>(1,0,0,0,0));
+        for (int l=0; l < num_tracers; l++) {
+          fields .add_field(tracers         .slice<4>(  l,0,0,0,0));
+          lim_y_L.add_field(tracers_limits_y.slice<4>(0,l,0,0,0,0));
+          lim_y_R.add_field(tracers_limits_y.slice<4>(1,l,0,0,0,0));
         }
         // Compute state limits in the x-direction
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int jj=0; jj<ord; jj++) { stencil(jj) = fields(l,hs+k,j+jj,hs+i,iens); }
+          SArray<bool,1,ord> immersed;
+          for (int jj=0; jj<ord; jj++) {
+            immersed(jj) = immersed_prop(hs+k,j+jj,hs+i,iens);
+            stencil (jj) = fields     (l,hs+k,j+jj,hs+i,iens);
+          }
+          if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
           Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i,iens) , lim_y_L(l,k,j+1,i,iens) , 
-                                                    {false , immersed_prop(hs+k,hs+j-1,hs+i,iens) > 0,
-                                                             immersed_prop(hs+k,hs+j+1,hs+i,iens) > 0} );
+                                                    {false , immersed(hs-1) , immersed(hs+1)} );
         });
       }
 
-      /////////////////////////////////////////////////////////
-      // Advective z
-      /////////////////////////////////////////////////////////
+      // Z-direction interpolation
       {
         core::MultiField<real,4> fields;
         core::MultiField<real,4> lim_z_L;
         core::MultiField<real,4> lim_z_R;
-        // Density
-        fields .add_field(state         .slice<4>(  idR,0,0,0,0));
-        lim_z_L.add_field(state_limits_z.slice<4>(0,idR,0,0,0,0));
-        lim_z_R.add_field(state_limits_z.slice<4>(1,idR,0,0,0,0));
-        // rho*theta
-        fields .add_field(state         .slice<4>(  idT,0,0,0,0));
-        lim_z_L.add_field(state_limits_z.slice<4>(0,idT,0,0,0,0));
-        lim_z_R.add_field(state_limits_z.slice<4>(1,idT,0,0,0,0));
-        // rho*tracer
-        for (int tr=0; tr < num_tracers; tr++) {
-          fields .add_field(tracers         .slice<4>(  tr,0,0,0,0));
-          lim_z_L.add_field(tracers_limits_z.slice<4>(0,tr,0,0,0,0));
-          lim_z_R.add_field(tracers_limits_z.slice<4>(1,tr,0,0,0,0));
+        int idP = 5;
+        for (int l=0; l < num_state; l++) {
+          fields .add_field(state         .slice<4>(  l,0,0,0,0));
+          lim_z_L.add_field(state_limits_z.slice<4>(0,l,0,0,0,0));
+          lim_z_R.add_field(state_limits_z.slice<4>(1,l,0,0,0,0));
+        }
+        fields .add_field(pressure         .slice<4>(  0,0,0,0));
+        lim_z_L.add_field(pressure_limits_z.slice<4>(0,0,0,0,0));
+        lim_z_R.add_field(pressure_limits_z.slice<4>(1,0,0,0,0));
+        for (int l=0; l < num_tracers; l++) {
+          fields .add_field(tracers         .slice<4>(  l,0,0,0,0));
+          lim_z_L.add_field(tracers_limits_z.slice<4>(0,l,0,0,0,0));
+          lim_z_R.add_field(tracers_limits_z.slice<4>(1,l,0,0,0,0));
         }
         // Compute state limits in the x-direction
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(fields.size(),nz,ny,nx,nens) ,
                                           YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
           SArray<real,1,ord> stencil;
-          for (int kk=0; kk<ord; kk++) { stencil(kk) = fields(l,k+kk,hs+j,hs+i,iens); }
+          SArray<bool,1,ord> immersed;
+          for (int kk=0; kk<ord; kk++) {
+            immersed(kk) = immersed_prop(k+kk,hs+j,hs+i,iens);
+            stencil (kk) = fields     (l,k+kk,hs+j,hs+i,iens);
+          }
+          if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
           Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i,iens) , lim_z_L(l,k+1,j,i,iens) , 
-                                                    {false , immersed_prop(hs+k-1,hs+j,hs+i,iens) > 0,
-                                                             immersed_prop(hs+k+1,hs+j,hs+i,iens) > 0} );
+                                                    {false , immersed(hs-1) , immersed(hs+1)} );
         });
       }
 

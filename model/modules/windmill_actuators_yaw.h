@@ -365,9 +365,15 @@ namespace modules {
               nc.write( normmag0_arr , normmag0_vname );
             }
             MPI_Barrier(MPI_COMM_WORLD);
+            turbine.power_trace   .clear();
+            turbine.yaw_trace     .clear();
+            turbine.mag_trace     .clear();
+            turbine.normmag_trace .clear();
+            turbine.normmag0_trace.clear();
           }
           nc.end_indep_data();
         }
+        trace_size = 0;
       });
 
       etime = 0;

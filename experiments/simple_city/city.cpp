@@ -95,72 +95,37 @@ int main(int argc, char** argv) {
     }
 
     // Begin main simulation loop over time steps
-    real dtphys = dtphys_in;
+    real dt = dtphys_in;
     yakl::fence();
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
-      // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler); }
+      // If dt <= 0, then set it to the dynamical core's max stable time step
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler); }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
-      if (etime + dtphys > sim_time) { dtphys = sim_time - etime; }
+      if (etime + dt > sim_time) { dt = sim_time - etime; }
 
       // Run modules
       {
         using core::Coupler;
-        coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*100);           } , "column_nudger"  );
-        coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dtphys);                      } , "dycore"         );
-        coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);                      } , "surface_fluxes" );
-        coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);                      } , "les_closure"    );
-        coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);                      } , "time_averager"  );
+        coupler.run_module( [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dt,dt*100); } , "column_nudger"  );
+        coupler.run_module( [&] (Coupler &coupler) { dycore.time_step             (coupler,dt);        } , "dycore"         );
+        coupler.run_module( [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dt);        } , "surface_fluxes" );
+        coupler.run_module( [&] (Coupler &coupler) { les_closure.apply            (coupler,dt);        } , "les_closure"    );
+        coupler.run_module( [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dt);        } , "time_averager"  );
       }
 
       // Update time step
-      etime += dtphys; // Advance elapsed time
+      etime += dt; // Advance elapsed time
       coupler.set_option<real>("elapsed_time",etime);
-
-      // Inform the user of progress if it's time.
-      if (inform_freq >= 0. && inform_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_step = t2 - tm;
-        tm = t2;
-        // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
-        auto &dm = coupler.get_data_manager_readonly();
-        auto u = dm.get_collapsed<real const>("uvel");
-        auto v = dm.get_collapsed<real const>("vvel");
-        auto w = dm.get_collapsed<real const>("wvel");
-        auto mag = u.createDeviceObject();
-        yakl::c::parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
-          mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
-        });
-        real wind_mag_loc = yakl::intrinsics::maxval(mag);
-        real wind_mag;
-        auto mpi_data_type = coupler.get_mpi_data_type();
-        MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
-        if (coupler.is_mainproc()) {
-          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_step.count() << " , "
-                    << std::scientific << std::setw(10) << wind_mag         << std::endl;
-        }
+      if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
+        coupler.inform_user();
         inform_counter.reset();
-      } // End informing user section
-
-      // Perform output if it's time
-      if (out_freq >= 0. && output_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t1 = std::chrono::high_resolution_clock::now();
-        coupler.write_output_file( out_prefix );
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_io = t2 - t1;
-        if (coupler.is_mainproc()) {
-          std::cout << "*** Writing output/restart file ***  -->  Etime , Output time: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_io  .count() << std::endl;
-        }
+      }
+      if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
+        coupler.write_output_file( out_prefix , true );
+        time_averager.reset(coupler);
         output_counter.reset();
-      } // End output section
+      }
     } // End main simulation loop
 
     yakl::timer_stop("main");
@@ -168,5 +133,4 @@ int main(int argc, char** argv) {
   yakl::finalize();
   MPI_Finalize();
 }
-
 

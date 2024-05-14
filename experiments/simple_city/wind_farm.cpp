@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
       if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
         if (run_main) coupler_main.write_output_file( out_prefix , true );
         coupler_prec.write_output_file( out_prefix_prec , true );
+        time_averager.reset(coupler_main);
         output_counter.reset();
       }
     } // End main simulation loop

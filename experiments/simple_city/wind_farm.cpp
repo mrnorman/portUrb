@@ -38,7 +38,6 @@ int main(int argc, char** argv) {
     auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
-    auto nens              = config["nens"                  ].as<int        >(1            );
     auto out_freq          = config["out_freq"              ].as<real       >(sim_time/10. );
     auto inform_freq       = config["inform_freq"           ].as<real       >(sim_time/100.);
     auto out_prefix        = config["out_prefix"            ].as<std::string>("test"       );
@@ -63,14 +62,14 @@ int main(int argc, char** argv) {
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
-    coupler_main.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob, nens);
+    coupler_main.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob);
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler_main.set_grid( xlen , ylen , zlen );
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler_main.add_tracer("water_vapor","water_vapor",true,true ,true);
-    coupler_main.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
+    coupler_main.get_data_manager_readwrite().get<real,3>("water_vapor") = 0;
 
     // Classes that can work on multiple couplers without issue (no internal state)
     modules::LES_Closure                       les_closure;

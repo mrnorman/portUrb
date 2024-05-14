@@ -132,7 +132,6 @@ namespace modules {
         using yakl::c::SimpleBounds;
         auto i_beg  = coupler.get_i_beg();
         auto j_beg  = coupler.get_j_beg();
-        auto nens   = coupler.get_nens();
         auto nx     = coupler.get_nx();
         auto ny     = coupler.get_ny();
         auto nz     = coupler.get_nz();
@@ -140,7 +139,7 @@ namespace modules {
         auto dy     = coupler.get_dy();
         auto dz     = coupler.get_dz();
         auto myrank = coupler.get_myrank();
-        auto imm    = coupler.get_data_manager_readwrite().get<real,4>("immersed_proportion");
+        auto imm    = coupler.get_data_manager_readwrite().get<real,3>("immersed_proportion");
         // bounds of this MPI task's domain
         real dom_x1  = (i_beg+0 )*dx;
         real dom_x2  = (i_beg+nx)*dx;
@@ -194,8 +193,7 @@ namespace modules {
         turbines(num_turbines) = loc;
         // Add the base to immersed_proportion
         int N = 10;
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                          YAKL_LAMBDA (int k, int j, int i, int iens) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           int count = 0;
           for (int kk=0; kk < N; kk++) {
             for (int jj=0; jj < N; jj++) {
@@ -212,7 +210,7 @@ namespace modules {
             }
           }
           // Express the base as an immersed boundary
-          imm(k,j,i,iens) += static_cast<real>(count)/(N*N*N);
+          imm(k,j,i) += static_cast<real>(count)/(N*N*N);
         });
         // Increment the turbine counter
         num_turbines++;
@@ -282,7 +280,6 @@ namespace modules {
       auto nx      = coupler.get_nx  ();
       auto ny      = coupler.get_ny  ();
       auto nz      = coupler.get_nz  ();
-      auto nens    = coupler.get_nens();
       auto dx      = coupler.get_dx  ();
       auto dy      = coupler.get_dy  ();
       auto dz      = coupler.get_dz  ();
@@ -320,9 +317,9 @@ namespace modules {
         }
       }
 
-      dm.register_and_allocate<real>("windmill_prop","",{nz,ny,nx,nens});
+      dm.register_and_allocate<real>("windmill_prop","",{nz,ny,nx});
       coupler.register_output_variable<real>( "windmill_prop" , core::Coupler::DIMS_3D );
-      dm.register_and_allocate<real>("blade_prop","",{nz,ny,nx,nens});
+      dm.register_and_allocate<real>("blade_prop","",{nz,ny,nx});
       coupler.register_output_variable<real>( "blade_prop" , core::Coupler::DIMS_3D );
       // Create an output module in the coupler to dump the windmill portions and the power trace from task zero
       coupler.register_write_output_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
@@ -402,7 +399,6 @@ namespace modules {
       auto nx             = coupler.get_nx   ();
       auto ny             = coupler.get_ny   ();
       auto nz             = coupler.get_nz   ();
-      auto nens           = coupler.get_nens ();
       auto dx             = coupler.get_dx   ();
       auto dy             = coupler.get_dy   ();
       auto dz             = coupler.get_dz   ();
@@ -412,16 +408,16 @@ namespace modules {
       auto dtype          = coupler.get_mpi_data_type();
       auto myrank         = coupler.get_myrank();
       auto &dm            = coupler.get_data_manager_readwrite();
-      auto rho_d          = dm.get<real const,4>("density_dry"  );
-      auto uvel           = dm.get<real      ,4>("uvel"         );
-      auto vvel           = dm.get<real      ,4>("vvel"         );
-      auto tke            = dm.get<real      ,4>("TKE"          );
-      auto turb_prop_tot  = dm.get<real      ,4>("windmill_prop");
-      auto blade_prop_tot = dm.get<real      ,4>("blade_prop"   );
+      auto rho_d          = dm.get<real const,3>("density_dry"  );
+      auto uvel           = dm.get<real      ,3>("uvel"         );
+      auto vvel           = dm.get<real      ,3>("vvel"         );
+      auto tke            = dm.get<real      ,3>("TKE"          );
+      auto turb_prop_tot  = dm.get<real      ,3>("windmill_prop");
+      auto blade_prop_tot = dm.get<real      ,3>("blade_prop"   );
 
-      real4d tend_u  ("tend_u"  ,nz,ny,nx,nens);
-      real4d tend_v  ("tend_v"  ,nz,ny,nx,nens);
-      real4d tend_tke("tend_tke",nz,ny,nx,nens);
+      real3d tend_u  ("tend_u"  ,nz,ny,nx);
+      real3d tend_v  ("tend_v"  ,nz,ny,nx);
+      real3d tend_tke("tend_tke",nz,ny,nx);
       tend_u   = 0;
       tend_v   = 0;
       tend_tke = 0;
@@ -463,17 +459,16 @@ namespace modules {
           real sin_blade1_theta = std::sin(blade1_theta);
           real sin_blade2_theta = std::sin(blade2_theta);
           real sin_blade3_theta = std::sin(blade3_theta);
-          real4d blade1_weight("blade1_weight",nz,ny,nx,nens);
-          real4d blade2_weight("blade2_weight",nz,ny,nx,nens);
-          real4d blade3_weight("blade3_weight",nz,ny,nx,nens);
-          real4d disk_weight  ("disk_weight"  ,nz,ny,nx,nens);
+          real3d blade1_weight("blade1_weight",nz,ny,nx);
+          real3d blade2_weight("blade2_weight",nz,ny,nx);
+          real3d blade3_weight("blade3_weight",nz,ny,nx);
+          real3d disk_weight  ("disk_weight"  ,nz,ny,nx);
           disk_weight = 0;
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                            YAKL_LAMBDA (int k, int j, int i, int iens) {
-            disk_weight  (k,j,i,iens) = 0;
-            blade1_weight(k,j,i,iens) = 0;
-            blade2_weight(k,j,i,iens) = 0;
-            blade3_weight(k,j,i,iens) = 0;
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            disk_weight  (k,j,i) = 0;
+            blade1_weight(k,j,i) = 0;
+            blade2_weight(k,j,i) = 0;
+            blade3_weight(k,j,i) = 0;
           });
           {
             real xr = 2*dx;
@@ -481,8 +476,7 @@ namespace modules {
             int num_x = (int)std::ceil(xr*2 /dx*nper);
             int num_y = (int)std::ceil(rad*2/dy*nper);
             int num_z = (int)std::ceil(rad*2/dz*nper);
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_z,num_y,num_x,nens) ,
-                                              YAKL_LAMBDA (int k, int j, int i, int iens) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
               real x = -xr  + 2*xr *i/(num_x-1);
               real y = -rad + 2*rad*j/(num_y-1);
               real z = -rad + 2*rad*k/(num_z-1);
@@ -495,7 +489,7 @@ namespace modules {
                 int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int  k = static_cast<int>(std::floor((zp       )/dz));
-                if (std::sqrt(y*y+z*z) <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i,iens) , 1._fp );
+                if (std::sqrt(y*y+z*z) <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i) , 1._fp );
               }
             });
           }
@@ -506,8 +500,7 @@ namespace modules {
             int num_x = 2*xr/dx*nper;
             int num_y = 2*yr/dy*nper;
             int num_z = rad /dz*nper;
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_z,num_y,num_x,nens) ,
-                                              YAKL_LAMBDA (int k, int j, int i, int iens) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
               real x = -xr + 2*xr*i/(num_x-1);
               real y = -yr + 2*yr*j/(num_y-1);
               real z =        rad*k/(num_z-1);
@@ -527,7 +520,7 @@ namespace modules {
                   int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                   int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                   int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade1_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                  yakl::atomicAdd( blade1_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
                 }
               }
               // Sample Blade 2
@@ -545,7 +538,7 @@ namespace modules {
                   int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                   int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                   int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade2_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                  yakl::atomicAdd( blade2_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
                 }
               }
               // Sample Blade 3
@@ -563,7 +556,7 @@ namespace modules {
                   int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                   int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                   int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade3_weight(k,j,i,iens) , thrust_shape(z/rad)*proj2d );
+                  yakl::atomicAdd( blade3_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
                 }
               }
             });
@@ -589,27 +582,26 @@ namespace modules {
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
           // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
-          real4d turb_prop   ("turb_prop"   ,nz,ny,nx,nens);
-          real4d disk_u      ("disk_u"      ,nz,ny,nx,nens);
-          real4d disk_v      ("disk_v"      ,nz,ny,nx,nens);
-          real4d blade_weight("blade_weight",nz,ny,nx,nens);
+          real3d turb_prop   ("turb_prop"   ,nz,ny,nx);
+          real3d disk_u      ("disk_u"      ,nz,ny,nx);
+          real3d disk_v      ("disk_v"      ,nz,ny,nx);
+          real3d blade_weight("blade_weight",nz,ny,nx);
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                            YAKL_LAMBDA (int k, int j, int i, int iens) {
-            if (disk_weight(k,j,i,iens) > 0) {
-              turb_prop    (k,j,i,iens)  = disk_weight(k,j,i,iens)/disk_tot;
-              turb_prop_tot(k,j,i,iens) += turb_prop(k,j,i,iens);
-              disk_u       (k,j,i,iens)  = turb_prop(k,j,i,iens)*uvel(k,j,i,iens);
-              disk_v       (k,j,i,iens)  = turb_prop(k,j,i,iens)*vvel(k,j,i,iens);
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            if (disk_weight(k,j,i) > 0) {
+              turb_prop    (k,j,i)  = disk_weight(k,j,i)/disk_tot;
+              turb_prop_tot(k,j,i) += turb_prop(k,j,i);
+              disk_u       (k,j,i)  = turb_prop(k,j,i)*uvel(k,j,i);
+              disk_v       (k,j,i)  = turb_prop(k,j,i)*vvel(k,j,i);
             } else {
-              turb_prop    (k,j,i,iens)  = 0;
-              disk_u       (k,j,i,iens)  = 0;
-              disk_v       (k,j,i,iens)  = 0;
+              turb_prop    (k,j,i)  = 0;
+              disk_u       (k,j,i)  = 0;
+              disk_v       (k,j,i)  = 0;
             }
-            real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i,iens)/blade1_tot : 0;
-            real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i,iens)/blade2_tot : 0;
-            real b3_wt = blade3_tot > 0 ? blade3_weight(k,j,i,iens)/blade3_tot : 0;
-            blade_weight(k,j,i,iens) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
+            real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i)/blade1_tot : 0;
+            real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i)/blade2_tot : 0;
+            real b3_wt = blade3_tot > 0 ? blade3_weight(k,j,i)/blade3_tot : 0;
+            blade_weight(k,j,i) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
           });
           // Calculate local sums
           SArray<real,1,3> sum_loc, sum_glob;
@@ -682,15 +674,14 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) ,
-                                            YAKL_LAMBDA (int k, int j, int i, int iens) {
-            if (turb_prop(k,j,i,iens) > 0 || blade_weight(k,j,i,iens) > 0) {
-              blade_weight(k,j,i,iens) /= blade_tot;
-              blade_prop_tot(k,j,i,iens) += blade_weight(k,j,i,iens);
-              real r       = rho_d(k,j,i,iens);         // Needed for tendency on mass-weighted TKE tracer
-              tend_u  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*u0       *blade_weight(k,j,i,iens)*turb_factor;
-              tend_v  (k,j,i,iens) += -0.5_fp  *C_T  *mag0*v0       *blade_weight(k,j,i,iens)*turb_factor;
-              tend_tke(k,j,i,iens) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*blade_weight(k,j,i,iens)*turb_factor;
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            if (turb_prop(k,j,i) > 0 || blade_weight(k,j,i) > 0) {
+              blade_weight(k,j,i) /= blade_tot;
+              blade_prop_tot(k,j,i) += blade_weight(k,j,i);
+              real r       = rho_d(k,j,i);         // Needed for tendency on mass-weighted TKE tracer
+              tend_u  (k,j,i) += -0.5_fp  *C_T  *mag0*u0       *blade_weight(k,j,i)*turb_factor;
+              tend_v  (k,j,i) += -0.5_fp  *C_T  *mag0*v0       *blade_weight(k,j,i)*turb_factor;
+              tend_tke(k,j,i) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*blade_weight(k,j,i)*turb_factor;
             }
           });
           ///////////////////////////////////////////////////
@@ -709,10 +700,10 @@ namespace modules {
       // Application of tendencies onto model variables
       ///////////////////////////////////////////////////
       // Update velocities and TKE based on tendencies
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(nz,ny,nx,nens) , YAKL_LAMBDA (int k, int j, int i, int iens) {
-        uvel(k,j,i,iens) += dt * tend_u  (k,j,i,iens);
-        vvel(k,j,i,iens) += dt * tend_v  (k,j,i,iens);
-        tke (k,j,i,iens) += dt * tend_tke(k,j,i,iens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        uvel(k,j,i) += dt * tend_u  (k,j,i);
+        vvel(k,j,i) += dt * tend_v  (k,j,i);
+        tke (k,j,i) += dt * tend_tke(k,j,i);
       });
 
       // So all tasks know how large the trace is. Makes PNetCDF output easier to manage

@@ -4,7 +4,6 @@
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
-#include "windmill_actuators.h"
 #include "surface_flux.h"
 #include "column_nudging.h"
 #include "geostrophic_wind_forcing.h"
@@ -36,7 +35,6 @@ int main(int argc, char** argv) {
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
     auto dyn_cycle    = config["dyn_cycle"      ].as<int        >(1            );
-    auto nens         = config["nens"           ].as<int        >(1            );
     auto out_freq     = config["out_freq"       ].as<real       >(sim_time/10. );
     auto inform_freq  = config["inform_freq"    ].as<real       >(sim_time/100.);
     auto out_prefix   = config["out_prefix"     ].as<std::string>("test"       );
@@ -64,7 +62,7 @@ int main(int argc, char** argv) {
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
-    coupler.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob, nens);
+    coupler.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob);
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler.set_grid( xlen , ylen , zlen );
@@ -77,7 +75,7 @@ int main(int argc, char** argv) {
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
-    coupler.get_data_manager_readwrite().get<real,4>("water_vapor") = 0;
+    coupler.get_data_manager_readwrite().get<real,3>("water_vapor") = 0;
 
     // Run the initialization modules
     custom_modules::sc_init     ( coupler );

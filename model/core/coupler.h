@@ -26,7 +26,6 @@ namespace core {
     // MPI parallelization information
     int    nranks;           // Total number of MPI ranks / processes
     int    myrank;           // My rank # in [0,nranks-1]
-    int    nens;             // Number of ensembles
     size_t nx_glob;          // Total global number of cells in the x-direction (summing all MPI Processes)
     size_t ny_glob;          // Total global number of cells in the y-direction (summing all MPI Processes)
     int    nproc_x;          // Number of parallel processes distributed over the x-dimension
@@ -109,7 +108,6 @@ namespace core {
       coupler.dt_gcm             = this->dt_gcm            ;
       coupler.nranks             = this->nranks            ;
       coupler.myrank             = this->myrank            ;
-      coupler.nens               = this->nens              ;
       coupler.nx_glob            = this->nx_glob           ;
       coupler.ny_glob            = this->ny_glob           ;
       coupler.nproc_x            = this->nproc_x           ;
@@ -132,15 +130,14 @@ namespace core {
     }
 
 
-    void distribute_mpi_and_allocate_coupled_state(int nz, size_t ny_glob, size_t nx_glob, int nens,
+    void distribute_mpi_and_allocate_coupled_state(int nz, size_t ny_glob, size_t nx_glob,
                                                    int nproc_x_in = -1 , int nproc_y_in = -1 ,
                                                    int px_in      = -1 , int py_in      = -1 ,
                                                    int i_beg_in   = -1 , int i_end_in   = -1 ,
                                                    int j_beg_in   = -1 , int j_end_in   = -1 ) {
       using yakl::c::parallel_for;
-      using yakl::c::Bounds;
+      using yakl::c::SimpleBounds;
 
-      this->nens    = nens   ;
       this->nx_glob = nx_glob;
       this->ny_glob = ny_glob;
 
@@ -213,7 +210,6 @@ namespace core {
         }
       }
 
-      dm.add_dimension( "nens" , nens );
       dm.add_dimension( "x"    , nx   );
       dm.add_dimension( "y"    , ny   );
       dm.add_dimension( "z"    , nz   );
@@ -221,15 +217,13 @@ namespace core {
       if (is_mainproc()) {
         std::cout << "There are a total of " << nz << " x "
                                              << ny_glob << " x "
-                                             << nx_glob << " x "
-                                             << nens << " = "
-                                             << nz*ny_glob*nx_glob*nens << " DOFs" << std::endl;
+                                             << nx_glob << " = "
+                                             << nz*ny_glob*nx_glob << " DOFs" << std::endl;
         std::cout << "MPI Decomposition using " << nproc_x << " x " << nproc_y << " = " << nranks << " tasks" << std::endl;
         std::cout << "There are roughly " << nz << " x "
                                           << ny << " x "
-                                          << nx << " x "
-                                          << nens << " = "
-                                          << nz*ny*nx*nens << " DOFs per task" << std::endl;
+                                          << nx << " = "
+                                          << nz*ny*nx << " DOFs per task" << std::endl;
       }
 
     }
@@ -243,7 +237,6 @@ namespace core {
     real                      get_dt_gcm                () const { return this->dt_gcm      ; }
     int                       get_nranks                () const { return this->nranks      ; }
     int                       get_myrank                () const { return this->myrank      ; }
-    int                       get_nens                  () const { return this->nens        ; }
     size_t                    get_nx_glob               () const { return this->nx_glob     ; }
     size_t                    get_ny_glob               () const { return this->ny_glob     ; }
     int                       get_nproc_x               () const { return this->nproc_x     ; }
@@ -406,8 +399,7 @@ namespace core {
       int nz   = get_nz();
       int ny   = get_ny();
       int nx   = get_nx();
-      int nens = get_nens();
-      dm.register_and_allocate<real>( tracer_name , tracer_desc , {nz,ny,nx,nens} , {"z","y","x","nens"} );
+      dm.register_and_allocate<real>( tracer_name , tracer_desc , {nz,ny,nx} , {"z","y","x"} );
       tracers.push_back( { tracer_name , tracer_desc , positive , adds_mass , diffuse } );
       return tracers.size()-1;
     }
@@ -502,7 +494,6 @@ namespace core {
       using yakl::c::SimpleBounds;
       typedef unsigned char uchar;
       yakl::timer_start("coupler_output");
-      auto nens        = get_nens();
       auto nx          = get_nx();
       auto ny          = get_ny();
       auto nz          = get_nz();
@@ -525,14 +516,13 @@ namespace core {
       MPI_Info_set(info, "nc_header_align_size", "1048576");
       MPI_Info_set(info, "nc_var_align_size",    "1048576");
       nc.create(fname.str() , NC_CLOBBER | NC_64BIT_DATA , info );
-      nc.create_dim( "ens" , nens );
       nc.create_dim( "x"   , get_nx_glob() );
       nc.create_dim( "y"   , get_ny_glob() );
       nc.create_dim( "z"   , nz );
       nc.create_dim( "t"   , 1 );
-      std::vector<std::string> dimnames_column  = {"z","ens"};
-      std::vector<std::string> dimnames_surface = {"y","x","ens"};
-      std::vector<std::string> dimnames_3d      = {"z","y","x","ens"};
+      std::vector<std::string> dimnames_column  = {"z"};
+      std::vector<std::string> dimnames_surface = {"y","x"};
+      std::vector<std::string> dimnames_3d      = {"z","y","x"};
       nc.create_var<real>( "x"   , {"x"} );
       nc.create_var<real>( "y"   , {"y"} );
       nc.create_var<real>( "z"   , {"z"} );
@@ -584,15 +574,15 @@ namespace core {
       if (is_mainproc()) nc.write( file_counter , "file_counter" );
       nc.end_indep_data();
       auto &dm = get_data_manager_readonly();
-      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg,0};
-      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg,0};
-      nc.write_all(dm.get<real const,4>("density_dry"),"density_dry",start_3d);
-      nc.write_all(dm.get<real const,4>("uvel"       ),"uvel"       ,start_3d);
-      nc.write_all(dm.get<real const,4>("vvel"       ),"vvel"       ,start_3d);
-      nc.write_all(dm.get<real const,4>("wvel"       ),"wvel"       ,start_3d);
-      nc.write_all(dm.get<real const,4>("temp"       ),"temperature",start_3d);
+      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg};
+      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg};
+      nc.write_all(dm.get<real const,3>("density_dry"),"density_dry",start_3d);
+      nc.write_all(dm.get<real const,3>("uvel"       ),"uvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("vvel"       ),"vvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("wvel"       ),"wvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("temp"       ),"temperature",start_3d);
       for (int i=0; i < tracer_names.size(); i++) {
-        nc.write_all(dm.get<real const,4>(tracer_names[i]),tracer_names[i],start_3d);
+        nc.write_all(dm.get<real const,3>(tracer_names[i]),tracer_names[i],start_3d);
       }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
         auto name = output_vars[ivar].name;
@@ -601,22 +591,22 @@ namespace core {
         if        (dims == DIMS_COLUMN ) {
           nc.begin_indep_data();
           if (is_mainproc()) {
-            if      (hash == get_type_hash<float >()) { nc.write(dm.get<float  const,2>(name),name); }
-            else if (hash == get_type_hash<double>()) { nc.write(dm.get<double const,2>(name),name); }
-            else if (hash == get_type_hash<int   >()) { nc.write(dm.get<int    const,2>(name),name); }
-            else if (hash == get_type_hash<uchar >()) { nc.write(dm.get<uchar  const,2>(name),name); }
+            if      (hash == get_type_hash<float >()) { nc.write(dm.get<float  const,1>(name),name); }
+            else if (hash == get_type_hash<double>()) { nc.write(dm.get<double const,1>(name),name); }
+            else if (hash == get_type_hash<int   >()) { nc.write(dm.get<int    const,1>(name),name); }
+            else if (hash == get_type_hash<uchar >()) { nc.write(dm.get<uchar  const,1>(name),name); }
           }
           nc.end_indep_data();
         } else if (dims == DIMS_SURFACE) {
-          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,3>(name),name,start_surface); }
+          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,2>(name),name,start_surface); }
         } else if (dims == DIMS_3D     ) {
-          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,4>(name),name,start_3d); }
+          if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,3>(name),name,start_3d); }
         }
       }
       for (int i=0; i < out_write_funcs.size(); i++) { out_write_funcs[i](*this,nc); }
@@ -649,36 +639,36 @@ namespace core {
       MPI_Bcast( &file_counter , 1 , MPI_INT             , 0 , MPI_COMM_WORLD );
       MPI_Bcast( &etime        , 1 , get_mpi_data_type() , 0 , MPI_COMM_WORLD );
       set_option<real>("elapsed_time",etime);
-      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg,0};
-      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg,0};
-      std::vector<MPI_Offset> start_column  = {0            ,0};
-      nc.read_all(dm.get<real,4>("density_dry"),"density_dry",start_3d);
-      nc.read_all(dm.get<real,4>("uvel"       ),"uvel"       ,start_3d);
-      nc.read_all(dm.get<real,4>("vvel"       ),"vvel"       ,start_3d);
-      nc.read_all(dm.get<real,4>("wvel"       ),"wvel"       ,start_3d);
-      nc.read_all(dm.get<real,4>("temp"       ),"temperature",start_3d);
+      std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg};
+      std::vector<MPI_Offset> start_surface = {  j_beg,i_beg};
+      std::vector<MPI_Offset> start_column  = {0            };
+      nc.read_all(dm.get<real,3>("density_dry"),"density_dry",start_3d);
+      nc.read_all(dm.get<real,3>("uvel"       ),"uvel"       ,start_3d);
+      nc.read_all(dm.get<real,3>("vvel"       ),"vvel"       ,start_3d);
+      nc.read_all(dm.get<real,3>("wvel"       ),"wvel"       ,start_3d);
+      nc.read_all(dm.get<real,3>("temp"       ),"temperature",start_3d);
       for (int i=0; i < tracer_names.size(); i++) {
-        nc.read_all(dm.get<real,4>(tracer_names[i]),tracer_names[i],start_3d);
+        nc.read_all(dm.get<real,3>(tracer_names[i]),tracer_names[i],start_3d);
       }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
         auto name = output_vars[ivar].name;
         auto hash = output_vars[ivar].type_hash;
         auto dims = output_vars[ivar].dims;
         if        (dims == DIMS_COLUMN ) {
-          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,2>(name),name,start_column); }
-          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,2>(name),name,start_column); }
-          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,2>(name),name,start_column); }
-          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,2>(name),name,start_column); }
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,1>(name),name,start_column); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,1>(name),name,start_column); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,1>(name),name,start_column); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,1>(name),name,start_column); }
         } else if (dims == DIMS_SURFACE) {
-          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,3>(name),name,start_surface); }
-          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,3>(name),name,start_surface); }
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,2>(name),name,start_surface); }
         } else if (dims == DIMS_3D     ) {
-          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,4>(name),name,start_3d); }
-          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,4>(name),name,start_3d); }
+          if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<int   >()) { nc.read_all(dm.get<int   ,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,3>(name),name,start_3d); }
         }
       }
       for (int i=0; i < restart_read_funcs.size(); i++) { restart_read_funcs[i](*this,nc); }
@@ -689,8 +679,8 @@ namespace core {
 
 
     template <class T>
-    MultiField<typename std::remove_cv<T>::type,4>
-    create_and_exchange_halos( MultiField<T,4> const &fields_in , int hs ) {
+    MultiField<typename std::remove_cv<T>::type,3>
+    create_and_exchange_halos( MultiField<T,3> const &fields_in , int hs ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       typedef typename std::remove_cv<T>::type T_NOCV;
@@ -699,19 +689,18 @@ namespace core {
       auto nz         = fields_in.get_field(0).extent(0);
       auto ny         = fields_in.get_field(0).extent(1);
       auto nx         = fields_in.get_field(0).extent(2);
-      auto nens       = fields_in.get_field(0).extent(3);
-      MultiField<T_NOCV,4> fields_out;
+      MultiField<T_NOCV,3> fields_out;
       for (int i=0; i < num_fields; i++) {
         auto field = fields_in.get_field(i);
-        if ( field.extent(0) != nz || field.extent(1) != ny || field.extent(2) != nx || field.extent(3) != nens ) {
+        if ( field.extent(0) != nz || field.extent(1) != ny || field.extent(2) != nx ) {
           yakl::yakl_throw("ERROR: create_and_exchange_halos: sizes not equal among fields");
         }
-        yakl::Array<T_NOCV,4,yakl::memDevice,yakl::styleC> ret(field.label(),nz+2*hs,ny+2*hs,nx+2*hs,nens);
+        yakl::Array<T_NOCV,3,yakl::memDevice,yakl::styleC> ret(field.label(),nz+2*hs,ny+2*hs,nx+2*hs);
         fields_out.add_field( ret );
       }
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(num_fields,nz,ny,nx,nens) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i, int iens) {
-        fields_out(l,hs+k,hs+j,hs+i,iens) = fields_in(l,k,j,i,iens);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+        fields_out(l,hs+k,hs+j,hs+i) = fields_in(l,k,j,i);
       });
       halo_exchange( fields_out , hs );
       return fields_out;
@@ -720,7 +709,7 @@ namespace core {
 
     // Exchange halo values periodically in the horizontal, and apply vertical no-slip solid-wall BC's
     template <class T>
-    void halo_exchange( core::MultiField<T,4> & fields , int hs ) const {
+    void halo_exchange( core::MultiField<T,3> & fields , int hs ) const {
       #ifdef YAKL_AUTO_PROFILE
         MPI_Barrier(MPI_COMM_WORLD);
         yakl::timer_start("halo_exchange");
@@ -732,7 +721,6 @@ namespace core {
       auto nz     = fields.get_field(0).extent(0)-2*hs;
       auto ny     = fields.get_field(0).extent(1)-2*hs;
       auto nx     = fields.get_field(0).extent(2)-2*hs;
-      auto nens   = fields.get_field(0).extent(3);
       auto &neigh = get_neighbor_rankid_matrix();
       MPI_Request sReq [2], rReq [2];
       MPI_Status  sStat[2], rStat[2];
@@ -750,22 +738,21 @@ namespace core {
         auto field = fields.get_field(i);
         if ( field.extent(0) != nz+2*hs ||
              field.extent(1) != ny+2*hs ||
-             field.extent(2) != nx+2*hs ||
-             field.extent(3) != nens    ) {
+             field.extent(2) != nx+2*hs ) {
           yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
         }
       }
 
       // x-direction exchanges
       {
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          halo_send_buf_W(v,k,j,ii,iens) = fields(v,hs+k,hs+j,hs+ii,iens);
-          halo_send_buf_E(v,k,j,ii,iens) = fields(v,hs+k,hs+j,nx+ii,iens);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_send_buf_W("halo_send_buf_W",npack,nz,ny,hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_send_buf_E("halo_send_buf_E",npack,nz,ny,hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+          halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
+          halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         #ifdef MW_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
@@ -808,23 +795,23 @@ namespace core {
           halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
           halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
         #endif
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,ny,hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii, int iens) {
-          fields(v,hs+k,hs+j,      ii,iens) = halo_recv_buf_W(v,k,j,ii,iens);
-          fields(v,hs+k,hs+j,nx+hs+ii,iens) = halo_recv_buf_E(v,k,j,ii,iens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
+                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+          fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
+          fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
       }
 
       // y-direction exchanges
       {
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx+2*hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx+2*hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs,nens);
-        yakl::Array<T,5,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs,nens);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          halo_send_buf_S(v,k,jj,i,iens) = fields(v,hs+k,hs+jj,i,iens);
-          halo_send_buf_N(v,k,jj,i,iens) = fields(v,hs+k,ny+jj,i,iens);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_send_buf_S("halo_send_buf_S",npack,nz,hs,nx+2*hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_send_buf_N("halo_send_buf_N",npack,nz,hs,nx+2*hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs);
+        yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+          halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
+          halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
         #ifdef MW_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
@@ -867,10 +854,10 @@ namespace core {
           halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
           halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
         #endif
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<5>(npack,nz,hs,nx+2*hs,nens) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i, int iens) {
-          fields(v,hs+k,      jj,i,iens) = halo_recv_buf_S(v,k,jj,i,iens);
-          fields(v,hs+k,ny+hs+jj,i,iens) = halo_recv_buf_N(v,k,jj,i,iens);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
+                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+          fields(v,hs+k,      jj,i) = halo_recv_buf_S(v,k,jj,i);
+          fields(v,hs+k,ny+hs+jj,i) = halo_recv_buf_N(v,k,jj,i);
         });
       }
       #ifdef YAKL_AUTO_PROFILE

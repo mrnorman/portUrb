@@ -3,7 +3,6 @@
 sim_time: 3601.  # 86400
 
 # Number of cells to use in the CRMs
-nens   : 1
 nx_glob: 240
 ny_glob: 240
 nz     : 100
@@ -38,7 +37,7 @@ run_main: true
 
 restart_file: 
 
-restart_file_precursor: no_platform_precursor_00000008.nc
+restart_file_precursor: # no_platform_precursor_00000008.nc
 
 roughness: 0.0002
 

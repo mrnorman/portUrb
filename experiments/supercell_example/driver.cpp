@@ -36,7 +36,6 @@ int main(int argc, char** argv) {
     auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
 
     // Optional YAML entries
-    auto nens         = config["nens"        ].as<int        >(1            );
     auto out_freq     = config["out_freq"    ].as<real       >(sim_time/10. );
     auto inform_freq  = config["inform_freq" ].as<real       >(sim_time/100.);
     auto out_prefix   = config["out_prefix"  ].as<std::string>("test"       );
@@ -57,7 +56,7 @@ int main(int argc, char** argv) {
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!)
-    coupler.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob, nens);
+    coupler.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob);
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler.set_grid( xlen , ylen , zlen );
@@ -96,25 +95,25 @@ int main(int argc, char** argv) {
     }
 
     // Begin main simulation loop over time steps
-    real dtphys = dtphys_in;
+    real dt = dtphys_in;
     yakl::fence();
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time*(1+1.e-8)) {
-      // If dtphys <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dtphys = dycore.compute_time_step(coupler)*dyn_cycle; }
+      // If dt <= 0, then set it to the dynamical core's max stable time step
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
-      if (etime + dtphys > sim_time*(1+1.e-8)) { dtphys = std::max(0.,sim_time*(1+1.e-8) - etime); }
+      if (etime + dt > sim_time*(1+1.e-8)) { dt = std::max(0.,sim_time*(1+1.e-8) - etime); }
 
       // Run modules
       {
         using core::Coupler;
-        auto run_nudger    = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dtphys,dtphys*10);  };
-        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dtphys,dtphys*10,10);       };
-        auto run_micro     = [&] (Coupler &coupler) { micro.time_step              (coupler,dtphys);            };
-        auto run_dycore    = [&] (Coupler &coupler) { dycore.time_step     (coupler,dtphys);                    };
-        auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dtphys);            };
-        auto run_les       = [&] (Coupler &coupler) { les_closure.apply            (coupler,dtphys);            };
-        auto run_tavg      = [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dtphys);            };
+        auto run_nudger    = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dt,dt*10); };
+        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dt,dt*10,10);      };
+        auto run_micro     = [&] (Coupler &coupler) { micro.time_step              (coupler,dt);       };
+        auto run_dycore    = [&] (Coupler &coupler) { dycore.time_step     (coupler,dt);               };
+        auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dt);       };
+        auto run_les       = [&] (Coupler &coupler) { les_closure.apply            (coupler,dt);       };
+        auto run_tavg      = [&] (Coupler &coupler) { time_averager.accumulate     (coupler,dt);       };
         coupler.run_module( run_nudger    , "column_nudger"  );
         coupler.run_module( run_sponge    , "sponge_layer"   );
         coupler.run_module( run_micro     , "microphysics"   );
@@ -125,53 +124,16 @@ int main(int argc, char** argv) {
       }
 
       // Update time step
-      etime += dtphys; // Advance elapsed time
+      etime += dt; // Advance elapsed time
       coupler.set_option<real>("elapsed_time",etime);
-
-      // Inform the user of progress if it's time.
-      if (inform_freq >= 0. && inform_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_step = t2 - tm;
-        tm = t2;
-        // Let the user know what the max vertical velocity is to ensure the model hasn't crashed
-        auto &dm = coupler.get_data_manager_readonly();
-        auto u = dm.get_collapsed<real const>("uvel");
-        auto v = dm.get_collapsed<real const>("vvel");
-        auto w = dm.get_collapsed<real const>("wvel");
-        auto mag = u.createDeviceObject();
-        yakl::c::parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
-          mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
-        });
-        real wind_mag_loc = yakl::intrinsics::maxval(mag);
-        real wind_mag;
-        auto mpi_data_type = coupler.get_mpi_data_type();
-        MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
-        if (coupler.is_mainproc()) {
-          std::cout << "Etime , Walltime_since_last_inform , max_wind_mag , dt: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_step.count() << " , "
-                    << std::scientific << std::setw(10) << wind_mag         << " , "
-                    << std::scientific << std::setw(10) << dtphys           << std::endl;
-        }
+      if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
+        coupler.inform_user();
         inform_counter.reset();
-      } // End informing user section
-
-      // Perform output if it's time
-      if (out_freq >= 0. && output_counter.update_and_check(dtphys)) {
-        yakl::fence();
-        auto t1 = std::chrono::high_resolution_clock::now();
-        coupler.write_output_file( out_prefix );
-        yakl::fence();
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> dur_io = t2 - t1;
-        if (coupler.is_mainproc()) {
-          std::cout << "*** Writing output/restart file ***  -->  Etime , Output time: "
-                    << std::scientific << std::setw(10) << etime            << " , " 
-                    << std::scientific << std::setw(10) << dur_io  .count() << std::endl;
-        }
+      }
+      if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
+        coupler.write_output_file( out_prefix , true );
         output_counter.reset();
-      } // End output section
+      }
     } // End main simulation loop
 
     yakl::timer_stop("main");

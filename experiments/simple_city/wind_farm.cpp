@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
-    coupler_main.distribute_mpi_and_allocate_coupled_state(nz, ny_glob, nx_glob);
+    coupler_main.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 
     // Just tells the coupler how big the domain is in each dimensions
     coupler_main.set_grid( xlen , ylen , zlen );

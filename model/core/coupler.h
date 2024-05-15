@@ -7,6 +7,7 @@
 #include "YAKL_netcdf.h"
 #include "MultipleFields.h"
 #include "Options.h"
+#include "ParallelComm.h"
 
 // The Coupler class holds everything a component or module of this model would need in order to perform its
 // changes to the model state
@@ -24,8 +25,7 @@ namespace core {
     real dt_gcm; // Time step of the GCM for this MMF invocation
 
     // MPI parallelization information
-    int    nranks;           // Total number of MPI ranks / processes
-    int    myrank;           // My rank # in [0,nranks-1]
+    ParallelComm par_comm;   // 
     size_t nx_glob;          // Total global number of cells in the x-direction (summing all MPI Processes)
     size_t ny_glob;          // Total global number of cells in the y-direction (summing all MPI Processes)
     int    nproc_x;          // Number of parallel processes distributed over the x-dimension
@@ -37,7 +37,6 @@ namespace core {
     size_t j_beg;            // Beginning of my y-direction global index
     size_t i_end;            // End of my x-direction global index
     size_t j_end;            // End of my y-direction global index
-    bool   mainproc;         // myrank == 0
     SArray<int,2,3,3> neigh; // List of neighboring rank IDs;  1st index: y;  2nd index: x
                              // Y: 0 = south;  1 = middle;  2 = north
                              // X: 0 = west ;  1 = center;  3 = east 
@@ -106,8 +105,6 @@ namespace core {
       coupler.ylen               = this->ylen              ;
       coupler.zlen               = this->zlen              ;
       coupler.dt_gcm             = this->dt_gcm            ;
-      coupler.nranks             = this->nranks            ;
-      coupler.myrank             = this->myrank            ;
       coupler.nx_glob            = this->nx_glob           ;
       coupler.ny_glob            = this->ny_glob           ;
       coupler.nproc_x            = this->nproc_x           ;
@@ -118,7 +115,6 @@ namespace core {
       coupler.j_beg              = this->j_beg             ;
       coupler.i_end              = this->i_end             ;
       coupler.j_end              = this->j_end             ;
-      coupler.mainproc           = this->mainproc          ;
       coupler.neigh              = this->neigh             ;
       coupler.file_counter       = this->file_counter      ;
       coupler.tracers            = this->tracers           ;
@@ -130,7 +126,8 @@ namespace core {
     }
 
 
-    void distribute_mpi_and_allocate_coupled_state(int nz, size_t ny_glob, size_t nx_glob,
+    void distribute_mpi_and_allocate_coupled_state(ParallelComm par_comm                     ,
+                                                   int nz, size_t ny_glob, size_t nx_glob    ,
                                                    int nproc_x_in = -1 , int nproc_y_in = -1 ,
                                                    int px_in      = -1 , int py_in      = -1 ,
                                                    int i_beg_in   = -1 , int i_end_in   = -1 ,
@@ -138,13 +135,13 @@ namespace core {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
 
+      this->par_comm = par_comm;
+
       this->nx_glob = nx_glob;
       this->ny_glob = ny_glob;
 
-      MPI_Comm_size( MPI_COMM_WORLD , &nranks );
-      MPI_Comm_rank( MPI_COMM_WORLD , &myrank );
-
-      mainproc = (myrank == 0);
+      int nranks = par_comm.get_size();
+      int myrank = par_comm.get_rank_id();
 
       bool sim2d = ny_glob == 1;
 
@@ -231,12 +228,13 @@ namespace core {
 
     void set_dt_gcm(real dt_gcm) { this->dt_gcm = dt_gcm; }
 
+    ParallelComm              get_parallel_comm         () const { return this->par_comm    ; }
     real                      get_xlen                  () const { return this->xlen        ; }
     real                      get_ylen                  () const { return this->ylen        ; }
     real                      get_zlen                  () const { return this->zlen        ; }
     real                      get_dt_gcm                () const { return this->dt_gcm      ; }
-    int                       get_nranks                () const { return this->nranks      ; }
-    int                       get_myrank                () const { return this->myrank      ; }
+    int                       get_nranks                () const { return this->par_comm.get_size();    }
+    int                       get_myrank                () const { return this->par_comm.get_rank_id(); }
     size_t                    get_nx_glob               () const { return this->nx_glob     ; }
     size_t                    get_ny_glob               () const { return this->ny_glob     ; }
     int                       get_nproc_x               () const { return this->nproc_x     ; }
@@ -248,7 +246,7 @@ namespace core {
     size_t                    get_i_end                 () const { return this->i_end       ; }
     size_t                    get_j_end                 () const { return this->j_end       ; }
     bool                      is_sim2d                  () const { return this->ny_glob == 1; }
-    bool                      is_mainproc               () const { return this->mainproc    ; }
+    bool                      is_mainproc               () const { return this->get_myrank() == 0; }
     SArray<int,2,3,3> const & get_neighbor_rankid_matrix() const { return this->neigh       ; }
     DataManager       const & get_data_manager_readonly () const { return this->dm          ; }
     DataManager             & get_data_manager_readwrite()       { return this->dm          ; }

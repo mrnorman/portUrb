@@ -112,7 +112,7 @@ namespace modules {
       real               rot_angle;   // Current rotation angle (radians)
       YawTend            yaw_tend;    // Functor to compute the change in yaw
       RefTurbine         ref_turbine; // The reference turbine to use for this turbine
-      MPI_Comm           mpi_comm;    // MPI communicator for this turbine
+      core::ParallelComm par_comm;    // MPI communicator for this turbine
       int                nranks;      // Number of MPI ranks involved with this turbine
       int                sub_rankid;  // My process's rank ID in the sub communicator
       int                owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
@@ -164,12 +164,11 @@ namespace modules {
         loc.rot_angle   = 0.;
         loc.yaw_tend    = YawTend();
         loc.ref_turbine = ref_turbine;
-        // Get the sub-communicator for tasks this turbine could affect
-        MPI_Comm_split( MPI_COMM_WORLD , active ? 1 : 0 , myrank , &(loc.mpi_comm) );
+        loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id
-          MPI_Comm_size( loc.mpi_comm , &(loc.nranks    ) );
-          MPI_Comm_rank( loc.mpi_comm , &(loc.sub_rankid) );
+          loc.nranks     = loc.par_comm.get_size();
+          loc.sub_rankid = loc.par_comm.get_rank_id();
           // Determine if I "own" the turbine (if the hub's in my domain)
           bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
                        base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
@@ -180,7 +179,7 @@ namespace modules {
             boolHost1d owner_arr("owner_arr",loc.nranks);
             bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
                          base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
-            MPI_Allgather( &owner , 1 , MPI_C_BOOL , owner_arr.data() , 1 , MPI_C_BOOL , loc.mpi_comm );
+            MPI_Allgather( &owner , 1 , MPI_C_BOOL , owner_arr.data() , 1 , MPI_C_BOOL , loc.par_comm.get_mpi_comm() );
             for (int i=0; i < loc.nranks; i++) { if (owner_arr(i)) loc.owning_sub_rankid = i; }
           }
         } else {
@@ -572,14 +571,7 @@ namespace modules {
           weight_tot_loc(1) = yakl::intrinsics::sum(blade2_weight);
           weight_tot_loc(2) = yakl::intrinsics::sum(blade3_weight);
           weight_tot_loc(3) = yakl::intrinsics::sum(disk_weight  );
-          if (turbine.nranks == 1) {
-            weight_tot = weight_tot_loc;
-          } else {
-            yakl::timer_start("windmill_actuators_Allreduce1");
-            MPI_Allreduce( weight_tot_loc.data() , weight_tot.data() , weight_tot.size() , dtype , MPI_SUM ,
-                           turbine.mpi_comm );
-            yakl::timer_stop("windmill_actuators_Allreduce1");
-          }
+          weight_tot = turbine.par_comm.all_reduce( weight_tot_loc , MPI_SUM , "windmill_Allreduce1" );
           real blade1_tot = weight_tot(0);
           real blade2_tot = weight_tot(1);
           real blade3_tot = weight_tot(2);
@@ -615,13 +607,7 @@ namespace modules {
           sum_loc(1) = yakl::intrinsics::sum( disk_v       );
           sum_loc(2) = yakl::intrinsics::sum( blade_weight );
           // Calculate global sums
-          if (turbine.nranks == 1) {
-            sum_glob = sum_loc;
-          } else {
-            yakl::timer_start("windmill_actuators_Allreduce2");
-            MPI_Allreduce( sum_loc.data() , sum_glob.data() , sum_loc.size() , dtype , MPI_SUM , turbine.mpi_comm );
-            yakl::timer_stop("windmill_actuators_Allreduce2");
-          }
+          sum_glob = turbine.par_comm.all_reduce( sum_loc , MPI_SUM , "windmill_Allreduce2" );
           real glob_u    = sum_glob(0);
           real glob_v    = sum_glob(1);
           real blade_tot = sum_glob(2);

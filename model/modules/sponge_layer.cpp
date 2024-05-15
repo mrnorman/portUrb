@@ -45,7 +45,7 @@ namespace modules {
       if (ifld != WFLD) yakl::atomicAdd( havg_fields(ifld,kloc) , full_fields(ifld,k,j,i) );
     });
 
-    #ifdef MW_GPU_AWARE_MPI
+    #ifdef PORTURB_GPU_AWARE_MPI
       auto havg_fields_loc = havg_fields.createDeviceCopy(); // Has an implicit fence()
       yakl::timer_start("sponge_Allreduce");
       MPI_Allreduce( havg_fields_loc.data() , havg_fields.data() , havg_fields.size() ,

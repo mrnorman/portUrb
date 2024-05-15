@@ -754,7 +754,7 @@ namespace core {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
-        #ifdef MW_GPU_AWARE_MPI
+        #ifdef PORTURB_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
             MPI_Barrier(MPI_COMM_WORLD);
           #endif
@@ -813,7 +813,7 @@ namespace core {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
-        #ifdef MW_GPU_AWARE_MPI
+        #ifdef PORTURB_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
             MPI_Barrier(MPI_COMM_WORLD);
           #endif

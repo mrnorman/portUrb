@@ -54,7 +54,7 @@ real2d ColumnNudger::get_column_average( core::Coupler const &coupler , core::Mu
                                     YAKL_LAMBDA (int l, int k, int j, int i) {
     yakl::atomicAdd( column_loc(l,k) , state(l,k,j,i) );
   });
-  #ifdef MW_GPU_AWARE_MPI
+  #ifdef PORTURB_GPU_AWARE_MPI
     auto column_total = column_loc.createDeviceObject();
     yakl::fence();
     yakl::timer_start("column_nudging_Allreduce");

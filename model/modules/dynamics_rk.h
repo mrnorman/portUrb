@@ -24,10 +24,10 @@ namespace modules {
 
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
-    #ifndef MW_ORD
+    #ifndef PORTURB_ORD
       yakl::index_t static constexpr ord = 9;
     #else
-      yakl::index_t static constexpr ord = MW_ORD;
+      yakl::index_t static constexpr ord = PORTURB_ORD;
     #endif
     int static constexpr hs  = (ord-1)/2; // Number of halo cells ("hs" == "halo size")
     int static constexpr num_state = 5;   // Number of state variables

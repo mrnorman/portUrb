@@ -54,7 +54,7 @@ namespace modules {
           edge_send_buf_E(v,k,j) = pressure_limits_x(0,k,j,nx);
         }
       });
-      #ifdef MW_GPU_AWARE_MPI
+      #ifdef PORTURB_GPU_AWARE_MPI
         yakl::timer_start("edge_exchange_mpi_x_gpu_aware");
         yakl::fence();
         MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
@@ -115,7 +115,7 @@ namespace modules {
           edge_send_buf_N(v,k,i) = pressure_limits_y(0,k,ny,i);
         }
       });
-      #ifdef MW_GPU_AWARE_MPI
+      #ifdef PORTURB_GPU_AWARE_MPI
         yakl::timer_start("edge_exchange_mpi_y_gpu_aware");
         yakl::fence();
         MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );

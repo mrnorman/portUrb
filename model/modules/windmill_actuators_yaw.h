@@ -287,7 +287,6 @@ namespace modules {
       auto j_beg   = coupler.get_j_beg();
       auto nx_glob = coupler.get_nx_glob();
       auto ny_glob = coupler.get_ny_glob();
-      auto dtype   = coupler.get_mpi_data_type();
       auto myrank  = coupler.get_myrank();
       auto &dm     = coupler.get_data_manager_readwrite();
 
@@ -409,7 +408,6 @@ namespace modules {
       auto zlen           = coupler.get_zlen();
       auto i_beg          = coupler.get_i_beg();
       auto j_beg          = coupler.get_j_beg();
-      auto dtype          = coupler.get_mpi_data_type();
       auto myrank         = coupler.get_myrank();
       auto &dm            = coupler.get_data_manager_readwrite();
       auto rho_d          = dm.get<real const,3>("density_dry"  );

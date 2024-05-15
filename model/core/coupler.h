@@ -746,9 +746,6 @@ namespace core {
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         #ifdef PORTURB_GPU_AWARE_MPI
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_start("halo_exchange_mpi_x_gpu_aware");
           yakl::fence();
           MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
@@ -757,14 +754,8 @@ namespace core {
           MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_stop("halo_exchange_mpi_x_gpu_aware");
         #else
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_start("halo_exchange_mpi_x");
           auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
           auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
@@ -779,9 +770,6 @@ namespace core {
           MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_stop("halo_exchange_mpi_x");
           halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
           halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
@@ -805,9 +793,6 @@ namespace core {
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
         #ifdef PORTURB_GPU_AWARE_MPI
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_start("halo_exchange_mpi_y_gpu_aware");
           yakl::fence();
           MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
@@ -816,14 +801,8 @@ namespace core {
           MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_stop("halo_exchange_mpi_y_gpu_aware");
         #else
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_start("halo_exchange_mpi_y");
           auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
           auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
@@ -838,9 +817,6 @@ namespace core {
           MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
-          #ifdef YAKL_AUTO_PROFILE
-            par_comm.barrier();
-          #endif
           yakl::timer_stop("halo_exchange_mpi_y");
           halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
           halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);

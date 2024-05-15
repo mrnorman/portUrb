@@ -113,7 +113,6 @@ namespace custom_modules {
           }
         }
       }
-      auto type = coupler.get_mpi_data_type();
       coupler.get_parallel_comm().broadcast( building_heights_host );
       auto building_heights = building_heights_host.createDeviceCopy();
 

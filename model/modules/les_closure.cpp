@@ -388,7 +388,6 @@ namespace modules {
     auto nproc_x        = coupler.get_nproc_x();
     auto nproc_y        = coupler.get_nproc_y();
     auto &neigh         = coupler.get_neighbor_rankid_matrix();
-    auto dtype          = coupler.template get_mpi_data_type<real>();
     auto grav           = coupler.get_option<real>("grav");
     auto gamma          = coupler.get_option<real>("gamma_d");
     auto C0             = coupler.get_option<real>("C0");

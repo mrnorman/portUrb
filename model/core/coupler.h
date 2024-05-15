@@ -745,35 +745,8 @@ namespace core {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
-        #ifdef PORTURB_GPU_AWARE_MPI
-          yakl::timer_start("halo_exchange_mpi_x_gpu_aware");
-          yakl::fence();
-          MPI_Irecv( halo_recv_buf_W.data() , halo_recv_buf_W.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_E.data() , halo_recv_buf_E.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-          MPI_Isend( halo_send_buf_W.data() , halo_send_buf_W.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_E.data() , halo_send_buf_E.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi_x_gpu_aware");
-        #else
-          yakl::timer_start("halo_exchange_mpi_x");
-          auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
-          auto halo_send_buf_E_host = halo_send_buf_E.createHostObject();
-          auto halo_recv_buf_W_host = halo_recv_buf_W.createHostObject();
-          auto halo_recv_buf_E_host = halo_recv_buf_E.createHostObject();
-          MPI_Irecv( halo_recv_buf_W_host.data() , halo_recv_buf_W_host.size() , dtype , neigh(1,0) , 0 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_E_host.data() , halo_recv_buf_E_host.size() , dtype , neigh(1,2) , 1 , comm , &rReq[1] );
-          halo_send_buf_W.deep_copy_to(halo_send_buf_W_host);
-          halo_send_buf_E.deep_copy_to(halo_send_buf_E_host);
-          yakl::fence();
-          MPI_Isend( halo_send_buf_W_host.data() , halo_send_buf_W_host.size() , dtype , neigh(1,0) , 1 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_E_host.data() , halo_send_buf_E_host.size() , dtype , neigh(1,2) , 0 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi_x");
-          halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
-          halo_recv_buf_E_host.deep_copy_to(halo_recv_buf_E);
-        #endif
+        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
+                                                  { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
                                           YAKL_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
@@ -792,35 +765,8 @@ namespace core {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
-        #ifdef PORTURB_GPU_AWARE_MPI
-          yakl::timer_start("halo_exchange_mpi_y_gpu_aware");
-          yakl::fence();
-          MPI_Irecv( halo_recv_buf_S.data() , halo_recv_buf_S.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_N.data() , halo_recv_buf_N.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-          MPI_Isend( halo_send_buf_S.data() , halo_send_buf_S.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_N.data() , halo_send_buf_N.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi_y_gpu_aware");
-        #else
-          yakl::timer_start("halo_exchange_mpi_y");
-          auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
-          auto halo_send_buf_N_host = halo_send_buf_N.createHostObject();
-          auto halo_recv_buf_S_host = halo_recv_buf_S.createHostObject();
-          auto halo_recv_buf_N_host = halo_recv_buf_N.createHostObject();
-          MPI_Irecv( halo_recv_buf_S_host.data() , halo_recv_buf_S_host.size() , dtype , neigh(0,1) , 2 , comm , &rReq[0] );
-          MPI_Irecv( halo_recv_buf_N_host.data() , halo_recv_buf_N_host.size() , dtype , neigh(2,1) , 3 , comm , &rReq[1] );
-          halo_send_buf_S.deep_copy_to(halo_send_buf_S_host);
-          halo_send_buf_N.deep_copy_to(halo_send_buf_N_host);
-          yakl::fence();
-          MPI_Isend( halo_send_buf_S_host.data() , halo_send_buf_S_host.size() , dtype , neigh(0,1) , 3 , comm , &sReq[0] );
-          MPI_Isend( halo_send_buf_N_host.data() , halo_send_buf_N_host.size() , dtype , neigh(2,1) , 2 , comm , &sReq[1] );
-          MPI_Waitall(2, sReq, sStat);
-          MPI_Waitall(2, rReq, rStat);
-          yakl::timer_stop("halo_exchange_mpi_y");
-          halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
-          halo_recv_buf_N_host.deep_copy_to(halo_recv_buf_N);
-        #endif
+        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
+                                                  { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
                                           YAKL_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,i) = halo_recv_buf_S(v,k,jj,i);

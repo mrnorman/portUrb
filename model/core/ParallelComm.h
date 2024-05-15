@@ -12,6 +12,13 @@ namespace core {
     int              rank_id;
     MPI_Group        group;
 
+    template <class T, int N>
+    struct SendRecvPack {
+      yakl::Array<T,N,yakl::memDevice,yakl::styleC>  arr;
+      int                                            them;
+      int                                            tag;
+    };
+
 
     void nullify() {
       comm_was_created = false;
@@ -69,6 +76,54 @@ namespace core {
         check( MPI_Comm_free(&comm) );
       }
       nullify();
+    }
+
+
+    ////////////////////////
+    // Sends and Receives
+    ////////////////////////
+    template <class T, int N>
+    void send_receive( std::vector<SendRecvPack<T,N>> receives , std::vector<SendRecvPack<T,N>> sends ,
+                       std::string lab = "" ) const {
+      int n = receives.size();
+      std::vector<MPI_Request> sReq (n);
+      std::vector<MPI_Request> rReq (n);
+      std::vector<MPI_Status > sStat(n);
+      std::vector<MPI_Status > rStat(n);
+      #ifdef PORTURB_GPU_AWARE_MPI
+        if (lab != "") yakl::timer_start(lab.c_str());
+        yakl::fence();
+        for (int i=0; i < n; i++) {
+          auto arr = receives[i].arr;
+          check( MPI_Irecv( arr.data() , arr.size() , get_type<T>() , receives[i].them , receives[i].tag , comm , &(rReq[i]) ) );
+        }
+        for (int i=0; i < n; i++) {
+          auto arr = sends[i].arr;
+          check( MPI_Isend( arr.data() , arr.size() , get_type<T>() , sends   [i].them , sends   [i].tag , comm , &(sReq[i]) ) );
+        }
+        check( MPI_Waitall(n, sReq.data(), sStat.data()) );
+        check( MPI_Waitall(n, rReq.data(), rStat.data()) );
+        if (lab != "") yakl::timer_stop(lab.c_str());
+      #else
+        if (lab != "") yakl::timer_start(lab.c_str());
+        std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> receive_host_arrays(n);
+        std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> send_host_arrays(n);
+        for (int i=0; i < n; i++) {
+          receive_host_arrays[i] = receives[i].arr.createHostObject();
+          check( MPI_Irecv( receive_host_arrays[i].data() , receive_host_arrays[i].size() , get_type<T>() ,
+                            receives[i].them , receives[i].tag , comm , &(rReq[i]) ) );
+        }
+        for (int i=0; i < n; i++) {
+          send_host_arrays   [i] = sends   [i].arr.createHostCopy();
+          check( MPI_Isend( send_host_arrays[i].data() , send_host_arrays[i].size() , get_type<T>() ,
+                            sends[i].them , sends[i].tag , comm , &(sReq[i]) ) );
+        }
+        check( MPI_Waitall(n, sReq.data(), sStat.data()) );
+        check( MPI_Waitall(n, rReq.data(), rStat.data()) );
+        for (int i=0; i < n; i++) { receive_host_arrays[i].deep_copy_to(receives[i].arr);}
+        yakl::fence();
+        if (lab != "") yakl::timer_stop(lab.c_str());
+      #endif
     }
 
 

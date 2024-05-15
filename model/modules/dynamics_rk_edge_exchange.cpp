@@ -54,35 +54,8 @@ namespace modules {
           edge_send_buf_E(v,k,j) = pressure_limits_x(0,k,j,nx);
         }
       });
-      #ifdef PORTURB_GPU_AWARE_MPI
-        yakl::timer_start("edge_exchange_mpi_x_gpu_aware");
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_W.data() , edge_recv_buf_W.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E.data() , edge_recv_buf_E.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_W.data() , edge_send_buf_W.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E.data() , edge_send_buf_E.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi_x_gpu_aware");
-      #else
-        yakl::timer_start("edge_exchange_mpi_x");
-        realHost3d edge_send_buf_W_host("edge_send_buf_W_host",npack,nz,ny);
-        realHost3d edge_send_buf_E_host("edge_send_buf_E_host",npack,nz,ny);
-        realHost3d edge_recv_buf_W_host("edge_recv_buf_W_host",npack,nz,ny);
-        realHost3d edge_recv_buf_E_host("edge_recv_buf_E_host",npack,nz,ny);
-        MPI_Irecv( edge_recv_buf_W_host.data() , edge_recv_buf_W_host.size() , dtype , neigh(1,0) , 4 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_E_host.data() , edge_recv_buf_E_host.size() , dtype , neigh(1,2) , 5 , comm , &rReq[1] );
-        edge_send_buf_W.deep_copy_to(edge_send_buf_W_host);
-        edge_send_buf_E.deep_copy_to(edge_send_buf_E_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_W_host.data() , edge_send_buf_W_host.size() , dtype , neigh(1,0) , 5 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_E_host.data() , edge_send_buf_E_host.size() , dtype , neigh(1,2) , 4 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi_x");
-        edge_recv_buf_W_host.deep_copy_to(edge_recv_buf_W);
-        edge_recv_buf_E_host.deep_copy_to(edge_recv_buf_E);
-      #endif
+      coupler.get_parallel_comm().send_receive<real,3>( { {edge_recv_buf_W,neigh(1,0),4} , {edge_recv_buf_E,neigh(1,2),5} } ,
+                                                        { {edge_send_buf_W,neigh(1,0),5} , {edge_send_buf_E,neigh(1,2),4} } );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
         if        (v < num_state) {
           state_limits_x  (0,v          ,k,j,0 ) = edge_recv_buf_W(v,k,j);
@@ -115,35 +88,8 @@ namespace modules {
           edge_send_buf_N(v,k,i) = pressure_limits_y(0,k,ny,i);
         }
       });
-      #ifdef PORTURB_GPU_AWARE_MPI
-        yakl::timer_start("edge_exchange_mpi_y_gpu_aware");
-        yakl::fence();
-        MPI_Irecv( edge_recv_buf_S.data() , edge_recv_buf_S.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N.data() , edge_recv_buf_N.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
-        MPI_Isend( edge_send_buf_S.data() , edge_send_buf_S.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N.data() , edge_send_buf_N.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi_y_gpu_aware");
-      #else
-        yakl::timer_start("edge_exchange_mpi_y");
-        realHost3d edge_send_buf_S_host("edge_send_buf_S_host",npack,nz,nx);
-        realHost3d edge_send_buf_N_host("edge_send_buf_N_host",npack,nz,nx);
-        realHost3d edge_recv_buf_S_host("edge_recv_buf_S_host",npack,nz,nx);
-        realHost3d edge_recv_buf_N_host("edge_recv_buf_N_host",npack,nz,nx);
-        MPI_Irecv( edge_recv_buf_S_host.data() , edge_recv_buf_S_host.size() , dtype , neigh(0,1) , 6 , comm , &rReq[0] );
-        MPI_Irecv( edge_recv_buf_N_host.data() , edge_recv_buf_N_host.size() , dtype , neigh(2,1) , 7 , comm , &rReq[1] );
-        edge_send_buf_S.deep_copy_to(edge_send_buf_S_host);
-        edge_send_buf_N.deep_copy_to(edge_send_buf_N_host);
-        yakl::fence();
-        MPI_Isend( edge_send_buf_S_host.data() , edge_send_buf_S_host.size() , dtype , neigh(0,1) , 7 , comm , &sReq[0] );
-        MPI_Isend( edge_send_buf_N_host.data() , edge_send_buf_N_host.size() , dtype , neigh(2,1) , 6 , comm , &sReq[1] );
-        MPI_Waitall(2, sReq, sStat);
-        MPI_Waitall(2, rReq, rStat);
-        yakl::timer_stop("edge_exchange_mpi_y");
-        edge_recv_buf_S_host.deep_copy_to(edge_recv_buf_S);
-        edge_recv_buf_N_host.deep_copy_to(edge_recv_buf_N);
-      #endif
+      coupler.get_parallel_comm().send_receive<real,3>( { {edge_recv_buf_S,neigh(0,1),6} , {edge_recv_buf_N,neigh(2,1),7} } ,
+                                                        { {edge_send_buf_S,neigh(0,1),7} , {edge_send_buf_N,neigh(2,1),6} } );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
         if        (v < num_state) {
           state_limits_y  (0,v          ,k,0 ,i) = edge_recv_buf_S(v,k,i);

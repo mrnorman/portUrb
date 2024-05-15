@@ -24,17 +24,11 @@ namespace modules {
     auto nz             = coupler.get_nz();
     auto num_tracers    = coupler.get_num_tracers();
     auto &neigh         = coupler.get_neighbor_rankid_matrix();
-    auto dtype          = coupler.get_mpi_data_type();
     auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
-    auto comm           = MPI_COMM_WORLD;
     auto &dm            = coupler.get_data_manager_readonly();
     auto hy_dens_edges  = dm.get<real const,1>("hy_dens_edges");
     auto hy_theta_edges = dm.get<real const,1>("hy_theta_edges");
     int npack = num_state + num_tracers+1;
-    MPI_Request sReq [2];
-    MPI_Request rReq [2];
-    MPI_Status  sStat[2];
-    MPI_Status  rStat[2];
 
     // x-exchange
     {

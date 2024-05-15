@@ -713,17 +713,6 @@ namespace core {
       auto ny     = fields.get_field(0).extent(1)-2*hs;
       auto nx     = fields.get_field(0).extent(2)-2*hs;
       auto &neigh = get_neighbor_rankid_matrix();
-      MPI_Request sReq [2], rReq [2];
-      MPI_Status  sStat[2], rStat[2];
-      auto comm = MPI_COMM_WORLD;
-
-      MPI_Datatype dtype;
-      if      (std::is_same<T,float       >::value) { dtype = MPI_FLOAT;              }
-      else if (std::is_same<T,double      >::value) { dtype = MPI_DOUBLE;             }
-      else if (std::is_same<T,int         >::value) { dtype = MPI_INT;                }
-      else if (std::is_same<T,unsigned int>::value) { dtype = MPI_UNSIGNED;           }
-      else if (std::is_same<T,size_t      >::value) { dtype = MPI_UNSIGNED_LONG_LONG; }
-      else { yakl::yakl_throw("ERROR: halo_exchange: Need to add type to core::coupler::halo_exchange"); }
 
       for (int i=0; i < npack; i++) {
         auto field = fields.get_field(i);

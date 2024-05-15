@@ -5,7 +5,7 @@ namespace modules {
 
   void Dynamics_Euler_Stratified_WenoFV::init(core::Coupler &coupler) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("init");
     #endif
     using yakl::c::parallel_for;
@@ -64,16 +64,9 @@ namespace modules {
           }
         }
       });
-      auto r_loc = r .createHostCopy();    auto r_glob = r .createHostObject();
-      auto t_loc = t .createHostCopy();    auto t_glob = t .createHostObject();
-      auto p_loc = p .createHostCopy();    auto p_glob = p .createHostObject();
-      auto dtype = coupler.get_mpi_data_type();
-      MPI_Allreduce( r_loc.data() , r_glob.data() , r.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( t_loc.data() , t_glob.data() , t.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      MPI_Allreduce( p_loc.data() , p_glob.data() , p.size() , dtype , MPI_SUM , MPI_COMM_WORLD );
-      r_glob.deep_copy_to(r);
-      t_glob.deep_copy_to(t);
-      p_glob.deep_copy_to(p);
+      coupler.get_parallel_comm().all_reduce( r , MPI_SUM ).deep_copy_to(r);
+      coupler.get_parallel_comm().all_reduce( t , MPI_SUM ).deep_copy_to(t);
+      coupler.get_parallel_comm().all_reduce( p , MPI_SUM ).deep_copy_to(p);
       real r_nx_ny = 1./(nx_glob*ny_glob);
       parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
         r(k) *= r_nx_ny;

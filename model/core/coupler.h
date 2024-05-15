@@ -105,6 +105,7 @@ namespace core {
       coupler.ylen               = this->ylen              ;
       coupler.zlen               = this->zlen              ;
       coupler.dt_gcm             = this->dt_gcm            ;
+      coupler.par_comm           = this->par_comm          ;
       coupler.nx_glob            = this->nx_glob           ;
       coupler.ny_glob            = this->ny_glob           ;
       coupler.nproc_x            = this->nproc_x           ;
@@ -280,14 +281,6 @@ namespace core {
 
 
     int get_num_tracers() const { return tracers.size(); }
-
-
-    MPI_Datatype get_mpi_data_type() const {
-      if      constexpr (std::is_same<real,float >()) { return MPI_FLOAT; }
-      else if constexpr (std::is_same<real,double>()) { return MPI_DOUBLE; }
-      else { endrun("ERROR: Invalid type for 'real'"); }
-      return MPI_FLOAT;
-    }
 
 
     template <class T>
@@ -474,10 +467,7 @@ namespace core {
       parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
         mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
       });
-      real wind_mag_loc = yakl::intrinsics::maxval(mag);
-      real wind_mag;
-      auto mpi_data_type = get_mpi_data_type();
-      MPI_Reduce( &wind_mag_loc , &wind_mag , 1 , mpi_data_type , MPI_MAX , 0 , MPI_COMM_WORLD );
+      auto wind_mag = par_comm.reduce( yakl::intrinsics::maxval(mag) , MPI_MAX , 0 );
       if (is_mainproc()) {
         std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
                   << std::scientific << std::setw(10) << get_option<real>("elapsed_time") << " , " 
@@ -619,6 +609,9 @@ namespace core {
     }
 
 
+    template<class T=real> MPI_Datatype get_mpi_data_type() const { return par_comm.get_type<T>(); }
+
+
     void overwrite_with_restart() {
       typedef unsigned char uchar;
       yakl::timer_start("overwrite_with_restart");
@@ -634,8 +627,8 @@ namespace core {
       if (is_mainproc()) nc.read( etime        , "etime"        );
       if (is_mainproc()) nc.read( file_counter , "file_counter" );
       nc.end_indep_data();
-      MPI_Bcast( &file_counter , 1 , MPI_INT             , 0 , MPI_COMM_WORLD );
-      MPI_Bcast( &etime        , 1 , get_mpi_data_type() , 0 , MPI_COMM_WORLD );
+      par_comm.broadcast(file_counter);
+      par_comm.broadcast(etime       );
       set_option<real>("elapsed_time",etime);
       std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg};
       std::vector<MPI_Offset> start_surface = {  j_beg,i_beg};
@@ -709,7 +702,7 @@ namespace core {
     template <class T>
     void halo_exchange( core::MultiField<T,3> & fields , int hs ) const {
       #ifdef YAKL_AUTO_PROFILE
-        MPI_Barrier(MPI_COMM_WORLD);
+        par_comm.barrier();
         yakl::timer_start("halo_exchange");
       #endif
       using yakl::c::parallel_for;
@@ -754,7 +747,7 @@ namespace core {
         });
         #ifdef PORTURB_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_start("halo_exchange_mpi_x_gpu_aware");
           yakl::fence();
@@ -765,12 +758,12 @@ namespace core {
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_stop("halo_exchange_mpi_x_gpu_aware");
         #else
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_start("halo_exchange_mpi_x");
           auto halo_send_buf_W_host = halo_send_buf_W.createHostObject();
@@ -787,7 +780,7 @@ namespace core {
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_stop("halo_exchange_mpi_x");
           halo_recv_buf_W_host.deep_copy_to(halo_recv_buf_W);
@@ -813,7 +806,7 @@ namespace core {
         });
         #ifdef PORTURB_GPU_AWARE_MPI
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_start("halo_exchange_mpi_y_gpu_aware");
           yakl::fence();
@@ -824,12 +817,12 @@ namespace core {
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_stop("halo_exchange_mpi_y_gpu_aware");
         #else
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_start("halo_exchange_mpi_y");
           auto halo_send_buf_S_host = halo_send_buf_S.createHostObject();
@@ -846,7 +839,7 @@ namespace core {
           MPI_Waitall(2, sReq, sStat);
           MPI_Waitall(2, rReq, rStat);
           #ifdef YAKL_AUTO_PROFILE
-            MPI_Barrier(MPI_COMM_WORLD);
+            par_comm.barrier();
           #endif
           yakl::timer_stop("halo_exchange_mpi_y");
           halo_recv_buf_S_host.deep_copy_to(halo_recv_buf_S);
@@ -859,7 +852,7 @@ namespace core {
         });
       }
       #ifdef YAKL_AUTO_PROFILE
-        MPI_Barrier(MPI_COMM_WORLD);
+        par_comm.barrier();
         yakl::timer_stop("halo_exchange");
       #endif
     }

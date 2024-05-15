@@ -22,7 +22,7 @@ namespace modules {
   // Perform a time step
   void Dynamics_Euler_Stratified_WenoFV::time_step(core::Coupler &coupler, real dt_phys) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("time_step");
     #endif
     using yakl::c::parallel_for;
@@ -40,7 +40,7 @@ namespace modules {
     for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
     convert_dynamics_to_coupler( coupler , state , tracers );
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("time_step");
     #endif
   }
@@ -55,7 +55,7 @@ namespace modules {
                                                            real4d const  & tracers ,
                                                            real            dt_dyn  ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("time_step_rk_3_3");
     #endif
     using yakl::c::parallel_for;
@@ -134,7 +134,7 @@ namespace modules {
 
     enforce_immersed_boundaries( coupler , state , tracers , dt_dyn/2 );
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("time_step_rk_3_3");
     #endif
   }
@@ -146,7 +146,7 @@ namespace modules {
                                                                       real4d        const & tracers ,
                                                                       real                  dt      ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("enforce_immersed_boundaries");
     #endif
     using yakl::c::parallel_for;
@@ -204,7 +204,7 @@ namespace modules {
       }
     });
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("enforce_immersed_boundaries");
     #endif
   }
@@ -216,7 +216,7 @@ namespace modules {
                                                                    real4d        const & tracers  ,
                                                                    real3d        const & pressure ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("halo_boundary_conditions");
     #endif
     using yakl::c::parallel_for;
@@ -272,7 +272,7 @@ namespace modules {
       yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
     }
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("halo_boundary_conditions");
     #endif
   }
@@ -326,7 +326,7 @@ namespace modules {
       for (int tr=0; tr < num_tracers; tr++) { dm_tracers(tr,k,j,i) = tracers(tr,hs+k,hs+j,hs+i); }
     });
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("convert_dynamics_to_coupler");
     #endif
   }
@@ -338,7 +338,7 @@ namespace modules {
                                                                       real4d              &state   ,
                                                                       real4d              &tracers ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("convert_coupler_to_dynamics");
     #endif
     using yakl::c::parallel_for;
@@ -381,7 +381,7 @@ namespace modules {
       for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i) = dm_tracers(tr,k,j,i); }
     });
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("convert_coupler_to_dynamics");
     #endif
   }

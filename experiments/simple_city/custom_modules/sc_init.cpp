@@ -114,7 +114,7 @@ namespace custom_modules {
         }
       }
       auto type = coupler.get_mpi_data_type();
-      MPI_Bcast( building_heights_host.data() , building_heights_host.size() , type , 0 , MPI_COMM_WORLD);
+      coupler.get_parallel_comm().broadcast( building_heights_host );
       auto building_heights = building_heights_host.createDeviceCopy();
 
       real constexpr uref       = 10;   // Velocity at hub height

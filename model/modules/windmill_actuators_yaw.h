@@ -176,10 +176,9 @@ namespace modules {
           if ( loc.nranks == 1) {
             loc.owning_sub_rankid = 0;
           } else {
-            boolHost1d owner_arr("owner_arr",loc.nranks);
             bool owner = base_loc_x >= i_beg*dx && base_loc_x < (i_beg+nx)*dx &&
                          base_loc_y >= j_beg*dy && base_loc_y < (j_beg+ny)*dy ;
-            MPI_Allgather( &owner , 1 , MPI_C_BOOL , owner_arr.data() , 1 , MPI_C_BOOL , loc.par_comm.get_mpi_comm() );
+            auto owner_arr = loc.par_comm.all_gather( owner );
             for (int i=0; i < loc.nranks; i++) { if (owner_arr(i)) loc.owning_sub_rankid = i; }
           }
         } else {
@@ -363,7 +362,7 @@ namespace modules {
               nc.write( normmag_arr  , normmag_vname  );
               nc.write( normmag0_arr , normmag0_vname );
             }
-            MPI_Barrier(MPI_COMM_WORLD);
+            coupler.get_parallel_comm().barrier();
             turbine.power_trace   .clear();
             turbine.yaw_trace     .clear();
             turbine.mag_trace     .clear();
@@ -566,16 +565,16 @@ namespace modules {
               }
             });
           }
-          yakl::SArray<real,1,4> weight_tot_loc, weight_tot;
-          weight_tot_loc(0) = yakl::intrinsics::sum(blade1_weight);
-          weight_tot_loc(1) = yakl::intrinsics::sum(blade2_weight);
-          weight_tot_loc(2) = yakl::intrinsics::sum(blade3_weight);
-          weight_tot_loc(3) = yakl::intrinsics::sum(disk_weight  );
-          weight_tot = turbine.par_comm.all_reduce( weight_tot_loc , MPI_SUM , "windmill_Allreduce1" );
-          real blade1_tot = weight_tot(0);
-          real blade2_tot = weight_tot(1);
-          real blade3_tot = weight_tot(2);
-          real disk_tot   = weight_tot(3);
+          yakl::SArray<real,1,4> weights_tot;
+          weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
+          weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
+          weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
+          weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
+          weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
+          real blade1_tot = weights_tot(0);
+          real blade2_tot = weights_tot(1);
+          real blade3_tot = weights_tot(2);
+          real disk_tot   = weights_tot(3);
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
@@ -602,15 +601,15 @@ namespace modules {
             blade_weight(k,j,i) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
           });
           // Calculate local sums
-          SArray<real,1,3> sum_loc, sum_glob;
-          sum_loc(0) = yakl::intrinsics::sum( disk_u       );
-          sum_loc(1) = yakl::intrinsics::sum( disk_v       );
-          sum_loc(2) = yakl::intrinsics::sum( blade_weight );
+          SArray<real,1,3> sums;
+          sums(0) = yakl::intrinsics::sum( disk_u       );
+          sums(1) = yakl::intrinsics::sum( disk_v       );
+          sums(2) = yakl::intrinsics::sum( blade_weight );
           // Calculate global sums
-          sum_glob = turbine.par_comm.all_reduce( sum_loc , MPI_SUM , "windmill_Allreduce2" );
-          real glob_u    = sum_glob(0);
-          real glob_v    = sum_glob(1);
-          real blade_tot = sum_glob(2);
+          sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
+          real glob_u    = sums(0);
+          real glob_v    = sums(1);
+          real blade_tot = sums(2);
           real glob_unorm = glob_u*cos_yaw;
           real glob_vnorm = glob_v*sin_yaw;
           real glob_mag   = std::sqrt(glob_unorm*glob_unorm + glob_vnorm*glob_vnorm);

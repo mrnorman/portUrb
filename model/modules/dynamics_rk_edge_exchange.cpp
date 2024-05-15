@@ -14,7 +14,7 @@ namespace modules {
                                                         real5d        const & tracers_limits_z  ,
                                                         real4d        const & pressure_limits_z ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("edge_exchange");
     #endif
     using yakl::c::parallel_for;
@@ -210,7 +210,7 @@ namespace modules {
       });
     }
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("edge_exchange");
     #endif
   }

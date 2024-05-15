@@ -10,7 +10,7 @@ namespace modules {
                                                              real4d        const & tracers_tend ,
                                                              real                  dt           ) const {
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_start("compute_tendencies");
     #endif
     using yakl::c::parallel_for;
@@ -257,7 +257,7 @@ namespace modules {
       }
     });
     #ifdef YAKL_AUTO_PROFILE
-      MPI_Barrier(MPI_COMM_WORLD);
+      coupler.get_parallel_comm().barrier();
       yakl::timer_stop("compute_tendencies");
     #endif
   }

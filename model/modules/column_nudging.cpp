@@ -48,31 +48,17 @@ real2d ColumnNudger::get_column_average( core::Coupler const &coupler , core::Mu
   int nx      = coupler.get_nx();
   int ny      = coupler.get_ny();
   int nz      = coupler.get_nz();
-  real2d column_loc("column_loc",names.size(),nz);
-  column_loc = 0;
+  real2d column("column",names.size(),nz);
+  column = 0;
   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
                                     YAKL_LAMBDA (int l, int k, int j, int i) {
-    yakl::atomicAdd( column_loc(l,k) , state(l,k,j,i) );
+    yakl::atomicAdd( column(l,k) , state(l,k,j,i) );
   });
-  #ifdef PORTURB_GPU_AWARE_MPI
-    auto column_total = column_loc.createDeviceObject();
-    yakl::fence();
-    yakl::timer_start("column_nudging_Allreduce");
-    MPI_Allreduce( column_loc.data() , column_total.data() , column_total.size() ,
-                   coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
-    yakl::timer_stop("column_nudging_Allreduce");
-  #else
-    yakl::timer_start("column_nudging_Allreduce");
-    auto column_total_host = column_loc.createHostObject();
-    MPI_Allreduce( column_loc.createHostCopy().data() , column_total_host.data() , column_total_host.size() ,
-                   coupler.get_mpi_data_type() , MPI_SUM , MPI_COMM_WORLD );
-    auto column_total = column_total_host.createDeviceCopy();
-    yakl::timer_stop("column_nudging_Allreduce");
-  #endif
+  column = coupler.get_parallel_comm().all_reduce( column , MPI_SUM , "column_nudging_Allreduce" );
   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(names.size(),nz) , YAKL_LAMBDA (int l, int k) {
-    column_loc(l,k) = column_total(l,k) / (nx_glob*ny_glob);
+    column(l,k) /= (nx_glob*ny_glob);
   });
-  return column_loc;
+  return column;
 }
 
 }

@@ -116,7 +116,7 @@ namespace modules {
         stencil (ii) = fields     (l,hs+k,hs+j,i+ii);
       }
       if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      bool map = true; // ! any_immersed(k,j,i);
+      bool map = ! any_immersed(k,j,i);
       Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) , 
                                       { map , immersed(hs-1) , immersed(hs+1)} );
     });
@@ -131,7 +131,7 @@ namespace modules {
         stencil (jj) = fields     (l,hs+k,j+jj,hs+i);
       }
       if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      bool map = true; // ! any_immersed(k,j,i);
+      bool map = ! any_immersed(k,j,i);
       Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) , 
                                       { map , immersed(hs-1) , immersed(hs+1)} );
     });
@@ -146,7 +146,7 @@ namespace modules {
         stencil (kk) = fields     (l,k+kk,hs+j,hs+i);
       }
       if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      bool map = true; // ! any_immersed(k,j,i);
+      bool map = ! any_immersed(k,j,i);
       Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) , 
                                       { map , immersed(hs-1) , immersed(hs+1)} );
     });

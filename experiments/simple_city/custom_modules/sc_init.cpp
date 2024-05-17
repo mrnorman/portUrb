@@ -55,6 +55,9 @@ namespace custom_modules {
     if (! dm.entry_exists("immersed_roughness" )) dm.register_and_allocate<real>("immersed_roughness" ,"",dims3d);
     if (! dm.entry_exists("immersed_temp"      )) dm.register_and_allocate<real>("immersed_temp"      ,"",dims3d);
     if (! dm.entry_exists("immersed_khf"       )) dm.register_and_allocate<real>("immersed_khf"       ,"",dims3d);
+    if (! dm.entry_exists("surface_roughness"  )) dm.register_and_allocate<real>("surface_roughness"  ,"",dims2d);
+    if (! dm.entry_exists("surface_temp"       )) dm.register_and_allocate<real>("surface_temp"       ,"",dims2d);
+    if (! dm.entry_exists("surface_khf"        )) dm.register_and_allocate<real>("surface_khf"        ,"",dims2d);
     if (! coupler.option_exists("idWV")) {
       auto tracer_names = coupler.get_tracer_names();
       int idWV = -1;
@@ -72,10 +75,16 @@ namespace custom_modules {
     auto dm_immersed_rough = dm.get<real,3>("immersed_roughness" );
     auto dm_immersed_temp  = dm.get<real,3>("immersed_temp"      );
     auto dm_immersed_khf   = dm.get<real,3>("immersed_khf"       );
+    auto dm_surface_rough  = dm.get<real,2>("surface_roughness"  );
+    auto dm_surface_temp   = dm.get<real,2>("surface_temp"       );
+    auto dm_surface_khf    = dm.get<real,2>("surface_khf"        );
     dm_immersed_prop  = 0;
     dm_immersed_rough = roughness;
     dm_immersed_temp  = 0;
     dm_immersed_khf   = 0;
+    dm_surface_rough  = roughness;
+    dm_surface_temp   = 0;
+    dm_surface_khf    = 0;
     dm_rho_v          = 0;
 
     const int nqpoints = 9;
@@ -151,6 +160,7 @@ namespace custom_modules {
             dm_wvel         (k,j,i) = 0;
           }
         }
+        if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "building") {
@@ -189,6 +199,7 @@ namespace custom_modules {
           dm_vvel         (k,j,i) = 0;
           dm_wvel         (k,j,i) = 0;
         }
+        if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "sphere") {
@@ -238,6 +249,7 @@ namespace custom_modules {
         dm_vvel         (k,j,i) *= (1-dm_immersed_prop(k,j,i));
         dm_wvel         (k,j,i) *= (1-dm_immersed_prop(k,j,i));
         if (count == N*N*N) dm_immersed_prop(k,j,i) = 1;
+        if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
@@ -308,6 +320,7 @@ namespace custom_modules {
         }
         yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
         if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i) += rand.genFP<real>(-0.25,0.25);
+        if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_convective") {
@@ -377,6 +390,7 @@ namespace custom_modules {
         }
         yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
         if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i) += rand.genFP<real>(-0.25,0.25);
+        if (k == 0) dm_surface_temp(j,i) = 309;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_stable") {
@@ -446,6 +460,7 @@ namespace custom_modules {
         }
         yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
         if ((k+0.5_fp)*dz <= 50) dm_temp(k,j,i) += rand.genFP<real>(-0.10,0.10);
+        if (k == 0) dm_surface_temp(j,i) = 265;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
@@ -474,41 +489,41 @@ namespace custom_modules {
         dm_wvel (k,j,i) = 0;
         dm_temp (k,j,i) = T;
         dm_rho_v(k,j,i) = 0;
+        if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
     }
 
+    int hs = 1;
     core::MultiField<real,3> fields;
     fields.add_field( dm_immersed_prop  );
     fields.add_field( dm_immersed_rough );
     fields.add_field( dm_immersed_temp  );
     fields.add_field( dm_immersed_khf   );
-    auto fields_halos = coupler.create_and_exchange_halos( fields , 1 );
-    dm.register_and_allocate<real>("immersed_proportion_halos","",{nz+2,ny+2,nx+2},{"z_halo1","y_halo1","x_halo1"});
-    dm.register_and_allocate<real>("immersed_roughness_halos" ,"",{nz+2,ny+2,nx+2},{"z_halo1","y_halo1","x_halo1"});
-    dm.register_and_allocate<real>("immersed_temp_halos"      ,"",{nz+2,ny+2,nx+2},{"z_halo1","y_halo1","x_halo1"});
-    dm.register_and_allocate<real>("immersed_khf_halos"       ,"",{nz+2,ny+2,nx+2},{"z_halo1","y_halo1","x_halo1"});
+    auto fields_halos = coupler.create_and_exchange_halos( fields , hs );
+    std::vector<std::string> dim_names = {"z_halo1","y_halo1","x_halo1"};
+    dm.register_and_allocate<real>("immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs},dim_names);
+    dm.register_and_allocate<real>("immersed_roughness_halos" ,"",{nz+2*hs,ny+2*hs,nx+2*hs},dim_names);
+    dm.register_and_allocate<real>("immersed_temp_halos"      ,"",{nz+2*hs,ny+2*hs,nx+2*hs},dim_names);
+    dm.register_and_allocate<real>("immersed_khf_halos"       ,"",{nz+2*hs,ny+2*hs,nx+2*hs},dim_names);
     fields_halos.get_field(0).deep_copy_to( dm.get<real,3>("immersed_proportion_halos") );
     fields_halos.get_field(1).deep_copy_to( dm.get<real,3>("immersed_roughness_halos" ) );
     fields_halos.get_field(2).deep_copy_to( dm.get<real,3>("immersed_temp_halos"      ) );
     fields_halos.get_field(3).deep_copy_to( dm.get<real,3>("immersed_khf_halos"       ) );
-    int hs = 1;
-    auto immersed_proportion_halos = dm.get<real,3>("immersed_proportion_halos");
-    auto immersed_khf_halos        = dm.get<real,3>("immersed_khf_halos"       );
-    auto immersed_roughness_halos  = dm.get<real,3>("immersed_roughness_halos" );
-    if (coupler.get_option<std::string>("bc_z") == "solid_wall") {
-      auto khf = config["convective_khf"].as<real>(0);
-      bool abl_convective = coupler.get_option<std::string>("init_data") == "ABL_convective";
-      bool abl_stable     = coupler.get_option<std::string>("init_data") == "ABL_stable"    ;
-      if (coupler.is_mainproc()) std::cout << "Heat flux (K/s): " << khf*1003*3600 << std::endl;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
-        immersed_proportion_halos(      kk,j,i) = 1;
-        immersed_proportion_halos(hs+nz+kk,j,i) = 1;
-        immersed_roughness_halos (      kk,j,i) = roughness;
-        immersed_roughness_halos (hs+nz+kk,j,i) = 0;
-        if (abl_convective) immersed_khf_halos(kk,j,i) = khf;
-      });
-    }
+    auto imm_prop  = dm.get<real,3>("immersed_proportion_halos");
+    auto imm_rough = dm.get<real,3>("immersed_roughness_halos" );
+    auto imm_temp  = dm.get<real,3>("immersed_temp_halos"      );
+    auto imm_khf   = dm.get<real,3>("immersed_khf_halos"       );
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
+      imm_prop (      kk,j,i) = 1;
+      imm_rough(      kk,j,i) = dm_surface_rough(j,i);
+      imm_temp (      kk,j,i) = dm_surface_temp (j,i);
+      imm_khf  (      kk,j,i) = dm_surface_khf  (j,i);
+      imm_prop (hs+nz+kk,j,i) = 1;
+      imm_rough(hs+nz+kk,j,i) = 0;
+      imm_temp (hs+nz+kk,j,i) = 0;
+      imm_khf  (hs+nz+kk,j,i) = 0;
+    });
   }
 
 }

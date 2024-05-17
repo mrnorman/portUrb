@@ -26,7 +26,6 @@ namespace modules {
     auto &dm            = coupler.get_data_manager_readwrite();
     real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
     auto immersed       = dm.get<real const,3>("immersed_proportion_halos");
-    int  dchs           = (immersed.extent(2)-nx)/2; // dycore halo size
     real constexpr Pr = 0.7;
 
     real4d state , tracers;
@@ -71,7 +70,7 @@ namespace modules {
 
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
       if (j < ny && k < nz) {
-        bool imm = immersed(dchs+k,dchs+j,dchs+i-1) > 0 || immersed(dchs+k,dchs+j,dchs+i  ) > 0;
+        bool imm = immersed(hs+k,hs+j,hs+i-1) > 0 || immersed(hs+k,hs+j,hs+i  ) > 0;
         // Derivatives valid at interface i-1/2
         real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1)-state(idU,hs+k-1,hs+j,hs+i-1))/(2*dz) +
                                 (state(idU,hs+k+1,hs+j,hs+i  )-state(idU,hs+k-1,hs+j,hs+i  ))/(2*dz) );
@@ -111,7 +110,7 @@ namespace modules {
         }
       }
       if (i < nx && k < nz) {
-        bool imm = immersed(dchs+k,dchs+j-1,dchs+i) > 0 || immersed(dchs+k,dchs+j  ,dchs+i) > 0;
+        bool imm = immersed(hs+k,hs+j-1,hs+i) > 0 || immersed(hs+k,hs+j  ,hs+i) > 0;
         // Derivatives valid at interface j-1/2
         real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i)-state(idV,hs+k-1,hs+j-1,hs+i))/(2*dz) +
                                 (state(idV,hs+k+1,hs+j  ,hs+i)-state(idV,hs+k-1,hs+j  ,hs+i))/(2*dz) );
@@ -151,7 +150,7 @@ namespace modules {
         }
       }
       if (i < nx && j < ny) {
-        bool imm = immersed(dchs+k-1,dchs+j,dchs+i) > 0 || immersed(dchs+k  ,dchs+j,dchs+i) > 0;
+        bool imm = immersed(hs+k-1,hs+j,hs+i) > 0 || immersed(hs+k  ,hs+j,hs+i) > 0;
         // Derivatives valid at interface k-1/2
         real du_dx = 0.5_fp * ( (state(idU,hs+k-1,hs+j,hs+i+1) - state(idU,hs+k-1,hs+j,hs+i-1))/(2*dx) +
                                 (state(idU,hs+k  ,hs+j,hs+i+1) - state(idU,hs+k  ,hs+j,hs+i-1))/(2*dx) );
@@ -204,13 +203,13 @@ namespace modules {
         // TKE dissipation
         tke_source(k,j,i) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
         // Shear production
-        if (immersed(dchs+k,dchs+j,dchs+i) == 0) {
-          int im1 = immersed(dchs+k,dchs+j,dchs+i-1) > 0 ? i : i-1;
-          int ip1 = immersed(dchs+k,dchs+j,dchs+i+1) > 0 ? i : i+1;
-          int jm1 = immersed(dchs+k,dchs+j-1,dchs+i) > 0 ? j : j-1;
-          int jp1 = immersed(dchs+k,dchs+j+1,dchs+i) > 0 ? j : j+1;
-          int km1 = immersed(dchs+k-1,dchs+j,dchs+i) > 0 ? k : k-1;
-          int kp1 = immersed(dchs+k+1,dchs+j,dchs+i) > 0 ? k : k+1;
+        if (immersed(hs+k,hs+j,hs+i) == 0) {
+          int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
+          int ip1 = immersed(hs+k,hs+j,hs+i+1) > 0 ? i : i+1;
+          int jm1 = immersed(hs+k,hs+j-1,hs+i) > 0 ? j : j-1;
+          int jp1 = immersed(hs+k,hs+j+1,hs+i) > 0 ? j : j+1;
+          int km1 = immersed(hs+k-1,hs+j,hs+i) > 0 ? k : k-1;
+          int kp1 = immersed(hs+k+1,hs+j,hs+i) > 0 ? k : k+1;
           real du_dx = ( state(idU,hs+k,hs+j,hs+i+1) - state(idU,hs+k,hs+j,hs+i-1) ) / (2*dx);
           real dv_dx = ( state(idV,hs+k,hs+j,hs+ip1) - state(idV,hs+k,hs+j,hs+im1) ) / (2*dx);
           real dw_dx = ( state(idW,hs+k,hs+j,hs+ip1) - state(idW,hs+k,hs+j,hs+im1) ) / (2*dx);

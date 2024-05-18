@@ -103,18 +103,10 @@ namespace modules {
       // z-direction BC's
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
         // Dirichlet
-        state_limits_z(0,idR,0 ,j,i) = hy_dens_edges(0);
-        state_limits_z(1,idR,0 ,j,i) = hy_dens_edges(0);
         state_limits_z(0,idW,0 ,j,i) = 0;
         state_limits_z(1,idW,0 ,j,i) = 0;
-        state_limits_z(0,idT,0 ,j,i) = surface_temp(j,i) == 0 ? hy_theta_edges(0) : surface_temp(j,i);
-        state_limits_z(1,idT,0 ,j,i) = surface_temp(j,i) == 0 ? hy_theta_edges(0) : surface_temp(j,i);
-        state_limits_z(0,idR,nz,j,i) = hy_dens_edges(nz);
-        state_limits_z(1,idR,nz,j,i) = hy_dens_edges(nz);
         state_limits_z(0,idW,nz,j,i) = 0;
         state_limits_z(1,idW,nz,j,i) = 0;
-        state_limits_z(0,idT,nz,j,i) = hy_theta_edges(nz);
-        state_limits_z(1,idT,nz,j,i) = hy_theta_edges(nz);
         for (int l=0; l < num_tracers; l++) {
           tracers_limits_z(0,l,0 ,j,i) = 0;
           tracers_limits_z(1,l,0 ,j,i) = 0;
@@ -122,11 +114,15 @@ namespace modules {
           tracers_limits_z(1,l,nz,j,i) = 0;
         }
         // Neumann
+        state_limits_z   (0,idR,0 ,j,i) = state_limits_z   (1,idR,0 ,j,i);
         state_limits_z   (0,idU,0 ,j,i) = state_limits_z   (1,idU,0 ,j,i);
         state_limits_z   (0,idV,0 ,j,i) = state_limits_z   (1,idV,0 ,j,i);
+        state_limits_z   (0,idT,0 ,j,i) = state_limits_z   (1,idT,0 ,j,i);
         pressure_limits_z(0    ,0 ,j,i) = pressure_limits_z(1    ,0 ,j,i);
+        state_limits_z   (1,idR,nz,j,i) = state_limits_z   (0,idR,nz,j,i);
         state_limits_z   (1,idU,nz,j,i) = state_limits_z   (0,idU,nz,j,i);
         state_limits_z   (1,idV,nz,j,i) = state_limits_z   (0,idV,nz,j,i);
+        state_limits_z   (1,idT,nz,j,i) = state_limits_z   (0,idT,nz,j,i);
         pressure_limits_z(1    ,nz,j,i) = pressure_limits_z(0    ,nz,j,i);
       });
     } else if (bc_z == "periodic") {

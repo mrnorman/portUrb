@@ -51,6 +51,7 @@ namespace modules {
       real r_r = 1._fp / state(idR,hs+k,hs+j,hs+i);
       for (int l=1; l < num_state  ; l++) { state  (l,hs+k,hs+j,hs+i) *= r_r; }
       for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+i) *= r_r; }
+      state(idR,hs+k,hs+j,hs+i) -= hy_dens_cells(hs+k);
     });
 
     // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
@@ -116,18 +117,13 @@ namespace modules {
         stencil (ii) = fields     (l,hs+k,hs+j,i+ii);
       }
       if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      if (any_immersed(k,j,i)) {
-        SArray<real,1,5> stencil5;
-        for (int ii=hs-2; ii <= hs+2; ii++) { stencil5(ii-(hs-2)) = stencil(ii); }
-        Limiter5::compute_limited_edges( stencil5 , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) , 
-                                         { false , immersed(hs-1) , immersed(hs+1)} );
-      } else {
-        Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) , 
-                                        { true , immersed(hs-1) , immersed(hs+1)} );
+      bool map = ! any_immersed(k,j,i);
+      Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) , 
+                                      { map , immersed(hs-1) , immersed(hs+1)} );
+      if (l == idR) {
+        lim_x_R(l,k,j,i  ) += hy_dens_cells(hs+k);
+        lim_x_L(l,k,j,i+1) += hy_dens_cells(hs+k);
       }
-      // bool map = ! any_immersed(k,j,i);
-      // Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) , 
-      //                                 { map , immersed(hs-1) , immersed(hs+1)} );
     });
 
     // Y-direction interpolation
@@ -140,18 +136,13 @@ namespace modules {
         stencil (jj) = fields     (l,hs+k,j+jj,hs+i);
       }
       if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      if (any_immersed(k,j,i)) {
-        SArray<real,1,5> stencil5;
-        for (int jj=hs-2; jj <= hs+2; jj++) { stencil5(jj-(hs-2)) = stencil(jj); }
-        Limiter5::compute_limited_edges( stencil5 , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) , 
-                                         { false , immersed(hs-1) , immersed(hs+1)} );
-      } else {
-        Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) , 
-                                        { true , immersed(hs-1) , immersed(hs+1)} );
+      bool map = ! any_immersed(k,j,i);
+      Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) , 
+                                      { map , immersed(hs-1) , immersed(hs+1)} );
+      if (l == idR) {
+        lim_y_R(l,k,j  ,i) += hy_dens_cells(hs+k);
+        lim_y_L(l,k,j+1,i) += hy_dens_cells(hs+k);
       }
-      // bool map = ! any_immersed(k,j,i);
-      // Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) , 
-      //                                 { map , immersed(hs-1) , immersed(hs+1)} );
     });
 
     // Z-direction interpolation
@@ -164,18 +155,13 @@ namespace modules {
         stencil (kk) = fields     (l,k+kk,hs+j,hs+i);
       }
       if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-      if (any_immersed(k,j,i)) {
-        SArray<real,1,5> stencil5;
-        for (int kk=hs-2; kk <= hs+2; kk++) { stencil5(kk-(hs-2)) = stencil(kk); }
-        Limiter5::compute_limited_edges( stencil5 , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) , 
-                                         { false , immersed(hs-1) , immersed(hs+1)} );
-      } else {
-        Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) , 
-                                        { true , immersed(hs-1) , immersed(hs+1)} );
+      bool map = ! any_immersed(k,j,i);
+      Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) , 
+                                      { map , immersed(hs-1) , immersed(hs+1)} );
+      if (l == idR) {
+        lim_z_R(l,k  ,j,i) += hy_dens_edges(k  );
+        lim_z_L(l,k+1,j,i) += hy_dens_edges(k+1);
       }
-      // bool map = ! any_immersed(k,j,i);
-      // Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) , 
-      //                                 { map , immersed(hs-1) , immersed(hs+1)} );
     });
 
     // Perform periodic horizontal exchange of cell-edge data, and implement vertical boundary conditions
@@ -258,6 +244,7 @@ namespace modules {
         }
       }
       if (i < nx && j < ny && k < nz) {
+        state(idR,hs+k,hs+j,hs+i) += hy_dens_cells(hs+k);
         for (int l=1; l < num_state  ; l++) { state  (l,hs+k,hs+j,hs+i) *= state(idR,hs+k,hs+j,hs+i); }
         for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+i) *= state(idR,hs+k,hs+j,hs+i); }
       }

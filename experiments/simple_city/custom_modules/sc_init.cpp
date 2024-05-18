@@ -539,7 +539,7 @@ namespace custom_modules {
       imm_rough(      kk,j,i) = sfc_rough(j,i);
       imm_temp (      kk,j,i) = sfc_temp (j,i);
       imm_khf  (      kk,j,i) = sfc_khf  (j,i);
-      imm_prop (hs+nz+kk,j,i) = 1;
+      imm_prop (hs+nz+kk,j,i) = 0;
       imm_rough(hs+nz+kk,j,i) = 0;
       imm_temp (hs+nz+kk,j,i) = 0;
       imm_khf  (hs+nz+kk,j,i) = 0;

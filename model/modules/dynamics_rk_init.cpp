@@ -120,14 +120,20 @@ namespace modules {
         });
         fields_halos.get_field(0).deep_copy_to( dm.get<real,3>("dycore_immersed_proportion_halos") );
 
+        int hsnew = ord;
         dm.register_and_allocate<bool>("dycore_any_immersed","",{nz,ny,nx},{"z","y","x"});
         auto any_immersed = dm.get<bool,3>("dycore_any_immersed");
-        auto fields_halos_larger = coupler.create_and_exchange_halos( fields , ord );
+        auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                          YAKL_LAMBDA (int kk, int j, int i) {
+          fields_halos(0,         kk,j,i) = 0;
+          fields_halos(0,hsnew+nz+kk,j,i) = 0;
+        });
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
           any_immersed(k,j,i) = false;
-          for (int kk=0; kk < ord*2+1; kk++) {
-            for (int jj=0; jj < ord*2+1; jj++) {
-              for (int ii=0; ii < ord*2+1; ii++) {
+          for (int kk=0; kk < hsnew*2+1; kk++) {
+            for (int jj=0; jj < hsnew*2+1; jj++) {
+              for (int ii=0; ii < hsnew*2+1; ii++) {
                 if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
               }
             }

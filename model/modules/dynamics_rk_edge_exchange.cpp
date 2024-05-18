@@ -26,8 +26,9 @@ namespace modules {
     auto &neigh         = coupler.get_neighbor_rankid_matrix();
     auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
     auto &dm            = coupler.get_data_manager_readonly();
-    auto hy_dens_edges  = dm.get<real const,1>("hy_dens_edges");
+    auto hy_dens_edges  = dm.get<real const,1>("hy_dens_edges" );
     auto hy_theta_edges = dm.get<real const,1>("hy_theta_edges");
+    auto surface_temp   = dm.get<real const,2>("surface_temp"  );
     int npack = num_state + num_tracers+1;
 
     // x-exchange
@@ -106,8 +107,8 @@ namespace modules {
         state_limits_z(1,idR,0 ,j,i) = hy_dens_edges(0);
         state_limits_z(0,idW,0 ,j,i) = 0;
         state_limits_z(1,idW,0 ,j,i) = 0;
-        state_limits_z(0,idT,0 ,j,i) = hy_theta_edges(0);
-        state_limits_z(1,idT,0 ,j,i) = hy_theta_edges(0);
+        state_limits_z(0,idT,0 ,j,i) = surface_temp(j,i) == 0 ? hy_theta_edges(0) : surface_temp(j,i);
+        state_limits_z(1,idT,0 ,j,i) = surface_temp(j,i) == 0 ? hy_theta_edges(0) : surface_temp(j,i);
         state_limits_z(0,idR,nz,j,i) = hy_dens_edges(nz);
         state_limits_z(1,idR,nz,j,i) = hy_dens_edges(nz);
         state_limits_z(0,idW,nz,j,i) = 0;

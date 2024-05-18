@@ -13,9 +13,44 @@ namespace modules {
     auto dy = coupler.get_dy();
     auto dz = coupler.get_dz();
     real constexpr maxwave = 350 + 100;
-    real cfl = 0.45;
+    real cfl = 0.70;
     return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
   }
+  // real Dynamics_Euler_Stratified_WenoFV::compute_time_step( core::Coupler const &coupler ) const {
+  //   using yakl::c::parallel_for;
+  //   using yakl::c::SimpleBounds;
+  //   auto nx = coupler.get_nx();
+  //   auto ny = coupler.get_ny();
+  //   auto nz = coupler.get_nz();
+  //   auto dx = coupler.get_dx();
+  //   auto dy = coupler.get_dy();
+  //   auto dz = coupler.get_dz();
+  //   auto R_d = coupler.get_option<real>("R_d");
+  //   auto gamma = coupler.get_option<real>("gamma_d");
+  //   auto &dm = coupler.get_data_manager_readonly();
+  //   auto rho_d = dm.get<real const,3>("density_dry");
+  //   auto uvel  = dm.get<real const,3>("uvel"       );
+  //   auto vvel  = dm.get<real const,3>("vvel"       );
+  //   auto wvel  = dm.get<real const,3>("wvel"       );
+  //   auto temp  = dm.get<real const,3>("temp"       );
+  //   real3d dt3d("dt3d",nz,ny,nx);
+  //   real cfl = 0.70;
+  //   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+  //     real r = rho_d(k,j,i);
+  //     real u = uvel (k,j,i);
+  //     real v = vvel (k,j,i);
+  //     real w = wvel (k,j,i);
+  //     real T = temp (k,j,i);
+  //     real p = r*R_d*T;
+  //     real cs = std::sqrt(gamma*p/r);
+  //     real dtx = cfl*dx/(std::abs(u)+cs);
+  //     real dty = cfl*dy/(std::abs(v)+cs);
+  //     real dtz = cfl*dz/(std::abs(w)+cs);
+  //     dt3d(k,j,i) = std::min(std::min(dtx,dty),dtz);
+  //   });
+  //   real maxwave = yakl::intrinsics::minval(dt3d);
+  //   return coupler.get_parallel_comm().all_reduce( maxwave , MPI_MIN );
+  // }
 
 
 
@@ -221,19 +256,21 @@ namespace modules {
     #endif
     using yakl::c::parallel_for;
     using yakl::c::SimpleBounds;
-    auto nx             = coupler.get_nx();
-    auto ny             = coupler.get_ny();
-    auto nz             = coupler.get_nz();
-    auto num_tracers    = coupler.get_num_tracers();
-    auto hy_dens_cells  = coupler.get_data_manager_readonly().get<real const,1>("hy_dens_cells" );
-    auto hy_theta_cells = coupler.get_data_manager_readonly().get<real const,1>("hy_theta_cells");
-    auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
+    auto nx              = coupler.get_nx();
+    auto ny              = coupler.get_ny();
+    auto nz              = coupler.get_nz();
+    auto num_tracers     = coupler.get_num_tracers();
+    auto bc_z            = coupler.get_option<std::string>("bc_z","solid_wall");
+    auto &dm             = coupler.get_data_manager_readonly();
+    auto hy_dens_cells   = dm.get<real const,1>("hy_dens_cells" );
+    auto hy_theta_cells  = dm.get<real const,1>("hy_theta_cells");
+    auto surface_temp    = dm.get<real const,2>("surface_temp"  );
 
     // z-direction BC's
     if (bc_z == "solid_wall") {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
         state(idR,kk,j,i) = hy_dens_cells (kk);
-        state(idT,kk,j,i) = hy_theta_cells(kk);
+        state(idT,kk,j,i) = surface_temp(j,i) == 0 ? hy_theta_cells(kk) : surface_temp(j,i);
         state(idU,kk,j,i) = state(idU,hs+0,j,i);
         state(idV,kk,j,i) = state(idV,hs+0,j,i);
         pressure( kk,j,i) = pressure (hs+0,j,i);

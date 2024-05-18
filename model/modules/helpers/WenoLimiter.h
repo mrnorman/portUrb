@@ -116,11 +116,25 @@ namespace limiter {
 
 
   template <> struct WenoLimiter<3> {
-    struct Params { bool do_map; };
+    struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
     typedef SArray<real,1,2> Weights;
 
-    void set_params( bool do_map = true ) { params.do_map = do_map; }
+    void set_params( bool do_map = false , bool imm_L = false , bool imm_R = false ) {
+      params.do_map = do_map;
+      params.imm_L  = imm_L; 
+      params.imm_R  = imm_R;
+    }
+
+    // Don't allow the stencil that doesn't contain the left interface to dominate
+    YAKL_INLINE static void imm_L_alter( real &TV_1 , real &TV_2 ) {
+      TV_2 = std::max(TV_1,TV_2);
+    }
+
+    // Don't allow the stencil that doesn't contain the right interface to dominate
+    YAKL_INLINE static void imm_R_alter( real &TV_1 , real &TV_2 ) {
+      TV_1 = std::max(TV_1,TV_2);
+    }
 
     YAKL_INLINE static void compute_limited_edges( SArray<real,1,3> const &s         ,
                                                    real                   &qL        ,
@@ -133,6 +147,8 @@ namespace limiter {
       real TV_L = TransformMatrices::coefs_to_tv( coefs_L );
       real TV_R = TransformMatrices::coefs_to_tv( coefs_R );
       convexify( TV_L , TV_R );
+      if (params_in.imm_L) { imm_L_alter(TV_L,TV_R); }
+      if (params_in.imm_R) { imm_R_alter(TV_L,TV_R); }
       // Left evaluation
       {
         real i_L = 2._fp/3._fp;
@@ -370,11 +386,25 @@ namespace limiter {
 
 
   template <> struct WenoLimiter<7> {
-    struct Params { bool do_map; };
+    struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
     typedef SArray<real,1,4> Weights;
 
-    void set_params( bool do_map = true ) { params.do_map = do_map; }
+    void set_params( bool do_map = false , bool imm_L = false , bool imm_R = false ) {
+      params.do_map = do_map;
+      params.imm_L  = imm_L; 
+      params.imm_R  = imm_R;
+    }
+
+    // Don't allow the stencil that doesn't contain the left interface to dominate
+    YAKL_INLINE static void imm_L_alter( real &TV_1 , real &TV_2 , real &TV_3 , real &TV_4 ) {
+      TV_4 = std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4);
+    }
+
+    // Don't allow the stencil that doesn't contain the right interface to dominate
+    YAKL_INLINE static void imm_R_alter( real &TV_1 , real &TV_2 , real &TV_3 , real &TV_4 ) {
+      TV_1 = std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4);
+    }
 
     YAKL_INLINE static void compute_limited_edges( SArray<real,1,7> const &s         ,
                                                    real                   &qL        ,
@@ -391,6 +421,8 @@ namespace limiter {
       real TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
       real TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
       convexify( TV_1 , TV_2 , TV_3 , TV_4 );
+      if (params_in.imm_L) { imm_L_alter(TV_1,TV_2,TV_3,TV_4); }
+      if (params_in.imm_R) { imm_R_alter(TV_1,TV_2,TV_3,TV_4); }
       // Left evaluation
       {
         real i_1 = 4._fp /35._fp;
@@ -403,10 +435,10 @@ namespace limiter {
         real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
         convexify( w_1 , w_2 , w_3 , w_4 );
         if (params_in.do_map) {
-          map( w_1 , i_1 );
-          map( w_2 , i_2 );
-          map( w_3 , i_3 );
-          map( w_4 , i_4 );
+          map_rs( w_1 , i_1 );
+          map_rs( w_2 , i_2 );
+          map_rs( w_3 , i_3 );
+          map_rs( w_4 , i_4 );
           convexify( w_1 , w_2 , w_3 , w_4 );
         }
         qL = 0.08333333333333333333_fp*(s(0)-5*s(1)+13*s(2)+3*s(3))*w_1-0.08333333333333333333_fp*(s(1)-7*s(2)-7*s(3)+s(4))*w_2+0.08333333333333333333_fp*(3*s(2)+13*s(3)-5*s(4)+s(5))*w_3+0.08333333333333333333_fp*(25*s(3)-23*s(4)+13*s(5)-3*s(6))*w_4;
@@ -423,10 +455,10 @@ namespace limiter {
         real w_4 = i_4 / (TV_4*TV_4 + 1.e-20_fp);
         convexify( w_1 , w_2 , w_3 , w_4 );
         if (params_in.do_map) {
-          map( w_1 , i_1 );
-          map( w_2 , i_2 );
-          map( w_3 , i_3 );
-          map( w_4 , i_4 );
+          map_rs( w_1 , i_1 );
+          map_rs( w_2 , i_2 );
+          map_rs( w_3 , i_3 );
+          map_rs( w_4 , i_4 );
           convexify( w_1 , w_2 , w_3 , w_4 );
         }
         qR = -0.08333333333333333333_fp*(3*s(0)-13*s(1)+23*s(2)-25*s(3))*w_1+0.08333333333333333333_fp*(s(1)-5*s(2)+13*s(3)+3*s(4))*w_2-0.08333333333333333333_fp*(s(2)-7*s(3)-7*s(4)+s(5))*w_3+0.08333333333333333333_fp*(3*s(3)+13*s(4)-5*s(5)+s(6))*w_4;
@@ -538,6 +570,8 @@ namespace limiter {
                                                    real                   &qL        ,
                                                    real                   &qR        ,
                                                    Params           const &params_in ) {
+      real mn, scale;
+      normalize( s , mn , scale );
       SArray<float,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
       TransformMatrices::coefs5_shift1( coefs_1 , static_cast<float>(s(0)) , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) );
       TransformMatrices::coefs5_shift2( coefs_2 , static_cast<float>(s(1)) , static_cast<float>(s(2)) , static_cast<float>(s(3)) , static_cast<float>(s(4)) , static_cast<float>(s(5)) );
@@ -567,14 +601,15 @@ namespace limiter {
         float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
-          map_im( w_1 , i_1 );
-          map_im( w_2 , i_2 );
-          map_im( w_3 , i_3 );
-          map_im( w_4 , i_4 );
-          map_im( w_5 , i_5 );
+          map_rs( w_1 , i_1 );
+          map_rs( w_2 , i_2 );
+          map_rs( w_3 , i_3 );
+          map_rs( w_4 , i_4 );
+          map_rs( w_5 , i_5 );
           convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         }
         qL = -0.01666666666666666667_fp*(3*s(0)-17*s(1)+43*s(2)-77*s(3)-12*s(4))*w_1+0.01666666666666666667_fp*(2*s(1)-13*s(2)+47*s(3)+27*s(4)-3*s(5))*w_2-0.01666666666666666667_fp*(3*s(2)-27*s(3)-47*s(4)+13*s(5)-2*s(6))*w_3+0.01666666666666666667_fp*(12*s(3)+77*s(4)-43*s(5)+17*s(6)-3*s(7))*w_4+0.01666666666666666667_fp*(137*s(4)-163*s(5)+137*s(6)-63*s(7)+12*s(8))*w_5;
+        qL = qL*scale + mn;
       }
       // Right evaluation
       {
@@ -590,14 +625,15 @@ namespace limiter {
         float w_5 = i_5 / (TV_5*TV_5 + 1.e-20f);
         convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         if (params_in.do_map) {
-          map_im( w_1 , i_1 );
-          map_im( w_2 , i_2 );
-          map_im( w_3 , i_3 );
-          map_im( w_4 , i_4 );
-          map_im( w_5 , i_5 );
+          map_rs( w_1 , i_1 );
+          map_rs( w_2 , i_2 );
+          map_rs( w_3 , i_3 );
+          map_rs( w_4 , i_4 );
+          map_rs( w_5 , i_5 );
           convexify( w_1 , w_2 , w_3 , w_4 , w_5 );
         }
         qR = 0.01666666666666666667_fp*(12*s(0)-63*s(1)+137*s(2)-163*s(3)+137*s(4))*w_1-0.01666666666666666667_fp*(3*s(1)-17*s(2)+43*s(3)-77*s(4)-12*s(5))*w_2+0.01666666666666666667_fp*(2*s(2)-13*s(3)+47*s(4)+27*s(5)-3*s(6))*w_3-0.01666666666666666667_fp*(3*s(3)-27*s(4)-47*s(5)+13*s(6)-2*s(7))*w_4+0.01666666666666666667_fp*(12*s(4)+77*s(5)-43*s(6)+17*s(7)-3*s(8))*w_5;
+        qR = qR*scale + mn;
       }
     }
 

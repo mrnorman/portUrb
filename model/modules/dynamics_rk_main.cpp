@@ -264,45 +264,45 @@ namespace modules {
     auto &dm             = coupler.get_data_manager_readonly();
     auto hy_dens_cells   = dm.get<real const,1>("hy_dens_cells" );
     auto hy_theta_cells  = dm.get<real const,1>("hy_theta_cells");
-    auto surface_temp    = dm.get<real const,2>("surface_temp"  );
+    auto surface_temp    = dm.get<real const,2>("surface_temp");
 
     // z-direction BC's
     if (bc_z == "solid_wall") {
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
-        state(idR,kk,j,i) = hy_dens_cells (kk);
-        state(idT,kk,j,i) = surface_temp(j,i) == 0 ? hy_theta_cells(kk) : surface_temp(j,i);
-        state(idU,kk,j,i) = state(idU,hs+0,j,i);
-        state(idV,kk,j,i) = state(idV,hs+0,j,i);
-        pressure( kk,j,i) = pressure (hs+0,j,i);
-        state(idW,kk,j,i) = 0;
-        state(idR,hs+nz+kk,j,i) = hy_dens_cells (hs+nz+kk);
-        state(idT,hs+nz+kk,j,i) = hy_theta_cells(hs+nz+kk);
-        state(idU,hs+nz+kk,j,i) = state(idU,hs+nz-1,j,i);
-        state(idV,hs+nz+kk,j,i) = state(idV,hs+nz-1,j,i);
-        pressure( hs+nz+kk,j,i) = pressure (hs+nz-1,j,i);
-        state(idW,hs+nz+kk,j,i) = 0;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
+        state(idR,kk,hs+j,hs+i) = hy_dens_cells (kk);
+        state(idT,kk,hs+j,hs+i) = surface_temp(j,i) == 0 ? hy_theta_cells(kk) : surface_temp(j,i);
+        state(idU,kk,hs+j,hs+i) = state(idU,hs+0,hs+j,hs+i);
+        state(idV,kk,hs+j,hs+i) = state(idV,hs+0,hs+j,hs+i);
+        pressure( kk,hs+j,hs+i) = pressure (hs+0,hs+j,hs+i);
+        state(idW,kk,hs+j,hs+i) = 0;
+        state(idR,hs+nz+kk,hs+j,hs+i) = hy_dens_cells (hs+nz+kk);
+        state(idT,hs+nz+kk,hs+j,hs+i) = hy_theta_cells(hs+nz+kk);
+        state(idU,hs+nz+kk,hs+j,hs+i) = state(idU,hs+nz-1,hs+j,hs+i);
+        state(idV,hs+nz+kk,hs+j,hs+i) = state(idV,hs+nz-1,hs+j,hs+i);
+        pressure( hs+nz+kk,hs+j,hs+i) = pressure (hs+nz-1,hs+j,hs+i);
+        state(idW,hs+nz+kk,hs+j,hs+i) = 0;
         for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i) = 0;
-          tracers(l,hs+nz+kk,j,i) = 0;
+          tracers(l,      kk,hs+j,hs+i) = 0;
+          tracers(l,hs+nz+kk,hs+j,hs+i) = 0;
         }
       });
     } else if (bc_z == "periodic") {
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
-        state(idR,      kk,j,i) = state(idR,nz+kk,j,i);
-        state(idU,      kk,j,i) = state(idU,nz+kk,j,i);
-        state(idV,      kk,j,i) = state(idV,nz+kk,j,i);
-        state(idW,      kk,j,i) = state(idW,nz+kk,j,i);
-        state(idT,      kk,j,i) = state(idT,nz+kk,j,i);
-        pressure(       kk,j,i) = pressure( nz+kk,j,i);
-        state(idR,hs+nz+kk,j,i) = state(idR,hs+kk,j,i);
-        state(idU,hs+nz+kk,j,i) = state(idU,hs+kk,j,i);
-        state(idV,hs+nz+kk,j,i) = state(idV,hs+kk,j,i);
-        state(idW,hs+nz+kk,j,i) = state(idW,hs+kk,j,i);
-        state(idT,hs+nz+kk,j,i) = state(idT,hs+kk,j,i);
-        pressure( hs+nz+kk,j,i) = pressure( hs+kk,j,i);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
+        state(idR,      kk,hs+j,hs+i) = state(idR,nz+kk,hs+j,hs+i);
+        state(idU,      kk,hs+j,hs+i) = state(idU,nz+kk,hs+j,hs+i);
+        state(idV,      kk,hs+j,hs+i) = state(idV,nz+kk,hs+j,hs+i);
+        state(idW,      kk,hs+j,hs+i) = state(idW,nz+kk,hs+j,hs+i);
+        state(idT,      kk,hs+j,hs+i) = state(idT,nz+kk,hs+j,hs+i);
+        pressure(       kk,hs+j,hs+i) = pressure( nz+kk,hs+j,hs+i);
+        state(idR,hs+nz+kk,hs+j,hs+i) = state(idR,hs+kk,hs+j,hs+i);
+        state(idU,hs+nz+kk,hs+j,hs+i) = state(idU,hs+kk,hs+j,hs+i);
+        state(idV,hs+nz+kk,hs+j,hs+i) = state(idV,hs+kk,hs+j,hs+i);
+        state(idW,hs+nz+kk,hs+j,hs+i) = state(idW,hs+kk,hs+j,hs+i);
+        state(idT,hs+nz+kk,hs+j,hs+i) = state(idT,hs+kk,hs+j,hs+i);
+        pressure( hs+nz+kk,hs+j,hs+i) = pressure( hs+kk,hs+j,hs+i);
         for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i) = tracers(l,nz+kk,j,i);
-          tracers(l,hs+nz+kk,j,i) = tracers(l,hs+kk,j,i);
+          tracers(l,      kk,hs+j,hs+i) = tracers(l,nz+kk,hs+j,hs+i);
+          tracers(l,hs+nz+kk,hs+j,hs+i) = tracers(l,hs+kk,hs+j,hs+i);
         }
       });
     } else {

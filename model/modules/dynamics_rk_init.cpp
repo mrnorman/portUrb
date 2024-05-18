@@ -115,30 +115,116 @@ namespace modules {
         dm.register_and_allocate<real>("dycore_immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs},
                                        {"z_halod","y_halod","x_halod"});
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
-          fields_halos(0,      kk,j,i) = 0;
-          fields_halos(0,hs+nz+kk,j,i) = 0;
+          fields_halos(0,      kk,j,i) = 1;
+          fields_halos(0,hs+nz+kk,j,i) = 1;
         });
         fields_halos.get_field(0).deep_copy_to( dm.get<real,3>("dycore_immersed_proportion_halos") );
 
-        int hsnew = ord;
-        dm.register_and_allocate<bool>("dycore_any_immersed","",{nz,ny,nx},{"z","y","x"});
-        auto any_immersed = dm.get<bool,3>("dycore_any_immersed");
-        auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                          YAKL_LAMBDA (int kk, int j, int i) {
-          fields_halos(0,         kk,j,i) = 0;
-          fields_halos(0,hsnew+nz+kk,j,i) = 0;
-        });
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          any_immersed(k,j,i) = false;
-          for (int kk=0; kk < hsnew*2+1; kk++) {
-            for (int jj=0; jj < hsnew*2+1; jj++) {
-              for (int ii=0; ii < hsnew*2+1; ii++) {
-                if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+        {
+          int hsnew = 2;
+          dm.register_and_allocate<bool>("dycore_any_immersed2","",{nz,ny,nx},{"z","y","x"});
+          auto any_immersed = dm.get<bool,3>("dycore_any_immersed2");
+          auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                            YAKL_LAMBDA (int kk, int j, int i) {
+            fields_halos_larger(0,         kk,j,i) = 0;
+            fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
+          });
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            any_immersed(k,j,i) = false;
+            for (int kk=0; kk < hsnew*2+1; kk++) {
+              for (int jj=0; jj < hsnew*2+1; jj++) {
+                for (int ii=0; ii < hsnew*2+1; ii++) {
+                  if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                }
               }
             }
-          }
-        });
+          });
+        }
+        {
+          int hsnew = 4;
+          dm.register_and_allocate<bool>("dycore_any_immersed4","",{nz,ny,nx},{"z","y","x"});
+          auto any_immersed = dm.get<bool,3>("dycore_any_immersed4");
+          auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                            YAKL_LAMBDA (int kk, int j, int i) {
+            fields_halos_larger(0,         kk,j,i) = 0;
+            fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
+          });
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            any_immersed(k,j,i) = false;
+            for (int kk=0; kk < hsnew*2+1; kk++) {
+              for (int jj=0; jj < hsnew*2+1; jj++) {
+                for (int ii=0; ii < hsnew*2+1; ii++) {
+                  if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                }
+              }
+            }
+          });
+        }
+        {
+          int hsnew = 6;
+          dm.register_and_allocate<bool>("dycore_any_immersed6","",{nz,ny,nx},{"z","y","x"});
+          auto any_immersed = dm.get<bool,3>("dycore_any_immersed6");
+          auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                            YAKL_LAMBDA (int kk, int j, int i) {
+            fields_halos_larger(0,         kk,j,i) = 0;
+            fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
+          });
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            any_immersed(k,j,i) = false;
+            for (int kk=0; kk < hsnew*2+1; kk++) {
+              for (int jj=0; jj < hsnew*2+1; jj++) {
+                for (int ii=0; ii < hsnew*2+1; ii++) {
+                  if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                }
+              }
+            }
+          });
+        }
+        {
+          int hsnew = 8;
+          dm.register_and_allocate<bool>("dycore_any_immersed8","",{nz,ny,nx},{"z","y","x"});
+          auto any_immersed = dm.get<bool,3>("dycore_any_immersed8");
+          auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                            YAKL_LAMBDA (int kk, int j, int i) {
+            fields_halos_larger(0,         kk,j,i) = 0;
+            fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
+          });
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            any_immersed(k,j,i) = false;
+            for (int kk=0; kk < hsnew*2+1; kk++) {
+              for (int jj=0; jj < hsnew*2+1; jj++) {
+                for (int ii=0; ii < hsnew*2+1; ii++) {
+                  if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                }
+              }
+            }
+          });
+        }
+        {
+          int hsnew = 10;
+          dm.register_and_allocate<bool>("dycore_any_immersed10","",{nz,ny,nx},{"z","y","x"});
+          auto any_immersed = dm.get<bool,3>("dycore_any_immersed10");
+          auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
+                                            YAKL_LAMBDA (int kk, int j, int i) {
+            fields_halos_larger(0,         kk,j,i) = 0;
+            fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
+          });
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            any_immersed(k,j,i) = false;
+            for (int kk=0; kk < hsnew*2+1; kk++) {
+              for (int jj=0; jj < hsnew*2+1; jj++) {
+                for (int ii=0; ii < hsnew*2+1; ii++) {
+                  if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                }
+              }
+            }
+          });
+        }
       }
     };
 

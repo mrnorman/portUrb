@@ -70,121 +70,139 @@ namespace modules {
 
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
       if (j < ny && k < nz) {
-        bool imm = immersed(hs+k,hs+j,hs+i-1) > 0 || immersed(hs+k,hs+j,hs+i  ) > 0;
-        // Derivatives valid at interface i-1/2
-        real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1)-state(idU,hs+k-1,hs+j,hs+i-1))/(2*dz) +
-                                (state(idU,hs+k+1,hs+j,hs+i  )-state(idU,hs+k-1,hs+j,hs+i  ))/(2*dz) );
-        real dw_dz = 0.5_fp * ( (state(idW,hs+k+1,hs+j,hs+i-1)-state(idW,hs+k-1,hs+j,hs+i-1))/(2*dz) +
-                                (state(idW,hs+k+1,hs+j,hs+i  )-state(idW,hs+k-1,hs+j,hs+i  ))/(2*dz) );
-        real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1)-state(idT,hs+k-1,hs+j,hs+i-1))/(2*dz) +
-                                (state(idT,hs+k+1,hs+j,hs+i  )-state(idT,hs+k-1,hs+j,hs+i  ))/(2*dz) );
-        real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1)-state(idU,hs+k,hs+j-1,hs+i-1))/(2*dy) +
-                                (state(idU,hs+k,hs+j+1,hs+i  )-state(idU,hs+k,hs+j-1,hs+i  ))/(2*dy) );
-        real dv_dy = 0.5_fp * ( (state(idV,hs+k,hs+j+1,hs+i-1)-state(idV,hs+k,hs+j-1,hs+i-1))/(2*dy) +
-                                (state(idV,hs+k,hs+j+1,hs+i  )-state(idV,hs+k,hs+j-1,hs+i  ))/(2*dy) );
-        real du_dx = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j,hs+i-1))/dx;
-        real dv_dx = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j,hs+i-1))/dx;
-        real dw_dx = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j,hs+i-1))/dx;
-        real dt_dx = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j,hs+i-1))/dx;
-        real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j,hs+i-1))/dx;
-        if (imm) { dv_dx=0; dw_dx=0; dt_dx=0; dK_dx=0; }
-        // Quantities at interface i-1/2
-        real rho  = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1) + state(idR,hs+k,hs+j,hs+i) );
-        real K    = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1) + tke      (hs+k,hs+j,hs+i) );
-        real t    = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1) + state(idT,hs+k,hs+j,hs+i) );
-        real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
-        real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-        real km   = 0.1_fp * ell * std::sqrt(K);
-        real Pr_t = delta / (1+2*ell);
-        real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_x );
-        real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_x );
-        flux_ru_x (k,j,i) = -rho*visc_tot   *(du_dx + du_dx - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
-        flux_rv_x (k,j,i) = -rho*visc_tot   *(dv_dx + du_dy                                  );
-        flux_rw_x (k,j,i) = -rho*visc_tot   *(dw_dx + du_dz                                  );
-        flux_rt_x (k,j,i) = -rho*visc_tot_th*(dt_dx                                          );
-        flux_tke_x(k,j,i) = -rho*visc_tot*2 *(dK_dx                                          );
-        for (int tr=0; tr < num_tracers; tr++) {
-          dt_dx = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j,hs+i-1))/dx;
-          if (imm) { dt_dx=0; }
-          flux_tracers_x(tr,k,j,i) = -rho*visc_tot*dt_dx;
+        if (immersed(hs+k,hs+j,hs+i-1) == 1 || immersed(hs+k,hs+j,hs+i) == 1) {
+          flux_ru_x (k,j,i) = 0;
+          flux_rv_x (k,j,i) = 0;
+          flux_rw_x (k,j,i) = 0;
+          flux_rt_x (k,j,i) = 0;
+          flux_tke_x(k,j,i) = 0;
+          for (int tr=0; tr < num_tracers; tr++) { flux_tracers_x(tr,k,j,i) = 0; }
+        } else {
+          // Derivatives valid at interface i-1/2
+          real du_dz = 0.5_fp * ( (state(idU,hs+k+1,hs+j,hs+i-1)-state(idU,hs+k-1,hs+j,hs+i-1))/(2*dz) +
+                                  (state(idU,hs+k+1,hs+j,hs+i  )-state(idU,hs+k-1,hs+j,hs+i  ))/(2*dz) );
+          real dw_dz = 0.5_fp * ( (state(idW,hs+k+1,hs+j,hs+i-1)-state(idW,hs+k-1,hs+j,hs+i-1))/(2*dz) +
+                                  (state(idW,hs+k+1,hs+j,hs+i  )-state(idW,hs+k-1,hs+j,hs+i  ))/(2*dz) );
+          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j,hs+i-1)-state(idT,hs+k-1,hs+j,hs+i-1))/(2*dz) +
+                                  (state(idT,hs+k+1,hs+j,hs+i  )-state(idT,hs+k-1,hs+j,hs+i  ))/(2*dz) );
+          real du_dy = 0.5_fp * ( (state(idU,hs+k,hs+j+1,hs+i-1)-state(idU,hs+k,hs+j-1,hs+i-1))/(2*dy) +
+                                  (state(idU,hs+k,hs+j+1,hs+i  )-state(idU,hs+k,hs+j-1,hs+i  ))/(2*dy) );
+          real dv_dy = 0.5_fp * ( (state(idV,hs+k,hs+j+1,hs+i-1)-state(idV,hs+k,hs+j-1,hs+i-1))/(2*dy) +
+                                  (state(idV,hs+k,hs+j+1,hs+i  )-state(idV,hs+k,hs+j-1,hs+i  ))/(2*dy) );
+          real du_dx = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j,hs+i-1))/dx;
+          real dv_dx = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j,hs+i-1))/dx;
+          real dw_dx = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j,hs+i-1))/dx;
+          real dt_dx = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j,hs+i-1))/dx;
+          real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j,hs+i-1))/dx;
+          // Quantities at interface i-1/2
+          real rho  = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1) + state(idR,hs+k,hs+j,hs+i) );
+          real K    = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1) + tke      (hs+k,hs+j,hs+i) );
+          real t    = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1) + state(idT,hs+k,hs+j,hs+i) );
+          real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km   = 0.1_fp * ell * std::sqrt(K);
+          real Pr_t = delta / (1+2*ell);
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_x );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_x );
+          flux_ru_x (k,j,i) = -rho*visc_tot   *(du_dx + du_dx - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
+          flux_rv_x (k,j,i) = -rho*visc_tot   *(dv_dx + du_dy                                  );
+          flux_rw_x (k,j,i) = -rho*visc_tot   *(dw_dx + du_dz                                  );
+          flux_rt_x (k,j,i) = -rho*visc_tot_th*(dt_dx                                          );
+          flux_tke_x(k,j,i) = -rho*visc_tot*2 *(dK_dx                                          );
+          for (int tr=0; tr < num_tracers; tr++) {
+            dt_dx = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j,hs+i-1))/dx;
+            flux_tracers_x(tr,k,j,i) = -rho*visc_tot*dt_dx;
+          }
         }
       }
       if (i < nx && k < nz) {
-        bool imm = immersed(hs+k,hs+j-1,hs+i) > 0 || immersed(hs+k,hs+j  ,hs+i) > 0;
-        // Derivatives valid at interface j-1/2
-        real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i)-state(idV,hs+k-1,hs+j-1,hs+i))/(2*dz) +
-                                (state(idV,hs+k+1,hs+j  ,hs+i)-state(idV,hs+k-1,hs+j  ,hs+i))/(2*dz) );
-        real dw_dz = 0.5_fp * ( (state(idW,hs+k+1,hs+j-1,hs+i)-state(idW,hs+k-1,hs+j-1,hs+i))/(2*dz) +
-                                (state(idW,hs+k+1,hs+j  ,hs+i)-state(idW,hs+k-1,hs+j  ,hs+i))/(2*dz) );
-        real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i)-state(idT,hs+k-1,hs+j-1,hs+i))/(2*dz) +
-                                (state(idT,hs+k+1,hs+j  ,hs+i)-state(idT,hs+k-1,hs+j  ,hs+i))/(2*dz) );
-        real du_dx = 0.5_fp * ( (state(idU,hs+k,hs+j-1,hs+i+1)-state(idU,hs+k,hs+j-1,hs+i-1))/(2*dx) +
-                                (state(idU,hs+k,hs+j  ,hs+i+1)-state(idU,hs+k,hs+j  ,hs+i-1))/(2*dx) );
-        real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1)-state(idV,hs+k,hs+j-1,hs+i-1))/(2*dx) +
-                                (state(idV,hs+k,hs+j  ,hs+i+1)-state(idV,hs+k,hs+j  ,hs+i-1))/(2*dx) );
-        real du_dy = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j-1,hs+i))/dy;
-        real dv_dy = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j-1,hs+i))/dy;
-        real dw_dy = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j-1,hs+i))/dy;
-        real dt_dy = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j-1,hs+i))/dy;
-        real dK_dy = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j-1,hs+i))/dy;
-        if (imm) { du_dy=0; dw_dy=0; dt_dy=0; dK_dy=0; }
-        // Quantities at interface j-1/2
-        real rho  = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i) + state(idR,hs+k,hs+j,hs+i) );
-        real K    = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i) + tke      (hs+k,hs+j,hs+i) );
-        real t    = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i) + state(idT,hs+k,hs+j,hs+i) );
-        real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
-        real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-        real km   = 0.1_fp * ell * std::sqrt(K);
-        real Pr_t = delta / (1+2*ell);
-        real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_y );
-        real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_y );
-        flux_ru_y (k,j,i) = -rho*visc_tot   *(du_dy + dv_dx                                  );
-        flux_rv_y (k,j,i) = -rho*visc_tot   *(dv_dy + dv_dy - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
-        flux_rw_y (k,j,i) = -rho*visc_tot   *(dw_dy + dv_dz                                  );
-        flux_rt_y (k,j,i) = -rho*visc_tot_th*(dt_dy                                          );
-        flux_tke_y(k,j,i) = -rho*visc_tot*2 *(dK_dy                                          );
-        for (int tr=0; tr < num_tracers; tr++) {
-          dt_dy = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j-1,hs+i))/dy;
-          if (imm) { dt_dy=0; }
-          flux_tracers_y(tr,k,j,i) = -rho*visc_tot*dt_dy;
+        if (immersed(hs+k,hs+j-1,hs+i) == 1 || immersed(hs+k,hs+j,hs+i) == 1) {
+          flux_ru_y (k,j,i) = 0;
+          flux_rv_y (k,j,i) = 0;
+          flux_rw_y (k,j,i) = 0;
+          flux_rt_y (k,j,i) = 0;
+          flux_tke_y(k,j,i) = 0;
+          for (int tr=0; tr < num_tracers; tr++) { flux_tracers_y(tr,k,j,i) = 0; }
+        } else {
+          // Derivatives valid at interface j-1/2
+          real dv_dz = 0.5_fp * ( (state(idV,hs+k+1,hs+j-1,hs+i)-state(idV,hs+k-1,hs+j-1,hs+i))/(2*dz) +
+                                  (state(idV,hs+k+1,hs+j  ,hs+i)-state(idV,hs+k-1,hs+j  ,hs+i))/(2*dz) );
+          real dw_dz = 0.5_fp * ( (state(idW,hs+k+1,hs+j-1,hs+i)-state(idW,hs+k-1,hs+j-1,hs+i))/(2*dz) +
+                                  (state(idW,hs+k+1,hs+j  ,hs+i)-state(idW,hs+k-1,hs+j  ,hs+i))/(2*dz) );
+          real dt_dz = 0.5_fp * ( (state(idT,hs+k+1,hs+j-1,hs+i)-state(idT,hs+k-1,hs+j-1,hs+i))/(2*dz) +
+                                  (state(idT,hs+k+1,hs+j  ,hs+i)-state(idT,hs+k-1,hs+j  ,hs+i))/(2*dz) );
+          real du_dx = 0.5_fp * ( (state(idU,hs+k,hs+j-1,hs+i+1)-state(idU,hs+k,hs+j-1,hs+i-1))/(2*dx) +
+                                  (state(idU,hs+k,hs+j  ,hs+i+1)-state(idU,hs+k,hs+j  ,hs+i-1))/(2*dx) );
+          real dv_dx = 0.5_fp * ( (state(idV,hs+k,hs+j-1,hs+i+1)-state(idV,hs+k,hs+j-1,hs+i-1))/(2*dx) +
+                                  (state(idV,hs+k,hs+j  ,hs+i+1)-state(idV,hs+k,hs+j  ,hs+i-1))/(2*dx) );
+          real du_dy = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k,hs+j-1,hs+i))/dy;
+          real dv_dy = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k,hs+j-1,hs+i))/dy;
+          real dw_dy = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k,hs+j-1,hs+i))/dy;
+          real dt_dy = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j-1,hs+i))/dy;
+          real dK_dy = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j-1,hs+i))/dy;
+          // Quantities at interface j-1/2
+          real rho  = 0.5_fp * ( state(idR,hs+k,hs+j-1,hs+i) + state(idR,hs+k,hs+j,hs+i) );
+          real K    = 0.5_fp * ( tke      (hs+k,hs+j-1,hs+i) + tke      (hs+k,hs+j,hs+i) );
+          real t    = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i) + state(idT,hs+k,hs+j,hs+i) );
+          real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km   = 0.1_fp * ell * std::sqrt(K);
+          real Pr_t = delta / (1+2*ell);
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_y );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_y );
+          flux_ru_y (k,j,i) = -rho*visc_tot   *(du_dy + dv_dx                                  );
+          flux_rv_y (k,j,i) = -rho*visc_tot   *(dv_dy + dv_dy - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
+          flux_rw_y (k,j,i) = -rho*visc_tot   *(dw_dy + dv_dz                                  );
+          flux_rt_y (k,j,i) = -rho*visc_tot_th*(dt_dy                                          );
+          flux_tke_y(k,j,i) = -rho*visc_tot*2 *(dK_dy                                          );
+          for (int tr=0; tr < num_tracers; tr++) {
+            dt_dy = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k,hs+j-1,hs+i))/dy;
+            flux_tracers_y(tr,k,j,i) = -rho*visc_tot*dt_dy;
+          }
         }
       }
       if (i < nx && j < ny) {
-        bool imm = immersed(hs+k-1,hs+j,hs+i) > 0 || immersed(hs+k  ,hs+j,hs+i) > 0;
-        // Derivatives valid at interface k-1/2
-        real du_dx = 0.5_fp * ( (state(idU,hs+k-1,hs+j,hs+i+1) - state(idU,hs+k-1,hs+j,hs+i-1))/(2*dx) +
-                                (state(idU,hs+k  ,hs+j,hs+i+1) - state(idU,hs+k  ,hs+j,hs+i-1))/(2*dx) );
-        real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1) - state(idW,hs+k-1,hs+j,hs+i-1))/(2*dx) +
-                                (state(idW,hs+k  ,hs+j,hs+i+1) - state(idW,hs+k  ,hs+j,hs+i-1))/(2*dx) );
-        real dv_dy = 0.5_fp * ( (state(idV,hs+k-1,hs+j+1,hs+i) - state(idV,hs+k-1,hs+j-1,hs+i))/(2*dy) +
-                                (state(idV,hs+k  ,hs+j+1,hs+i) - state(idV,hs+k  ,hs+j-1,hs+i))/(2*dy) );
-        real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i) - state(idW,hs+k-1,hs+j-1,hs+i))/(2*dy) +
-                                (state(idW,hs+k  ,hs+j+1,hs+i) - state(idW,hs+k  ,hs+j-1,hs+i))/(2*dy) );
-        real du_dz = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i))/dz;
-        real dv_dz = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i))/dz;
-        real dw_dz = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i))/dz;
-        real dt_dz = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k-1,hs+j,hs+i))/dz;
-        real dK_dz = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k-1,hs+j,hs+i))/dz;
-        if (imm) { du_dz=0; dv_dz=0; dt_dz=0; dK_dz=0; }
-        // Quantities at interface k-1/2
-        real rho  = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i) + state(idR,hs+k,hs+j,hs+i) );
-        real K    = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i) + tke      (hs+k,hs+j,hs+i) );
-        real t    = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i) + state(idT,hs+k,hs+j,hs+i) );
-        real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
-        real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-        real km   = 0.1_fp * ell * std::sqrt(K);
-        real Pr_t = delta / (1+2*ell);
-        real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_z );
-        real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_z );
-        flux_ru_z (k,j,i) = -rho*visc_tot   *(du_dz + dw_dx                                  );
-        flux_rv_z (k,j,i) = -rho*visc_tot   *(dv_dz + dw_dy                                  );
-        flux_rw_z (k,j,i) = -rho*visc_tot   *(dw_dz + dw_dz - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
-        flux_rt_z (k,j,i) = -rho*visc_tot_th*(dt_dz                                          );
-        flux_tke_z(k,j,i) = -rho*visc_tot*2 *(dK_dz                                          );
-        for (int tr=0; tr < num_tracers; tr++) {
-          dt_dz = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k-1,hs+j,hs+i))/dz;
-          if (imm) { dt_dz=0; }
-          flux_tracers_z(tr,k,j,i) = -rho*visc_tot*dt_dz;
+        if (immersed(hs+k-1,hs+j,hs+i) == 1 || immersed(hs+k,hs+j,hs+i) == 1) {
+          flux_ru_z (k,j,i) = 0;
+          flux_rv_z (k,j,i) = 0;
+          flux_rw_z (k,j,i) = 0;
+          flux_rt_z (k,j,i) = 0;
+          flux_tke_z(k,j,i) = 0;
+          for (int tr=0; tr < num_tracers; tr++) { flux_tracers_z(tr,k,j,i) = 0; }
+        } else {
+          // Derivatives valid at interface k-1/2
+          real du_dx = 0.5_fp * ( (state(idU,hs+k-1,hs+j,hs+i+1) - state(idU,hs+k-1,hs+j,hs+i-1))/(2*dx) +
+                                  (state(idU,hs+k  ,hs+j,hs+i+1) - state(idU,hs+k  ,hs+j,hs+i-1))/(2*dx) );
+          real dw_dx = 0.5_fp * ( (state(idW,hs+k-1,hs+j,hs+i+1) - state(idW,hs+k-1,hs+j,hs+i-1))/(2*dx) +
+                                  (state(idW,hs+k  ,hs+j,hs+i+1) - state(idW,hs+k  ,hs+j,hs+i-1))/(2*dx) );
+          real dv_dy = 0.5_fp * ( (state(idV,hs+k-1,hs+j+1,hs+i) - state(idV,hs+k-1,hs+j-1,hs+i))/(2*dy) +
+                                  (state(idV,hs+k  ,hs+j+1,hs+i) - state(idV,hs+k  ,hs+j-1,hs+i))/(2*dy) );
+          real dw_dy = 0.5_fp * ( (state(idW,hs+k-1,hs+j+1,hs+i) - state(idW,hs+k-1,hs+j-1,hs+i))/(2*dy) +
+                                  (state(idW,hs+k  ,hs+j+1,hs+i) - state(idW,hs+k  ,hs+j-1,hs+i))/(2*dy) );
+          real du_dz = (state(idU,hs+k,hs+j,hs+i) - state(idU,hs+k-1,hs+j,hs+i))/dz;
+          real dv_dz = (state(idV,hs+k,hs+j,hs+i) - state(idV,hs+k-1,hs+j,hs+i))/dz;
+          real dw_dz = (state(idW,hs+k,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i))/dz;
+          real dt_dz = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k-1,hs+j,hs+i))/dz;
+          real dK_dz = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k-1,hs+j,hs+i))/dz;
+          // Quantities at interface k-1/2
+          real rho  = 0.5_fp * ( state(idR,hs+k-1,hs+j,hs+i) + state(idR,hs+k,hs+j,hs+i) );
+          real K    = 0.5_fp * ( tke      (hs+k-1,hs+j,hs+i) + tke      (hs+k,hs+j,hs+i) );
+          real t    = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i) + state(idT,hs+k,hs+j,hs+i) );
+          real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
+          real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+          real km   = 0.1_fp * ell * std::sqrt(K);
+          real Pr_t = delta / (1+2*ell);
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_z );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_z );
+          flux_ru_z (k,j,i) = -rho*visc_tot   *(du_dz + dw_dx                                  );
+          flux_rv_z (k,j,i) = -rho*visc_tot   *(dv_dz + dw_dy                                  );
+          flux_rw_z (k,j,i) = -rho*visc_tot   *(dw_dz + dw_dz - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
+          flux_rt_z (k,j,i) = -rho*visc_tot_th*(dt_dz                                          );
+          flux_tke_z(k,j,i) = -rho*visc_tot*2 *(dK_dz                                          );
+          for (int tr=0; tr < num_tracers; tr++) {
+            dt_dz = (tracers(tr,hs+k,hs+j,hs+i) - tracers(tr,hs+k-1,hs+j,hs+i))/dz;
+            flux_tracers_z(tr,k,j,i) = -rho*visc_tot*dt_dz;
+          }
         }
       }
       if (i < nx && j < ny && k < nz) {
@@ -198,12 +216,12 @@ namespace modules {
         real Pr_t  = delta / (1+2*ell);
         // Compute tke cell-averaged source
         tke_source(k,j,i) = 0;
-        // Buoyancy source
-        if (enable_gravity) tke_source(k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
-        // TKE dissipation
-        tke_source(k,j,i) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
-        // Shear production
-        if (immersed(hs+k,hs+j,hs+i) == 0) {
+        if (immersed(hs+k,hs+j,hs+i) < 1) {
+          // Buoyancy source
+          if (enable_gravity) tke_source(k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
+          // TKE dissipation
+          tke_source(k,j,i) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+          // Shear production
           int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
           int ip1 = immersed(hs+k,hs+j,hs+i+1) > 0 ? i : i+1;
           int jm1 = immersed(hs+k,hs+j-1,hs+i) > 0 ? j : j-1;
@@ -387,35 +405,37 @@ namespace modules {
     auto nproc_x        = coupler.get_nproc_x();
     auto nproc_y        = coupler.get_nproc_y();
     auto &neigh         = coupler.get_neighbor_rankid_matrix();
+    auto &dm            = coupler.get_data_manager_readonly();
     auto grav           = coupler.get_option<real>("grav");
     auto gamma          = coupler.get_option<real>("gamma_d");
     auto C0             = coupler.get_option<real>("C0");
     auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
     auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
+    auto surface_temp   = dm.get<real const,2>("surface_temp_halos");
     if (!enable_gravity) grav = 0;
     // z-direction BC's
     if (bc_z == "solid_wall") {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
                                         YAKL_LAMBDA (int kk, int j, int i) {
-        state(idU,      kk,j,i) = state(idU,hs+0   ,j,i);
-        state(idV,      kk,j,i) = state(idV,hs+0   ,j,i);
+        state(idU,      kk,j,i) = 0; // state(idU,hs+0   ,j,i);
+        state(idV,      kk,j,i) = 0; // state(idV,hs+0   ,j,i);
         state(idW,      kk,j,i) = 0;
-        state(idT,      kk,j,i) = state(idT,hs+0   ,j,i);
+        state(idT,      kk,j,i) = surface_temp(j,i) == 0 ? state(idT,hs+0,j,i) : surface_temp(j,i);
         tke  (          kk,j,i) = 0;
-        state(idU,hs+nz+kk,j,i) = state(idU,hs+nz-1,j,i);
-        state(idV,hs+nz+kk,j,i) = state(idV,hs+nz-1,j,i);
+        state(idU,hs+nz+kk,j,i) = 0; // state(idU,hs+nz-1,j,i);
+        state(idV,hs+nz+kk,j,i) = 0; // state(idV,hs+nz-1,j,i);
         state(idW,hs+nz+kk,j,i) = 0;
         state(idT,hs+nz+kk,j,i) = state(idT,hs+nz-1,j,i);
         tke  (    hs+nz+kk,j,i) = 0;
         for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i) = tracers(l,hs+0   ,j,i);
-          tracers(l,hs+nz+kk,j,i) = tracers(l,hs+nz-1,j,i);
+          tracers(l,      kk,j,i) = 0;
+          tracers(l,hs+nz+kk,j,i) = 0;
         }
         {
           int  k0       = hs;
           int  k        = k0-1-kk;
           real rho0     = state(idR,k0,j,i);
-          real theta0   = state(idT,k0,j,i);
+          real theta0   = surface_temp(j,i) == 0 ? state(idT,k0,j,i) : surface_temp(j,i);
           real rho0_gm1 = std::pow(rho0  ,gamma-1);
           real theta0_g = std::pow(theta0,gamma  );
           state(idR,k,j,i) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,

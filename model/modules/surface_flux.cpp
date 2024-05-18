@@ -59,10 +59,10 @@ namespace modules {
         real T0   = sfc_temp(j,i);                        // Density
         real hf   = sfc_khf (j,i)*cp_d*r;                 // heat flux
         real mag  = std::sqrt(u*u+v*v);                   // transvers velocity magnitude
-        yakl::atomicAdd( tend_u(k,j,i) ,      -c_dz*(u-0 )*mag/dz );
-        yakl::atomicAdd( tend_v(k,j,i) ,      -c_dz*(v-0 )*mag/dz );
-        yakl::atomicAdd( tend_T(k,j,i) , -cp_d*c_dz*(T-T0)*mag/dz );
-        yakl::atomicAdd( tend_T(k,j,i) ,             hf       /dz );
+        yakl::atomicAdd( tend_u(k,j,i) , -c_dz*(u-0 )*mag/dz );
+        yakl::atomicAdd( tend_v(k,j,i) , -c_dz*(v-0 )*mag/dz );
+        yakl::atomicAdd( tend_T(k,j,i) , -c_dz*(T-T0)*mag/dz );
+        yakl::atomicAdd( tend_T(k,j,i) ,        hf       /dz );
       }
     });
 
@@ -85,10 +85,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(u*u+v*v);
-          yakl::atomicAdd( tend_u(k-1,j,i) ,      -c_dz*(u-0 )*mag/dz );
-          yakl::atomicAdd( tend_v(k-1,j,i) ,      -c_dz*(v-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k-1,j,i) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k-1,j,i) ,             hf       /dz );
+          yakl::atomicAdd( tend_u(k-1,j,i) , -c_dz*(u-0 )*mag/dz );
+          yakl::atomicAdd( tend_v(k-1,j,i) , -c_dz*(v-0 )*mag/dz );
+          yakl::atomicAdd( tend_T(k-1,j,i) , -c_dz*(T-T0)*mag/dz );
+          yakl::atomicAdd( tend_T(k-1,j,i) ,        hf       /dz );
         }
         if (i >= 0 && i < nx && j >= 0 && j < ny && k+1 >= 0 && k+1 < nz && imm_prop(hs+k+1,hs+j,hs+i) < 1) {
           real r   = dm_r(k+1,j,i);
@@ -98,10 +98,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(u*u+v*v);
-          yakl::atomicAdd( tend_u(k+1,j,i) ,      -c_dz*(u-0 )*mag/dz );
-          yakl::atomicAdd( tend_v(k+1,j,i) ,      -c_dz*(v-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k+1,j,i) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k+1,j,i) ,             hf       /dz );
+          yakl::atomicAdd( tend_u(k+1,j,i) , -c_dz*(u-0 )*mag/dz );
+          yakl::atomicAdd( tend_v(k+1,j,i) , -c_dz*(v-0 )*mag/dz );
+          yakl::atomicAdd( tend_T(k+1,j,i) , -c_dz*(T-T0)*mag/dz );
+          yakl::atomicAdd( tend_T(k+1,j,i) ,        hf       /dz );
         }
         if (i >= 0 && i < nx && j-1 >= 0 && j-1 < ny && k >= 0 && k < nz && imm_prop(hs+k,hs+j-1,hs+i) < 1) {
           real r   = dm_r(k,j-1,i);
@@ -111,10 +111,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(u*u+w*w);
-          yakl::atomicAdd( tend_u(k,j-1,i) ,      -c_dz*(u-0 )*mag/dz );
-          yakl::atomicAdd( tend_w(k,j-1,i) ,      -c_dz*(w-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k,j-1,i) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k,j-1,i) ,             hf       /dz );
+          yakl::atomicAdd( tend_u(k,j-1,i) , -c_dz*(u-0 )*mag/dy );
+          yakl::atomicAdd( tend_w(k,j-1,i) , -c_dz*(w-0 )*mag/dy );
+          yakl::atomicAdd( tend_T(k,j-1,i) , -c_dz*(T-T0)*mag/dy );
+          yakl::atomicAdd( tend_T(k,j-1,i) ,        hf       /dy );
         }
         if (i >= 0 && i < nx && j+1 >= 0 && j+1 < ny && k >= 0 && k < nz && imm_prop(hs+k,hs+j+1,hs+i) < 1) {
           real r   = dm_r(k,j+1,i);
@@ -124,10 +124,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(u*u+w*w);
-          yakl::atomicAdd( tend_u(k,j+1,i) ,      -c_dz*(u-0 )*mag/dz );
-          yakl::atomicAdd( tend_w(k,j+1,i) ,      -c_dz*(w-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k,j+1,i) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k,j+1,i) ,             hf       /dz );
+          yakl::atomicAdd( tend_u(k,j+1,i) , -c_dz*(u-0 )*mag/dy );
+          yakl::atomicAdd( tend_w(k,j+1,i) , -c_dz*(w-0 )*mag/dy );
+          yakl::atomicAdd( tend_T(k,j+1,i) , -c_dz*(T-T0)*mag/dy );
+          yakl::atomicAdd( tend_T(k,j+1,i) ,        hf       /dy );
         }
         if (i-1 >= 0 && i-1 < nx && j >= 0 && j < ny && k >= 0 && k < nz && imm_prop(hs+k,hs+j,hs+i-1) < 1) {
           real r   = dm_r(k,j,i-1);
@@ -137,10 +137,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(v*v+w*w);
-          yakl::atomicAdd( tend_v(k,j,i-1) ,      -c_dz*(v-0 )*mag/dz );
-          yakl::atomicAdd( tend_w(k,j,i-1) ,      -c_dz*(w-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k,j,i-1) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k,j,i-1) ,             hf       /dz );
+          yakl::atomicAdd( tend_v(k,j,i-1) , -c_dz*(v-0 )*mag/dx );
+          yakl::atomicAdd( tend_w(k,j,i-1) , -c_dz*(w-0 )*mag/dx );
+          yakl::atomicAdd( tend_T(k,j,i-1) , -c_dz*(T-T0)*mag/dx );
+          yakl::atomicAdd( tend_T(k,j,i-1) ,        hf       /dx );
         }
         if (i+1 >= 0 && i+1 < nx && j >= 0 && j < ny && k >= 0 && k < nz && imm_prop(hs+k,hs+j,hs+i+1) < 1) {
           real r   = dm_r(k,j,i+1);
@@ -150,10 +150,10 @@ namespace modules {
           real T0  = imm_temp(hs+k,hs+j,hs+i);  if (T0 == 0) T0 = T;
           real hf  = imm_khf (hs+k,hs+j,hs+i)*cp_d*r;
           real mag = std::sqrt(v*v+w*w);
-          yakl::atomicAdd( tend_v(k,j,i+1) ,      -c_dz*(v-0 )*mag/dz );
-          yakl::atomicAdd( tend_w(k,j,i+1) ,      -c_dz*(w-0 )*mag/dz );
-          yakl::atomicAdd( tend_T(k,j,i+1) , -cp_d*c_dz*(T-T0)*mag/dz );
-          yakl::atomicAdd( tend_T(k,j,i+1) ,             hf       /dz );
+          yakl::atomicAdd( tend_v(k,j,i+1) , -c_dz*(v-0 )*mag/dx );
+          yakl::atomicAdd( tend_w(k,j,i+1) , -c_dz*(w-0 )*mag/dx );
+          yakl::atomicAdd( tend_T(k,j,i+1) , -c_dz*(T-T0)*mag/dx );
+          yakl::atomicAdd( tend_T(k,j,i+1) ,        hf       /dx );
         }
       }
     });

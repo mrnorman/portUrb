@@ -269,13 +269,13 @@ namespace modules {
     // z-direction BC's
     if (bc_z == "solid_wall") {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
-        state(idR,kk,hs+j,hs+i) = 0;
+        state(idR,kk,hs+j,hs+i) = state(idR,hs+0,hs+j,hs+i);
         state(idU,kk,hs+j,hs+i) = state(idU,hs+0,hs+j,hs+i);
         state(idV,kk,hs+j,hs+i) = state(idV,hs+0,hs+j,hs+i);
         state(idW,kk,hs+j,hs+i) = 0;
-        state(idT,kk,hs+j,hs+i) = hy_theta_cells(kk);
+        state(idT,kk,hs+j,hs+i) = state(idT,hs+0,hs+j,hs+i);
         pressure( kk,hs+j,hs+i) = pressure (hs+0,hs+j,hs+i);
-        state(idR,hs+nz+kk,hs+j,hs+i) = hy_dens_cells (hs+nz+kk);
+        state(idR,hs+nz+kk,hs+j,hs+i) = state(idR,hs+nz-1,hs+j,hs+i);
         state(idU,hs+nz+kk,hs+j,hs+i) = state(idU,hs+nz-1,hs+j,hs+i);
         state(idV,hs+nz+kk,hs+j,hs+i) = state(idV,hs+nz-1,hs+j,hs+i);
         state(idW,hs+nz+kk,hs+j,hs+i) = 0;

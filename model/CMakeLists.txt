@@ -19,6 +19,5 @@ add_subdirectory(core     core   )
 add_subdirectory(modules  modules)
 
 add_library(model INTERFACE)
-target_link_libraries(model INTERFACE modules core ponni yaml-cpp)
 target_include_directories(model INTERFACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../external/yaml-cpp/include)
 

@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_rk.h"
+#include "dynamics_rk_acoustic.h"
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "roughness"             , roughness    );
     coupler.set_option<real       >( "wind_angle"            , wind_angle   );
     coupler.set_option<std::string>( "standalone_input_file" , inFile       );
+    coupler.set_option<real       >( "cfl"                   , config["cfl"].as<real>(0.7) );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero

@@ -127,9 +127,9 @@ namespace limiter {
       qR = gll_4(TV_L,TV_R,params_in.do_map,s);
     }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,3> const &s         ,
-                                                   SArray<real,1,4>       &gll       ,
-                                                   Params           const &params_in ) {
+    YAKL_INLINE static void compute_limited_gll( SArray<real,1,3> const &s         ,
+                                                 SArray<real,1,4>       &gll       ,
+                                                 Params           const &params_in ) {
       SArray<real,1,2> coefs_L, coefs_R;
       TransformMatrices::coefs2_shift1( coefs_L , s(0) , s(1) );
       TransformMatrices::coefs2_shift2( coefs_R , s(1) , s(2) );
@@ -244,9 +244,9 @@ namespace limiter {
       qR = gll_4(TV_L,TV_C,TV_R,params_in.do_map,s);
     }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,5> const &s         ,
-                                                   SArray<real,1,4>       &gll       ,
-                                                   Params           const &params_in ) {
+    YAKL_INLINE static void compute_limited_gll( SArray<real,1,5> const &s         ,
+                                                 SArray<real,1,4>       &gll       ,
+                                                 Params           const &params_in ) {
       SArray<real,1,3> coefs_L, coefs_C, coefs_R;
       TransformMatrices::coefs3_shift1( coefs_L , s(0) , s(1) , s(2) );
       TransformMatrices::coefs3_shift2( coefs_C , s(1) , s(2) , s(3) );
@@ -378,9 +378,9 @@ namespace limiter {
       qR = gll_4(TV_1,TV_2,TV_3,TV_4,params_in.do_map,s);
     }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,7> const &s         ,
-                                                   SArray<real,1,4>       &gll       ,
-                                                   Params           const &params_in ) {
+    YAKL_INLINE static void compute_limited_gll( SArray<real,1,7> const &s         ,
+                                                 SArray<real,1,4>       &gll       ,
+                                                 Params           const &params_in ) {
       SArray<real,1,4> coefs_1, coefs_2, coefs_3, coefs_4;
       TransformMatrices::coefs4_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) );
       TransformMatrices::coefs4_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) );
@@ -526,9 +526,9 @@ namespace limiter {
       qR = gll_4(TV_1,TV_2,TV_3,TV_4,TV_5,params_in.do_map,s);
     }
 
-    YAKL_INLINE static void compute_limited_edges( SArray<real,1,9>       &s         ,
-                                                   SArray<real,1,4>       &gll       ,
-                                                   Params           const &params_in ) {
+    YAKL_INLINE static void compute_limited_gll( SArray<real,1,9>       &s         ,
+                                                 SArray<real,1,4>       &gll       ,
+                                                 Params           const &params_in ) {
       SArray<real,1,5> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5;
       TransformMatrices::coefs5_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) , s(4) );
       TransformMatrices::coefs5_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) );

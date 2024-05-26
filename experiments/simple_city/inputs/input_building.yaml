@@ -44,3 +44,5 @@ geostrophic_lat: 33.5
 
 dyn_cycle: 1
 
+cfl: 0.9
+

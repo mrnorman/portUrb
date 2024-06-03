@@ -24,7 +24,7 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 100.
+out_freq: 10.
 
 inform_freq: 10.
 
@@ -44,5 +44,5 @@ geostrophic_lat: 33.5
 
 dyn_cycle: 1
 
-cfl: 0.9
+cfl: 0.4
 

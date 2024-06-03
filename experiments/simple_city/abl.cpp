@@ -1,6 +1,6 @@
 
 #include "coupler.h"
-#include "dynamics_rk_acoustic.h"
+#include "dynamics_rk_jacobian.h"
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
@@ -69,10 +69,10 @@ int main(int argc, char** argv) {
     coupler.set_grid( xlen , ylen , zlen );
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
-    modules::Dynamics_Euler_Stratified_WenoFV  dycore;
-    custom_modules::Time_Averager              time_averager;
-    modules::LES_Closure                       les_closure;
-    modules::ColumnNudger                      column_nudger;
+    modules::Dynamics_Euler_Stratified_Jacobian   dycore;
+    custom_modules::Time_Averager                 time_averager;
+    modules::LES_Closure                          les_closure;
+    modules::ColumnNudger                         column_nudger;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);

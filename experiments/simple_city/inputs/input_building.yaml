@@ -6,9 +6,9 @@ sim_time: 7200.  # 86400
 # nx_glob: 500
 # ny_glob: 250
 # nz     : 125
-nx_glob: 200
-ny_glob: 200
-nz     : 100
+nx_glob: 50
+ny_glob: 50
+nz     : 25
 
 # Domain size of the CRMs
 xlen: 2000
@@ -26,7 +26,7 @@ dt_phys: 0.
 # Output frequency in seconds
 out_freq: 10.
 
-inform_freq: 10.
+inform_freq: 1.
 
 latitude: 0.
 
@@ -44,5 +44,7 @@ geostrophic_lat: 33.5
 
 dyn_cycle: 1
 
-cfl: 0.4
+cfl: 12
+
+acoustic_cycles: 20
 

@@ -13,8 +13,8 @@ namespace modules {
   struct Dynamics_Euler_Stratified_Jacobian {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     // 9th-order
-    yakl::index_t static constexpr ord  = 9;
-    yakl::index_t static constexpr ngll = 9;
+    yakl::index_t static constexpr ord  = 5;
+    yakl::index_t static constexpr ngll = 5;
     // // 7th-order
     // yakl::index_t static constexpr ord  = 7;
     // yakl::index_t static constexpr ngll = 5;
@@ -174,6 +174,7 @@ namespace modules {
           if (tracer_positive(l)) tracers_tmp(l,hs+k,hs+j,hs+i) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i) );
         }
       });
+      enforce_immersed_boundaries( coupler , state_tmp , tracers_tmp , dt_dyn/2 );
       //////////////
       // Stage 2
       //////////////
@@ -194,6 +195,7 @@ namespace modules {
           if (tracer_positive(l))  tracers_tmp(l,hs+k,hs+j,hs+i) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i) );
         }
       });
+      enforce_immersed_boundaries( coupler , state_tmp , tracers_tmp , dt_dyn/2 );
       //////////////
       // Stage 3
       //////////////
@@ -236,34 +238,30 @@ namespace modules {
       #endif
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto num_tracers = coupler.get_num_tracers();
       auto nx          = coupler.get_nx();
       auto ny          = coupler.get_ny();
       auto nz          = coupler.get_nz();
       auto &dm         = coupler.get_data_manager_readonly();
       auto tracer_positive = dm.get<bool const,1>("tracer_positive");
-      // SSPRK3 requires temporary arrays to hold intermediate state and tracers arrays
       real4d state_tmp   ("state_tmp"   ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);
-      real4d tracers_tmp ("tracers_tmp" ,num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
-      // To hold tendencies
       real4d state_tend  ("state_tend"  ,num_state  ,nz     ,ny     ,nx     );
-      real4d tracers_tend("tracers_tend",num_tracers,nz     ,ny     ,nx     );
 
-      enforce_immersed_boundaries( coupler , state , tracers , dt_dyn/2 );
+      enforce_immersed_boundaries( coupler , state , real4d() , dt_dyn/2 );
 
       //////////////
       // Stage 1
       //////////////
-      compute_tendencies_acoust(coupler,state,state_tend,tracers,tracers_tend,dt_dyn);
+      compute_tendencies_acoust(coupler,state,state_tend,dt_dyn);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         state_tmp  (l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i) + dt_dyn * state_tend  (l,k,j,i);
       });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn/2 );
       //////////////
       // Stage 2
       //////////////
-      compute_tendencies_acoust(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,dt_dyn/4.);
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,dt_dyn/4.);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -271,10 +269,11 @@ namespace modules {
                                         (1._fp/4._fp) * state_tmp  (l,hs+k,hs+j,hs+i) +
                                         (1._fp/4._fp) * dt_dyn * state_tend  (l,k,j,i);
       });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn/2 );
       //////////////
       // Stage 3
       //////////////
-      compute_tendencies_acoust(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,2.*dt_dyn/3.);
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,2.*dt_dyn/3.);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -283,7 +282,7 @@ namespace modules {
                                     (2._fp/3._fp) * dt_dyn * state_tend  (l,k,j,i);
       });
 
-      enforce_immersed_boundaries( coupler , state , tracers , dt_dyn/2 );
+      enforce_immersed_boundaries( coupler , state , real4d() , dt_dyn/2 );
       #ifdef YAKL_AUTO_PROFILE
         coupler.get_parallel_comm().barrier();
         yakl::timer_stop("time_step_rk_3_3_acoust");
@@ -346,10 +345,12 @@ namespace modules {
           var = var + (target - var)*mult;
         }
         // Tracers
-        for (int tr=0; tr < num_tracers; tr++) {
-          auto &var = tracers(tr,hs+k,hs+j,hs+i);
-          real  target = 0;
-          var = var + (target - var)*mult;
+        if (tracers.initialized()) {
+          for (int tr=0; tr < num_tracers; tr++) {
+            auto &var = tracers(tr,hs+k,hs+j,hs+i);
+            real  target = 0;
+            var = var + (target - var)*mult;
+          }
         }
       });
       #ifdef YAKL_AUTO_PROFILE
@@ -697,8 +698,6 @@ namespace modules {
     void compute_tendencies_acoust( core::Coupler       & coupler      ,
                                     real4d        const & state        ,
                                     real4d        const & state_tend   ,
-                                    real4d        const & tracers      ,
-                                    real4d        const & tracers_tend ,
                                     real                  dt           ) const {
       #ifdef YAKL_AUTO_PROFILE
         coupler.get_parallel_comm().barrier();
@@ -718,12 +717,11 @@ namespace modules {
       auto grav              = coupler.get_option<real>("grav"   );  // Gravity
       auto gamma             = coupler.get_option<real>("gamma_d");  // cp_dry / cv_dry (about 1.4)
       auto latitude          = coupler.get_option<real>("latitude",0); // For coriolis
-      auto num_tracers       = coupler.get_num_tracers();            // Number of tracers
-      auto &dm               = coupler.get_data_manager_readonly();  // Grab read-only data manager
-      auto tracer_positive   = dm.get<bool const,1>("tracer_positive"      ); // Is a tracer positive-definite?
+      auto &dm               = coupler.get_data_manager_readonly();
       auto immersed_prop     = dm.get<real const,3>("dycore_immersed_proportion_halos"); // Immersed Proportion
       auto any_immersed      = dm.get<bool const,3>("dycore_any_immersed10"); // Are any immersed in 3-D halo?
       auto hy_dens_cells     = dm.get<real const,1>("hy_dens_cells");
+      auto hy_dens_edges     = dm.get<real const,1>("hy_dens_edges");
       auto hy_pressure_cells = dm.get<real const,1>("hy_pressure_cells");
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
@@ -732,47 +730,35 @@ namespace modules {
       real r_dz = 1./dz; // reciprocal of grid spacing
       real fcor = 2*7.2921e-5*std::sin(latitude/180*M_PI);      // For coriolis: 2*Omega*sin(latitude)
 
-      yakl::SArray<real,2,ord,ngll> s2g;
       yakl::SArray<real,2,ord,2   > s2e;
-      yakl::SArray<real,2,ord,ngll> s2d2g;
-      yakl::SArray<real,1,ngll> gll_pts, gll_wts;
       using yakl::intrinsics::matmul_cr;
-
       {
         yakl::SArray<real,2,ord,ord > s2c;
-        yakl::SArray<real,2,ord,ord > c2d;
-        yakl::SArray<real,2,ord,ngll> c2g;
         yakl::SArray<real,2,ord,2   > c2e;
         TransformMatrices::sten_to_coefs     (s2c);
-        TransformMatrices::coefs_to_deriv    (c2d);
-        TransformMatrices::coefs_to_gll_lower(c2g);
         TransformMatrices::coefs_to_gll_lower(c2e);
-        s2g   = matmul_cr( c2g , s2c );
-        s2e   = matmul_cr( c2e , s2c );
-        s2d2g = matmul_cr( c2g , matmul_cr( c2d , s2c ) );
-        TransformMatrices::get_gll_points ( gll_pts );
-        TransformMatrices::get_gll_weights( gll_wts );
+        s2e = matmul_cr( c2e , s2c );
       }
 
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
       {
-        core::MultiField<real,3> fields;
-        for (int l=0; l < num_state  ; l++) { fields.add_field( state  .slice<3>(l,0,0,0) ); }
-        for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<3>(l,0,0,0) ); }
-        if (ord > 1) coupler.halo_exchange( fields , hs );
-        halo_boundary_conditions( coupler , state , tracers );
+        core::MultiField<real,3> fields_x, fields_y;
+        fields_x.add_field( state.slice<3>(idU,0,0,0) );
+        fields_x.add_field( state.slice<3>(idP,0,0,0) );
+        if (ord > 1) coupler.halo_exchange_x( fields_x , hs );
+        fields_y.add_field( state.slice<3>(idV,0,0,0) );
+        fields_y.add_field( state.slice<3>(idP,0,0,0) );
+        if (ord > 1) coupler.halo_exchange_y( fields_y , hs );
+        halo_boundary_conditions_acoust( coupler , state );
       }
 
       // Create arrays to hold cell interface interpolations
-      real5d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1); state_limits_x   = 0;
-      real5d state_limits_y   ("state_limits_y"   ,2,num_state  ,nz,ny+1,nx); state_limits_y   = 0;
-      real5d state_limits_z   ("state_limits_z"   ,2,num_state  ,nz+1,ny,nx); state_limits_z   = 0;
-      real5d tracers_limits_x ("tracers_limits_x" ,2,num_tracers,nz,ny,nx+1); tracers_limits_x = 0;
-      real5d tracers_limits_y ("tracers_limits_y" ,2,num_tracers,nz,ny+1,nx); tracers_limits_y = 0;
-      real5d tracers_limits_z ("tracers_limits_z" ,2,num_tracers,nz+1,ny,nx); tracers_limits_z = 0;
-
-      state_tend   = 0;
-      tracers_tend = 0;
+      real4d u_limits_x("u_limits_x",2,nz,ny,nx+1);
+      real4d p_limits_x("p_limits_x",2,nz,ny,nx+1);
+      real4d v_limits_y("v_limits_y",2,nz,ny+1,nx);
+      real4d p_limits_y("p_limits_y",2,nz,ny+1,nx);
+      real4d w_limits_z("w_limits_z",2,nz+1,ny,nx);
+      real4d p_limits_z("p_limits_z",2,nz+1,ny,nx);
 
       real constexpr cs   = 350.;
       real constexpr cs2  = cs*cs;
@@ -780,237 +766,129 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        // ADVECTIVE
-        {
-          SArray<real,1,ord > stencil;
-          // u-velocity
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii); }
-          auto u_vals = matmul_cr( s2g , stencil );
-          // immersed
-          SArray<bool,1,ord> immersed;
-          for (int ii=0; ii<ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0;}
-          // State
-          for (int l=0; l < num_state; l++) {
-            // Gather stencil
-            for (int ii=0; ii < ord; ii++) { stencil(ii) = state(l,hs+k,hs+j,i+ii); }
-            if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-            // Store interface values for wave propagation
-            auto val = matmul_cr( s2e , stencil );
-            state_limits_x(1,l,k,j,i  ) = val(0);
-            state_limits_x(0,l,k,j,i+1) = val(1);
-          }
-        }
-        // ACOUSTIC
-        {
-          SArray<real,1,ord > stencil;
-          // density
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idR,hs+k,hs+j,i+ii); }
-          auto r_vals = matmul_cr( s2g , stencil );
-          // u-velocity derivatives
-          for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii); }
-          auto der = matmul_cr( s2d2g , stencil );
-          // density tendency
-          real tend = 0;
-          for (int ii=0; ii < ngll; ii++) { tend += -r_vals(ii)    *der(ii)/dx*gll_wts(ii); }
-          state_tend(idR,k,j,i) += tend;
-          // pressure tendency
-          tend = 0;
-          for (int ii=0; ii < ngll; ii++) { tend += -r_vals(ii)*cs2*der(ii)/dx*gll_wts(ii); }
-          state_tend(idP,k,j,i) += tend;
-          // pressure derivatives
-          SArray<bool,1,ord> immersed;
-          for (int ii=0; ii < ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0; }
-          for (int ii=0; ii < ord; ii++) { stencil (ii) = state    (idP,hs+k,hs+j,i+ii)    ; }
-          modify_stencil_immersed_der0( stencil , immersed );
-          der = matmul_cr( s2d2g , stencil );
-          // u-velocity tendency
-          tend = 0;
-          for (int ii=0; ii < ngll; ii++) { tend += -der(ii)/r_vals(ii)/dx*gll_wts(ii); }
-          state_tend(idU,k,j,i) += tend;
-        }
+        SArray<bool,1,ord > immersed;
+        for (int ii=0; ii < ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0; }
+        SArray<real,1,ord > stencil;
+        // u-vel
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii); }
+        auto val = matmul_cr( s2e , stencil );
+        u_limits_x(1,k,j,i  ) = val(0);
+        u_limits_x(0,k,j,i+1) = val(1);
+        state_tend(idR,k,j,i) = -hy_dens_cells(hs+k)*(val(1)-val(0))/dx;
+        state_tend(idP,k,j,i) = -hy_dens_cells(hs+k)*(val(1)-val(0))/dx*cs2;
+        // pressure
+        for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idP,hs+k,hs+j,i+ii); }
+        modify_stencil_immersed_der0( stencil , immersed );
+        val = matmul_cr( s2e , stencil );
+        p_limits_x(1,k,j,i  ) = val(0);
+        p_limits_x(0,k,j,i+1) = val(1);
+        state_tend(idU,k,j,i) = -(val(1)-val(0))/dx/hy_dens_cells(hs+k);
       });
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        // ADVECTION
-        {
-          SArray<real,1,ord > stencil;
-          // v-velocity
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i); }
-          auto v_vals = matmul_cr( s2g , stencil );
-          // immersed
-          SArray<bool,1,ord> immersed;
-          for (int jj=0; jj<ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0;}
-          // State
-          for (int l=0; l < num_state; l++) {
-            // Gather stencil
-            for (int jj=0; jj < ord; jj++) { stencil(jj) = state(l,hs+k,j+jj,hs+i); }
-            if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-            // Store interface values for wave propagation
-            auto val = matmul_cr( s2e , stencil );
-            state_limits_y(1,l,k,j  ,i) = val(0);
-            state_limits_y(0,l,k,j+1,i) = val(1);
-          }
-        }
-        // ACOUSTIC
-        {
-          SArray<real,1,ord > stencil;
-          // density
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idR,hs+k,j+jj,hs+i); }
-          auto r_vals = matmul_cr( s2g , stencil );
-          // v-velocity derivatives
-          for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i); }
-          auto der = matmul_cr( s2d2g , stencil );
-          // density tendency
-          real tend = 0;
-          for (int jj=0; jj < ngll; jj++) { tend += -r_vals(jj)    *der(jj)/dy*gll_wts(jj); }
-          state_tend(idR,k,j,i) += tend;
-          // pressure tendency
-          tend = 0;
-          for (int jj=0; jj < ngll; jj++) { tend += -r_vals(jj)*cs2*der(jj)/dy*gll_wts(jj); }
-          state_tend(idP,k,j,i) += tend;
-          // pressure derivatives
-          SArray<bool,1,ord> immersed;
-          for (int jj=0; jj < ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0; }
-          for (int jj=0; jj < ord; jj++) { stencil (jj) = state    (idP,hs+k,j+jj,hs+i)    ; }
-          modify_stencil_immersed_der0( stencil , immersed );
-          der = matmul_cr( s2d2g , stencil );
-          // v-velocity tendency
-          tend = 0;
-          for (int jj=0; jj < ngll; jj++) { tend += -der(jj)/r_vals(jj)/dy*gll_wts(jj); }
-          state_tend(idV,k,j,i) += tend;
-        }
+        SArray<bool,1,ord > immersed;
+        for (int jj=0; jj < ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0; }
+        SArray<real,1,ord > stencil;
+        // v-vel
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i); }
+        auto val = matmul_cr( s2e , stencil );
+        v_limits_y(1,k,j  ,i) = val(0);
+        v_limits_y(0,k,j+1,i) = val(1);
+        state_tend(idR,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dy;
+        state_tend(idP,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dy*cs2;
+        // pressure
+        for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idP,hs+k,j+jj,hs+i); }
+        modify_stencil_immersed_der0( stencil , immersed );
+        val = matmul_cr( s2e , stencil );
+        p_limits_y(1,k,j  ,i) = val(0);
+        p_limits_y(0,k,j+1,i) = val(1);
+        state_tend(idV,k,j,i) = -(val(1)-val(0))/dy/hy_dens_cells(hs+k);
       });
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        // ADVECTIVE
-        {
-          SArray<real,1,ord > stencil;
-          // w-velocity
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i); }
-          auto w_vals = matmul_cr( s2g , stencil );
-          // immersed
-          SArray<bool,1,ord> immersed;
-          for (int kk=0; kk<ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0;}
-          // State
-          for (int l=0; l < num_state; l++) {
-            // Gather stencil
-            for (int kk=0; kk < ord; kk++) { stencil(kk) = state(l,k+kk,hs+j,hs+i); }
-            if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-            // Store interface values for wave propagation
-            auto val = matmul_cr( s2e , stencil );
-            state_limits_z(1,l,k  ,j,i) = val(0);
-            state_limits_z(0,l,k+1,j,i) = val(1);
-          }
-        }
-        // ACOUSTIC
-        {
-          SArray<real,1,ord > stencil;
-          // density
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idR,k+kk,hs+j,hs+i); }
-          auto r_vals = matmul_cr( s2g , stencil );
-          // w-velocity derivatives
-          for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i); }
-          auto der = matmul_cr( s2d2g , stencil );
-          // density tendency
-          real tend = 0;
-          for (int kk=0; kk < ngll; kk++) { tend += -r_vals(kk)    *der(kk)/dz*gll_wts(kk); }
-          state_tend(idR,k,j,i) += tend;
-          // pressure tendency
-          tend = 0;
-          for (int kk=0; kk < ngll; kk++) { tend += -r_vals(kk)*cs2*der(kk)/dz*gll_wts(kk); }
-          state_tend(idP,k,j,i) += tend;
-          // pressure derivatives
-          SArray<bool,1,ord> immersed;
-          for (int kk=0; kk < ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0; }
-          for (int kk=0; kk < ord; kk++) { stencil (kk) = state    (idP,k+kk,hs+j,hs+i)    ; }
-          modify_stencil_immersed_der0( stencil , immersed );
-          der = matmul_cr( s2d2g , stencil );
-          // w-velocity tendency
-          tend = 0;
-          for (int kk=0; kk < ngll; kk++) { tend += -der(kk)/r_vals(kk)/dz*gll_wts(kk); }
-          state_tend(idW,k,j,i) += tend;
-        }
+        SArray<bool,1,ord > immersed;
+        for (int kk=0; kk < ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0; }
+        SArray<real,1,ord > stencil;
+        // w-vel
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i); }
+        auto val = matmul_cr( s2e , stencil );
+        w_limits_z(1,k  ,j,i) = val(0);
+        w_limits_z(0,k+1,j,i) = val(1);
+        state_tend(idR,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dz;
+        state_tend(idP,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dz*cs2;
+        // pressure
+        for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idP,k+kk,hs+j,hs+i); }
+        modify_stencil_immersed_der0( stencil , immersed );
+        val = matmul_cr( s2e , stencil );
+        p_limits_z(1,k  ,j,i) = val(0);
+        p_limits_z(0,k+1,j,i) = val(1);
+        state_tend(idW,k,j,i) = -(val(1)-val(0))/dz/hy_dens_cells(hs+k);
       });
 
       // Perform periodic horizontal exchange of cell-edge data, and implement vertical boundary conditions
-      edge_exchange( coupler , state_limits_x , tracers_limits_x ,
-                               state_limits_y , tracers_limits_y ,
-                               state_limits_z , tracers_limits_z );
+      edge_exchange_acoust( coupler , u_limits_x , p_limits_x ,
+                                      v_limits_y , p_limits_y ,
+                                      w_limits_z , p_limits_z );
 
-      // To save on space, slice the limits arrays to store single-valued interface fluxes
-      real5d state_prop_x  ("state_prop_x  ",2,num_state  ,nz  ,ny  ,nx+1);
-      real5d state_prop_y  ("state_prop_y  ",2,num_state  ,nz  ,ny+1,nx  );
-      real5d state_prop_z  ("state_prop_z  ",2,num_state  ,nz+1,ny  ,nx  );
-
-      // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
-      // Speed of sound and its reciprocal. Using a constant speed of sound for upwinding
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
         if (j < ny && k < nz) {
           // Acoustic
           {
-            real r  = 0.5_fp * ( state_limits_x(0,idR,k,j,i) + state_limits_x(1,idR,k,j,i) );
-            real du = (state_limits_x(1,idU,k,j,i) - state_limits_x(0,idU,k,j,i));
-            real dp = (state_limits_x(1,idP,k,j,i) - state_limits_x(0,idP,k,j,i));
-            state_prop_x(0,idR,k,j,i) = 0.5_fp*( du*r     - dp/cs);
-            state_prop_x(0,idU,k,j,i) = 0.5_fp*(-du*cs    + dp/r );
-            state_prop_x(0,idV,k,j,i) = 0;
-            state_prop_x(0,idW,k,j,i) = 0;
-            state_prop_x(0,idP,k,j,i) = 0.5_fp*( du*r*cs2 - dp*cs);
-            state_prop_x(1,idR,k,j,i) = 0.5_fp*( du*r     + dp/cs);
-            state_prop_x(1,idU,k,j,i) = 0.5_fp*( du*cs    + dp/r );
-            state_prop_x(1,idV,k,j,i) = 0;
-            state_prop_x(1,idW,k,j,i) = 0;
-            state_prop_x(1,idP,k,j,i) = 0.5_fp*( du*r*cs2 + dp*cs);
+            real r  = hy_dens_cells(hs+k);
+            real du = u_limits_x(1,k,j,i) - u_limits_x(0,k,j,i);
+            real dp = p_limits_x(1,k,j,i) - p_limits_x(0,k,j,i);
+            u_limits_x(0,k,j,i) = 0.5_fp*(-du*cs    + dp/r );
+            p_limits_x(0,k,j,i) = 0.5_fp*( du*r*cs2 - dp*cs);
+            u_limits_x(1,k,j,i) = 0.5_fp*( du*cs    + dp/r );
+            p_limits_x(1,k,j,i) = 0.5_fp*( du*r*cs2 + dp*cs);
           }
         }
         if (i < nx && k < nz && !sim2d) {
           // Acoustic
           {
-            real r  = 0.5_fp * ( state_limits_y(0,idR,k,j,i) + state_limits_y(1,idR,k,j,i) );
-            real dv = (state_limits_y(1,idV,k,j,i) - state_limits_y(0,idV,k,j,i));
-            real dp = (state_limits_y(1,idP,k,j,i) - state_limits_y(0,idP,k,j,i));
-            state_prop_y(0,idR,k,j,i) = 0.5_fp*( dv*r     - dp/cs);
-            state_prop_y(0,idU,k,j,i) = 0;
-            state_prop_y(0,idV,k,j,i) = 0.5_fp*(-dv*cs    + dp/r );
-            state_prop_y(0,idW,k,j,i) = 0;
-            state_prop_y(0,idP,k,j,i) = 0.5_fp*( dv*r*cs2 - dp*cs);
-            state_prop_y(1,idR,k,j,i) = 0.5_fp*( dv*r     + dp/cs);
-            state_prop_y(1,idU,k,j,i) = 0;
-            state_prop_y(1,idV,k,j,i) = 0.5_fp*( dv*cs    + dp/r );
-            state_prop_y(1,idW,k,j,i) = 0;
-            state_prop_y(1,idP,k,j,i) = 0.5_fp*( dv*r*cs2 + dp*cs);
+            real r  = hy_dens_cells(hs+k);
+            real dv = v_limits_y(1,k,j,i) - v_limits_y(0,k,j,i);
+            real dp = p_limits_y(1,k,j,i) - p_limits_y(0,k,j,i);
+            v_limits_y(0,k,j,i) = 0.5_fp*(-dv*cs    + dp/r );
+            p_limits_y(0,k,j,i) = 0.5_fp*( dv*r*cs2 - dp*cs);
+            v_limits_y(1,k,j,i) = 0.5_fp*( dv*cs    + dp/r );
+            p_limits_y(1,k,j,i) = 0.5_fp*( dv*r*cs2 + dp*cs);
           }
         }
         if (i < nx && j < ny) {
           // Acoustic
           {
-            real r  = 0.5_fp * ( state_limits_z(0,idR,k,j,i) + state_limits_z(1,idR,k,j,i) );
-            real dw = (state_limits_z(1,idW,k,j,i) - state_limits_z(0,idW,k,j,i));
-            real dp = (state_limits_z(1,idP,k,j,i) - state_limits_z(0,idP,k,j,i));
-            state_prop_z(0,idR,k,j,i) = 0.5_fp*( dw*r     - dp/cs);
-            state_prop_z(0,idU,k,j,i) = 0;
-            state_prop_z(0,idV,k,j,i) = 0;
-            state_prop_z(0,idW,k,j,i) = 0.5_fp*(-dw*cs    + dp/r );
-            state_prop_z(0,idP,k,j,i) = 0.5_fp*( dw*r*cs2 - dp*cs);
-            state_prop_z(1,idR,k,j,i) = 0.5_fp*( dw*r     + dp/cs);
-            state_prop_z(1,idU,k,j,i) = 0;
-            state_prop_z(1,idV,k,j,i) = 0;
-            state_prop_z(1,idW,k,j,i) = 0.5_fp*( dw*cs    + dp/r );
-            state_prop_z(1,idP,k,j,i) = 0.5_fp*( dw*r*cs2 + dp*cs);
+            real r  = hy_dens_edges(k);
+            real dw = w_limits_z(1,k,j,i) - w_limits_z(0,k,j,i);
+            real dp = p_limits_z(1,k,j,i) - p_limits_z(0,k,j,i);
+            w_limits_z(0,k,j,i) = 0.5_fp*(-dw*cs    + dp/r );
+            p_limits_z(0,k,j,i) = 0.5_fp*( dw*r*cs2 - dp*cs);
+            w_limits_z(1,k,j,i) = 0.5_fp*( dw*cs    + dp/r );
+            p_limits_z(1,k,j,i) = 0.5_fp*( dw*r*cs2 + dp*cs);
           }
         }
       });
 
       // Compute tendencies as the flux divergence + gravity source term + coriolis
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
-        state_tend  (l,k,j,i) += -( state_prop_x(0,l,k,j,i+1) + state_prop_x(1,l,k,j,i) ) * r_dx
-                                 -( state_prop_y(0,l,k,j+1,i) + state_prop_y(1,l,k,j,i) ) * r_dy
-                                 -( state_prop_z(0,l,k+1,j,i) + state_prop_z(1,l,k,j,i) ) * r_dz;
-        if (l == idV && sim2d) state_tend(l,k,j,i) = 0;
-        if (l == idW && enable_gravity) {
-          state_tend(l,k,j,i) += -grav*(state(idR,hs+k,hs+j,hs+i) - hy_dens_cells(hs+k))/state(idR,hs+k,hs+j,hs+i);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        state_tend(idR,k,j,i) += -( p_limits_x(0,k,j,i+1) + p_limits_x(1,k,j,i) ) * r_dx/cs2
+                                 -( p_limits_y(0,k,j+1,i) + p_limits_y(1,k,j,i) ) * r_dy/cs2
+                                 -( p_limits_z(0,k+1,j,i) + p_limits_z(1,k,j,i) ) * r_dz/cs2;
+
+        state_tend(idU,k,j,i) += -( u_limits_x(0,k,j,i+1) + u_limits_x(1,k,j,i) ) * r_dx;
+
+        state_tend(idV,k,j,i) += -( v_limits_y(0,k,j+1,i) + v_limits_y(1,k,j,i) ) * r_dy;
+
+        state_tend(idW,k,j,i) += -( w_limits_z(0,k+1,j,i) + w_limits_z(1,k,j,i) ) * r_dz;
+
+        state_tend(idP,k,j,i) += -( p_limits_x(0,k,j,i+1) + p_limits_x(1,k,j,i) ) * r_dx
+                                 -( p_limits_y(0,k,j+1,i) + p_limits_y(1,k,j,i) ) * r_dy
+                                 -( p_limits_z(0,k+1,j,i) + p_limits_z(1,k,j,i) ) * r_dz;
+
+        if (enable_gravity) {
+          state_tend(idW,k,j,i) += -grav*(state(idR,hs+k,hs+j,hs+i) - hy_dens_cells(hs+k))/hy_dens_cells(hs+k);
         }
       });
       #ifdef YAKL_AUTO_PROFILE
@@ -1073,6 +951,51 @@ namespace modules {
             tracers(l,      kk,hs+j,hs+i) = tracers(l,nz+kk,hs+j,hs+i);
             tracers(l,hs+nz+kk,hs+j,hs+i) = tracers(l,hs+kk,hs+j,hs+i);
           }
+        });
+      } else {
+        yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+      }
+      #ifdef YAKL_AUTO_PROFILE
+        coupler.get_parallel_comm().barrier();
+        yakl::timer_stop("halo_boundary_conditions");
+      #endif
+    }
+
+
+
+    void halo_boundary_conditions_acoust( core::Coupler const & coupler ,
+                                          real4d        const & state   ) const {
+      #ifdef YAKL_AUTO_PROFILE
+        coupler.get_parallel_comm().barrier();
+        yakl::timer_start("halo_boundary_conditions");
+      #endif
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto nx                = coupler.get_nx();
+      auto ny                = coupler.get_ny();
+      auto nz                = coupler.get_nz();
+      auto bc_z              = coupler.get_option<std::string>("bc_z","solid_wall");
+      auto &dm               = coupler.get_data_manager_readonly();
+      auto hy_dens_cells     = dm.get<real const,1>("hy_dens_cells");
+
+      // z-direction BC's
+      if (bc_z == "solid_wall") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
+          state(idR,kk,hs+j,hs+i) = hy_dens_cells(kk);
+          state(idW,kk,hs+j,hs+i) = 0;
+          state(idP,kk,hs+j,hs+i) = state(idP,hs+0,hs+j,hs+i);
+          state(idR,hs+nz+kk,hs+j,hs+i) = hy_dens_cells(hs+nz+kk);
+          state(idW,hs+nz+kk,hs+j,hs+i) = 0;
+          state(idP,hs+nz+kk,hs+j,hs+i) = state(idP,hs+nz-1,hs+j,hs+i);
+        });
+      } else if (bc_z == "periodic") {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
+          state(idR,      kk,hs+j,hs+i) = state(idR,nz+kk,hs+j,hs+i);
+          state(idW,      kk,hs+j,hs+i) = state(idW,nz+kk,hs+j,hs+i);
+          state(idP,      kk,hs+j,hs+i) = state(idP,nz+kk,hs+j,hs+i);
+          state(idR,hs+nz+kk,hs+j,hs+i) = state(idR,hs+kk,hs+j,hs+i);
+          state(idW,hs+nz+kk,hs+j,hs+i) = state(idW,hs+kk,hs+j,hs+i);
+          state(idP,hs+nz+kk,hs+j,hs+i) = state(idP,hs+kk,hs+j,hs+i);
         });
       } else {
         yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
@@ -1205,6 +1128,99 @@ namespace modules {
             tracers_limits_z(0,l,0 ,j,i) = tracers_limits_z(0,l,nz,j,i);
             tracers_limits_z(1,l,nz,j,i) = tracers_limits_z(1,l,0 ,j,i);
           }
+        });
+      }
+      #ifdef YAKL_AUTO_PROFILE
+        coupler.get_parallel_comm().barrier();
+        yakl::timer_stop("edge_exchange");
+      #endif
+    }
+
+
+
+    void edge_exchange_acoust( core::Coupler const & coupler    ,
+                               real4d        const & u_limits_x ,
+                               real4d        const & p_limits_x ,
+                               real4d        const & v_limits_y ,
+                               real4d        const & p_limits_y ,
+                               real4d        const & w_limits_z ,
+                               real4d        const & p_limits_z ) const {
+      #ifdef YAKL_AUTO_PROFILE
+        coupler.get_parallel_comm().barrier();
+        yakl::timer_start("edge_exchange");
+      #endif
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto nx             = coupler.get_nx();
+      auto ny             = coupler.get_ny();
+      auto nz             = coupler.get_nz();
+      auto &neigh         = coupler.get_neighbor_rankid_matrix();
+      auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
+      auto &dm            = coupler.get_data_manager_readonly();
+      auto surface_temp   = dm.get<real const,2>("surface_temp"  );
+      int npack = 2;
+
+      // x-exchange
+      {
+        real3d edge_send_buf_W("edge_send_buf_W",npack,nz,ny);
+        real3d edge_send_buf_E("edge_send_buf_E",npack,nz,ny);
+        real3d edge_recv_buf_W("edge_recv_buf_W",npack,nz,ny);
+        real3d edge_recv_buf_E("edge_recv_buf_E",npack,nz,ny);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
+          edge_send_buf_W(0,k,j) = u_limits_x(1,k,j,0 );
+          edge_send_buf_E(0,k,j) = u_limits_x(0,k,j,nx);
+          edge_send_buf_W(1,k,j) = p_limits_x(1,k,j,0 );
+          edge_send_buf_E(1,k,j) = p_limits_x(0,k,j,nx);
+        });
+        coupler.get_parallel_comm().send_receive<real,3>( { {edge_recv_buf_W,neigh(1,0),4} , {edge_recv_buf_E,neigh(1,2),5} } ,
+                                                          { {edge_send_buf_W,neigh(1,0),5} , {edge_send_buf_E,neigh(1,2),4} } );
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
+          u_limits_x(0,k,j,0 ) = edge_recv_buf_W(0,k,j);
+          u_limits_x(1,k,j,nx) = edge_recv_buf_E(0,k,j);
+          p_limits_x(0,k,j,0 ) = edge_recv_buf_W(1,k,j);
+          p_limits_x(1,k,j,nx) = edge_recv_buf_E(1,k,j);
+        });
+      }
+
+      // y-direction exchange
+      {
+        real3d edge_send_buf_S("edge_send_buf_S",npack,nz,nx);
+        real3d edge_send_buf_N("edge_send_buf_N",npack,nz,nx);
+        real3d edge_recv_buf_S("edge_recv_buf_S",npack,nz,nx);
+        real3d edge_recv_buf_N("edge_recv_buf_N",npack,nz,nx);
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
+          edge_send_buf_S(0,k,i) = v_limits_y(1,k,0 ,i);
+          edge_send_buf_N(0,k,i) = v_limits_y(0,k,ny,i);
+          edge_send_buf_S(1,k,i) = p_limits_y(1,k,0 ,i);
+          edge_send_buf_N(1,k,i) = p_limits_y(0,k,ny,i);
+        });
+        coupler.get_parallel_comm().send_receive<real,3>( { {edge_recv_buf_S,neigh(0,1),6} , {edge_recv_buf_N,neigh(2,1),7} } ,
+                                                          { {edge_send_buf_S,neigh(0,1),7} , {edge_send_buf_N,neigh(2,1),6} } );
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
+          v_limits_y(0,k,0 ,i) = edge_recv_buf_S(0,k,i);
+          v_limits_y(1,k,ny,i) = edge_recv_buf_N(0,k,i);
+          p_limits_y(0,k,0 ,i) = edge_recv_buf_S(1,k,i);
+          p_limits_y(1,k,ny,i) = edge_recv_buf_N(1,k,i);
+        });
+      }
+
+      if (bc_z == "solid_wall") {
+        // z-direction BC's
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
+          w_limits_z(0,0 ,j,i) = 0;
+          w_limits_z(1,0 ,j,i) = 0;
+          w_limits_z(0,nz,j,i) = 0;
+          w_limits_z(1,nz,j,i) = 0;
+          p_limits_z(0,0 ,j,i) = p_limits_z(1,0 ,j,i);
+          p_limits_z(1,nz,j,i) = p_limits_z(0,nz,j,i);
+        });
+      } else if (bc_z == "periodic") {
+        // z-direction BC's
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
+          w_limits_z(0,0 ,j,i) = w_limits_z(0,nz,j,i);
+          p_limits_z(0,0 ,j,i) = p_limits_z(0,nz,j,i);
+          w_limits_z(1,nz,j,i) = w_limits_z(1,0 ,j,i);
+          p_limits_z(1,nz,j,i) = p_limits_z(1,0 ,j,i);
         });
       }
       #ifdef YAKL_AUTO_PROFILE

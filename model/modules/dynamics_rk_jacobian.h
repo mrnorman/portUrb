@@ -13,8 +13,8 @@ namespace modules {
   struct Dynamics_Euler_Stratified_Jacobian {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     // 9th-order
-    yakl::index_t static constexpr ord  = 5;
-    yakl::index_t static constexpr ngll = 5;
+    yakl::index_t static constexpr ord  = 9;
+    yakl::index_t static constexpr ngll = 9;
     // // 7th-order
     // yakl::index_t static constexpr ord  = 7;
     // yakl::index_t static constexpr ngll = 5;
@@ -290,6 +290,85 @@ namespace modules {
     }
 
 
+    // CFL 0.45 (Differs from paper, but this is the true value for this high-order FV scheme)
+    // Third-order, three-stage SSPRK method
+    // https://link.springer.com/content/pdf/10.1007/s10915-008-9239-z.pdf
+    void time_step_kgrk_5_3_acoust( core::Coupler & coupler ,
+                                    real4d const  & state   ,
+                                    real4d const  & tracers ,
+                                    real            dt_dyn  ) const {
+       // ! KG 3nd order 5 stage:   CFL=sqrt( 4^2 -1) = 3.87
+       // ! but nonlinearly only 2nd order
+       // ! u1 = u0 + dt/5 RHS(u0)
+       // ! u2 = u0 + dt/5 RHS(u1)
+       // ! u3 = u0 + dt/3 RHS(u2)
+       // ! u4 = u0 + dt/2 RHS(u3)
+       // ! u5 = u0 + dt   RHS(u4)
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto nx          = coupler.get_nx();
+      auto ny          = coupler.get_ny();
+      auto nz          = coupler.get_nz();
+      auto &dm         = coupler.get_data_manager_readonly();
+      auto tracer_positive = dm.get<bool const,1>("tracer_positive");
+      real4d state_tmp   ("state_tmp"   ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);
+      real4d state_tend  ("state_tend"  ,num_state  ,nz     ,ny     ,nx     );
+
+      enforce_immersed_boundaries( coupler , state , real4d() , dt_dyn );
+
+      //////////////
+      // Stage 1
+      //////////////
+      compute_tendencies_acoust(coupler,state,state_tend,dt_dyn/5.);
+      // Apply tendencies
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+        state_tmp(l,hs+k,hs+j,hs+i) = state(l,hs+k,hs+j,hs+i) + dt_dyn/5.*state_tend(l,k,j,i);
+      });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn );
+      //////////////
+      // Stage 2
+      //////////////
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,dt_dyn/5.);
+      // Apply tendencies
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+        state_tmp(l,hs+k,hs+j,hs+i) = state(l,hs+k,hs+j,hs+i) + dt_dyn/5.*state_tend(l,k,j,i);
+      });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn );
+      //////////////
+      // Stage 3
+      //////////////
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,dt_dyn/3.);
+      // Apply tendencies
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+        state_tmp(l,hs+k,hs+j,hs+i) = state(l,hs+k,hs+j,hs+i) + dt_dyn/3.*state_tend(l,k,j,i);
+      });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn );
+      //////////////
+      // Stage 4
+      //////////////
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,dt_dyn/2.);
+      // Apply tendencies
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+        state_tmp(l,hs+k,hs+j,hs+i) = state(l,hs+k,hs+j,hs+i) + dt_dyn/2.*state_tend(l,k,j,i);
+      });
+      enforce_immersed_boundaries( coupler , state_tmp , real4d() , dt_dyn );
+      //////////////
+      // Stage 5
+      //////////////
+      compute_tendencies_acoust(coupler,state_tmp,state_tend,dt_dyn/1.);
+      // Apply tendencies
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+        state    (l,hs+k,hs+j,hs+i) = state(l,hs+k,hs+j,hs+i) + dt_dyn/1.*state_tend(l,k,j,i);
+      });
+      enforce_immersed_boundaries( coupler , state , real4d() , dt_dyn );
+      #ifdef YAKL_AUTO_PROFILE
+        coupler.get_parallel_comm().barrier();
+        yakl::timer_stop("time_step_rk_3_3_acoust");
+      #endif
+    }
+
+
+
     void enforce_immersed_boundaries( core::Coupler const & coupler ,
                                       real4d        const & state   ,
                                       real4d        const & tracers ,
@@ -463,10 +542,6 @@ namespace modules {
 
       state_tend   = 0;
       tracers_tend = 0;
-
-      real constexpr cs   = 350.;
-      real constexpr cs2  = cs*cs;
-      real constexpr r_cs = 1./cs;
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
@@ -692,9 +767,6 @@ namespace modules {
 
 
 
-    // Compute semi-discrete tendencies in x, y, and z directions
-    // Fully split in dimensions, and coupled together inside RK stages
-    // dt is not used at the moment
     void compute_tendencies_acoust( core::Coupler       & coupler      ,
                                     real4d        const & state        ,
                                     real4d        const & state_tend   ,

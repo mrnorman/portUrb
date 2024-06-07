@@ -44,7 +44,7 @@ geostrophic_lat: 33.5
 
 dyn_cycle: 1
 
-cfl: 6
+cfl: 12
 
-acoustic_cycles: 10
+acoustic_cycles: 20
 

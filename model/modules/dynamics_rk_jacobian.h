@@ -14,7 +14,7 @@ namespace modules {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     // 9th-order
     yakl::index_t static constexpr ord  = 9;
-    yakl::index_t static constexpr ngll = 9;
+    yakl::index_t static constexpr ngll = 6;
     // // 7th-order
     // yakl::index_t static constexpr ord  = 7;
     // yakl::index_t static constexpr ngll = 5;
@@ -558,7 +558,7 @@ namespace modules {
           for (int l=0; l < num_state; l++) {
             // Gather stencil
             for (int ii=0; ii < ord; ii++) { stencil(ii) = state(l,hs+k,hs+j,i+ii); }
-            if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
+            if (l == idV || l == idW) modify_stencil_immersed_der0( stencil , immersed );
             // Compute local tendency from derivative
             auto der = matmul_cr( s2d2g , stencil );
             real tend = 0;
@@ -601,7 +601,7 @@ namespace modules {
           for (int l=0; l < num_state; l++) {
             // Gather stencil
             for (int jj=0; jj < ord; jj++) { stencil(jj) = state(l,hs+k,j+jj,hs+i); }
-            if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
+            if (l == idU || l == idW) modify_stencil_immersed_der0( stencil , immersed );
             // Compute local tendency from derivative
             auto der = matmul_cr( s2d2g , stencil );
             real tend = 0;
@@ -644,19 +644,15 @@ namespace modules {
           for (int l=0; l < num_state; l++) {
             // Gather stencil
             for (int kk=0; kk < ord; kk++) { stencil(kk) = state(l,k+kk,hs+j,hs+i); }
-            if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
+            if (l == idP) {
+              for (int kk=0; kk < ord; kk++) { stencil(kk) += hy_pressure_cells(k+kk); }
+            }
+            if (l == idU || l == idV) modify_stencil_immersed_der0( stencil , immersed );
             // Compute local tendency from derivative
             auto der = matmul_cr( s2d2g , stencil );
             real tend = 0;
             for (int kk=0; kk < ngll; kk++) { tend += -w_vals(kk)*der(kk)/dz*gll_wts(kk); }
             state_tend(l,k,j,i) += tend;
-            if (l == idP) {
-              for (int kk=0; kk < ord; kk++) { stencil(kk) = hy_pressure_cells(k+kk); }
-              auto der = matmul_cr( s2d2g , stencil );
-              real tend = 0;
-              for (int kk=0; kk < ngll; kk++) { tend += -w_vals(kk)*der(kk)/dz*gll_wts(kk); }
-              state_tend(l,k,j,i) += tend;
-            }
             // Store interface values for wave propagation
             auto val = matmul_cr( s2e , stencil );
             state_limits_z(1,l,k  ,j,i) = val(0);

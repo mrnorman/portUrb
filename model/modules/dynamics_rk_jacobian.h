@@ -49,49 +49,49 @@ namespace modules {
 
 
 
-    // real compute_time_step( core::Coupler const &coupler ) const {
-    //   auto dx = coupler.get_dx();
-    //   auto dy = coupler.get_dy();
-    //   auto dz = coupler.get_dz();
-    //   real constexpr maxwave = 350 + 100;
-    //   real cfl = coupler.get_option<real>("cfl",0.6);
-    //   return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
-    // }
     real compute_time_step( core::Coupler const &coupler ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
-      auto nx = coupler.get_nx();
-      auto ny = coupler.get_ny();
-      auto nz = coupler.get_nz();
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      auto R_d = coupler.get_option<real>("R_d");
-      auto gamma = coupler.get_option<real>("gamma_d");
-      auto &dm = coupler.get_data_manager_readonly();
-      auto rho_d = dm.get<real const,3>("density_dry");
-      auto uvel  = dm.get<real const,3>("uvel"       );
-      auto vvel  = dm.get<real const,3>("vvel"       );
-      auto wvel  = dm.get<real const,3>("wvel"       );
-      auto temp  = dm.get<real const,3>("temp"       );
-      real3d dt3d("dt3d",nz,ny,nx);
+      real constexpr maxwave = 350 + 50;
       real cfl = coupler.get_option<real>("cfl",0.6);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-        real r = rho_d(k,j,i);
-        real u = uvel (k,j,i);
-        real v = vvel (k,j,i);
-        real w = wvel (k,j,i);
-        real T = temp (k,j,i);
-        real p = r*R_d*T;
-        real cs = std::sqrt(gamma*p/r);
-        real dtx = cfl*dx/(std::abs(u)+cs);
-        real dty = cfl*dy/(std::abs(v)+cs);
-        real dtz = cfl*dz/(std::abs(w)+cs);
-        dt3d(k,j,i) = std::min(std::min(dtx,dty),dtz);
-      });
-      real maxwave = yakl::intrinsics::minval(dt3d);
-      return coupler.get_parallel_comm().all_reduce( maxwave , MPI_MIN );
+      return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
+    // real compute_time_step( core::Coupler const &coupler ) const {
+    //   using yakl::c::parallel_for;
+    //   using yakl::c::SimpleBounds;
+    //   auto nx = coupler.get_nx();
+    //   auto ny = coupler.get_ny();
+    //   auto nz = coupler.get_nz();
+    //   auto dx = coupler.get_dx();
+    //   auto dy = coupler.get_dy();
+    //   auto dz = coupler.get_dz();
+    //   auto R_d = coupler.get_option<real>("R_d");
+    //   auto gamma = coupler.get_option<real>("gamma_d");
+    //   auto &dm = coupler.get_data_manager_readonly();
+    //   auto rho_d = dm.get<real const,3>("density_dry");
+    //   auto uvel  = dm.get<real const,3>("uvel"       );
+    //   auto vvel  = dm.get<real const,3>("vvel"       );
+    //   auto wvel  = dm.get<real const,3>("wvel"       );
+    //   auto temp  = dm.get<real const,3>("temp"       );
+    //   real3d dt3d("dt3d",nz,ny,nx);
+    //   real cfl = coupler.get_option<real>("cfl",0.6);
+    //   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    //     real r = rho_d(k,j,i);
+    //     real u = uvel (k,j,i);
+    //     real v = vvel (k,j,i);
+    //     real w = wvel (k,j,i);
+    //     real T = temp (k,j,i);
+    //     real p = r*R_d*T;
+    //     real cs = std::sqrt(gamma*p/r);
+    //     real dtx = cfl*dx/(std::abs(u)+cs);
+    //     real dty = cfl*dy/(std::abs(v)+cs);
+    //     real dtz = cfl*dz/(std::abs(w)+cs);
+    //     dt3d(k,j,i) = std::min(std::min(dtx,dty),dtz);
+    //   });
+    //   real maxwave = yakl::intrinsics::minval(dt3d);
+    //   return coupler.get_parallel_comm().all_reduce( maxwave , MPI_MIN );
+    // }
 
 
     // Perform a time step
@@ -811,9 +811,11 @@ namespace modules {
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
       {
         core::MultiField<real,3> fields_x, fields_y;
+        fields_x.add_field( state.slice<3>(idR,0,0,0) );
         fields_x.add_field( state.slice<3>(idU,0,0,0) );
         fields_x.add_field( state.slice<3>(idP,0,0,0) );
         if (ord > 1) coupler.halo_exchange_x( fields_x , hs );
+        fields_y.add_field( state.slice<3>(idR,0,0,0) );
         fields_y.add_field( state.slice<3>(idV,0,0,0) );
         fields_y.add_field( state.slice<3>(idP,0,0,0) );
         if (ord > 1) coupler.halo_exchange_y( fields_y , hs );
@@ -834,8 +836,8 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        SArray<bool,1,ord > immersed;
-        for (int ii=0; ii < ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0; }
+        // SArray<bool,1,ord > immersed;
+        // for (int ii=0; ii < ord; ii++) { immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0; }
         SArray<real,1,ord > stencil;
         // u-vel
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idU,hs+k,hs+j,i+ii); }
@@ -846,7 +848,7 @@ namespace modules {
         state_tend(idP,k,j,i) = -hy_dens_cells(hs+k)*(val(1)-val(0))/dx*cs2;
         // pressure
         for (int ii=0; ii < ord; ii++) { stencil(ii) = state(idP,hs+k,hs+j,i+ii); }
-        modify_stencil_immersed_der0( stencil , immersed );
+        // modify_stencil_immersed_der0( stencil , immersed );
         val = matmul_cr( s2e , stencil );
         p_limits_x(1,k,j,i  ) = val(0);
         p_limits_x(0,k,j,i+1) = val(1);
@@ -855,8 +857,8 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        SArray<bool,1,ord > immersed;
-        for (int jj=0; jj < ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0; }
+        // SArray<bool,1,ord > immersed;
+        // for (int jj=0; jj < ord; jj++) { immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0; }
         SArray<real,1,ord > stencil;
         // v-vel
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idV,hs+k,j+jj,hs+i); }
@@ -867,7 +869,7 @@ namespace modules {
         state_tend(idP,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dy*cs2;
         // pressure
         for (int jj=0; jj < ord; jj++) { stencil(jj) = state(idP,hs+k,j+jj,hs+i); }
-        modify_stencil_immersed_der0( stencil , immersed );
+        // modify_stencil_immersed_der0( stencil , immersed );
         val = matmul_cr( s2e , stencil );
         p_limits_y(1,k,j  ,i) = val(0);
         p_limits_y(0,k,j+1,i) = val(1);
@@ -876,8 +878,8 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) ,
                                         YAKL_LAMBDA (int k, int j, int i) {
-        SArray<bool,1,ord > immersed;
-        for (int kk=0; kk < ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0; }
+        // SArray<bool,1,ord > immersed;
+        // for (int kk=0; kk < ord; kk++) { immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0; }
         SArray<real,1,ord > stencil;
         // w-vel
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idW,k+kk,hs+j,hs+i); }
@@ -888,7 +890,7 @@ namespace modules {
         state_tend(idP,k,j,i) += -hy_dens_cells(hs+k)*(val(1)-val(0))/dz*cs2;
         // pressure
         for (int kk=0; kk < ord; kk++) { stencil(kk) = state(idP,k+kk,hs+j,hs+i); }
-        modify_stencil_immersed_der0( stencil , immersed );
+        // modify_stencil_immersed_der0( stencil , immersed );
         val = matmul_cr( s2e , stencil );
         p_limits_z(1,k  ,j,i) = val(0);
         p_limits_z(0,k+1,j,i) = val(1);
@@ -1352,50 +1354,48 @@ namespace modules {
       real4d state  ("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);  state   = 0;
       real4d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);  tracers = 0;
       convert_coupler_to_dynamics( coupler , state , tracers );
-      if (enable_gravity) {
-        parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
-          for (int j = 0; j < ny; j++) {
-            for (int i = 0; i < nx; i++) {
-              hy_r(k) += state(idR,k,hs+j,hs+i);
-              hy_p(k) += state(idP,k,hs+j,hs+i);
-              hy_t(k) += std::pow( state(idP,k,hs+j,hs+i)/C0 , 1._fp/gamma ) / state(idR,k,hs+j,hs+i);
-            }
+      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
+        for (int j = 0; j < ny; j++) {
+          for (int i = 0; i < nx; i++) {
+            hy_r(k) += state(idR,k,hs+j,hs+i);
+            hy_p(k) += state(idP,k,hs+j,hs+i);
+            hy_t(k) += std::pow( state(idP,k,hs+j,hs+i)/C0 , 1._fp/gamma ) / state(idR,k,hs+j,hs+i);
           }
-        });
-        coupler.get_parallel_comm().all_reduce( hy_r , MPI_SUM ).deep_copy_to(hy_r);
-        coupler.get_parallel_comm().all_reduce( hy_t , MPI_SUM ).deep_copy_to(hy_t);
-        coupler.get_parallel_comm().all_reduce( hy_p , MPI_SUM ).deep_copy_to(hy_p);
-        real r_nx_ny = 1./(nx_glob*ny_glob);
-        parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
-          hy_r(k) *= r_nx_ny;
-          hy_t(k) *= r_nx_ny;
-          hy_p(k) *= r_nx_ny;
-        });
-        parallel_for( YAKL_AUTO_LABEL() , hs , YAKL_LAMBDA (int kk) {
-          {
-            int  k0       = hs;
-            int  k        = k0-1-kk;
-            real rho0     = hy_r(k0);
-            real theta0   = hy_t(k0);
-            real rho0_gm1 = std::pow(rho0  ,gamma-1);
-            real theta0_g = std::pow(theta0,gamma  );
-            hy_r(k) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
-            hy_t(k) = theta0;
-            hy_p(k) = C0*std::pow(hy_r(k)*theta0,gamma);
-          }
-          {
-            int  k0       = hs+nz-1;
-            int  k        = k0+1+kk;
-            real rho0     = hy_r(k0);
-            real theta0   = hy_t(k0);
-            real rho0_gm1 = std::pow(rho0  ,gamma-1);
-            real theta0_g = std::pow(theta0,gamma  );
-            hy_r(k) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
-            hy_t(k) = theta0;
-            hy_p(k) = C0*std::pow(hy_r(k)*theta0,gamma);
-          }
-        });
-      }
+        }
+      });
+      coupler.get_parallel_comm().all_reduce( hy_r , MPI_SUM ).deep_copy_to(hy_r);
+      coupler.get_parallel_comm().all_reduce( hy_t , MPI_SUM ).deep_copy_to(hy_t);
+      coupler.get_parallel_comm().all_reduce( hy_p , MPI_SUM ).deep_copy_to(hy_p);
+      real r_nx_ny = 1./(nx_glob*ny_glob);
+      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
+        hy_r(k) *= r_nx_ny;
+        hy_t(k) *= r_nx_ny;
+        hy_p(k) *= r_nx_ny;
+      });
+      parallel_for( YAKL_AUTO_LABEL() , hs , YAKL_LAMBDA (int kk) {
+        {
+          int  k0       = hs;
+          int  k        = k0-1-kk;
+          real rho0     = hy_r(k0);
+          real theta0   = hy_t(k0);
+          real rho0_gm1 = std::pow(rho0  ,gamma-1);
+          real theta0_g = std::pow(theta0,gamma  );
+          hy_r(k) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+          hy_t(k) = theta0;
+          hy_p(k) = C0*std::pow(hy_r(k)*theta0,gamma);
+        }
+        {
+          int  k0       = hs+nz-1;
+          int  k        = k0+1+kk;
+          real rho0     = hy_r(k0);
+          real theta0   = hy_t(k0);
+          real rho0_gm1 = std::pow(rho0  ,gamma-1);
+          real theta0_g = std::pow(theta0,gamma  );
+          hy_r(k) = std::pow( rho0_gm1 - grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) , 1._fp/(gamma-1) );
+          hy_t(k) = theta0;
+          hy_p(k) = C0*std::pow(hy_r(k)*theta0,gamma);
+        }
+      });
 
       auto create_immersed_proportion_halos = [] (core::Coupler &coupler) {
         using yakl::c::parallel_for;
@@ -1586,6 +1586,7 @@ namespace modules {
         nc.create_var<real>( "hy_theta_cells"    , {"z_halo"});
         nc.create_var<real>( "hy_pressure_cells" , {"z_halo"});
         nc.create_var<real>( "theta"             , {"z","y","x"});
+        nc.create_var<real>( "pressure_pert"     , {"z","y","x"});
         nc.enddef();
         nc.begin_indep_data();
         auto &dm = coupler.get_data_manager_readonly();
@@ -1606,6 +1607,10 @@ namespace modules {
           data(k,j,i) = std::pow( p/C0 , 1._fp/gamma ) / r;
         });
         nc.write_all(data,"theta",start_3d);
+        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          data(k,j,i) = state(idP,hs+k,hs+j,hs+i);
+        });
+        nc.write_all(data,"pressure_pert",start_3d);
       } );
       coupler.register_overwrite_with_restart_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         auto &dm = coupler.get_data_manager_readwrite();

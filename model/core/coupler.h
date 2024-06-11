@@ -762,8 +762,8 @@ namespace core {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
-        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
-                                                  { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
+        get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
+                                               { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
                                           YAKL_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
@@ -782,8 +782,8 @@ namespace core {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
-        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
-                                                  { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
+        get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
+                                               { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
                                           YAKL_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,i) = halo_recv_buf_S(v,k,jj,i);
@@ -830,8 +830,8 @@ namespace core {
           halo_send_buf_W(v,j,ii) = fields(v,hs+j,hs+ii);
           halo_send_buf_E(v,j,ii) = fields(v,hs+j,nx+ii);
         });
-        get_parallel_comm().send_receive<real,3>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
-                                                  { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
+        get_parallel_comm().send_receive<T,3>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
+                                               { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,hs) ,
                                           YAKL_LAMBDA (int v, int j, int ii) {
           fields(v,hs+j,      ii) = halo_recv_buf_W(v,j,ii);
@@ -850,8 +850,8 @@ namespace core {
           halo_send_buf_S(v,jj,i) = fields(v,hs+jj,i);
           halo_send_buf_N(v,jj,i) = fields(v,ny+jj,i);
         });
-        get_parallel_comm().send_receive<real,3>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
-                                                  { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
+        get_parallel_comm().send_receive<T,3>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
+                                               { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,hs,nx+2*hs) ,
                                           YAKL_LAMBDA (int v, int jj, int i) {
           fields(v,      jj,i) = halo_recv_buf_S(v,jj,i);
@@ -901,8 +901,8 @@ namespace core {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
-        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
-                                                  { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
+        get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
+                                               { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
                                           YAKL_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
@@ -951,8 +951,8 @@ namespace core {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,hs+i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,hs+i);
         });
-        get_parallel_comm().send_receive<real,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
-                                                  { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
+        get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
+                                               { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx) ,
                                           YAKL_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,hs+i) = halo_recv_buf_S(v,k,jj,i);

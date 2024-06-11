@@ -44,7 +44,9 @@ geostrophic_lat: 33.5
 
 dyn_cycle: 1
 
-cfl: 12
+cfl: 4
 
-acoustic_cycles: 20
+acoustic_cycles: 6
+
+enable_gravity: true
 

@@ -1,6 +1,7 @@
 
 #include "coupler.h"
-#include "dynamics_rk_jacobian.h"
+// #include "dynamics_rk_jacobian.h"
+#include "dynamics_ader.h"
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
@@ -61,6 +62,7 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "standalone_input_file" , inFile       );
     coupler.set_option<real       >( "cfl"                   , config["cfl"].as<real>(0.6) );
     coupler.set_option<int        >( "acoustic_cycles"       , config["acoustic_cycles"].as<int>(1) );
+    coupler.set_option<bool       >( "enable_gravity"        , config["enable_gravity"].as<bool>(true) );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -70,7 +72,8 @@ int main(int argc, char** argv) {
     coupler.set_grid( xlen , ylen , zlen );
 
     // They dynamical core "dycore" integrates the Euler equations and performans transport of tracers
-    modules::Dynamics_Euler_Stratified_Jacobian   dycore;
+    // modules::Dynamics_Euler_Stratified_Jacobian   dycore;
+    modules::Dynamics_Euler_Stratified_WenoFV     dycore;
     custom_modules::Time_Averager                 time_averager;
     modules::LES_Closure                          les_closure;
     modules::ColumnNudger                         column_nudger;

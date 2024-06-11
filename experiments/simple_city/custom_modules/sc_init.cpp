@@ -96,7 +96,7 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_x","periodic");
     coupler.add_option<std::string>("bc_y","periodic");
     coupler.add_option<std::string>("bc_z","solid_wall");
-    coupler.add_option<bool       >("enable_gravity",true);
+    auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
 
     YAML::Node config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
 
@@ -171,12 +171,17 @@ namespace custom_modules {
       real constexpr theta0     = 300;
       real constexpr href       = 100;   // Height of hub / center of windmills
       real constexpr von_karman = 0.40;
-      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
-      realHost1d press_host("press",nz);
-      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
-      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
-      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
-      auto press = press_host.createDeviceCopy();
+      real1d press("press",nz);
+      if (enable_gravity) {
+        real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+        realHost1d press_host("press",nz);
+        press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+        for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+        for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+        press = press_host.createDeviceCopy();
+      } else {
+        press = p0;
+      }
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real p     = press(k);

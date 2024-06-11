@@ -42,7 +42,7 @@ namespace limiter {
 
 
 
-  template <int ord> struct WenoLimiter;
+  template <class real, int ord> struct WenoLimiter;
 
 
 
@@ -83,7 +83,7 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<1> {
+  template <class real> struct WenoLimiter<real,1> {
     struct Params { bool do_map; };
     Params params;
     void set_params( bool do_map = true ) { params.do_map = do_map; }
@@ -99,7 +99,7 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<3> {
+  template <class real> struct WenoLimiter<real,3> {
     real static constexpr eps = static_cast<real>(1.e-20);
     struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
@@ -214,7 +214,7 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<5> {
+  template <class real> struct WenoLimiter<real,5> {
     real static constexpr eps = static_cast<real>(1.e-20);
     struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
@@ -346,7 +346,7 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<7> {
+  template <class real> struct WenoLimiter<real,7> {
     real static constexpr eps = static_cast<real>(1.e-20);
     struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
@@ -493,7 +493,7 @@ namespace limiter {
 
 
 
-  template <> struct WenoLimiter<9> {
+  template <class real> struct WenoLimiter<real,9> {
     struct Params { bool do_map; bool imm_L; bool imm_R; };
     Params params;
 

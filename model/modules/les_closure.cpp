@@ -102,8 +102,8 @@ namespace modules {
           real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km   = 0.1_fp * ell * std::sqrt(K);
           real Pr_t = delta / (1+2*ell);
-          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_x );
-          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_x );
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_x );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_x );
           flux_ru_x (k,j,i) = -rho*visc_tot   *(du_dx + du_dx - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
           flux_rv_x (k,j,i) = -rho*visc_tot   *(dv_dx + du_dy                                  );
           flux_rw_x (k,j,i) = -rho*visc_tot   *(dw_dx + du_dz                                  );
@@ -148,8 +148,8 @@ namespace modules {
           real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km   = 0.1_fp * ell * std::sqrt(K);
           real Pr_t = delta / (1+2*ell);
-          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_y );
-          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_y );
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_y );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_y );
           flux_ru_y (k,j,i) = -rho*visc_tot   *(du_dy + dv_dx                                  );
           flux_rv_y (k,j,i) = -rho*visc_tot   *(dv_dy + dv_dy - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
           flux_rw_y (k,j,i) = -rho*visc_tot   *(dw_dy + dv_dz                                  );
@@ -192,8 +192,8 @@ namespace modules {
           real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
           real km   = 0.1_fp * ell * std::sqrt(K);
           real Pr_t = delta / (1+2*ell);
-          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5*visc_max_z );
-          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5*visc_max_z );
+          real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_z );
+          real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_z );
           flux_ru_z (k,j,i) = -rho*visc_tot   *(du_dz + dw_dx                                  );
           flux_rv_z (k,j,i) = -rho*visc_tot   *(dv_dz + dw_dy                                  );
           flux_rw_z (k,j,i) = -rho*visc_tot   *(dw_dz + dw_dz - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));

@@ -6,7 +6,7 @@ add_library(modules column_nudging.cpp
                     les_closure.cpp
                     hydrostasis.cpp
                     microphysics_kessler.cpp
-                    microphysics_p3.cpp
+                    # microphysics_p3.cpp
                     perturb_temperature.cpp
                     sponge_layer.cpp
                     surface_flux.cpp

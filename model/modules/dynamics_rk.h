@@ -59,8 +59,8 @@ namespace modules {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
-      real constexpr maxwave = 350 + 100;
-      real cfl = 0.70;
+      real constexpr maxwave = 350 + 50;
+      real cfl = coupler.get_option<real>("cfl",0.15);
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
     // real compute_time_step( core::Coupler const &coupler ) const {
@@ -81,7 +81,7 @@ namespace modules {
     //   auto wvel  = dm.get<real const,3>("wvel"       );
     //   auto temp  = dm.get<real const,3>("temp"       );
     //   real3d dt3d("dt3d",nz,ny,nx);
-    //   real cfl = 0.70;
+    //   real cfl = coupler.get_option<real>("cfl",0.15);
     //   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
     //     real r = rho_d(k,j,i);
     //     real u = uvel (k,j,i);
@@ -116,6 +116,7 @@ namespace modules {
       convert_coupler_to_dynamics( coupler , state , tracers );
       real dt_dyn = compute_time_step( coupler );
       int ncycles = (int) std::ceil( dt_phys / dt_dyn );
+      ncycles = 1;
       dt_dyn = dt_phys / ncycles;
       for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
       convert_dynamics_to_coupler( coupler , state , tracers );
@@ -123,6 +124,100 @@ namespace modules {
         yakl::timer_stop("time_step");
       #endif
     }
+
+
+
+    void time_step_sspab3( core::Coupler & coupler ,
+                           real4d const  & state   ,
+                           real4d const  & tracers ,
+                           real            dt_dyn  ) const {
+      #ifdef YAKL_AUTO_PROFILE
+        yakl::timer_start("time_step_sspab3");
+      #endif
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto num_tracers = coupler.get_num_tracers();
+      auto nx          = coupler.get_nx();
+      auto ny          = coupler.get_ny();
+      auto nz          = coupler.get_nz();
+      auto &dm         = coupler.get_data_manager_readwrite();
+      auto tracer_positive = dm.get<bool const,1>("tracer_positive");
+
+      if ( ! dm.entry_exists("state_tend_register") ) {
+        dm.register_and_allocate<real>("state_register"  ,"",{3,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs});
+        dm.register_and_allocate<real>("tracers_register","",{3,num_tracers,nz+2*hs,ny+2*hs,nx+2*hs});
+        dm.register_and_allocate<real>("state_tend_register"  ,"",{3,num_state  ,nz,ny,nx});
+        dm.register_and_allocate<real>("tracers_tend_register","",{3,num_tracers,nz,ny,nx});
+        dm.get<real,5>("state_tend_register"  ) = 0;
+        dm.get<real,5>("tracers_tend_register") = 0;
+        auto state_register   = dm.get<real,5>("state_register"  );
+        auto tracers_register = dm.get<real,5>("tracers_register");
+        state  .deep_copy_to(state_register  .slice<4>(0,0,0,0,0));
+        state  .deep_copy_to(state_register  .slice<4>(1,0,0,0,0));
+        state  .deep_copy_to(state_register  .slice<4>(2,0,0,0,0));
+        tracers.deep_copy_to(tracers_register.slice<4>(0,0,0,0,0));
+        tracers.deep_copy_to(tracers_register.slice<4>(1,0,0,0,0));
+        tracers.deep_copy_to(tracers_register.slice<4>(2,0,0,0,0));
+        coupler.set_option<int>("ab3_current_index",2);
+      }
+      auto state_register        = dm.get<real,5>("state_register"       );
+      auto tracers_register      = dm.get<real,5>("tracers_register"     );
+      auto state_tend_register   = dm.get<real,5>("state_tend_register"  );
+      auto tracers_tend_register = dm.get<real,5>("tracers_tend_register");
+      auto ind_n   = coupler.get_option<int>("ab3_current_index");
+      auto ind_nm1 = ind_n-1;   if (ind_nm1 < 0) ind_nm1 += 3;
+      auto ind_nm2 = ind_n-2;   if (ind_nm2 < 0) ind_nm2 += 3;
+
+      enforce_immersed_boundaries( coupler , state , tracers , dt_dyn );
+
+      auto state_tend_nm2   = state_tend_register  .slice<4>(ind_nm2,0,0,0,0);
+      auto tracers_tend_nm2 = tracers_tend_register.slice<4>(ind_nm2,0,0,0,0);
+      auto state_tend_nm1   = state_tend_register  .slice<4>(ind_nm1,0,0,0,0);
+      auto tracers_tend_nm1 = tracers_tend_register.slice<4>(ind_nm1,0,0,0,0);
+      auto state_tend_n     = state_tend_register  .slice<4>(ind_n  ,0,0,0,0);
+      auto tracers_tend_n   = tracers_tend_register.slice<4>(ind_n  ,0,0,0,0);
+
+      auto state_nm2   = state_register  .slice<4>(ind_nm2,0,0,0,0);
+      auto tracers_nm2 = tracers_register.slice<4>(ind_nm2,0,0,0,0);
+      auto state_nm1   = state_register  .slice<4>(ind_nm1,0,0,0,0);
+      auto tracers_nm1 = tracers_register.slice<4>(ind_nm1,0,0,0,0);
+      auto state_n     = state_register  .slice<4>(ind_n  ,0,0,0,0);
+      auto tracers_n   = tracers_register.slice<4>(ind_n  ,0,0,0,0);
+      state  .deep_copy_to(state_n  );
+      tracers.deep_copy_to(tracers_n);
+
+      compute_tendencies(coupler,state,state_tend_n,tracers,tracers_tend_n,dt_dyn);
+      
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
+                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+        if (l < num_state) {
+          state  (l,hs+k,hs+j,hs+i) =  1.908535476882378 * state_n  (l,hs+k,hs+j,hs+i)      +
+                                      -1.334951446162515 * state_nm1(l,hs+k,hs+j,hs+i)      +
+                                       0.426415969280137 * state_nm2(l,hs+k,hs+j,hs+i)      +
+                                       1.502575553858997 * dt_dyn * state_tend_n  (l,k,j,i) +
+                                      -1.654746338401493 * dt_dyn * state_tend_nm1(l,k,j,i) +
+                                       0.670051276940255 * dt_dyn * state_tend_nm2(l,k,j,i);
+        } else {
+          l -= num_state;
+          tracers(l,hs+k,hs+j,hs+i) =  1.908535476882378 * tracers_n  (l,hs+k,hs+j,hs+i)      +
+                                      -1.334951446162515 * tracers_nm1(l,hs+k,hs+j,hs+i)      +
+                                       0.426415969280137 * tracers_nm2(l,hs+k,hs+j,hs+i)      +
+                                       1.502575553858997 * dt_dyn * tracers_tend_n  (l,k,j,i) +
+                                      -1.654746338401493 * dt_dyn * tracers_tend_nm1(l,k,j,i) +
+                                       0.670051276940255 * dt_dyn * tracers_tend_nm2(l,k,j,i);
+          if (tracer_positive(l)) tracers(l,hs+k,hs+j,hs+i) = std::max( 0._fp , tracers(l,hs+k,hs+j,hs+i) );
+        }
+      });
+
+      ind_n++;   if (ind_n > 2) ind_n -= 3;
+      coupler.set_option<int>("ab3_current_index",ind_n);
+
+      enforce_immersed_boundaries( coupler , state , tracers , dt_dyn );
+      #ifdef YAKL_AUTO_PROFILE
+        yakl::timer_stop("time_step_sspab3");
+      #endif
+    }
+
 
 
     // CFL 0.45 (Differs from paper, but this is the true value for this high-order FV scheme)

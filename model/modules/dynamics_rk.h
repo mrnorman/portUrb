@@ -54,7 +54,6 @@ namespace modules {
 
 
 
-    // Use CFL criterion to determine the time step. Currently hardwired
     real compute_time_step( core::Coupler const &coupler ) const {
       auto dx = coupler.get_dx();
       auto dy = coupler.get_dy();
@@ -116,13 +115,70 @@ namespace modules {
       convert_coupler_to_dynamics( coupler , state , tracers );
       real dt_dyn = compute_time_step( coupler );
       int ncycles = (int) std::ceil( dt_phys / dt_dyn );
-      ncycles = 1;
       dt_dyn = dt_phys / ncycles;
-      for (int icycle = 0; icycle < ncycles; icycle++) { time_step_rk_3_3(coupler,state,tracers,dt_dyn); }
+      // // SSPRK33
+      // SArray<real,2,3,3> ssprk33_A;
+      // SArray<real,1,3> ssprk33_b;
+      // ssprk33_A = 0;
+      // ssprk33_A(1,0) = 1;
+      // ssprk33_A(2,0) = 1./4.;
+      // ssprk33_A(2,1) = 1./4.;
+      // ssprk33_b(0)   = 1./6.;
+      // ssprk33_b(1)   = 1./6.;
+      // ssprk33_b(2)   = 2./3.;
+      for (int icycle = 0; icycle < ncycles; icycle++) {
+        // time_step_generic_rk(coupler,A,b,state,tracers,dt_dyn);
+        time_step_rk_3_3(coupler,state,tracers,dt_dyn);
+      }
       convert_dynamics_to_coupler( coupler , state , tracers );
       #ifdef YAKL_AUTO_PROFILE
         yakl::timer_stop("time_step");
       #endif
+    }
+
+
+
+    template <yakl::index_t N>
+    void time_step_generic_rk( core::Coupler            & coupler ,
+                               SArray<real,2,N,N> const & A       ,
+                               SArray<real,1,N>   const & b       ,
+                               real4d             const & state   ,
+                               real4d             const & tracers ,
+                               real                       dt      ) const {
+      using yakl::c::parallel_for;
+      using yakl::c::SimpleBounds;
+      auto num_tracers = coupler.get_num_tracers();
+      auto nx          = coupler.get_nx();
+      auto ny          = coupler.get_ny();
+      auto nz          = coupler.get_nz();
+      real5d state_rk_tend  ("state_rk_tend"  ,N,num_state  ,nz,ny,nx);
+      real5d tracers_rk_tend("tracers_rk_tend",N,num_tracers,nz,ny,nx);
+      real4d state_tmp  ("state_tmp"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);
+      real4d tracers_tmp("tracers_tmp",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
+      enforce_immersed_boundaries( coupler , state , tracers , dt );
+      for (int is = 0; is < N; is++) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          for (int l=0; l < num_state  ; l++) {
+            state_tmp  (l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i);
+            for (int l2=0; l2 <= is-1; l2++) { state_tmp  (l,hs+k,hs+j,hs+i) += dt*A(is,l2)*state_rk_tend  (l2,l,k,j,i); }
+          }
+          for (int l=0; l < num_tracers; l++) {
+            tracers_tmp(l,hs+k,hs+j,hs+i) = tracers(l,hs+k,hs+j,hs+i);
+            for (int l2=0; l2 <= is-1; l2++) { tracers_tmp(l,hs+k,hs+j,hs+i) += dt*A(is,l2)*tracers_rk_tend(l2,l,k,j,i); }
+          }
+        });
+        auto state_tend   = state_rk_tend  .slice<4>(is,0,0,0,0);
+        auto tracers_tend = tracers_rk_tend.slice<4>(is,0,0,0,0);
+        enforce_immersed_boundaries( coupler , state_tmp , tracers_tmp , dt );
+        compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
+      }
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        for (int is = 0; is < N; is++) {
+          for (int l=0; l < num_state  ; l++) { state  (l,hs+k,hs+j,hs+i) += dt*b(is)*state_rk_tend  (is,l,k,j,i); }
+          for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+i) += dt*b(is)*tracers_rk_tend(is,l,k,j,i); }
+        }
+      });
+      enforce_immersed_boundaries( coupler , state , tracers , dt );
     }
 
 
@@ -186,7 +242,7 @@ namespace modules {
       state  .deep_copy_to(state_n  );
       tracers.deep_copy_to(tracers_n);
 
-      compute_tendencies(coupler,state,state_tend_n,tracers,tracers_tend_n,dt_dyn);
+      compute_tendencies(coupler,state,state_tend_n,tracers,tracers_tend_n);
       
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -220,9 +276,6 @@ namespace modules {
 
 
 
-    // CFL 0.45 (Differs from paper, but this is the true value for this high-order FV scheme)
-    // Third-order, three-stage SSPRK method
-    // https://link.springer.com/content/pdf/10.1007/s10915-008-9239-z.pdf
     void time_step_rk_3_3( core::Coupler & coupler ,
                           real4d const  & state   ,
                           real4d const  & tracers ,
@@ -250,7 +303,7 @@ namespace modules {
       //////////////
       // Stage 1
       //////////////
-      compute_tendencies(coupler,state,state_tend,tracers,tracers_tend,dt_dyn);
+      compute_tendencies(coupler,state,state_tend,tracers,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -259,8 +312,6 @@ namespace modules {
         } else {
           l -= num_state;
           tracers_tmp(l,hs+k,hs+j,hs+i) = tracers(l,hs+k,hs+j,hs+i) + dt_dyn * tracers_tend(l,k,j,i);
-          // Ensure positive tracers stay positive
-          if (tracer_positive(l)) tracers_tmp(l,hs+k,hs+j,hs+i) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i) );
         }
       });
 
@@ -269,7 +320,7 @@ namespace modules {
       //////////////
       // Stage 2
       //////////////
-      compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,dt_dyn/4.);
+      compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -282,8 +333,6 @@ namespace modules {
           tracers_tmp(l,hs+k,hs+j,hs+i) = (3._fp/4._fp) * tracers    (l,hs+k,hs+j,hs+i) + 
                                           (1._fp/4._fp) * tracers_tmp(l,hs+k,hs+j,hs+i) +
                                           (1._fp/4._fp) * dt_dyn * tracers_tend(l,k,j,i);
-          // Ensure positive tracers stay positive
-          if (tracer_positive(l))  tracers_tmp(l,hs+k,hs+j,hs+i) = std::max( 0._fp , tracers_tmp(l,hs+k,hs+j,hs+i) );
         }
       });
 
@@ -292,7 +341,7 @@ namespace modules {
       //////////////
       // Stage 3
       //////////////
-      compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend,2.*dt_dyn/3.);
+      compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -406,15 +455,11 @@ namespace modules {
 
 
 
-    // Compute semi-discrete tendencies in x, y, and z directions
-    // Fully split in dimensions, and coupled together inside RK stages
-    // dt is not used at the moment
     void compute_tendencies( core::Coupler       & coupler      ,
                              real4d        const & state        ,
                              real4d        const & state_tend   ,
                              real4d        const & tracers      ,
-                             real4d        const & tracers_tend ,
-                             real                  dt           ) const {
+                             real4d        const & tracers_tend ) const {
       #ifdef YAKL_AUTO_PROFILE
         yakl::timer_start("compute_tendencies");
       #endif
@@ -478,7 +523,8 @@ namespace modules {
         for (int l=0; l < num_state  ; l++) { fields.add_field( state_loc  .slice<3>(l,0,0,0) ); }
         for (int l=0; l < num_tracers; l++) { fields.add_field( tracers_loc.slice<3>(l,0,0,0) ); }
         fields.add_field( pressure );
-        if (ord > 1) coupler.halo_exchange( fields , hs );
+        if (ord > 1) coupler.halo_exchange_x( fields , hs );
+        if (ord > 1) coupler.halo_exchange_y( fields , hs );
         halo_boundary_conditions( coupler , state_loc , tracers_loc , pressure );
       }
 

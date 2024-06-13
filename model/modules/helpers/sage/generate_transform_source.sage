@@ -4,7 +4,7 @@ load("transformation_matrices.sage")
 load("c_utils.sage")
 
 N1 = 2
-N2 = 9
+N2 = 11
 
 print('#pragma once')
 
@@ -142,7 +142,7 @@ constr = vector([ integrate(p,x,-3/2,-1/2) ,
                   integrate(p,x,-1/2, 1/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',2,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs2_shift2(SArray<FP,1,2> &coefs , FP s0 , FP s1) {')
@@ -153,7 +153,7 @@ constr = vector([ integrate(p,x,-1/2, 1/2) ,
                   integrate(p,x, 1/2, 3/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',2,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs3_shift1(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
@@ -165,7 +165,7 @@ constr = vector([ integrate(p,x,-5/2,-3/2) ,
                   integrate(p,x,-1/2, 1/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs3_shift2(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
@@ -177,7 +177,7 @@ constr = vector([ integrate(p,x,-3/2,-1/2) ,
                   integrate(p,x, 1/2, 3/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs3_shift3(SArray<FP,1,3> &coefs , FP s0 , FP s1, FP s2) {')
@@ -189,7 +189,7 @@ constr = vector([ integrate(p,x,-1/2, 1/2) ,
                   integrate(p,x, 3/2, 5/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',3,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs4_shift1(SArray<FP,1,4> &coefs , FP s0 , FP s1, FP s2, FP s3) {')
@@ -202,7 +202,7 @@ constr = vector([ integrate(p,x,-7/2,-5/2) ,
                   integrate(p,x,-1/2, 1/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',4,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs4_shift2(SArray<FP,1,4> &coefs , FP s0 , FP s1, FP s2, FP s3) {')
@@ -215,7 +215,7 @@ constr = vector([ integrate(p,x,-5/2,-3/2) ,
                   integrate(p,x, 1/2, 3/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',4,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs4_shift3(SArray<FP,1,4> &coefs , FP s0 , FP s1, FP s2, FP s3) {')
@@ -228,7 +228,7 @@ constr = vector([ integrate(p,x,-3/2,-1/2) ,
                   integrate(p,x, 3/2, 5/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',4,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs4_shift4(SArray<FP,1,4> &coefs , FP s0 , FP s1, FP s2, FP s3) {')
@@ -241,7 +241,7 @@ constr = vector([ integrate(p,x,-1/2, 1/2) ,
                   integrate(p,x, 5/2, 7/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',4,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs5_shift1(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
@@ -255,7 +255,7 @@ constr = vector([ integrate(p,x,-9/2,-7/2) ,
                   integrate(p,x,-1/2, 1/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(5,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs5_shift2(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
@@ -269,7 +269,7 @@ constr = vector([ integrate(p,x,-7/2,-5/2) ,
                   integrate(p,x, 1/2, 3/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(5,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs5_shift3(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
@@ -283,7 +283,7 @@ constr = vector([ integrate(p,x,-5/2,-3/2) ,
                   integrate(p,x, 3/2, 5/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(5,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs5_shift4(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
@@ -297,7 +297,7 @@ constr = vector([ integrate(p,x,-3/2,-1/2) ,
                   integrate(p,x, 5/2, 7/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(5,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs5_shift5(SArray<FP,1,5> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4) {')
@@ -311,7 +311,97 @@ constr = vector([ integrate(p,x,-1/2, 1/2) ,
                   integrate(p,x, 7/2, 9/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(5,c_vector('coefs',5,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift1(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-11/2,-9/2) ,
+                  integrate(p,x,-9/2,-7/2) ,
+                  integrate(p,x,-7/2,-5/2) ,
+                  integrate(p,x,-5/2,-3/2) ,
+                  integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift2(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-9/2,-7/2) ,
+                  integrate(p,x,-7/2,-5/2) ,
+                  integrate(p,x,-5/2,-3/2) ,
+                  integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift3(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-7/2,-5/2) ,
+                  integrate(p,x,-5/2,-3/2) ,
+                  integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ,
+                  integrate(p,x, 3/2, 5/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift4(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-5/2,-3/2) ,
+                  integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ,
+                  integrate(p,x, 3/2, 5/2) ,
+                  integrate(p,x, 5/2, 7/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift5(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ,
+                  integrate(p,x, 3/2, 5/2) ,
+                  integrate(p,x, 5/2, 7/2) ,
+                  integrate(p,x, 7/2, 9/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs6_shift6(SArray<FP,1,6> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5) {')
+N=6
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ,
+                  integrate(p,x, 3/2, 5/2) ,
+                  integrate(p,x, 5/2, 7/2) ,
+                  integrate(p,x, 7/2, 9/2) ,
+                  integrate(p,x, 9/2, 11/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs7(SArray<FP,1,7> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5, FP s6) {')
@@ -327,7 +417,7 @@ constr = vector([ integrate(p,x,-7/2,-5/2) ,
                   integrate(p,x, 5/2, 7/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',7,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 print('  template <class FP> YAKL_INLINE void coefs9(SArray<FP,1,9> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5, FP s6, FP s7, FP s8) {')
@@ -345,7 +435,27 @@ constr = vector([ integrate(p,x,-9/2,-7/2) ,
                   integrate(p,x, 7/2, 9/2) ])
 constr_to_coefs = jacobian(constr,coefs)^-1
 coefs = constr_to_coefs*coefs_1d(N,0,'s')
-print(add_spaces(4,c_vector('coefs',9,force_fp(coefs,129),'none')),end="")
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
+print('  }\n');
+
+print('  template <class FP> YAKL_INLINE void coefs11(SArray<FP,1,11> &coefs , FP s0 , FP s1, FP s2, FP s3, FP s4, FP s5, FP s6, FP s7, FP s8, FP s9, FP s10) {')
+N=11
+coefs = coefs_1d(N,0,'a')
+p = poly_1d(N,coefs,x)
+constr = vector([ integrate(p,x,-11/2,-9/2) ,
+                  integrate(p,x,-9/2,-7/2) ,
+                  integrate(p,x,-7/2,-5/2) ,
+                  integrate(p,x,-5/2,-3/2) ,
+                  integrate(p,x,-3/2,-1/2) ,
+                  integrate(p,x,-1/2, 1/2) ,
+                  integrate(p,x, 1/2, 3/2) ,
+                  integrate(p,x, 3/2, 5/2) ,
+                  integrate(p,x, 5/2, 7/2) ,
+                  integrate(p,x, 7/2, 9/2) ,
+                  integrate(p,x, 9/2, 11/2) ])
+constr_to_coefs = jacobian(constr,coefs)^-1
+coefs = constr_to_coefs*coefs_1d(N,0,'s')
+print(add_spaces(4,c_vector('coefs',N,force_fp(coefs,129),'none')),end="")
 print('  }\n');
 
 

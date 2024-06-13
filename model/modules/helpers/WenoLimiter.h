@@ -422,6 +422,106 @@ namespace limiter {
     }
   };
 
+
+
+  template <class real> struct WenoLimiter<real,11> {
+    struct Params { bool do_map; bool imm_L; bool imm_R; };
+    Params params;
+
+    void set_params( bool do_map = false , bool imm_L = false , bool imm_R = false ) {
+      params.do_map = do_map;
+      params.imm_L  = imm_L; 
+      params.imm_R  = imm_R;
+    }
+
+    YAKL_INLINE static void compute_limited_edges( SArray<real,1,11>       &s         ,
+                                                   real                   &qL        ,
+                                                   real                   &qR        ,
+                                                   Params           const &params_in ) {
+      SArray<real,1,6> coefs_1, coefs_2, coefs_3, coefs_4, coefs_5, coefs_6;
+      TransformMatrices::coefs6_shift1( coefs_1 , s(0) , s(1) , s(2) , s(3) , s(4) , s( 5) );
+      TransformMatrices::coefs6_shift2( coefs_2 , s(1) , s(2) , s(3) , s(4) , s(5) , s( 6) );
+      TransformMatrices::coefs6_shift3( coefs_3 , s(2) , s(3) , s(4) , s(5) , s(6) , s( 7) );
+      TransformMatrices::coefs6_shift4( coefs_4 , s(3) , s(4) , s(5) , s(6) , s(7) , s( 8) );
+      TransformMatrices::coefs6_shift5( coefs_5 , s(4) , s(5) , s(6) , s(7) , s(8) , s( 9) );
+      TransformMatrices::coefs6_shift6( coefs_6 , s(5) , s(6) , s(7) , s(8) , s(9) , s(10) );
+      // Compute TV
+      real TV_1 = TransformMatrices::coefs_to_tv( coefs_1 );
+      real TV_2 = TransformMatrices::coefs_to_tv( coefs_2 );
+      real TV_3 = TransformMatrices::coefs_to_tv( coefs_3 );
+      real TV_4 = TransformMatrices::coefs_to_tv( coefs_4 );
+      real TV_5 = TransformMatrices::coefs_to_tv( coefs_5 );
+      real TV_6 = TransformMatrices::coefs_to_tv( coefs_6 );
+      convexify(TV_1,TV_2,TV_3,TV_4,TV_5,TV_6);
+      if (params_in.imm_L) { imm_L_alter(TV_1,TV_2,TV_3,TV_4,TV_5,TV_6); }
+      if (params_in.imm_R) { imm_R_alter(TV_1,TV_2,TV_3,TV_4,TV_5,TV_6); }
+      qL = gll_1(TV_1,TV_2,TV_3,TV_4,TV_5,TV_6,params_in.do_map,s);
+      qR = gll_2(TV_1,TV_2,TV_3,TV_4,TV_5,TV_6,params_in.do_map,s);
+    }
+
+    YAKL_INLINE static real gll_1(real TV_1, real TV_2, real TV_3, real TV_4, real TV_5, real TV_6, bool do_map, SArray<real,1,11> const &s) {
+      real i_1 = static_cast<real>( 0.012987012987012987012987012987012987729);
+      real i_2 = static_cast<real>(  0.16233766233766233766233766233766233499);
+      real i_3 = static_cast<real>(  0.43290043290043290043290043290043289902);
+      real i_4 = static_cast<real>(  0.32467532467532467532467532467532467340);
+      real i_5 = static_cast<real>( 0.064935064935064935064935064935064937333);
+      real i_6 = static_cast<real>(0.0021645021645021645021645021645021643707);
+      real w_1 = i_1 / (TV_1*TV_1 + static_cast<real>(1.e-20));
+      real w_2 = i_2 / (TV_2*TV_2 + static_cast<real>(1.e-20));
+      real w_3 = i_3 / (TV_3*TV_3 + static_cast<real>(1.e-20));
+      real w_4 = i_4 / (TV_4*TV_4 + static_cast<real>(1.e-20));
+      real w_5 = i_5 / (TV_5*TV_5 + static_cast<real>(1.e-20));
+      real w_6 = i_6 / (TV_6*TV_6 + static_cast<real>(1.e-20));
+      convexify( w_1 , w_2 , w_3 , w_4 , w_5 , w_6 );
+      if (do_map) {
+        map_rs( w_1 , i_1 );
+        map_rs( w_2 , i_2 );
+        map_rs( w_3 , i_3 );
+        map_rs( w_4 , i_4 );
+        map_rs( w_5 , i_5 );
+        map_rs( w_6 , i_6 );
+        convexify( w_1 , w_2 , w_3 , w_4 , w_5 , w_6 );
+      }
+      return (static_cast<real>(0.033333333333333333333333333333333333333)*s(0)-static_cast<real>(0.21666666666666666666666666666666666667)*s(1)+static_cast<real>(0.61666666666666666666666666666666666667)*s(2)-static_cast<real>(1.0500000000000000000000000000000000000)*s(3)+static_cast<real>(1.4500000000000000000000000000000000000)*s(4)+static_cast<real>(0.16666666666666666666666666666666666667)*s(5))*w_1+(-static_cast<real>(0.016666666666666666666666666666666666667)*s(1)+static_cast<real>(0.11666666666666666666666666666666666667)*s(2)-static_cast<real>(0.38333333333333333333333333333333333333)*s(3)+static_cast<real>(0.95000000000000000000000000000000000000)*s(4)+static_cast<real>(0.36666666666666666666666666666666666667)*s(5)-static_cast<real>(0.033333333333333333333333333333333333333)*s(6))*w_2+(static_cast<real>(0.016666666666666666666666666666666666667)*s(2)-static_cast<real>(0.13333333333333333333333333333333333333)*s(3)+static_cast<real>(0.61666666666666666666666666666666666667)*s(4)+static_cast<real>(0.61666666666666666666666666666666666667)*s(5)-static_cast<real>(0.13333333333333333333333333333333333333)*s(6)+static_cast<real>(0.016666666666666666666666666666666666667)*s(7))*w_3+(-static_cast<real>(0.033333333333333333333333333333333333333)*s(3)+static_cast<real>(0.36666666666666666666666666666666666667)*s(4)+static_cast<real>(0.95000000000000000000000000000000000000)*s(5)-static_cast<real>(0.38333333333333333333333333333333333333)*s(6)+static_cast<real>(0.11666666666666666666666666666666666667)*s(7)-static_cast<real>(0.016666666666666666666666666666666666667)*s(8))*w_4+(static_cast<real>(0.16666666666666666666666666666666666667)*s(4)+static_cast<real>(1.4500000000000000000000000000000000000)*s(5)-static_cast<real>(1.0500000000000000000000000000000000000)*s(6)+static_cast<real>(0.61666666666666666666666666666666666667)*s(7)-static_cast<real>(0.21666666666666666666666666666666666667)*s(8)+static_cast<real>(0.033333333333333333333333333333333333333)*s(9))*w_5+(-static_cast<real>(0.16666666666666666666666666666666666667)*s(10)+static_cast<real>(2.4500000000000000000000000000000000000)*s(5)-static_cast<real>(3.5500000000000000000000000000000000000)*s(6)+static_cast<real>(3.9500000000000000000000000000000000000)*s(7)-static_cast<real>(2.7166666666666666666666666666666666667)*s(8)+static_cast<real>(1.0333333333333333333333333333333333333)*s(9))*w_6;
+    }
+
+    YAKL_INLINE static real gll_2(real TV_1, real TV_2, real TV_3, real TV_4, real TV_5, real TV_6, bool do_map, SArray<real,1,11> const &s) {
+      real i_1 = static_cast<real>(0.0021645021645021645021645021645021643722);
+      real i_2 = static_cast<real>( 0.064935064935064935064935064935064936585);
+      real i_3 = static_cast<real>(  0.32467532467532467532467532467532466353);
+      real i_4 = static_cast<real>(  0.43290043290043290043290043290043291990);
+      real i_5 = static_cast<real>(  0.16233766233766233766233766233766232663);
+      real i_6 = static_cast<real>( 0.012987012987012987012987012987012988474);
+      real w_1 = i_1 / (TV_1*TV_1 + static_cast<real>(1.e-20));
+      real w_2 = i_2 / (TV_2*TV_2 + static_cast<real>(1.e-20));
+      real w_3 = i_3 / (TV_3*TV_3 + static_cast<real>(1.e-20));
+      real w_4 = i_4 / (TV_4*TV_4 + static_cast<real>(1.e-20));
+      real w_5 = i_5 / (TV_5*TV_5 + static_cast<real>(1.e-20));
+      real w_6 = i_6 / (TV_6*TV_6 + static_cast<real>(1.e-20));
+      convexify( w_1 , w_2 , w_3 , w_4 , w_5 , w_6 );
+      if (do_map) {
+        map_rs( w_1 , i_1 );
+        map_rs( w_2 , i_2 );
+        map_rs( w_3 , i_3 );
+        map_rs( w_4 , i_4 );
+        map_rs( w_5 , i_5 );
+        map_rs( w_6 , i_6 );
+        convexify( w_1 , w_2 , w_3 , w_4 , w_5 , w_6 );
+      }
+      return (-static_cast<real>(0.16666666666666666666666666666666666667)*s(0)+static_cast<real>(1.0333333333333333333333333333333333333)*s(1)-static_cast<real>(2.7166666666666666666666666666666666667)*s(2)+static_cast<real>(3.9500000000000000000000000000000000000)*s(3)-static_cast<real>(3.5500000000000000000000000000000000000)*s(4)+static_cast<real>(2.4500000000000000000000000000000000000)*s(5))*w_1+(static_cast<real>(0.033333333333333333333333333333333333333)*s(1)-static_cast<real>(0.21666666666666666666666666666666666667)*s(2)+static_cast<real>(0.61666666666666666666666666666666666667)*s(3)-static_cast<real>(1.0500000000000000000000000000000000000)*s(4)+static_cast<real>(1.4500000000000000000000000000000000000)*s(5)+static_cast<real>(0.16666666666666666666666666666666666667)*s(6))*w_2+(-static_cast<real>(0.016666666666666666666666666666666666667)*s(2)+static_cast<real>(0.11666666666666666666666666666666666667)*s(3)-static_cast<real>(0.38333333333333333333333333333333333333)*s(4)+static_cast<real>(0.95000000000000000000000000000000000000)*s(5)+static_cast<real>(0.36666666666666666666666666666666666667)*s(6)-static_cast<real>(0.033333333333333333333333333333333333333)*s(7))*w_3+(static_cast<real>(0.016666666666666666666666666666666666667)*s(3)-static_cast<real>(0.13333333333333333333333333333333333333)*s(4)+static_cast<real>(0.61666666666666666666666666666666666667)*s(5)+static_cast<real>(0.61666666666666666666666666666666666667)*s(6)-static_cast<real>(0.13333333333333333333333333333333333333)*s(7)+static_cast<real>(0.016666666666666666666666666666666666667)*s(8))*w_4+(-static_cast<real>(0.033333333333333333333333333333333333333)*s(4)+static_cast<real>(0.36666666666666666666666666666666666667)*s(5)+static_cast<real>(0.95000000000000000000000000000000000000)*s(6)-static_cast<real>(0.38333333333333333333333333333333333333)*s(7)+static_cast<real>(0.11666666666666666666666666666666666667)*s(8)-static_cast<real>(0.016666666666666666666666666666666666667)*s(9))*w_5+(static_cast<real>(0.033333333333333333333333333333333333333)*s(10)+static_cast<real>(0.16666666666666666666666666666666666667)*s(5)+static_cast<real>(1.4500000000000000000000000000000000000)*s(6)-static_cast<real>(1.0500000000000000000000000000000000000)*s(7)+static_cast<real>(0.61666666666666666666666666666666666666)*s(8)-static_cast<real>(0.21666666666666666666666666666666666667)*s(9))*w_6;
+    }
+
+    // Don't allow the stencil that doesn't contain the left interface to dominate
+    YAKL_INLINE static void imm_L_alter( real &TV_1 , real &TV_2 , real &TV_3 , real &TV_4 , real &TV_5 , real &TV_6 ) {
+      TV_6 = std::max(std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5),TV_6);
+    }
+
+    // Don't allow the stencil that doesn't contain the right interface to dominate
+    YAKL_INLINE static void imm_R_alter( real &TV_1 , real &TV_2 , real &TV_3 , real &TV_4 , real &TV_5 , real &TV_6 ) {
+      TV_1 = std::max(std::max(std::max(std::max(std::max(TV_1,TV_2),TV_3),TV_4),TV_5),TV_6);
+    }
+  };
+
 }
 
 

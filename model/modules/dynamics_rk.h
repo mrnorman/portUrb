@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef PORTURB_ORD
-      yakl::index_t static constexpr ord = 15;
+      yakl::index_t static constexpr ord = 9;
     #else
       yakl::index_t static constexpr ord = PORTURB_ORD;
     #endif
@@ -487,6 +487,7 @@ namespace modules {
       auto  hy_dens_edges     = dm.get<float const,1>("hy_dens_edges"            ); // Hydrostatic density
       auto  hy_theta_edges    = dm.get<float const,1>("hy_theta_edges"           ); // Hydrostatic potential temperature
       auto  hy_pressure_cells = dm.get<float const,1>("hy_pressure_cells"        ); // Hydrostatic pressure
+      auto  weno_all          = coupler.get_option<bool>("weno_all",true);
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
       // These matrices will be in column-row format. That performed better than row-column format in performance tests
       real r_dx = 1./dx; // reciprocal of grid spacing
@@ -494,9 +495,9 @@ namespace modules {
       real r_dz = 1./dz; // reciprocal of grid spacing
       real fcor = 2*7.2921e-5*std::sin(latitude/180*M_PI);      // For coriolis: 2*Omega*sin(latitude)
 
-      SArray<real,2,ord,2> s2e;
-      SArray<real,2,ord,ord> s2c;
-      SArray<real,2,ord,2> c2e;
+      SArray<float,2,ord,2> s2e;
+      SArray<float,2,ord,ord> s2c;
+      SArray<float,2,ord,2> c2e;
       TransformMatrices::sten_to_coefs(s2c);
       TransformMatrices::coefs_to_gll_lower(c2e);
       using yakl::intrinsics::matmul_cr;
@@ -571,7 +572,6 @@ namespace modules {
         lim_z_R.add_field(tracers_limits_z.slice<3>(1,l,0,0,0));
       }
 
-      // X-direction interpolation
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
@@ -581,12 +581,15 @@ namespace modules {
           stencil (ii) = fields     (l,hs+k,hs+j,i+ii);
         }
         if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        bool map = ! any_immersed(k,j,i);
-        Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) ,
-                                        { map , immersed(hs-1) , immersed(hs+1)} );
+        if (any_immersed(k,j,i) || weno_all) {
+          Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) ,
+                                          { false , immersed(hs-1) , immersed(hs+1)} );
+        } else {
+          auto vals = matmul_cr( s2e , stencil );
+          lim_x_R(l,k,j,i  ) = vals(0);
+          lim_x_L(l,k,j,i+1) = vals(1);
+        }
       });
-
-      // Y-direction interpolation
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
@@ -596,12 +599,15 @@ namespace modules {
           stencil (jj) = fields     (l,hs+k,j+jj,hs+i);
         }
         if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        bool map = ! any_immersed(k,j,i);
-        Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) ,
-                                        { map , immersed(hs-1) , immersed(hs+1)} );
+        if (any_immersed(k,j,i) || weno_all) {
+          Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) ,
+                                          { false , immersed(hs-1) , immersed(hs+1)} );
+        } else {
+          auto vals = matmul_cr( s2e , stencil );
+          lim_y_R(l,k,j  ,i) = vals(0);
+          lim_y_L(l,k,j+1,i) = vals(1);
+        }
       });
-
-      // Z-direction interpolation
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
@@ -611,9 +617,14 @@ namespace modules {
           stencil (kk) = fields     (l,k+kk,hs+j,hs+i);
         }
         if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        bool map = ! any_immersed(k,j,i);
-        Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) ,
-                                        { map , immersed(hs-1) , immersed(hs+1)} );
+        if (any_immersed(k,j,i) || weno_all) {
+          Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) ,
+                                          { false , immersed(hs-1) , immersed(hs+1)} );
+        } else {
+          auto vals = matmul_cr( s2e , stencil );
+          lim_z_R(l,k  ,j,i) = vals(0);
+          lim_z_L(l,k+1,j,i) = vals(1);
+        }
       });
 
       // Perform periodic horizontal exchange of cell-edge data, and implement vertical boundary conditions

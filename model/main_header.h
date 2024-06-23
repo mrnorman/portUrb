@@ -78,7 +78,13 @@ YAKL_INLINE void endrun(char const * msg = "") {
 };
 
 
-inline real timer_last(std::string label) { return yakl::get_yakl_instance().timer.get_last_duration(label); }
+inline real timer_last(std::string label) {
+  #ifdef YAKL_PROFILE
+    return yakl::get_yakl_instance().timer.get_last_duration(label);
+  #else
+    return 0;
+  #endif
+}
 
 
 typedef Array<real,1,memDevice,styleC> real1d;

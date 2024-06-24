@@ -540,7 +540,7 @@ namespace modules {
         if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_x(1,l,k,j,i) , limits_x(0,l,k,j,i+1) ,
-                                          { false , immersed(hs-1) , immersed(hs+1)} );
+                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_x(1,l,k,j,i  ) = vals(0);
@@ -558,7 +558,7 @@ namespace modules {
         if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_y(1,l,k,j,i) , limits_y(0,l,k,j+1,i) ,
-                                          { false , immersed(hs-1) , immersed(hs+1)} );
+                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_y(1,l,k,j  ,i) = vals(0);
@@ -576,7 +576,7 @@ namespace modules {
         if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_z(1,l,k,j,i) , limits_z(0,l,k+1,j,i) ,
-                                          { false , immersed(hs-1) , immersed(hs+1)} );
+                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_z(1,l,k  ,j,i) = vals(0);

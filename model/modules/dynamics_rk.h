@@ -454,6 +454,7 @@ namespace modules {
     }
 
 
+    int static constexpr idP = 5;
 
     void compute_tendencies( core::Coupler       & coupler      ,
                              real4d        const & state        ,
@@ -503,143 +504,94 @@ namespace modules {
       using yakl::intrinsics::matmul_cr;
       s2e = matmul_cr( c2e , s2c );
 
-      float4d state_loc  ("stateloc"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);
-      float4d tracers_loc("tracersloc",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
-      float3d pressure   ("pressure"              ,nz+2*hs,ny+2*hs,nx+2*hs); // Holds pressure perturbation
+      float4d fields_loc("fields_loc",num_state+num_tracers+1,nz+2*hs,ny+2*hs,nx+2*hs);
 
       // Compute pressure
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-        pressure(hs+k,hs+j,hs+i) = C0*std::pow(state(idT,hs+k,hs+j,hs+i),gamma) - hy_pressure_cells(hs+k);
+        fields_loc(idP,hs+k,hs+j,hs+i) = C0*std::pow(state(idT,hs+k,hs+j,hs+i),gamma) - hy_pressure_cells(hs+k);
         real r_r = 1._fp / state(idR,hs+k,hs+j,hs+i);
-        state_loc(idR,hs+k,hs+j,hs+i) = state(idR,hs+k,hs+j,hs+i);
-        for (int l=1; l < num_state  ; l++) { state_loc  (l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i)*r_r; }
-        for (int l=0; l < num_tracers; l++) { tracers_loc(l,hs+k,hs+j,hs+i) = tracers(l,hs+k,hs+j,hs+i)*r_r; }
-        state_loc(idR,hs+k,hs+j,hs+i) -= hy_dens_cells (hs+k);
-        state_loc(idT,hs+k,hs+j,hs+i) -= hy_theta_cells(hs+k);
+        fields_loc(idR,hs+k,hs+j,hs+i) = state(idR,hs+k,hs+j,hs+i);
+        for (int l=1; l < num_state  ; l++) { fields_loc(            l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i)*r_r; }
+        for (int l=0; l < num_tracers; l++) { fields_loc(num_state+1+l,hs+k,hs+j,hs+i) = tracers(l,hs+k,hs+j,hs+i)*r_r; }
+        fields_loc(idR,hs+k,hs+j,hs+i) -= hy_dens_cells (hs+k);
+        fields_loc(idT,hs+k,hs+j,hs+i) -= hy_theta_cells(hs+k);
       });
 
       // Perform periodic halo exchange in the horizontal, and implement vertical no-slip solid wall boundary conditions
-      {
-        core::MultiField<float,3> fields;
-        for (int l=0; l < num_state  ; l++) { fields.add_field( state_loc  .slice<3>(l,0,0,0) ); }
-        for (int l=0; l < num_tracers; l++) { fields.add_field( tracers_loc.slice<3>(l,0,0,0) ); }
-        fields.add_field( pressure );
-        if (ord > 1) coupler.halo_exchange_x( fields , hs );
-        if (ord > 1) coupler.halo_exchange_y( fields , hs );
-        halo_boundary_conditions( coupler , state_loc , tracers_loc , pressure );
-      }
+      if (ord > 1) coupler.halo_exchange_x( fields_loc , hs );
+      if (ord > 1) coupler.halo_exchange_y( fields_loc , hs );
+      halo_boundary_conditions( coupler , fields_loc );
 
       typedef limiter::WenoLimiter<float,ord> Limiter;
 
       // Create arrays to hold cell interface interpolations
-      float5d state_limits_x   ("state_limits_x"   ,2,num_state  ,nz,ny,nx+1);
-      float5d state_limits_y   ("state_limits_y"   ,2,num_state  ,nz,ny+1,nx);
-      float5d state_limits_z   ("state_limits_z"   ,2,num_state  ,nz+1,ny,nx);
-      float4d pressure_limits_x("pressure_limits_x",2            ,nz,ny,nx+1);
-      float4d pressure_limits_y("pressure_limits_y",2            ,nz,ny+1,nx);
-      float4d pressure_limits_z("pressure_limits_z",2            ,nz+1,ny,nx);
-      float5d tracers_limits_x ("tracers_limits_x" ,2,num_tracers,nz,ny,nx+1);
-      float5d tracers_limits_y ("tracers_limits_y" ,2,num_tracers,nz,ny+1,nx);
-      float5d tracers_limits_z ("tracers_limits_z" ,2,num_tracers,nz+1,ny,nx);
-      
-      // Aggregate fields for interpolation
-      core::MultiField<float,3> fields;
-      core::MultiField<float,3> lim_x_L, lim_x_R, lim_y_L, lim_y_R, lim_z_L, lim_z_R;
-      int idP = 5;
-      for (int l=0; l < num_state; l++) {
-        fields .add_field(state_loc     .slice<3>(  l,0,0,0));
-        lim_x_L.add_field(state_limits_x.slice<3>(0,l,0,0,0));
-        lim_x_R.add_field(state_limits_x.slice<3>(1,l,0,0,0));
-        lim_y_L.add_field(state_limits_y.slice<3>(0,l,0,0,0));
-        lim_y_R.add_field(state_limits_y.slice<3>(1,l,0,0,0));
-        lim_z_L.add_field(state_limits_z.slice<3>(0,l,0,0,0));
-        lim_z_R.add_field(state_limits_z.slice<3>(1,l,0,0,0));
-      }
-      fields .add_field(pressure         .slice<3>(  0,0,0));
-      lim_x_L.add_field(pressure_limits_x.slice<3>(0,0,0,0));
-      lim_x_R.add_field(pressure_limits_x.slice<3>(1,0,0,0));
-      lim_y_L.add_field(pressure_limits_y.slice<3>(0,0,0,0));
-      lim_y_R.add_field(pressure_limits_y.slice<3>(1,0,0,0));
-      lim_z_L.add_field(pressure_limits_z.slice<3>(0,0,0,0));
-      lim_z_R.add_field(pressure_limits_z.slice<3>(1,0,0,0));
-      for (int l=0; l < num_tracers; l++) {
-        fields .add_field(tracers_loc     .slice<3>(  l,0,0,0));
-        lim_x_L.add_field(tracers_limits_x.slice<3>(0,l,0,0,0));
-        lim_x_R.add_field(tracers_limits_x.slice<3>(1,l,0,0,0));
-        lim_y_L.add_field(tracers_limits_y.slice<3>(0,l,0,0,0));
-        lim_y_R.add_field(tracers_limits_y.slice<3>(1,l,0,0,0));
-        lim_z_L.add_field(tracers_limits_z.slice<3>(0,l,0,0,0));
-        lim_z_R.add_field(tracers_limits_z.slice<3>(1,l,0,0,0));
-      }
+      float5d limits_x("limits_x",2,num_state+num_tracers+1,nz,ny,nx+1);
+      float5d limits_y("limits_y",2,num_state+num_tracers+1,nz,ny+1,nx);
+      float5d limits_z("limits_z",2,num_state+num_tracers+1,nz+1,ny,nx);
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int ii=0; ii<ord; ii++) {
           immersed(ii) = immersed_prop(hs+k,hs+j,i+ii) > 0;
-          stencil (ii) = fields     (l,hs+k,hs+j,i+ii);
+          stencil (ii) = fields_loc (l,hs+k,hs+j,i+ii);
         }
         if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
-          Limiter::compute_limited_edges( stencil , lim_x_R(l,k,j,i) , lim_x_L(l,k,j,i+1) ,
+          Limiter::compute_limited_edges( stencil , limits_x(1,l,k,j,i) , limits_x(0,l,k,j,i+1) ,
                                           { false , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
-          lim_x_R(l,k,j,i  ) = vals(0);
-          lim_x_L(l,k,j,i+1) = vals(1);
+          limits_x(1,l,k,j,i  ) = vals(0);
+          limits_x(0,l,k,j,i+1) = vals(1);
         }
       });
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int jj=0; jj<ord; jj++) {
           immersed(jj) = immersed_prop(hs+k,j+jj,hs+i) > 0;
-          stencil (jj) = fields     (l,hs+k,j+jj,hs+i);
+          stencil (jj) = fields_loc (l,hs+k,j+jj,hs+i);
         }
         if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
-          Limiter::compute_limited_edges( stencil , lim_y_R(l,k,j,i) , lim_y_L(l,k,j+1,i) ,
+          Limiter::compute_limited_edges( stencil , limits_y(1,l,k,j,i) , limits_y(0,l,k,j+1,i) ,
                                           { false , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
-          lim_y_R(l,k,j  ,i) = vals(0);
-          lim_y_L(l,k,j+1,i) = vals(1);
+          limits_y(1,l,k,j  ,i) = vals(0);
+          limits_y(0,l,k,j+1,i) = vals(1);
         }
       });
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(fields.size(),nz,ny,nx) ,
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int kk=0; kk<ord; kk++) {
           immersed(kk) = immersed_prop(k+kk,hs+j,hs+i) > 0;
-          stencil (kk) = fields     (l,k+kk,hs+j,hs+i);
+          stencil (kk) = fields_loc (l,k+kk,hs+j,hs+i);
         }
         if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
-          Limiter::compute_limited_edges( stencil , lim_z_R(l,k,j,i) , lim_z_L(l,k+1,j,i) ,
+          Limiter::compute_limited_edges( stencil , limits_z(1,l,k,j,i) , limits_z(0,l,k+1,j,i) ,
                                           { false , immersed(hs-1) , immersed(hs+1)} );
         } else {
           auto vals = matmul_cr( s2e , stencil );
-          lim_z_R(l,k  ,j,i) = vals(0);
-          lim_z_L(l,k+1,j,i) = vals(1);
+          limits_z(1,l,k  ,j,i) = vals(0);
+          limits_z(0,l,k+1,j,i) = vals(1);
         }
       });
 
       // Perform periodic horizontal exchange of cell-edge data, and implement vertical boundary conditions
-      edge_exchange( coupler , state_limits_x , tracers_limits_x , pressure_limits_x ,
-                               state_limits_y , tracers_limits_y , pressure_limits_y ,
-                               state_limits_z , tracers_limits_z , pressure_limits_z );
+      edge_exchange( coupler , limits_x , limits_y , limits_z );
 
       // To save on space, slice the limits arrays to store single-valued interface fluxes
       using yakl::COLON;
-      auto state_flux_x   = state_limits_x  .slice<4>(0,COLON,COLON,COLON,COLON);
-      auto state_flux_y   = state_limits_y  .slice<4>(0,COLON,COLON,COLON,COLON);
-      auto state_flux_z   = state_limits_z  .slice<4>(0,COLON,COLON,COLON,COLON);
-      auto tracers_flux_x = tracers_limits_x.slice<4>(0,COLON,COLON,COLON,COLON);
-      auto tracers_flux_y = tracers_limits_y.slice<4>(0,COLON,COLON,COLON,COLON);
-      auto tracers_flux_z = tracers_limits_z.slice<4>(0,COLON,COLON,COLON,COLON);
+      auto flux_x = limits_x.slice<4>(0,COLON,COLON,COLON,COLON);
+      auto flux_y = limits_y.slice<4>(0,COLON,COLON,COLON,COLON);
+      auto flux_z = limits_z.slice<4>(0,COLON,COLON,COLON,COLON);
 
       // Use upwind Riemann solver to reconcile discontinuous limits of state and tracers at each cell edges
       // Speed of sound and its reciprocal. Using a constant speed of sound for upwinding
@@ -647,69 +599,69 @@ namespace modules {
       float constexpr r_cs = 1./cs;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
         if (j < ny && k < nz) {
-          state_limits_x(0,idR,k,j,i) += hy_dens_cells (hs+k);
-          state_limits_x(1,idR,k,j,i) += hy_dens_cells (hs+k);
-          state_limits_x(0,idT,k,j,i) += hy_theta_cells(hs+k);
-          state_limits_x(1,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_x(0,idR,k,j,i) += hy_dens_cells (hs+k);
+          limits_x(1,idR,k,j,i) += hy_dens_cells (hs+k);
+          limits_x(0,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_x(1,idT,k,j,i) += hy_theta_cells(hs+k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
-          float r_L  = state_limits_x  (0,idR,k,j,i)    ;   float r_R  = state_limits_x   (1,idR,k,j,i)    ;
-          float ru_L = state_limits_x  (0,idU,k,j,i)*r_L;   float ru_R = state_limits_x   (1,idU,k,j,i)*r_R;
-          float p_L  = pressure_limits_x(0   ,k,j,i)    ;   float p_R  = pressure_limits_x(1    ,k,j,i)    ;
+          float r_L  = limits_x(0,idR,k,j,i)    ;   float r_R  = limits_x(1,idR,k,j,i)    ;
+          float ru_L = limits_x(0,idU,k,j,i)*r_L;   float ru_R = limits_x(1,idU,k,j,i)*r_R;
+          float p_L  = limits_x(0,idP,k,j,i)    ;   float p_R  = limits_x(1,idP,k,j,i)    ;
           float p_upw  = 0.5_fp*(p_L  + p_R  - cs*(ru_R-ru_L)   );
           float ru_upw = 0.5_fp*(ru_L + ru_R -    (p_R -p_L )/cs);
           // Advectively upwind everything else
           int ind = ru_upw > 0 ? 0 : 1;
-          state_flux_x(idR,k,j,i) = ru_upw;
-          state_flux_x(idU,k,j,i) = ru_upw*state_limits_x(ind,idU,k,j,i) + p_upw;
-          state_flux_x(idV,k,j,i) = ru_upw*state_limits_x(ind,idV,k,j,i);
-          state_flux_x(idW,k,j,i) = ru_upw*state_limits_x(ind,idW,k,j,i);
-          state_flux_x(idT,k,j,i) = ru_upw*state_limits_x(ind,idT,k,j,i);
+          flux_x(idR,k,j,i) = ru_upw;
+          flux_x(idU,k,j,i) = ru_upw*limits_x(ind,idU,k,j,i) + p_upw;
+          flux_x(idV,k,j,i) = ru_upw*limits_x(ind,idV,k,j,i);
+          flux_x(idW,k,j,i) = ru_upw*limits_x(ind,idW,k,j,i);
+          flux_x(idT,k,j,i) = ru_upw*limits_x(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_x(tr,k,j,i) = ru_upw*tracers_limits_x(ind,tr,k,j,i);
+            flux_x(num_state+1+tr,k,j,i) = ru_upw*limits_x(ind,num_state+1+tr,k,j,i);
           }
         }
         if (i < nx && k < nz && !sim2d) {
-          state_limits_y(0,idR,k,j,i) += hy_dens_cells (hs+k);
-          state_limits_y(1,idR,k,j,i) += hy_dens_cells (hs+k);
-          state_limits_y(0,idT,k,j,i) += hy_theta_cells(hs+k);
-          state_limits_y(1,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_y(0,idR,k,j,i) += hy_dens_cells (hs+k);
+          limits_y(1,idR,k,j,i) += hy_dens_cells (hs+k);
+          limits_y(0,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_y(1,idT,k,j,i) += hy_theta_cells(hs+k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
-          float r_L  = state_limits_y  (0,idR,k,j,i)    ;   float r_R  = state_limits_y   (1,idR,k,j,i)    ;
-          float rv_L = state_limits_y  (0,idV,k,j,i)*r_L;   float rv_R = state_limits_y   (1,idV,k,j,i)*r_R;
-          float p_L  = pressure_limits_y(0   ,k,j,i)    ;   float p_R  = pressure_limits_y(1    ,k,j,i)    ;
+          float r_L  = limits_y(0,idR,k,j,i)    ;   float r_R  = limits_y(1,idR,k,j,i)    ;
+          float rv_L = limits_y(0,idV,k,j,i)*r_L;   float rv_R = limits_y(1,idV,k,j,i)*r_R;
+          float p_L  = limits_y(0,idP,k,j,i)    ;   float p_R  = limits_y(1,idP,k,j,i)    ;
           float p_upw  = 0.5_fp*(p_L  + p_R  - cs*(rv_R-rv_L)   );
           float rv_upw = 0.5_fp*(rv_L + rv_R -    (p_R -p_L )/cs);
           // Advectively upwind everything else
           int ind = rv_upw > 0 ? 0 : 1;
-          state_flux_y(idR,k,j,i) = rv_upw;
-          state_flux_y(idU,k,j,i) = rv_upw*state_limits_y(ind,idU,k,j,i);
-          state_flux_y(idV,k,j,i) = rv_upw*state_limits_y(ind,idV,k,j,i) + p_upw;
-          state_flux_y(idW,k,j,i) = rv_upw*state_limits_y(ind,idW,k,j,i);
-          state_flux_y(idT,k,j,i) = rv_upw*state_limits_y(ind,idT,k,j,i);
+          flux_y(idR,k,j,i) = rv_upw;
+          flux_y(idU,k,j,i) = rv_upw*limits_y(ind,idU,k,j,i);
+          flux_y(idV,k,j,i) = rv_upw*limits_y(ind,idV,k,j,i) + p_upw;
+          flux_y(idW,k,j,i) = rv_upw*limits_y(ind,idW,k,j,i);
+          flux_y(idT,k,j,i) = rv_upw*limits_y(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_y(tr,k,j,i) = rv_upw*tracers_limits_y(ind,tr,k,j,i);
+            flux_y(num_state+1+tr,k,j,i) = rv_upw*limits_y(ind,num_state+1+tr,k,j,i);
           }
         }
         if (i < nx && j < ny) {
-          state_limits_z(0,idR,k,j,i) += hy_dens_edges (k);
-          state_limits_z(1,idR,k,j,i) += hy_dens_edges (k);
-          state_limits_z(0,idT,k,j,i) += hy_theta_edges(k);
-          state_limits_z(1,idT,k,j,i) += hy_theta_edges(k);
+          limits_z(0,idR,k,j,i) += hy_dens_edges (k);
+          limits_z(1,idR,k,j,i) += hy_dens_edges (k);
+          limits_z(0,idT,k,j,i) += hy_theta_edges(k);
+          limits_z(1,idT,k,j,i) += hy_theta_edges(k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
-          float r_L  = state_limits_z  (0,idR,k,j,i)    ;   float r_R  = state_limits_z   (1,idR,k,j,i)    ;
-          float rw_L = state_limits_z  (0,idW,k,j,i)*r_L;   float rw_R = state_limits_z   (1,idW,k,j,i)*r_R;
-          float p_L  = pressure_limits_z(0   ,k,j,i)    ;   float p_R  = pressure_limits_z(1    ,k,j,i)    ;
+          float r_L  = limits_z(0,idR,k,j,i)    ;   float r_R  = limits_z(1,idR,k,j,i)    ;
+          float rw_L = limits_z(0,idW,k,j,i)*r_L;   float rw_R = limits_z(1,idW,k,j,i)*r_R;
+          float p_L  = limits_z(0,idP,k,j,i)    ;   float p_R  = limits_z(1,idP,k,j,i)    ;
           float p_upw  = 0.5_fp*(p_L  + p_R  - cs*(rw_R-rw_L)   );
           float rw_upw = 0.5_fp*(rw_L + rw_R -    (p_R -p_L )/cs);
           // Advectively upwind everything else
           int ind = rw_upw > 0 ? 0 : 1;
-          state_flux_z(idR,k,j,i) = rw_upw;
-          state_flux_z(idU,k,j,i) = rw_upw*state_limits_z(ind,idU,k,j,i);
-          state_flux_z(idV,k,j,i) = rw_upw*state_limits_z(ind,idV,k,j,i);
-          state_flux_z(idW,k,j,i) = rw_upw*state_limits_z(ind,idW,k,j,i) + p_upw;
-          state_flux_z(idT,k,j,i) = rw_upw*state_limits_z(ind,idT,k,j,i);
+          flux_z(idR,k,j,i) = rw_upw;
+          flux_z(idU,k,j,i) = rw_upw*limits_z(ind,idU,k,j,i);
+          flux_z(idV,k,j,i) = rw_upw*limits_z(ind,idV,k,j,i);
+          flux_z(idW,k,j,i) = rw_upw*limits_z(ind,idW,k,j,i) + p_upw;
+          flux_z(idT,k,j,i) = rw_upw*limits_z(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            tracers_flux_z(tr,k,j,i) = rw_upw*tracers_limits_z(ind,tr,k,j,i);
+            flux_z(num_state+1+tr,k,j,i) = rw_upw*limits_z(ind,num_state+1+tr,k,j,i);
           }
         }
       });
@@ -718,9 +670,9 @@ namespace modules {
       int mx = std::max(num_state,num_tracers);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(mx,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
-          state_tend(l,k,j,i) = -( state_flux_x(l,k,j,i+1) - state_flux_x(l,k,j,i) ) * r_dx
-                                -( state_flux_y(l,k,j+1,i) - state_flux_y(l,k,j,i) ) * r_dy
-                                -( state_flux_z(l,k+1,j,i) - state_flux_z(l,k,j,i) ) * r_dz;
+          state_tend(l,k,j,i) = -( flux_x(l,k,j,i+1) - flux_x(l,k,j,i) ) * r_dx
+                                -( flux_y(l,k,j+1,i) - flux_y(l,k,j,i) ) * r_dy
+                                -( flux_z(l,k+1,j,i) - flux_z(l,k,j,i) ) * r_dz;
           if (l == idV && sim2d) state_tend(l,k,j,i) = 0;
           if (l == idW && enable_gravity) {
             state_tend(l,k,j,i) += -grav*(state(idR,hs+k,hs+j,hs+i) - hy_dens_cells(hs+k));
@@ -729,9 +681,9 @@ namespace modules {
           if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i) -= fcor*state(idU,hs+k,hs+j,hs+i);
         }
         if (l < num_tracers) {
-          tracers_tend(l,k,j,i) = -( tracers_flux_x(l,k,j,i+1) - tracers_flux_x(l,k,j,i) ) * r_dx
-                                  -( tracers_flux_y(l,k,j+1,i) - tracers_flux_y(l,k,j,i) ) * r_dy 
-                                  -( tracers_flux_z(l,k+1,j,i) - tracers_flux_z(l,k,j,i) ) * r_dz;
+          tracers_tend(l,k,j,i) = -( flux_x(num_state+1+l,k,j,i+1) - flux_x(num_state+1+l,k,j,i) ) * r_dx
+                                  -( flux_y(num_state+1+l,k,j+1,i) - flux_y(num_state+1+l,k,j,i) ) * r_dy 
+                                  -( flux_z(num_state+1+l,k+1,j,i) - flux_z(num_state+1+l,k,j,i) ) * r_dz;
         }
       });
       #ifdef YAKL_AUTO_PROFILE
@@ -741,10 +693,8 @@ namespace modules {
 
 
 
-    void halo_boundary_conditions( core::Coupler const & coupler  ,
-                                   float4d       const & state    ,
-                                   float4d       const & tracers  ,
-                                   float3d       const & pressure ) const {
+    void halo_boundary_conditions( core::Coupler const & coupler ,
+                                   float4d       const & fields  ) const {
       #ifdef YAKL_AUTO_PROFILE
         yakl::timer_start("halo_boundary_conditions");
       #endif
@@ -762,42 +712,21 @@ namespace modules {
 
       // z-direction BC's
       if (bc_z == "solid_wall") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
-          state(idR,kk,hs+j,hs+i) = state(idR,hs+0,hs+j,hs+i);
-          state(idU,kk,hs+j,hs+i) = state(idU,hs+0,hs+j,hs+i);
-          state(idV,kk,hs+j,hs+i) = state(idV,hs+0,hs+j,hs+i);
-          state(idW,kk,hs+j,hs+i) = 0;
-          state(idT,kk,hs+j,hs+i) = state(idT,hs+0,hs+j,hs+i);
-          pressure( kk,hs+j,hs+i) = pressure (hs+0,hs+j,hs+i);
-          state(idR,hs+nz+kk,hs+j,hs+i) = state(idR,hs+nz-1,hs+j,hs+i);
-          state(idU,hs+nz+kk,hs+j,hs+i) = state(idU,hs+nz-1,hs+j,hs+i);
-          state(idV,hs+nz+kk,hs+j,hs+i) = state(idV,hs+nz-1,hs+j,hs+i);
-          state(idW,hs+nz+kk,hs+j,hs+i) = 0;
-          state(idT,hs+nz+kk,hs+j,hs+i) = state(idT,hs+nz-1,hs+j,hs+i);
-          pressure( hs+nz+kk,hs+j,hs+i) = pressure (hs+nz-1,hs+j,hs+i);
-          for (int l=0; l < num_tracers; l++) {
-            tracers(l,      kk,hs+j,hs+i) = 0;
-            tracers(l,hs+nz+kk,hs+j,hs+i) = 0;
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
+                                          YAKL_LAMBDA (int l, int kk, int j, int i) {
+          if (l == idW || l > idP) {
+            fields(l,      kk,hs+j,hs+i) = 0;
+            fields(l,hs+nz+kk,hs+j,hs+i) = 0;
+          } else {
+            fields(l,      kk,hs+j,hs+i) = fields(l,hs+0   ,hs+j,hs+i);
+            fields(l,hs+nz+kk,hs+j,hs+i) = fields(l,hs+nz-1,hs+j,hs+i);
           }
         });
       } else if (bc_z == "periodic") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny,nx) , YAKL_LAMBDA (int kk, int j, int i) {
-          state(idR,      kk,hs+j,hs+i) = state(idR,nz+kk,hs+j,hs+i);
-          state(idU,      kk,hs+j,hs+i) = state(idU,nz+kk,hs+j,hs+i);
-          state(idV,      kk,hs+j,hs+i) = state(idV,nz+kk,hs+j,hs+i);
-          state(idW,      kk,hs+j,hs+i) = state(idW,nz+kk,hs+j,hs+i);
-          state(idT,      kk,hs+j,hs+i) = state(idT,nz+kk,hs+j,hs+i);
-          pressure(       kk,hs+j,hs+i) = pressure( nz+kk,hs+j,hs+i);
-          state(idR,hs+nz+kk,hs+j,hs+i) = state(idR,hs+kk,hs+j,hs+i);
-          state(idU,hs+nz+kk,hs+j,hs+i) = state(idU,hs+kk,hs+j,hs+i);
-          state(idV,hs+nz+kk,hs+j,hs+i) = state(idV,hs+kk,hs+j,hs+i);
-          state(idW,hs+nz+kk,hs+j,hs+i) = state(idW,hs+kk,hs+j,hs+i);
-          state(idT,hs+nz+kk,hs+j,hs+i) = state(idT,hs+kk,hs+j,hs+i);
-          pressure( hs+nz+kk,hs+j,hs+i) = pressure( hs+kk,hs+j,hs+i);
-          for (int l=0; l < num_tracers; l++) {
-            tracers(l,      kk,hs+j,hs+i) = tracers(l,nz+kk,hs+j,hs+i);
-            tracers(l,hs+nz+kk,hs+j,hs+i) = tracers(l,hs+kk,hs+j,hs+i);
-          }
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
+                                          YAKL_LAMBDA (int l, int kk, int j, int i) {
+          fields(l,      kk,hs+j,hs+i) = fields(l,nz+kk,hs+j,hs+i);
+          fields(l,hs+nz+kk,hs+j,hs+i) = fields(l,hs+kk,hs+j,hs+i);
         });
       } else {
         yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
@@ -809,16 +738,10 @@ namespace modules {
 
 
 
-    void edge_exchange( core::Coupler const & coupler           ,
-                        float5d       const & state_limits_x    ,
-                        float5d       const & tracers_limits_x  ,
-                        float4d       const & pressure_limits_x ,
-                        float5d       const & state_limits_y    ,
-                        float5d       const & tracers_limits_y  ,
-                        float4d       const & pressure_limits_y ,
-                        float5d       const & state_limits_z    ,
-                        float5d       const & tracers_limits_z  ,
-                        float4d       const & pressure_limits_z ) const {
+    void edge_exchange( core::Coupler const & coupler  ,
+                        float5d       const & limits_x ,
+                        float5d       const & limits_y ,
+                        float5d       const & limits_z ) const {
       #ifdef YAKL_AUTO_PROFILE
         yakl::timer_start("edge_exchange");
       #endif
@@ -834,7 +757,7 @@ namespace modules {
       auto hy_dens_edges  = dm.get<float const,1>("hy_dens_edges" );
       auto hy_theta_edges = dm.get<float const,1>("hy_theta_edges");
       auto surface_temp   = dm.get<real const,2>("surface_temp"  );
-      int npack = num_state + num_tracers+1;
+      int npack = num_state + num_tracers + 1;
 
       // x-exchange
       {
@@ -843,30 +766,14 @@ namespace modules {
         float3d edge_recv_buf_W("edge_recv_buf_W",npack,nz,ny);
         float3d edge_recv_buf_E("edge_recv_buf_E",npack,nz,ny);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
-          if        (v < num_state) {
-            edge_send_buf_W(v,k,j) = state_limits_x  (1,v          ,k,j,0 );
-            edge_send_buf_E(v,k,j) = state_limits_x  (0,v          ,k,j,nx);
-          } else if (v < num_state + num_tracers) {                    
-            edge_send_buf_W(v,k,j) = tracers_limits_x(1,v-num_state,k,j,0 );
-            edge_send_buf_E(v,k,j) = tracers_limits_x(0,v-num_state,k,j,nx);
-          } else {
-            edge_send_buf_W(v,k,j) = pressure_limits_x(1,k,j,0 );
-            edge_send_buf_E(v,k,j) = pressure_limits_x(0,k,j,nx);
-          }
+          edge_send_buf_W(v,k,j) = limits_x(1,v,k,j,0 );
+          edge_send_buf_E(v,k,j) = limits_x(0,v,k,j,nx);
         });
         coupler.get_parallel_comm().send_receive<float,3>( { {edge_recv_buf_W,neigh(1,0),4} , {edge_recv_buf_E,neigh(1,2),5} } ,
                                                            { {edge_send_buf_W,neigh(1,0),5} , {edge_send_buf_E,neigh(1,2),4} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
-          if        (v < num_state) {
-            state_limits_x  (0,v          ,k,j,0 ) = edge_recv_buf_W(v,k,j);
-            state_limits_x  (1,v          ,k,j,nx) = edge_recv_buf_E(v,k,j);
-          } else if (v < num_state + num_tracers) {
-            tracers_limits_x(0,v-num_state,k,j,0 ) = edge_recv_buf_W(v,k,j);
-            tracers_limits_x(1,v-num_state,k,j,nx) = edge_recv_buf_E(v,k,j);
-          } else {
-            pressure_limits_x(0,k,j,0 ) = edge_recv_buf_W(v,k,j);
-            pressure_limits_x(1,k,j,nx) = edge_recv_buf_E(v,k,j);
-          }
+          limits_x(0,v,k,j,0 ) = edge_recv_buf_W(v,k,j);
+          limits_x(1,v,k,j,nx) = edge_recv_buf_E(v,k,j);
         });
       }
 
@@ -877,78 +784,33 @@ namespace modules {
         float3d edge_recv_buf_S("edge_recv_buf_S",npack,nz,nx);
         float3d edge_recv_buf_N("edge_recv_buf_N",npack,nz,nx);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
-          if        (v < num_state) {
-            edge_send_buf_S(v,k,i) = state_limits_y  (1,v          ,k,0 ,i);
-            edge_send_buf_N(v,k,i) = state_limits_y  (0,v          ,k,ny,i);
-          } else if (v < num_state + num_tracers) {                    
-            edge_send_buf_S(v,k,i) = tracers_limits_y(1,v-num_state,k,0 ,i);
-            edge_send_buf_N(v,k,i) = tracers_limits_y(0,v-num_state,k,ny,i);
-          } else {
-            edge_send_buf_S(v,k,i) = pressure_limits_y(1,k,0 ,i);
-            edge_send_buf_N(v,k,i) = pressure_limits_y(0,k,ny,i);
-          }
+            edge_send_buf_S(v,k,i) = limits_y(1,v,k,0 ,i);
+            edge_send_buf_N(v,k,i) = limits_y(0,v,k,ny,i);
         });
         coupler.get_parallel_comm().send_receive<float,3>( { {edge_recv_buf_S,neigh(0,1),6} , {edge_recv_buf_N,neigh(2,1),7} } ,
                                                            { {edge_send_buf_S,neigh(0,1),7} , {edge_send_buf_N,neigh(2,1),6} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
-          if        (v < num_state) {
-            state_limits_y  (0,v          ,k,0 ,i) = edge_recv_buf_S(v,k,i);
-            state_limits_y  (1,v          ,k,ny,i) = edge_recv_buf_N(v,k,i);
-          } else if (v < num_state + num_tracers) {
-            tracers_limits_y(0,v-num_state,k,0 ,i) = edge_recv_buf_S(v,k,i);
-            tracers_limits_y(1,v-num_state,k,ny,i) = edge_recv_buf_N(v,k,i);
-          } else {
-            pressure_limits_y(0,k,0 ,i) = edge_recv_buf_S(v,k,i);
-            pressure_limits_y(1,k,ny,i) = edge_recv_buf_N(v,k,i);
-          }
+          limits_y(0,v,k,0 ,i) = edge_recv_buf_S(v,k,i);
+          limits_y(1,v,k,ny,i) = edge_recv_buf_N(v,k,i);
         });
       }
 
       if (bc_z == "solid_wall") {
-        // z-direction BC's
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
-          // Dirichlet
-          state_limits_z(0,idW,0 ,j,i) = 0;
-          state_limits_z(1,idW,0 ,j,i) = 0;
-          state_limits_z(0,idW,nz,j,i) = 0;
-          state_limits_z(1,idW,nz,j,i) = 0;
-          for (int l=0; l < num_tracers; l++) {
-            tracers_limits_z(0,l,0 ,j,i) = 0;
-            tracers_limits_z(1,l,0 ,j,i) = 0;
-            tracers_limits_z(0,l,nz,j,i) = 0;
-            tracers_limits_z(1,l,nz,j,i) = 0;
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
+          if (l == idW || l > idP) {
+            limits_z(0,l,0 ,j,i) = 0;
+            limits_z(1,l,0 ,j,i) = 0;
+            limits_z(0,l,nz,j,i) = 0;
+            limits_z(1,l,nz,j,i) = 0;
+          } else {
+            limits_z(0,l,0 ,j,i) = limits_z(1,l,0 ,j,i);
+            limits_z(1,l,nz,j,i) = limits_z(0,l,nz,j,i);
           }
-          // Neumann
-          state_limits_z   (0,idR,0 ,j,i) = state_limits_z   (1,idR,0 ,j,i);
-          state_limits_z   (0,idU,0 ,j,i) = state_limits_z   (1,idU,0 ,j,i);
-          state_limits_z   (0,idV,0 ,j,i) = state_limits_z   (1,idV,0 ,j,i);
-          state_limits_z   (0,idT,0 ,j,i) = state_limits_z   (1,idT,0 ,j,i);
-          pressure_limits_z(0    ,0 ,j,i) = pressure_limits_z(1    ,0 ,j,i);
-          state_limits_z   (1,idR,nz,j,i) = state_limits_z   (0,idR,nz,j,i);
-          state_limits_z   (1,idU,nz,j,i) = state_limits_z   (0,idU,nz,j,i);
-          state_limits_z   (1,idV,nz,j,i) = state_limits_z   (0,idV,nz,j,i);
-          state_limits_z   (1,idT,nz,j,i) = state_limits_z   (0,idT,nz,j,i);
-          pressure_limits_z(1    ,nz,j,i) = pressure_limits_z(0    ,nz,j,i);
         });
       } else if (bc_z == "periodic") {
-        // z-direction BC's
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
-          state_limits_z   (0,idR,0 ,j,i) = state_limits_z   (0,idR,nz,j,i);
-          state_limits_z   (0,idU,0 ,j,i) = state_limits_z   (0,idU,nz,j,i);
-          state_limits_z   (0,idV,0 ,j,i) = state_limits_z   (0,idV,nz,j,i);
-          state_limits_z   (0,idW,0 ,j,i) = state_limits_z   (0,idW,nz,j,i);
-          state_limits_z   (0,idT,0 ,j,i) = state_limits_z   (0,idT,nz,j,i);
-          pressure_limits_z(0    ,0 ,j,i) = pressure_limits_z(0    ,nz,j,i);
-          state_limits_z   (1,idR,nz,j,i) = state_limits_z   (1,idR,0 ,j,i);
-          state_limits_z   (1,idU,nz,j,i) = state_limits_z   (1,idU,0 ,j,i);
-          state_limits_z   (1,idV,nz,j,i) = state_limits_z   (1,idV,0 ,j,i);
-          state_limits_z   (1,idW,nz,j,i) = state_limits_z   (1,idW,0 ,j,i);
-          state_limits_z   (1,idT,nz,j,i) = state_limits_z   (1,idT,0 ,j,i);
-          pressure_limits_z(1    ,nz,j,i) = pressure_limits_z(1    ,0 ,j,i);
-          for (int l=0; l < num_tracers; l++) {
-            tracers_limits_z(0,l,0 ,j,i) = tracers_limits_z(0,l,nz,j,i);
-            tracers_limits_z(1,l,nz,j,i) = tracers_limits_z(1,l,0 ,j,i);
-          }
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
+          limits_z(0,l,0 ,j,i) = limits_z(0,l,nz,j,i);
+          limits_z(1,l,nz,j,i) = limits_z(1,l,0 ,j,i);
         });
       }
       #ifdef YAKL_AUTO_PROFILE

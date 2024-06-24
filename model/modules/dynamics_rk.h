@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef PORTURB_ORD
-      yakl::index_t static constexpr ord = 9;
+      yakl::index_t static constexpr ord = 11;
     #else
       yakl::index_t static constexpr ord = PORTURB_ORD;
     #endif
@@ -617,7 +617,7 @@ namespace modules {
           flux_x(idW,k,j,i) = ru_upw*limits_x(ind,idW,k,j,i);
           flux_x(idT,k,j,i) = ru_upw*limits_x(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            flux_x(num_state+1+tr,k,j,i) = ru_upw*limits_x(ind,num_state+1+tr,k,j,i);
+            flux_x(num_state+tr,k,j,i) = ru_upw*limits_x(ind,num_state+1+tr,k,j,i);
           }
         }
         if (i < nx && k < nz && !sim2d) {
@@ -639,7 +639,7 @@ namespace modules {
           flux_y(idW,k,j,i) = rv_upw*limits_y(ind,idW,k,j,i);
           flux_y(idT,k,j,i) = rv_upw*limits_y(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            flux_y(num_state+1+tr,k,j,i) = rv_upw*limits_y(ind,num_state+1+tr,k,j,i);
+            flux_y(num_state+tr,k,j,i) = rv_upw*limits_y(ind,num_state+1+tr,k,j,i);
           }
         }
         if (i < nx && j < ny) {
@@ -661,7 +661,7 @@ namespace modules {
           flux_z(idW,k,j,i) = rw_upw*limits_z(ind,idW,k,j,i) + p_upw;
           flux_z(idT,k,j,i) = rw_upw*limits_z(ind,idT,k,j,i);
           for (int tr=0; tr < num_tracers; tr++) {
-            flux_z(num_state+1+tr,k,j,i) = rw_upw*limits_z(ind,num_state+1+tr,k,j,i);
+            flux_z(num_state+tr,k,j,i) = rw_upw*limits_z(ind,num_state+1+tr,k,j,i);
           }
         }
       });
@@ -681,9 +681,9 @@ namespace modules {
           if (latitude != 0 && !sim2d && l == idV) state_tend(l,k,j,i) -= fcor*state(idU,hs+k,hs+j,hs+i);
         }
         if (l < num_tracers) {
-          tracers_tend(l,k,j,i) = -( flux_x(num_state+1+l,k,j,i+1) - flux_x(num_state+1+l,k,j,i) ) * r_dx
-                                  -( flux_y(num_state+1+l,k,j+1,i) - flux_y(num_state+1+l,k,j,i) ) * r_dy 
-                                  -( flux_z(num_state+1+l,k+1,j,i) - flux_z(num_state+1+l,k,j,i) ) * r_dz;
+          tracers_tend(l,k,j,i) = -( flux_x(num_state+l,k,j,i+1) - flux_x(num_state+l,k,j,i) ) * r_dx
+                                  -( flux_y(num_state+l,k,j+1,i) - flux_y(num_state+l,k,j,i) ) * r_dy 
+                                  -( flux_z(num_state+l,k+1,j,i) - flux_z(num_state+l,k,j,i) ) * r_dz;
         }
       });
       #ifdef YAKL_AUTO_PROFILE

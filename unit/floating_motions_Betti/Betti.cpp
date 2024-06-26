@@ -2,11 +2,13 @@
 
 struct floating_motions_betti {
   using yakl::SArray;
-  floatHost2d C_p_arr;    // 2-D Array of coefficient of thrust based on (TSR,pitch)
-  floatHost2d C_t_arr;    // 2-D Array of coefficient of power  based on (TSR,pitch)
-  floatHost1d pitch_list; // Reference pitch angles corresponding to extent(1) of C_p_arr and C_t_arr
-  floatHost1d TSR_list;   // Reference TSR values   corresponding to extent(0) of C_p_arr and C_t_arr
-  size_t      rand_seed;  // For random phases in pm spectrum
+  floatHost2d      C_p_arr;    // 2-D Array of coefficient of thrust based on (TSR,pitch)
+  floatHost2d      C_t_arr;    // 2-D Array of coefficient of power  based on (TSR,pitch)
+  floatHost1d      pitch_list; // Reference pitch angles corresponding to extent(1) of C_p_arr and C_t_arr
+  floatHost1d      TSR_list;   // Reference TSR values   corresponding to extent(0) of C_p_arr and C_t_arr
+  size_t           rand_seed;  // For random phases in pm spectrum
+  SArray<real,1,7> state;      // Current state vector
+  real             etime;      // Current elapsed time
 
 
   // Assume arr is ordered lowest to highest. Return index of arr(index) nearest to "val"
@@ -32,6 +34,14 @@ struct floating_motions_betti {
     nc.read( TSR_list   , "TSR_values"   );
     nc.close();
     rand_seed = 0;
+    state(0) = -2;
+    state(1) = 0;
+    state(2) = 37.550;
+    state(3) = 0;
+    state(4) = 0;
+    state(5) = 0;
+    state(6) = 1;
+    etime = 0;
   }
 
 
@@ -101,8 +111,8 @@ struct floating_motions_betti {
 
 
 
-  std::tuple<SArray<real,1,6>,real,real>
-  structure( SArray<real,1,6> const & x_1 , real beta , real omega_R , real t , int Cp_type , real v_w , real v_aveg ) {
+  std::tuple<SArray<real,1,6>,real,real,real>
+  structure( SArray<real,1,6> const & x_1 , real beta , real omega_R , real t , real v_w , real v_aveg ) {
     int  constexpr nfreq   = 400     ;         // Number of frequency intervals to sum over in PM spectrum
     real constexpr g       = 9.80665 ;         // (m/s^2)  gravity acceleration
     real constexpr rho_w   = 1025    ;         // (kg/m^3) water density
@@ -275,11 +285,59 @@ struct floating_motions_betti {
     return std::make_tuple( deriv , v_in , Cp , avegQ_t );
   }
 
+
+
+  real WindTurbine(real omega_R , real v_in , real beta , real T_E , real Cp ) {
+    real constexpr J_G      = 534.116 ; // (kg*m^2) Total inertia of electric generator and high speed shaft
+    real constexpr J_R      = 35444067; // (kg*m^2) Total inertia of blades, hub and low speed shaft
+    real constexpr rho      = 1.225   ; // (kg/m^3) Density of air
+    real constexpr A        = 12469   ; // (m^2)    Rotor area
+    real constexpr eta_G    = 97      ; // (-)      Speed ratio between high and low speed shafts
+    real constexpr tildeJ_R = eta_G*eta_G*J_G + J_R;
+    real constexpr tildeT_E = eta_G*T_E;
+    real P_wind = 0.5*rho*A*v_in*v_in*v_in;
+    real P_A    = P_wind*Cp;
+    real T_A    = P_A/omega_R;
+    return (1./tildeJ_R)*(T_A - tildeT_E);
+  }
+
+
+
+  SArray<real,1,7>
+  Betti_tend( SArray<real,1,7> const & x , real t , real beta , real T_E , real v_w , real v_aveg ) {
+    SArray<real,1,6> x1;
+    for (int i=0; i < 6; i++) { x1(i) = x(i); }
+    real omega_R = x(6);
+    SArray<real,1,7> ret;
+    auto [dx1dt,v_in,Cp,Q_t] = structure( x1 , beta , omega_R , t , v_w , v_aveg );
+    for (int i=0; i < 6; i++) { ret(i) = dx1dt(i); }
+    ret(6) = WindTurbine( omega_R , v_in , beta , T_E , Cp );
+    return ret;
+  }
+
+
+
+  real time_step( real dt , real v_wind , real v_w ) {
+    using yakl::componentwise::operator+;
+    using yakl::componentwise::operator*;
+    using yakl::componentwise::operator/;
+    real constexpr beta = 0.30490902;
+    real constexpr T_E  = 43093.55  ;
+    real constexpr d_Ph = 5.4305    ; // (m) Horizontal distance between BS and BP
+    real constexpr d_Pv = 127.5879  ; // (m) Vertical distance between BS and BP
+    auto k1 = Betti_tend( state         , etime      , beta , T_E , v_wind , v_w );
+    auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 , beta , T_E , v_wind , v_w );
+    auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 , beta , T_E , v_wind , v_w );
+    auto k4 = Betti_tend( state+dt/2*k3 , etime+dt   , beta , T_E , v_wind , v_w );
+    state = state + dt * (k1 + 2*k2 + 2*k3 + k4) / 6;
+    etime += dt;
+    return v_w + x(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*x(5)*std::cos(x(4));
+  }
+
 };
 
 
 int main() {
-  auto [C_p,C_t] = CpCtCq( TSR , beta , C_p_arr , C_t_arr , pitch_list , TSR_list );
 }
 
 

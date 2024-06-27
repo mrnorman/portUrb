@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import Betti
 
-end_time     = 1000
+end_time     = 10
 dt           = 0.05
 n            = int(end_time/dt)+1
 Vin          = np.array([n,1])
@@ -31,3 +31,4 @@ Vin = v_w + x[:,1]+ d_P*x[:,5]/180*np.pi*np.cos(x[:,4]/180*np.pi)
 plt.plot(t,Vin  ,linewidth=0.3); plt.title("V_in"      ); plt.savefig("V_in.png"      ,dpi=300); plt.close()
 np.savetxt('Vintime',t,delimiter=',')
 np.savetxt('Vindata',Vin,delimiter=',')
+

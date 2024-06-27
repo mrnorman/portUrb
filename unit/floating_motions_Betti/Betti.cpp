@@ -1,7 +1,25 @@
 
+#include "YAKL.h"
+#include "YAKL_netcdf.h"
 
-struct floating_motions_betti {
-  using yakl::SArray;
+
+template <class T> inline void debug_print_val( T var , char const * file , int line , char const * varname ) {
+  std::cout << "*** DEBUG: " << file << ": " << line << ": " << varname << "  -->  " << var << std::endl;
+}
+
+#define DEBUG_PRINT_MAIN_VAL(var) { debug_print_val((var),__FILE__,__LINE__,#var); }
+
+using yakl::SArray;
+
+typedef double real;
+
+YAKL_INLINE real constexpr operator"" _fp( long double x ) {
+  return static_cast<real>(x);
+}
+
+struct Floating_motions_betti {
+  typedef yakl::Array<float,1,yakl::memDevice> floatHost1d;
+  typedef yakl::Array<float,2,yakl::memDevice> floatHost2d;
   floatHost2d      C_p_arr;    // 2-D Array of coefficient of thrust based on (TSR,pitch)
   floatHost2d      C_t_arr;    // 2-D Array of coefficient of power  based on (TSR,pitch)
   floatHost1d      pitch_list; // Reference pitch angles corresponding to extent(1) of C_p_arr and C_t_arr
@@ -12,15 +30,14 @@ struct floating_motions_betti {
 
 
   // Assume arr is ordered lowest to highest. Return index of arr(index) nearest to "val"
-  int nearest_index(realHost1d const & arr, real val) {
-    int  ind = 0;
-    real diff = std::abs(arr(ind)-val);
+  int nearest_index(floatHost1d const & arr, real val) {
+    int  ind      = 0;
+    real min_diff = std::abs(arr(0)-val);
     for (int i=1; i < arr.size(); i++) {
-      real loc = std::abs(arr(ind)-val);
-      if ( loc > diff ) { return i-1; }
-      else              { diff = loc; }
+      real diff = std::abs(arr(i)-val);
+      if (diff < min_diff) { ind = i; min_diff = diff; }
     }
-    return n-1;
+    return ind;
   }
 
 
@@ -72,13 +89,14 @@ struct floating_motions_betti {
   // v_y      : y-direction wave velocity
   // a_x      : x-direction wave acceleration
   // a_y      : y-direction wave acceleration
+  // CONFIRMED CORRECT
   std::tuple<real,real,real,real,real>
   pierson_moskowitz_spectrum( real U19_5 , real zeta , real eta , real t , int N) {
     real constexpr g       = 9.81;           // gravity acceleration
     real constexpr alpha   = 0.0081;         // Phillip's constant
-    real constexpr f_pm    = 0.14*(g/U19_5); // peak frequency
-    real constexpr cutof_f = 3*f_pm;         // cutoff frequency
     real constexpr start_f = 0.1;            // starting frequency
+    real f_pm    = 0.14*(g/U19_5); // peak frequency
+    real cutof_f = 3*f_pm;         // cutoff frequency
     real sum_wave_eta = 0;
     real sum_v_x      = 0;
     real sum_v_y      = 0;
@@ -94,23 +112,24 @@ struct floating_motions_betti {
       real f_term1       = std::pow(f,5.);
       real f_term2       = std::pow(f_pm/f,4.);
       //   S_pm          = (alpha*g**2/((2*np.pi)**4*f**5   ))*  np.exp(-(5 /4 )*(f_pm/f)**4)
-      real S_pm          = (alpha*g*g /(pi_term     *f_term1))*std::exp(-(5./4.)*fterm2     );
+      real S_pm          = (alpha*g*g /(pi_term     *f_term1))*std::exp(-(5./4.)*f_term2    );
       real a             = std::sqrt(2*S_pm*delta_f);
       real k             = omega*omega/g;
       real sin_component = std::sin(omega*t - k*zeta + random_phase);
       real cos_component = std::cos(omega*t - k*zeta + random_phase);
-      real exp_component = std::cos(k*eta);
+      real exp_component = std::exp(k*eta);
       sum_wave_eta += a*sin_component;
       sum_v_x      += omega*a*exp_component*sin_component;
       sum_v_y      += omega*a*exp_component*cos_component;
       sum_a_x      += omega*omega*a*exp_component*cos_component;
       sum_a_y      -= omega*omega*a*exp_component*sin_component;
     }
-    return std::make_tuple( sum_wave_eta/N , sum_v_x/N , sum_v_y/N , sum_a_x/N , sum_a_y/N );
+    return std::make_tuple( sum_wave_eta , sum_v_x , sum_v_y , sum_a_x , sum_a_y );
   }
 
 
 
+  // CONFIRMED CORRECT
   std::tuple<SArray<real,1,6>,real,real,real>
   structure( SArray<real,1,6> const & x_1 , real beta , real omega_R , real t , real v_w , real v_aveg ) {
     int  constexpr nfreq   = 400     ;         // Number of frequency intervals to sum over in PM spectrum
@@ -182,10 +201,10 @@ struct floating_motions_betti {
     real Qwe_zeta  = 0;
     real Qwe_eta   = (M_N + M_P + M_S)*g;
     real Qwe_alpha = ((M_N*d_Nv + M_P*d_Pv)*std::sin(alpha) + (M_N*d_Nh + M_P*d_Ph )*std::cos(alpha))*g;
-    // Buoyancy Forces
-    auto [h_wave,d1,d2,d3,d4] = pierson_moskowitz_spectrum( v_aveg , zeta       , 0 , t , nfreq );
-    auto [h_p_rg,d1,d2,d3,d4] = pierson_moskowitz_spectrum( v_aveg , zeta + r_g , 0 , t , nfreq );
-    auto [h_n_rg,d1,d2,d3,d4] = pierson_moskowitz_spectrum( v_aveg , zeta - r_g , 0 , t , nfreq );
+    // Buoyancy Forces d00 - d12 are unused dummy variables
+    auto [h_wave,d01,d02,d03,d04] = pierson_moskowitz_spectrum( v_aveg , zeta       , 0 , t , nfreq );
+    auto [h_p_rg,d05,d06,d07,d08] = pierson_moskowitz_spectrum( v_aveg , zeta + r_g , 0 , t , nfreq );
+    auto [h_n_rg,d09,d10,d11,d12] = pierson_moskowitz_spectrum( v_aveg , zeta - r_g , 0 , t , nfreq );
     h_wave += h;
     h_p_rg += h;
     h_n_rg += h;
@@ -197,7 +216,7 @@ struct floating_motions_betti {
     real Qb_eta   = -rho_w*V_g*g;
     real Qb_alpha = -rho_w*V_g*g*d_G*std::sin(alpha);
     // Tie Rod Force
-    rela D_x        = l_a;
+    real D_x        = l_a;
     real l_1        = std::sqrt(std::pow(h   - eta  - l_a*std::sin(alpha) - d_t*std::cos(alpha),2._fp) +
                                 std::pow(D_x - zeta - l_a*std::cos(alpha) + d_t*std::sin(alpha),2._fp));
     real l_2        = std::sqrt(std::pow(h   - eta  + l_a*std::sin(alpha) - d_t*std::cos(alpha),2._fp) +
@@ -225,6 +244,7 @@ struct floating_motions_betti {
                          lambda_tir*l_0*(l_a*std::cos(alpha) - d_t*std::sin(alpha)) -
                          lambda_tir*l_0*(l_a*std::cos(alpha) + d_t*std::sin(alpha)) -
                        2*lambda_tir*l_0*                       d_t*std::sin(alpha)  );
+                   
     // Wind Force
     real v_in      = v_w + v_zeta + d_P*omega*std::cos(alpha);
     real TSR       = (omega_R*R)/v_in;
@@ -237,6 +257,7 @@ struct floating_motions_betti {
     real Qwi_alpha = (-FA *(d_Pv*std::cos(alpha) - d_Ph*std::sin(alpha))
                       -FAN*(d_Nv*std::cos(alpha) - d_Nh*std::sin(alpha))
                       -FAT  *d_T*std::cos(alpha));
+
     // Wave and Drag Forces
     real Qh_zeta   = 0;
     real Qh_eta    = 0;
@@ -268,6 +289,7 @@ struct floating_motions_betti {
       Qh_alpha  += (tempQh_zeta *(h_pg - d_Sbott)*std::cos(alpha) + tempQh_eta *(h_pg - d_Sbott)*std::sin(alpha));
       Qwa_alpha += (tempQwa_zeta*(h_pg - d_Sbott)*std::cos(alpha) + tempQwa_eta*(h_pg - d_Sbott)*std::sin(alpha));
     }
+
     Qh_zeta -= 0.5*C_dgb*rho_w*M_PI*r_g*r_g*std::abs(v_par0)*v_par0*std::sin(alpha);
     Qh_eta  -= 0.5*C_dgb*rho_w*M_PI*r_g*r_g*std::abs(v_par0)*v_par0*std::cos(alpha);
     real Q_zeta  = Qwe_zeta  + Qb_zeta  + Qt_zeta  + Qh_zeta  + Qwa_zeta  + Qwi_zeta  + Qh_zeta ; // net force in x
@@ -280,13 +302,14 @@ struct floating_motions_betti {
     F(3) = Q_eta  - M_d*omega*omega*std::cos(alpha);
     F(4) = omega;
     F(5) = Q_alpha;
-    avegQ_t = std::sqrt(Qt_zeta*Qt_zeta+Qt_eta*Qt_eta)/8;
-    auto deriv = yakl::intrinsics::matmul_rc( yakl::intrinsics::matinv(E) , F );
+    real avegQ_t = std::sqrt(Qt_zeta*Qt_zeta+Qt_eta*Qt_eta)/8;
+    auto deriv = yakl::intrinsics::matmul_rc( yakl::intrinsics::matinv_ge(E) , F );
     return std::make_tuple( deriv , v_in , Cp , avegQ_t );
   }
 
 
 
+  // CONFIRMED CORRECT
   real WindTurbine(real omega_R , real v_in , real beta , real T_E , real Cp ) {
     real constexpr J_G      = 534.116 ; // (kg*m^2) Total inertia of electric generator and high speed shaft
     real constexpr J_R      = 35444067; // (kg*m^2) Total inertia of blades, hub and low speed shaft
@@ -294,7 +317,7 @@ struct floating_motions_betti {
     real constexpr A        = 12469   ; // (m^2)    Rotor area
     real constexpr eta_G    = 97      ; // (-)      Speed ratio between high and low speed shafts
     real constexpr tildeJ_R = eta_G*eta_G*J_G + J_R;
-    real constexpr tildeT_E = eta_G*T_E;
+    real tildeT_E = eta_G*T_E;
     real P_wind = 0.5*rho*A*v_in*v_in*v_in;
     real P_A    = P_wind*Cp;
     real T_A    = P_A/omega_R;
@@ -303,6 +326,7 @@ struct floating_motions_betti {
 
 
 
+  // CONFIRMED CORRECT
   SArray<real,1,7>
   Betti_tend( SArray<real,1,7> const & x , real t , real beta , real T_E , real v_w , real v_aveg ) {
     SArray<real,1,6> x1;
@@ -331,13 +355,70 @@ struct floating_motions_betti {
     auto k4 = Betti_tend( state+dt/2*k3 , etime+dt   , beta , T_E , v_wind , v_w );
     state = state + dt * (k1 + 2*k2 + 2*k3 + k4) / 6;
     etime += dt;
-    return v_w + x(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*x(5)*std::cos(x(4));
+    return v_w + state(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*state(5)*std::cos(state(4));
   }
 
 };
 
 
 int main() {
+  yakl::init();
+  {
+    std::vector<real> dt0_005;
+    std::vector<real> dt0_01;
+    std::vector<real> dt0_05;
+    std::vector<real> dt0_10;
+    std::vector<real> dt0_50;
+    {
+      Floating_motions_betti floating_motions;
+      floating_motions.init("../Betti_NREL_5MW.nc");
+      real dt = 0.5;
+      for (int i=0; i < 2000; i++) {
+        real wind = floating_motions.time_step( dt , 12 , 12 );
+        if (i%2 == 0) dt0_50.push_back(wind);
+      }
+    }
+    {
+      Floating_motions_betti floating_motions;
+      floating_motions.init("../Betti_NREL_5MW.nc");
+      real dt = 0.1;
+      for (int i=0; i < 10000; i++) {
+        real wind = floating_motions.time_step( dt , 12 , 12 );
+        if (i%10 == 0) dt0_10.push_back(wind);
+      }
+    }
+    {
+      Floating_motions_betti floating_motions;
+      floating_motions.init("../Betti_NREL_5MW.nc");
+      real dt = 0.05;
+      for (int i=0; i < 20000; i++) {
+        real wind = floating_motions.time_step( dt , 12 , 12 );
+        if (i%20 == 0) dt0_05.push_back(wind);
+      }
+    }
+    {
+      Floating_motions_betti floating_motions;
+      floating_motions.init("../Betti_NREL_5MW.nc");
+      real dt = 0.01;
+      for (int i=0; i < 100000; i++) {
+        real wind = floating_motions.time_step( dt , 12 , 12 );
+        if (i%100 == 0) dt0_01.push_back(wind);
+      }
+    }
+    {
+      Floating_motions_betti floating_motions;
+      floating_motions.init("../Betti_NREL_5MW.nc");
+      real dt = 0.005;
+      for (int i=0; i < 200000; i++) {
+        real wind = floating_motions.time_step( dt , 12 , 12 );
+        if (i%200 == 0) dt0_005.push_back(wind);
+      }
+    }
+    for (int i=0; i < dt0_50.size(); i++) {
+      std::cout << dt0_50[i] << "   "  << dt0_10[i] << "   "  << dt0_05[i] << "   "  << dt0_01[i] << "   "  << dt0_01[i] << std::endl;
+    }
+  }
+  yakl::finalize();
 }
 
 

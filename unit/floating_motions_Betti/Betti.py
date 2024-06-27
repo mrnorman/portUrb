@@ -452,7 +452,7 @@ def structure(x_1, beta, omega_R, t, Cp_type, performance, v_w, v_aveg, random_p
     Qwi_alpha = (-FA*(d_Pv*np.cos(alpha) - d_Ph*np.sin(alpha))
                  -FAN*(d_Nv*np.cos(alpha) - d_Nh*np.sin(alpha))
                  -FAT*d_T*np.cos(alpha))
-    
+
     # Wave and Drag Forces
     h_pg = np.zeros(n_dg)
     v_per = np.zeros(n_dg) # v_perpendicular relative velocity between water and immersed body

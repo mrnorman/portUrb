@@ -1,6 +1,6 @@
 
 #include "YAKL.h"
-#include "YAKL_netcdf.h"
+#include "yaml-cpp/yaml.h"
 
 
 template <class T> inline void debug_print_val( T var , char const * file , int line , char const * varname ) {
@@ -19,13 +19,11 @@ YAKL_INLINE real constexpr operator"" _fp( long double x ) {
 
 struct Floating_motions_betti {
   typedef yakl::Array<float,1,yakl::memDevice> floatHost1d;
-  typedef yakl::Array<float,2,yakl::memDevice> floatHost2d;
-  floatHost2d      C_p_arr;    // 2-D Array of coefficient of thrust based on (TSR,pitch)
-  floatHost2d      C_t_arr;    // 2-D Array of coefficient of power  based on (TSR,pitch)
-  floatHost1d      pitch_list; // Reference pitch angles corresponding to extent(1) of C_p_arr and C_t_arr
-  floatHost1d      TSR_list;   // Reference TSR values   corresponding to extent(0) of C_p_arr and C_t_arr
+  floatHost1d      ref_vel;
+  floatHost1d      ref_CP;
+  floatHost1d      ref_CT;
   size_t           rand_seed;  // For random phases in pm spectrum
-  SArray<real,1,7> state;      // Current state vector
+  SArray<real,1,6> state;      // Current state vector
   real             etime;      // Current elapsed time
 
 
@@ -43,13 +41,18 @@ struct Floating_motions_betti {
 
 
   void init( std::string fname ) {
-    yakl::SimpleNetCDF nc;
-    nc.open( fname , yakl::NETCDF_MODE_READ );
-    nc.read( C_p_arr    , "C_p"          );
-    nc.read( C_t_arr    , "C_t"          );
-    nc.read( pitch_list , "pitch_angles" );
-    nc.read( TSR_list   , "TSR_values"   );
-    nc.close();
+    YAML::Node config = YAML::LoadFile(fname);
+    auto vec_ref_vel = config["velocity_magnitude"].as<std::vector<real>>();
+    auto vec_ref_CP  = config["power_coef"        ].as<std::vector<real>>();
+    auto vec_ref_CT  = config["thrust_coef"       ].as<std::vector<real>>();
+    ref_vel = floatHost1d("ref_vel",vec_ref_vel.size());
+    ref_CP  = floatHost1d("ref_CP ",vec_ref_vel.size());
+    ref_CT  = floatHost1d("ref_CT ",vec_ref_vel.size());
+    for (int i=0; i < vec_ref_vel.size(); i++) {
+      ref_vel(i) = vec_ref_vel[i];
+      ref_CP (i) = vec_ref_CP [i];
+      ref_CT (i) = vec_ref_CT [i];
+    }
     rand_seed = 0;
     state(0) = -2;
     state(1) = 0;
@@ -57,21 +60,16 @@ struct Floating_motions_betti {
     state(3) = 0;
     state(4) = 0;
     state(5) = 0;
-    state(6) = 1;
     etime = 0;
   }
 
 
 
-  // Return first-order-accurate interpolation of C_p and C_t based on provided TSR and beta
-  // TSR : tip speed ratio (dimensionless)
-  // beta: blade pitch angle (radians)
+  // Return first-order-accurate interpolation of C_p and C_t based on provided wind magnitude
   // returns   : Tuple of [C_p,C_t], which are coefficients of power and thrust, respectively
-  std::tuple<real,real>
-  CpCtCq( real TSR , real beta ) {
-    int pitch_index = nearest_index( pitch_list , beta / M_PI * 180 );
-    int TSR_index   = nearest_index( TSR_list   , TSR  );
-    return std::make_tuple( C_p_arr(TSR_index,pitch_index) , C_t_arr(TSR_index,pitch_index) );
+  std::tuple<real,real> CpCt( real vel ) {
+    int vel_index = nearest_index( ref_vel , vel );
+    return std::make_tuple( ref_CP(vel_index) , ref_CT(vel_index) );
   }
 
 
@@ -129,9 +127,8 @@ struct Floating_motions_betti {
 
 
 
-  // CONFIRMED CORRECT
   std::tuple<SArray<real,1,6>,real,real,real>
-  structure( SArray<real,1,6> const & x_1 , real beta , real omega_R , real t , real v_w , real v_aveg ) {
+  structure( SArray<real,1,6> const & x_1 , real t , real v_w , real v_aveg ) {
     int  constexpr nfreq   = 400     ;         // Number of frequency intervals to sum over in PM spectrum
     real constexpr g       = 9.80665 ;         // (m/s^2)  gravity acceleration
     real constexpr rho_w   = 1025    ;         // (kg/m^3) water density
@@ -247,8 +244,7 @@ struct Floating_motions_betti {
                    
     // Wind Force
     real v_in      = v_w + v_zeta + d_P*omega*std::cos(alpha);
-    real TSR       = (omega_R*R)/v_in;
-    auto [Cp,Ct]   = CpCtCq( TSR , beta );
+    auto [Cp,Ct]   = CpCt( v_in );
     real FA        = 0.5*rho*A*Ct*v_in*v_in;
     real FAN       = 0.5*rho*C_dN*A_N    *std::cos(alpha)*std::pow(v_w + v_zeta + d_N*omega*std::cos(alpha),2._fp);
     real FAT       = 0.5*rho*C_dT*h_T*D_T*std::cos(alpha)*std::pow(v_w + v_zeta + d_T*omega*std::cos(alpha),2._fp);
@@ -310,33 +306,10 @@ struct Floating_motions_betti {
 
 
   // CONFIRMED CORRECT
-  real WindTurbine(real omega_R , real v_in , real T_E , real Cp ) {
-    real constexpr J_G      = 534.116 ; // (kg*m^2) Total inertia of electric generator and high speed shaft
-    real constexpr J_R      = 35444067; // (kg*m^2) Total inertia of blades, hub and low speed shaft
-    real constexpr rho      = 1.225   ; // (kg/m^3) Density of air
-    real constexpr A        = 12469   ; // (m^2)    Rotor area
-    real constexpr eta_G    = 97      ; // (-)      Speed ratio between high and low speed shafts
-    real constexpr tildeJ_R = eta_G*eta_G*J_G + J_R;
-    real tildeT_E = eta_G*T_E;
-    real P_wind = 0.5*rho*A*v_in*v_in*v_in;
-    real P_A    = P_wind*Cp;
-    real T_A    = P_A/omega_R;
-    return (1./tildeJ_R)*(T_A - tildeT_E);
-  }
-
-
-
-  // CONFIRMED CORRECT
-  SArray<real,1,7>
-  Betti_tend( SArray<real,1,7> const & x , real t , real beta , real T_E , real v_w , real v_aveg ) {
-    SArray<real,1,6> x1;
-    for (int i=0; i < 6; i++) { x1(i) = x(i); }
-    real omega_R = x(6);
-    SArray<real,1,7> ret;
-    auto [dx1dt,v_in,Cp,Q_t] = structure( x1 , beta , omega_R , t , v_w , v_aveg );
-    for (int i=0; i < 6; i++) { ret(i) = dx1dt(i); }
-    ret(6) = WindTurbine( omega_R , v_in , T_E , Cp );
-    return ret;
+  SArray<real,1,6>
+  Betti_tend( SArray<real,1,6> const & x , real t , real v_w , real v_aveg ) {
+    auto [dx1dt,v_in,Cp,Q_t] = structure( x , t , v_w , v_aveg );
+    return dx1dt;
   }
 
 
@@ -345,14 +318,12 @@ struct Floating_motions_betti {
     using yakl::componentwise::operator+;
     using yakl::componentwise::operator*;
     using yakl::componentwise::operator/;
-    real constexpr beta = 0.30490902;
-    real constexpr T_E  = 43093.55  ;
     real constexpr d_Ph = 5.4305    ; // (m) Horizontal distance between BS and BP
     real constexpr d_Pv = 127.5879  ; // (m) Vertical distance between BS and BP
-    auto k1 = Betti_tend( state         , etime      , beta , T_E , v_wind , v_w );
-    auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 , beta , T_E , v_wind , v_w );
-    auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 , beta , T_E , v_wind , v_w );
-    auto k4 = Betti_tend( state+dt/2*k3 , etime+dt   , beta , T_E , v_wind , v_w );
+    auto k1 = Betti_tend( state         , etime      ,  v_wind , v_w );
+    auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 ,  v_wind , v_w );
+    auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 ,  v_wind , v_w );
+    auto k4 = Betti_tend( state+dt/2*k3 , etime+dt   ,  v_wind , v_w );
     state = state + dt * (k1 + 2*k2 + 2*k3 + k4) / 6;
     etime += dt;
     return v_w + state(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*state(5)*std::cos(state(4));
@@ -364,58 +335,14 @@ struct Floating_motions_betti {
 int main() {
   yakl::init();
   {
-    std::vector<real> dt0_005;
-    std::vector<real> dt0_01;
-    std::vector<real> dt0_05;
-    std::vector<real> dt0_10;
-    std::vector<real> dt0_50;
     {
       Floating_motions_betti floating_motions;
-      floating_motions.init("../Betti_NREL_5MW.nc");
-      real dt = 0.5;
-      for (int i=0; i < 2000; i++) {
-        real wind = floating_motions.time_step( dt , 12 , 12 );
-        if (i%2 == 0) dt0_50.push_back(wind);
-      }
-    }
-    {
-      Floating_motions_betti floating_motions;
-      floating_motions.init("../Betti_NREL_5MW.nc");
-      real dt = 0.1;
-      for (int i=0; i < 10000; i++) {
-        real wind = floating_motions.time_step( dt , 12 , 12 );
-        if (i%10 == 0) dt0_10.push_back(wind);
-      }
-    }
-    {
-      Floating_motions_betti floating_motions;
-      floating_motions.init("../Betti_NREL_5MW.nc");
-      real dt = 0.05;
-      for (int i=0; i < 20000; i++) {
-        real wind = floating_motions.time_step( dt , 12 , 12 );
-        if (i%20 == 0) dt0_05.push_back(wind);
-      }
-    }
-    {
-      Floating_motions_betti floating_motions;
-      floating_motions.init("../Betti_NREL_5MW.nc");
-      real dt = 0.01;
-      for (int i=0; i < 100000; i++) {
-        real wind = floating_motions.time_step( dt , 12 , 12 );
-        if (i%100 == 0) dt0_01.push_back(wind);
-      }
-    }
-    {
-      Floating_motions_betti floating_motions;
-      floating_motions.init("../Betti_NREL_5MW.nc");
+      floating_motions.init("../NREL_5MW_126_RWT.yaml");
       real dt = 0.005;
       for (int i=0; i < 200000; i++) {
         real wind = floating_motions.time_step( dt , 12 , 12 );
-        if (i%200 == 0) dt0_005.push_back(wind);
+        if (i%200 == 0) std::cout << wind << std::endl;
       }
-    }
-    for (int i=0; i < dt0_50.size(); i++) {
-      std::cout << dt0_50[i] << "   "  << dt0_10[i] << "   "  << dt0_05[i] << "   "  << dt0_01[i] << "   "  << dt0_01[i] << std::endl;
     }
   }
   yakl::finalize();

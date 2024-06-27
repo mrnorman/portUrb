@@ -30,6 +30,10 @@ set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../external/yaml-cpp ${CMAKE_CURRENT_BINARY_DIR}/yaml-cpp)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../model/modules)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../model)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../model/core)
+
 add_executable(Betti Betti.cpp)
 yakl_process_target(Betti)
 target_link_libraries(Betti ${NC_LIBS} yaml-cpp)

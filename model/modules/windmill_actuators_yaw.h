@@ -3,6 +3,7 @@
 
 #include "main_header.h"
 #include "coupler.h"
+#include "Betti_simplified.h"
 
 namespace modules {
 
@@ -91,23 +92,25 @@ namespace modules {
 
 
     struct Turbine {
-      int                turbine_id;  // Global turbine ID
-      bool               active;      // Whether this turbine affects this MPI task
-      real               base_loc_x;  // x location of the tower base
-      real               base_loc_y;  // y location of the tower base
-      std::vector<real>  power_trace; // Time trace of power generation
-      std::vector<real>  yaw_trace;   // Time trace of yaw of the turbine
-      std::vector<real>  mag_trace;      // Time trace of disk-integrated velocity
-      std::vector<real>  normmag_trace;  // Time trace of disk-integrated normal velocity
-      std::vector<real>  normmag0_trace; // Time trace of disk-integrated free-stream normal velocity used for look-ups
-      real               yaw_angle;   // Current yaw angle   (radians going counter-clockwise from facing west)
-      real               rot_angle;   // Current rotation angle (radians)
-      YawTend            yaw_tend;    // Functor to compute the change in yaw
-      RefTurbine         ref_turbine; // The reference turbine to use for this turbine
-      core::ParallelComm par_comm;    // MPI communicator for this turbine
-      int                nranks;      // Number of MPI ranks involved with this turbine
-      int                sub_rankid;  // My process's rank ID in the sub communicator
-      int                owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
+      int                     turbine_id;     // Global turbine ID
+      bool                    active;         // Whether this turbine affects this MPI task
+      real                    base_loc_x;     // x location of the tower base
+      real                    base_loc_y;     // y location of the tower base
+      std::vector<real>       power_trace;    // Time trace of power generation
+      std::vector<real>       yaw_trace;      // Time trace of yaw of the turbine
+      std::vector<real>       mag_trace;      // Time trace of disk-integrated velocity
+      std::vector<real>       normmag_trace;  // Time trace of disk-integrated normal velocity
+      std::vector<real>       normmag0_trace; // Time trace of disk-integrated free-stream normal velocity used for look-ups
+      std::vector<real>       betti_trace;    // Time trace of floating motions perturbations
+      real                    yaw_angle;      // Current yaw angle   (radians going counter-clockwise from facing west)
+      real                    rot_angle;      // Current rotation angle (radians)
+      YawTend                 yaw_tend;       // Functor to compute the change in yaw
+      RefTurbine              ref_turbine;    // The reference turbine to use for this turbine
+      core::ParallelComm      par_comm;       // MPI communicator for this turbine
+      int                     nranks;         // Number of MPI ranks involved with this turbine
+      int                     sub_rankid;     // My process's rank ID in the sub communicator
+      int                     owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
+      Floating_motions_betti  floating_motions;
     };
 
 
@@ -147,6 +150,7 @@ namespace modules {
                          turb_x2 < dom_x1 || // Turbine's to the left
                          turb_y1 > dom_y2 || // Turbine's above
                          turb_y2 < dom_y1 ); // Turbine's below
+        std::random_device rd{};
         Turbine loc;
         loc.turbine_id  = num_turbines;
         loc.active      = active;
@@ -156,6 +160,10 @@ namespace modules {
         loc.rot_angle   = 0.;
         loc.yaw_tend    = YawTend();
         loc.ref_turbine = ref_turbine;
+        loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
+                                   loc.ref_turbine.power_coef_host  ,
+                                   loc.ref_turbine.thrust_coef_host ,
+                                   rd()                             );
         loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id
@@ -181,27 +189,27 @@ namespace modules {
         }
         // Add the turbine
         turbines(num_turbines) = loc;
-        // Add the base to immersed_proportion
-        int N = 10;
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-          int count = 0;
-          for (int kk=0; kk < N; kk++) {
-            for (int jj=0; jj < N; jj++) {
-              for (int ii=0; ii < N; ii++) {
-                int x = (i_beg+i)*dx + ii*dx/(N-1);
-                int y = (j_beg+j)*dy + jj*dy/(N-1);
-                int z = (      k)*dz + kk*dz/(N-1);
-                auto bx  = base_loc_x;
-                auto by  = base_loc_y;
-                auto rad = ref_turbine.base_diameter/2;
-                auto h   = ref_turbine.hub_height;
-                if ( (x-bx)*(x-bx) + (y-by)*(y-by) <= rad*rad  && z <= h ) count++;
-              }
-            }
-          }
-          // Express the base as an immersed boundary
-          imm(k,j,i) += static_cast<real>(count)/(N*N*N);
-        });
+        // // Add the base to immersed_proportion
+        // int N = 10;
+        // parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        //   int count = 0;
+        //   for (int kk=0; kk < N; kk++) {
+        //     for (int jj=0; jj < N; jj++) {
+        //       for (int ii=0; ii < N; ii++) {
+        //         int x = (i_beg+i)*dx + ii*dx/(N-1);
+        //         int y = (j_beg+j)*dy + jj*dy/(N-1);
+        //         int z = (      k)*dz + kk*dz/(N-1);
+        //         auto bx  = base_loc_x;
+        //         auto by  = base_loc_y;
+        //         auto rad = ref_turbine.base_diameter/2;
+        //         auto h   = ref_turbine.hub_height;
+        //         if ( (x-bx)*(x-bx) + (y-by)*(y-by) <= rad*rad  && z <= h ) count++;
+        //       }
+        //     }
+        //   }
+        //   // Express the base as an immersed boundary
+        //   imm(k,j,i) += static_cast<real>(count)/(N*N*N);
+        // });
         // Increment the turbine counter
         num_turbines++;
       }
@@ -321,11 +329,13 @@ namespace modules {
             std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
             std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
             std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
+            std::string betti_vname    = std::string("betti_trace_turb_"   ) + std::to_string(iturb);
             nc.create_var<real>( pow_vname      , {"num_time_steps"} );
             nc.create_var<real>( yaw_vname      , {"num_time_steps"} );
             nc.create_var<real>( mag_vname      , {"num_time_steps"} );
             nc.create_var<real>( normmag_vname  , {"num_time_steps"} );
             nc.create_var<real>( normmag0_vname , {"num_time_steps"} );
+            nc.create_var<real>( betti_vname    , {"num_time_steps"} );
           }
           nc.enddef();
           nc.begin_indep_data();
@@ -337,21 +347,25 @@ namespace modules {
               realHost1d mag_arr     ("mag_arr"     ,trace_size);
               realHost1d normmag_arr ("normmag_arr" ,trace_size);
               realHost1d normmag0_arr("normmag0_arr",trace_size);
+              realHost1d betti_arr   ("betti_arr"   ,trace_size);
               for (int i=0; i < trace_size; i++) { power_arr   (i) = turbine.power_trace   [i]; }
               for (int i=0; i < trace_size; i++) { yaw_arr     (i) = turbine.yaw_trace     [i]/M_PI*180; }
               for (int i=0; i < trace_size; i++) { mag_arr     (i) = turbine.mag_trace     [i]; }
               for (int i=0; i < trace_size; i++) { normmag_arr (i) = turbine.normmag_trace [i]; }
               for (int i=0; i < trace_size; i++) { normmag0_arr(i) = turbine.normmag0_trace[i]; }
+              for (int i=0; i < trace_size; i++) { betti_arr   (i) = turbine.betti_trace   [i]; }
               std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
               std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
               std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
               std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
               std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
+              std::string betti_vname    = std::string("betti_trace_turb_"   ) + std::to_string(iturb);
               nc.write( power_arr    , pow_vname      );
               nc.write( yaw_arr      , yaw_vname      );
               nc.write( mag_arr      , mag_vname      );
               nc.write( normmag_arr  , normmag_vname  );
               nc.write( normmag0_arr , normmag0_vname );
+              nc.write( betti_arr    , betti_vname    );
             }
             coupler.get_parallel_comm().barrier();
             turbine.power_trace   .clear();
@@ -359,6 +373,7 @@ namespace modules {
             turbine.mag_trace     .clear();
             turbine.normmag_trace .clear();
             turbine.normmag0_trace.clear();
+            turbine.betti_trace   .clear();
           }
           nc.end_indep_data();
         }
@@ -458,21 +473,31 @@ namespace modules {
           real3d blade2_weight("blade2_weight",nz,ny,nx);
           real3d blade3_weight("blade3_weight",nz,ny,nx);
           real3d disk_weight  ("disk_weight"  ,nz,ny,nx);
-          disk_weight = 0;
+          real2d umag_19_5m_2d("umag_19_5m_2d"   ,ny,nx);
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-            disk_weight  (k,j,i) = 0;
-            if (do_blades) {
-              blade1_weight(k,j,i) = 0;
-              blade2_weight(k,j,i) = 0;
-              blade3_weight(k,j,i) = 0;
+            disk_weight(k,j,i) = 0;
+            blade1_weight(k,j,i) = 0;
+            blade2_weight(k,j,i) = 0;
+            blade3_weight(k,j,i) = 0;
+            if (k == 0) {
+              real x = (i_beg+i+0.5)*dx;
+              real y = (j_beg+j+0.5)*dy;
+              if (std::abs(x-base_x) <= rad && std::abs(y-base_y) <= rad) {
+                int k19_5 = std::max( 0._fp , std::round(19.5/dz-0.5) );
+                real u = uvel(k19_5,j,i);
+                real v = vvel(k19_5,j,i);
+                umag_19_5m_2d(j,i) = std::sqrt(u*u + v*v);
+              } else {
+                umag_19_5m_2d(j,i) = 0;
+              }
             }
           });
           {
             real xr = 3*dx;
             int nper  = 10;
-            int num_x = (int)std::ceil(xr*2 /dx*nper);
-            int num_y = (int)std::ceil(rad*2/dy*nper);
-            int num_z = (int)std::ceil(rad*2/dz*nper);
+            int num_x = (int) std::ceil(xr*2 /dx*nper);
+            int num_y = (int) std::ceil(rad*2/dy*nper);
+            int num_z = (int) std::ceil(rad*2/dz*nper);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
               real x = -xr  + 2*xr *i/(num_x-1);
               real y = -rad + 2*rad*j/(num_y-1);
@@ -559,22 +584,20 @@ namespace modules {
               }
             });
           }
-          real blade1_tot, blade2_tot, blade3_tot, disk_tot;
-          if (do_blades) {
-            yakl::SArray<real,1,4> weights_tot;
-            weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
-            weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
-            weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
-            weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
-            weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-            blade1_tot = weights_tot(0);
-            blade2_tot = weights_tot(1);
-            blade3_tot = weights_tot(2);
-            disk_tot   = weights_tot(3);
-          } else {
-            disk_tot = turbine.par_comm.all_reduce( yakl::intrinsics::sum(disk_weight) , MPI_SUM ,
-                                                    "windmill_Allreduce1" );
-          }
+          using yakl::componentwise::operator>;
+          yakl::SArray<real,1,6> weights_tot;
+          weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
+          weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
+          weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
+          weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
+          weights_tot(4) = yakl::intrinsics::sum(umag_19_5m_2d);
+          weights_tot(5) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
+          weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
+          real blade1_tot = weights_tot(0);
+          real blade2_tot = weights_tot(1);
+          real blade3_tot = weights_tot(2);
+          real disk_tot   = weights_tot(3);
+          real umag_19_5m = weights_tot(4) / weights_tot(5);
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
@@ -629,6 +652,17 @@ namespace modules {
           real mag0 = glob_mag  /(1-a);  // wind magintude at infinity
           real u0   = glob_unorm/(1-a);  // u-velocity at infinity
           real v0   = glob_vnorm/(1-a);  // v-velocity at infinity
+          //////////////////////////////////////////////////////////////////
+          // Application of floating turbine motion perturbation
+          //////////////////////////////////////////////////////////////////
+          real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
+          turbine.normmag0_trace.push_back( mag0 );
+          turbine.betti_trace.push_back( betti_pert );
+          real mult = 1;
+          if ( mag0 > 1.e-10 ) mult = std::max(0._fp,mag0+betti_pert)/mag0;
+          mag0 *= mult;
+          u0   *= mult;
+          v0   *= mult;
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
@@ -640,7 +674,6 @@ namespace modules {
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace     .push_back( turbine.yaw_angle );
           turbine.power_trace   .push_back( pwr               );
-          turbine.normmag0_trace.push_back( mag0              );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
           // Fraction of thrust that didn't generate power to send into TKE

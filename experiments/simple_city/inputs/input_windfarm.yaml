@@ -27,7 +27,7 @@ out_prefix: no_platform
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 900.
+out_freq: 10.
 
 inform_freq: 10.
 
@@ -43,7 +43,7 @@ roughness: 0.0002
 
 dyn_cycle: 1
 
-turbine_file: ./inputs/IEA-15-240-RWT.yaml
+turbine_file: ./inputs/NREL_5MW_126_RWT.yaml
 
 # platform_motions_file: ./inputs/platform_motions.nc
 

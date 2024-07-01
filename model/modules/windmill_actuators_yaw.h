@@ -19,11 +19,6 @@ namespace modules {
       realHost1d power_coef_host;  // Power coefficient              (dimensionless)
       realHost1d power_host;       // Power generation               (MW)
       realHost1d rotation_host;    // Rotation speed                 (radians / sec)
-      real1d     velmag;           // Velocity magnitude at infinity (m/s)
-      real1d     thrust_coef;      // Thrust coefficient             (dimensionless)
-      real1d     power_coef;       // Power coefficient              (dimensionless)
-      real1d     power;            // Power generation               (MW)
-      real1d     rotation;         // Rotation speed                 (radians / sec)
       real       hub_height;       // Hub height                     (m)
       real       blade_radius;     // Blade radius                   (m)
       real       max_yaw_speed;    // Angular active yawing speed    (radians / sec)
@@ -35,18 +30,20 @@ namespace modules {
         auto thrust_coef_vec = config["thrust_coef"       ].as<std::vector<real>>();
         auto power_coef_vec  = config["power_coef"        ].as<std::vector<real>>();
         auto power_vec       = config["power_megawatts"   ].as<std::vector<real>>();
-        auto rotation_vec    = config["rotation_rpm"      ].as<std::vector<real>>();
+        bool do_blades = false;
+        if ( config["rotation_rpm"] ) do_blades = true;
+        auto rotation_vec = do_blades ? config["rotation_rpm"].as<std::vector<real>>() : std::vector<real>();
         // Allocate YAKL arrays to ensure the data is contiguous and to load into the data manager later
         velmag_host      = realHost1d("velmag"     ,velmag_vec     .size());
         thrust_coef_host = realHost1d("thrust_coef",thrust_coef_vec.size());
         power_coef_host  = realHost1d("power_coef" ,power_coef_vec .size());
         power_host       = realHost1d("power"      ,power_vec      .size());
-        rotation_host    = realHost1d("rotation"   ,rotation_vec   .size());
+        if (do_blades) rotation_host = realHost1d("rotation",rotation_vec.size());
         // Make sure the sizes match
         if ( velmag_host.size() != thrust_coef_host.size() ||
              velmag_host.size() != power_coef_host .size() ||
              velmag_host.size() != power_host      .size() ||
-             velmag_host.size() != rotation_host   .size() ) {
+             (do_blades && (velmag_host.size() != rotation_host.size())) ) {
           yakl::yakl_throw("ERROR: turbine arrays not all the same size");
         }
         // Move from std::vectors into YAKL arrays
@@ -55,14 +52,9 @@ namespace modules {
           thrust_coef_host(i) = thrust_coef_vec[i];
           power_coef_host (i) = power_coef_vec [i];
           power_host      (i) = power_vec      [i];
-          rotation_host   (i) = rotation_vec   [i]*2*M_PI/60; // Convert from rpm to radians/sec
+          if (do_blades) rotation_host(i) = rotation_vec[i]*2*M_PI/60; // Convert from rpm to radians/sec
         }
         // Copy from host to device and set other parameters
-        this->velmag        = velmag_host     .createDeviceCopy();
-        this->thrust_coef   = thrust_coef_host.createDeviceCopy();
-        this->power_coef    = power_coef_host .createDeviceCopy();
-        this->power         = power_host      .createDeviceCopy();
-        this->rotation      = rotation_host   .createDeviceCopy();
         this->hub_height    = config["hub_height"   ].as<real>();
         this->blade_radius  = config["blade_radius" ].as<real>();
         this->max_yaw_speed = config["max_yaw_speed"].as<real>(0.5)/180.*M_PI; // Convert from deg/sec to rad/sec
@@ -442,6 +434,7 @@ namespace modules {
           real dom_y2 = (j_beg+ny)*dy;
           // Use monte carlo to compute proportion of the turbine in each cell
           // Get reference data for later computations
+          bool do_blades       = turbine.ref_turbine.rotation_host.initialized();
           real rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
           real hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
           real base_x          = turbine.base_loc_x;
@@ -468,12 +461,14 @@ namespace modules {
           disk_weight = 0;
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
             disk_weight  (k,j,i) = 0;
-            blade1_weight(k,j,i) = 0;
-            blade2_weight(k,j,i) = 0;
-            blade3_weight(k,j,i) = 0;
+            if (do_blades) {
+              blade1_weight(k,j,i) = 0;
+              blade2_weight(k,j,i) = 0;
+              blade3_weight(k,j,i) = 0;
+            }
           });
           {
-            real xr = 2*dx;
+            real xr = 3*dx;
             int nper  = 10;
             int num_x = (int)std::ceil(xr*2 /dx*nper);
             int num_y = (int)std::ceil(rad*2/dy*nper);
@@ -491,11 +486,12 @@ namespace modules {
                 int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
                 int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int  k = static_cast<int>(std::floor((zp       )/dz));
-                if (std::sqrt(y*y+z*z) <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i) , 1._fp );
+                real rloc = std::sqrt(y*y+z*z);
+                if (rloc <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i) , thrust_shape(rloc/rad) );
               }
             });
           }
-          {
+          if (do_blades) {
             int nper = 10;
             real xr = 2*dx;
             real yr = 5*dy;
@@ -563,16 +559,22 @@ namespace modules {
               }
             });
           }
-          yakl::SArray<real,1,4> weights_tot;
-          weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
-          weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
-          weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
-          weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
-          weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-          real blade1_tot = weights_tot(0);
-          real blade2_tot = weights_tot(1);
-          real blade3_tot = weights_tot(2);
-          real disk_tot   = weights_tot(3);
+          real blade1_tot, blade2_tot, blade3_tot, disk_tot;
+          if (do_blades) {
+            yakl::SArray<real,1,4> weights_tot;
+            weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
+            weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
+            weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
+            weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
+            weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
+            blade1_tot = weights_tot(0);
+            blade2_tot = weights_tot(1);
+            blade3_tot = weights_tot(2);
+            disk_tot   = weights_tot(3);
+          } else {
+            disk_tot = turbine.par_comm.all_reduce( yakl::intrinsics::sum(disk_weight) , MPI_SUM ,
+                                                    "windmill_Allreduce1" );
+          }
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
@@ -593,11 +595,14 @@ namespace modules {
               disk_u       (k,j,i)  = 0;
               disk_v       (k,j,i)  = 0;
             }
-            real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i)/blade1_tot : 0;
-            real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i)/blade2_tot : 0;
-            real b3_wt = blade3_tot > 0 ? blade3_weight(k,j,i)/blade3_tot : 0;
-            blade_weight(k,j,i) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
+            if (do_blades) {
+              real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i)/blade1_tot : 0;
+              real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i)/blade2_tot : 0;
+              real b3_wt = blade3_tot > 0 ? blade3_weight(k,j,i)/blade3_tot : 0;
+              blade_weight(k,j,i) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
+            }
           });
+          if (! do_blades) { disk_weight.deep_copy_to(blade_weight); }
           // Calculate local sums
           SArray<real,1,3> sums;
           sums(0) = yakl::intrinsics::sum( disk_u       );
@@ -625,32 +630,13 @@ namespace modules {
           real u0   = glob_unorm/(1-a);  // u-velocity at infinity
           real v0   = glob_vnorm/(1-a);  // v-velocity at infinity
           ///////////////////////////////////////////////////
-          // Add platform motions if they are allocated
-          ///////////////////////////////////////////////////
-          // I'm adding the platform motions to the freestream velocity because otherwise, we get a very strange
-          //   wind distribution in the freestream
-          if (platform_time.initialized() && platform_pert.initialized()) {
-            real te = platform_time(platform_time.size()-1); // Last time entry in platform file
-            real tnorm = etime;                       // Current simulation length
-            while (tnorm >= 2*te) { tnorm -= 2*te; }  // wrap at 2*(last_time)
-            if (tnorm >= te) tnorm = 2*te - tnorm;    // Make domain smoothly infinite / periodic
-            real pert = interp( platform_time , platform_pert , tnorm ); // Interpolate platform pert
-            real mag0_new = std::max( 0._fp , mag0+pert ); // Ensure new magnitude is non-negative
-
-            // Only apply a multiplier if original magnitude is non-zero
-            real mult = std::abs(mag0) > 1.e-7 ? mag0_new / mag0 : 0;
-            mag0 *= mult;
-            u0   *= mult;
-            v0   *= mult;
-          }
-          ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
           // Using induction factor, interpolate power coefficient and power for normal wind magnitude at infinity
           real C_T       = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
           real C_P       = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
-          real rot_speed = interp( ref_velmag , ref_rotation    , mag0 ); // Interpolate rotation speed
+          real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag0 ) : 0; // Interpolate rotation speed
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace     .push_back( turbine.yaw_angle );
           turbine.power_trace   .push_back( pwr               );

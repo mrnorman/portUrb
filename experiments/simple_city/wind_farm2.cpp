@@ -6,7 +6,7 @@
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
 #include "surface_flux.h"
-#include "column_nudging.h"
+#include "uniform_pg_wind_forcing.h"
 #include "perturb_temperature.h"
 #include "precursor_sponge.h"
 #include "sponge_layer.h"
@@ -87,7 +87,6 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::WindmillActuators                 windmills;
-    modules::ColumnNudger                      column_nudger;
 
     // Run the initialization modules on coupler
     custom_modules::sc_init     ( coupler );
@@ -96,7 +95,6 @@ int main(int argc, char** argv) {
     modules::perturb_temperature( coupler , nz);
     windmills    .init          ( coupler );
     time_averager.init          ( coupler );
-    column_nudger.set_column    ( coupler , {"uvel","vvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -124,12 +122,13 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
+        using modules::uniform_pg_wind_forcing;
+        coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing      (c,dt); } , "pg_forcing"        );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
         coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
         coupler.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt); } , "les_closure"       );
         coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt); } , "time_averager"     );
-        coupler.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column(c,dt,dt*100); } , "column_nudger"  );
       }
 
       // Update time step

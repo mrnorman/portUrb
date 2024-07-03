@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 3601  # 86400
+sim_time: 7201  # 86400
 
 # 60× 3×3 = 540
 # 60× 5×3 = 900

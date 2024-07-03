@@ -30,6 +30,10 @@ set(mylibs modules custom_modules model core ponni yaml-cpp "${PORTURB_LINK_FLAG
 
 include(${YAKL_HOME}/yakl_utils.cmake)
 
+add_executable(wind_farm2 wind_farm2.cpp)
+yakl_process_target(wind_farm2)
+target_link_libraries(wind_farm2 ${mylibs})
+
 add_executable(wind_farm wind_farm.cpp)
 yakl_process_target(wind_farm)
 target_link_libraries(wind_farm ${mylibs})

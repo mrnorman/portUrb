@@ -345,10 +345,16 @@ namespace core {
         dm.clean_all_entries();
       #endif
       #ifdef PORTURB_FUNCTION_TIMERS
+        #ifdef PORTURB_FUNCTION_TIMER_BARRIER
+          par_comm.barrier();
+        #endif
         yakl::timer_start( name.c_str() );
       #endif
       func( *this );
       #ifdef PORTURB_FUNCTION_TIMERS
+        #ifdef PORTURB_FUNCTION_TIMER_BARRIER
+          par_comm.barrier();
+        #endif
         yakl::timer_stop ( name.c_str() );
       #endif
       #ifdef PORTURB_FUNCTION_TRACE

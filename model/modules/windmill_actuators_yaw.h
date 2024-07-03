@@ -162,8 +162,7 @@ namespace modules {
         loc.ref_turbine = ref_turbine;
         loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
                                    loc.ref_turbine.power_coef_host  ,
-                                   loc.ref_turbine.thrust_coef_host ,
-                                   rd()                             );
+                                   loc.ref_turbine.thrust_coef_host );
         loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id

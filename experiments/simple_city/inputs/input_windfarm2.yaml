@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 10.  # 86400
+sim_time: 3601  # 86400
 
 # 60× 3×3 = 540
 # 60× 5×3 = 900
@@ -8,13 +8,13 @@ sim_time: 10.  # 86400
 # 60×15×3 = 2700
 
 # Number of cells to use in the CRMs
-nx_glob: 108
-ny_glob: 108
+nx_glob: 216
+ny_glob: 216
 nz     : 120
 
 # Domain size of the CRMs
-xlen: 540
-ylen: 540
+xlen: 1080
+ylen: 1080
 zlen: 600
 
 init_data: ABL_neutral2
@@ -26,9 +26,9 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: -1.
+out_freq: 100.
 
-inform_freq: 1.
+inform_freq: 10.
 
 latitude: 0.
 

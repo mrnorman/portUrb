@@ -14,6 +14,29 @@ using yakl::styleC;
 using yakl::Array;
 using yakl::SArray;
 
+template <class T, int N>
+void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int line) {
+  yakl::ScalarLiveOut<bool> nan_present(false);
+  yakl::c::parallel_for( YAKL_AUTO_LABEL() , arr.size() , YAKL_LAMBDA (int i) {
+    if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
+  });
+  if ( nan_present.hostRead() ) std::cerr << file << ":" << line << ":" << arr.label() << ": has NaN or inf" << std::endl;
+}
+
+template <class T, typename std::enable_if<std::is_arithmetic<T>::value,bool>::type = false>
+void check_for_nan_inf(T val , std::string file , int line) {
+  if ( std::isnan(val) || !std::isfinite(val) ) std::cerr << file << ":" << line << " is NaN or inf" << std::endl;
+}
+
+template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
+void check_for_nan_inf(SArray<T,N,D0,D1,D2,D3> const & arr , std::string file , int line) {
+  bool nan_present = false;
+  for (int i=0; i < arr.size(); i++) {
+    if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
+  }
+  if ( nan_present ) std::cerr << file << ":" << line << " has NaN or inf" << std::endl;
+}
+
 inline void debug_print( char const * file , int line ) {
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;

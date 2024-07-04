@@ -3,7 +3,7 @@
 
 namespace modules {
 
-  inline void uniform_pg_wind_forcing( core::Coupler &coupler , real dt , real tau = 60 , size_t update_cycles = 20 ) {
+  inline void uniform_pg_wind_forcing( core::Coupler &coupler , real dt , real tau = 60 , size_t update_cycles = 1 ) {
     using yakl::c::parallel_for;
     using yakl::c::SimpleBounds;
     auto nz      = coupler.get_nz();

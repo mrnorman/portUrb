@@ -341,13 +341,16 @@ namespace core {
 
     template <class F>
     void run_module( F const &func , std::string name ) {
+      #ifdef PORTURB_FUNCTION_TIMER_BARRIER
+        par_comm.barrier();
+      #endif
+      #ifdef PORTURB_NAN_CHECKS
+        if (check_for_nan()) { std::cerr << "WARNING: NaNs before [" << name << "]" << std::endl; endrun(); }
+      #endif
       #ifdef PORTURB_FUNCTION_TRACE
         dm.clean_all_entries();
       #endif
       #ifdef PORTURB_FUNCTION_TIMERS
-        #ifdef PORTURB_FUNCTION_TIMER_BARRIER
-          par_comm.barrier();
-        #endif
         yakl::timer_start( name.c_str() );
       #endif
       func( *this );
@@ -366,6 +369,32 @@ namespace core {
         }
         std::cout << "\n\n";
       #endif
+      #ifdef PORTURB_NAN_CHECKS
+        if (check_for_nan()) { std::cerr << "WARNING: NaNs created in [" << name << "]" << std::endl; endrun(); }
+      #endif
+      #ifdef PORTURB_FUNCTION_TIMER_BARRIER
+        par_comm.barrier();
+      #endif
+    }
+
+
+    bool check_for_nan() const {
+      std::vector<std::string> names;
+      auto &dm = get_data_manager_readonly();
+      MultiField<real const,3> fields;
+      fields.add_field(dm.get<real const,3>("density_dry"));
+      fields.add_field(dm.get<real const,3>("uvel"       ));
+      fields.add_field(dm.get<real const,3>("vvel"       ));
+      fields.add_field(dm.get<real const,3>("wvel"       ));
+      fields.add_field(dm.get<real const,3>("temp"       ));
+      auto tracer_names = get_tracer_names();
+      for (int tr=0; tr < tracer_names.size(); tr++) { fields.add_field(dm.get<real const,3>(tracer_names[tr])); }
+      yakl::ScalarLiveOut<bool> nan_present(false);
+      yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<4>(fields.get_num_fields(),get_nz(),get_ny(),get_nx()) ,
+                                                 YAKL_LAMBDA (int l, int k, int j, int i) {
+        if (std::isnan(fields(l,k,j,i)) || !std::isfinite(fields(l,k,j,i))) nan_present = true;
+      });
+      return nan_present.hostRead();
     }
 
     
@@ -1039,6 +1068,7 @@ namespace core {
       auto ny     = fields.get_field(0).extent(1)-2*hs;
       auto nx     = fields.get_field(0).extent(2)-2*hs;
       auto &neigh = get_neighbor_rankid_matrix();
+      yakl::fence();
 
       for (int i=0; i < npack; i++) {
         auto field = fields.get_field(i);
@@ -1088,6 +1118,7 @@ namespace core {
       auto ny     = fields.extent(2)-2*hs;
       auto nx     = fields.extent(3)-2*hs;
       auto &neigh = get_neighbor_rankid_matrix();
+      yakl::fence();
 
       // y-direction exchanges
       {

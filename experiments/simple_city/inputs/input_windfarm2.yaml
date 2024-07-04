@@ -2,10 +2,10 @@
 # Simulation time in seconds
 sim_time: 7201  # 86400
 
-# 60× 3×3 = 540
-# 60× 5×3 = 900
-# 60×10×3 = 1800
-# 60×15×3 = 2700
+# 120× 3×3 = 1080
+# 120× 5×3 = 1800
+# 120×10×3 = 3600
+# 120×15×3 = 5400
 
 # Number of cells to use in the CRMs
 nx_glob: 216

@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 10 # 7201  # 86400
+sim_time: 7201  # 86400
 
 # 120× 3×3 = 1080
 # 120× 5×3 = 1800
@@ -8,9 +8,9 @@ sim_time: 10 # 7201  # 86400
 # 120×15×3 = 5400
 
 # Number of cells to use in the CRMs
-nx_glob: 10 # 216
-ny_glob: 10 # 216
-nz     : 10 # 120
+nx_glob: 216
+ny_glob: 216
+nz     : 120
 
 # Domain size of the CRMs
 xlen: 1080
@@ -26,9 +26,9 @@ out_prefix: test
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 1 # 100.
+out_freq: 100.
 
-inform_freq: 1 # 10.
+inform_freq: 10.
 
 latitude: 0.
 
@@ -38,9 +38,7 @@ restart_file:
 
 roughness: 0.0002
 
-dyn_cycle: 1 # 10
+dyn_cycle: 10
 
 turbine_file: ./inputs/NREL_5MW_126_RWT.yaml
-
-# platform_motions_file: ./inputs/platform_motions.nc
 

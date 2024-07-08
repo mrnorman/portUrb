@@ -61,7 +61,7 @@ namespace custom_modules {
     if (! coupler.option_exists("idWV")) {
       auto tracer_names = coupler.get_tracer_names();
       int idWV = -1;
-      for (int tr=0; tr < tracer_names.size(); tr++) { if (tracer_names[tr] == "water_vapor") idWV = tr; }
+      for (int tr=0; tr < tracer_names.size(); tr++) { if (tracer_names.at(tr) == "water_vapor") idWV = tr; }
       coupler.set_option<int>("idWV",idWV);
     }
     int idWV = coupler.get_option<int>("idWV");

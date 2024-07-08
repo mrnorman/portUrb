@@ -49,11 +49,11 @@ namespace modules {
         }
         // Move from std::vectors into YAKL arrays
         for (int i=0; i < velmag_host.size(); i++) {
-          velmag_host     (i) = velmag_vec     [i];
-          thrust_coef_host(i) = thrust_coef_vec[i];
-          power_coef_host (i) = power_coef_vec [i];
-          power_host      (i) = power_vec      [i];
-          if (do_blades) rotation_host(i) = rotation_vec[i]*2*M_PI/60; // Convert from rpm to radians/sec
+          velmag_host     (i) = velmag_vec     .at(i);
+          thrust_coef_host(i) = thrust_coef_vec.at(i);
+          power_coef_host (i) = power_coef_vec .at(i);
+          power_host      (i) = power_vec      .at(i);
+          if (do_blades) rotation_host(i) = rotation_vec.at(i)*2*M_PI/60; // Convert from rpm to radians/sec
         }
         // Copy from host to device and set other parameters
         this->hub_height    = config["hub_height"   ].as<real>();
@@ -92,7 +92,6 @@ namespace modules {
 
 
     struct Turbine {
-      int                     turbine_id;     // Global turbine ID
       bool                    active;         // Whether this turbine affects this MPI task
       real                    base_loc_x;     // x location of the tower base
       real                    base_loc_y;     // y location of the tower base
@@ -114,11 +113,8 @@ namespace modules {
     };
 
 
-    template <yakl::index_t MAX_TURBINES=10000>
     struct TurbineGroup {
-      yakl::SArray<Turbine,1,MAX_TURBINES> turbines;
-      int num_turbines;
-      TurbineGroup() { num_turbines = 0; }
+      std::vector<Turbine> turbines;
       void add_turbine( core::Coupler       & coupler     ,
                         real                  base_loc_x  ,
                         real                  base_loc_y  ,
@@ -152,7 +148,6 @@ namespace modules {
                          turb_y2 < dom_y1 ); // Turbine's below
         std::random_device rd{};
         Turbine loc;
-        loc.turbine_id  = num_turbines;
         loc.active      = active;
         loc.base_loc_x  = base_loc_x;
         loc.base_loc_y  = base_loc_y;
@@ -187,7 +182,7 @@ namespace modules {
           loc.owning_sub_rankid = -3;
         }
         // Add the turbine
-        turbines(num_turbines) = loc;
+        turbines.push_back(loc);
         // // Add the base to immersed_proportion
         // int N = 10;
         // parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
@@ -209,8 +204,6 @@ namespace modules {
         //   // Express the base as an immersed boundary
         //   imm(k,j,i) += static_cast<real>(count)/(N*N*N);
         // });
-        // Increment the turbine counter
-        num_turbines++;
       }
     };
 
@@ -263,10 +256,10 @@ namespace modules {
 
 
     // Class data members
-    TurbineGroup<>  turbine_group;
-    int             trace_size;
-    real            etime;
-    std::mt19937    gen;
+    TurbineGroup  turbine_group;
+    int           trace_size;
+    real          etime;
+    std::mt19937  gen;
 
 
     void init( core::Coupler &coupler ) {
@@ -301,7 +294,7 @@ namespace modules {
         auto x_locs = coupler.get_option<std::vector<real>>("turbine_x_locs");
         auto y_locs = coupler.get_option<std::vector<real>>("turbine_y_locs");
         for (int iturb = 0; iturb < x_locs.size(); iturb++) {
-          turbine_group.add_turbine( coupler , x_locs[iturb] , y_locs[iturb] , ref_turbine );
+          turbine_group.add_turbine( coupler , x_locs.at(iturb) , y_locs.at(iturb) , ref_turbine );
         }
       } else {
         for (real y = yinc/2; y < ylen; y += yinc) {
@@ -320,7 +313,7 @@ namespace modules {
         if (trace_size > 0) {
           nc.redef();
           nc.create_dim( "num_time_steps" , trace_size );
-          for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
+          for (int iturb=0; iturb < turbine_group.turbines.size(); iturb++) {
             std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
             std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
             std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
@@ -336,8 +329,8 @@ namespace modules {
           }
           nc.enddef();
           nc.begin_indep_data();
-          for (int iturb=0; iturb < turbine_group.num_turbines; iturb++) {
-            auto &turbine = turbine_group.turbines(iturb);
+          for (int iturb=0; iturb < turbine_group.turbines.size(); iturb++) {
+            auto &turbine = turbine_group.turbines.at(iturb);
             if (turbine.active && turbine.sub_rankid == turbine.owning_sub_rankid) {
               realHost1d power_arr   ("power_arr"   ,trace_size);
               realHost1d yaw_arr     ("yaw_arr"     ,trace_size);
@@ -345,12 +338,12 @@ namespace modules {
               realHost1d normmag_arr ("normmag_arr" ,trace_size);
               realHost1d normmag0_arr("normmag0_arr",trace_size);
               realHost1d betti_arr   ("betti_arr"   ,trace_size);
-              for (int i=0; i < trace_size; i++) { power_arr   (i) = turbine.power_trace   [i]; }
-              for (int i=0; i < trace_size; i++) { yaw_arr     (i) = turbine.yaw_trace     [i]/M_PI*180; }
-              for (int i=0; i < trace_size; i++) { mag_arr     (i) = turbine.mag_trace     [i]; }
-              for (int i=0; i < trace_size; i++) { normmag_arr (i) = turbine.normmag_trace [i]; }
-              for (int i=0; i < trace_size; i++) { normmag0_arr(i) = turbine.normmag0_trace[i]; }
-              for (int i=0; i < trace_size; i++) { betti_arr   (i) = turbine.betti_trace   [i]; }
+              for (int i=0; i < trace_size; i++) { power_arr   (i) = turbine.power_trace   .at(i); }
+              for (int i=0; i < trace_size; i++) { yaw_arr     (i) = turbine.yaw_trace     .at(i)/M_PI*180; }
+              for (int i=0; i < trace_size; i++) { mag_arr     (i) = turbine.mag_trace     .at(i); }
+              for (int i=0; i < trace_size; i++) { normmag_arr (i) = turbine.normmag_trace .at(i); }
+              for (int i=0; i < trace_size; i++) { normmag0_arr(i) = turbine.normmag0_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { betti_arr   (i) = turbine.betti_trace   .at(i); }
               std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
               std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
               std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
@@ -421,8 +414,8 @@ namespace modules {
       turb_prop_tot = 0;
       blade_prop_tot = 0;
 
-      for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++) {
-        auto &turbine = turbine_group.turbines(iturb);
+      for (int iturb = 0; iturb < turbine_group.turbines.size(); iturb++) {
+        auto &turbine = turbine_group.turbines.at(iturb);
         if (turbine.active) {
           ///////////////////////////////////////////////////
           // Sampling of turbine disk and blades
@@ -653,15 +646,15 @@ namespace modules {
           for (int iter = 0; iter < 100; iter++) {
             real C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
             a        = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
-            check_for_nan_inf(C_T,__FILE__,__LINE__);
-            check_for_nan_inf(a  ,__FILE__,__LINE__);
+            // check_for_nan_inf(C_T,__FILE__,__LINE__);
+            // check_for_nan_inf(a  ,__FILE__,__LINE__);
           }
           real mag0 = glob_mag  /(1-a);  // wind magintude at infinity
           real u0   = glob_unorm/(1-a);  // u-velocity at infinity
           real v0   = glob_vnorm/(1-a);  // v-velocity at infinity
-          check_for_nan_inf(mag0,__FILE__,__LINE__);
-          check_for_nan_inf(u0  ,__FILE__,__LINE__);
-          check_for_nan_inf(v0  ,__FILE__,__LINE__);
+          // check_for_nan_inf(mag0,__FILE__,__LINE__);
+          // check_for_nan_inf(u0  ,__FILE__,__LINE__);
+          // check_for_nan_inf(v0  ,__FILE__,__LINE__);
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
@@ -673,9 +666,9 @@ namespace modules {
           mag0 *= mult;
           u0   *= mult;
           v0   *= mult;
-          check_for_nan_inf(mag0,__FILE__,__LINE__);
-          check_for_nan_inf(u0  ,__FILE__,__LINE__);
-          check_for_nan_inf(v0  ,__FILE__,__LINE__);
+          // check_for_nan_inf(mag0,__FILE__,__LINE__);
+          // check_for_nan_inf(u0  ,__FILE__,__LINE__);
+          // check_for_nan_inf(v0  ,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
@@ -684,10 +677,10 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag0 ) : 0; // Interpolate rotation speed
-          check_for_nan_inf(C_T      ,__FILE__,__LINE__);
-          check_for_nan_inf(C_P      ,__FILE__,__LINE__);
-          check_for_nan_inf(pwr      ,__FILE__,__LINE__);
-          check_for_nan_inf(rot_speed,__FILE__,__LINE__);
+          // check_for_nan_inf(C_T      ,__FILE__,__LINE__);
+          // check_for_nan_inf(C_P      ,__FILE__,__LINE__);
+          // check_for_nan_inf(pwr      ,__FILE__,__LINE__);
+          // check_for_nan_inf(rot_speed,__FILE__,__LINE__);
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace     .push_back( turbine.yaw_angle );
           turbine.power_trace   .push_back( pwr               );
@@ -697,8 +690,8 @@ namespace modules {
           // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE = f_TKE * (C_T - C_P);
-          check_for_nan_inf(f_TKE,__FILE__,__LINE__);
-          check_for_nan_inf(C_TKE,__FILE__,__LINE__);
+          // check_for_nan_inf(f_TKE,__FILE__,__LINE__);
+          // check_for_nan_inf(C_TKE,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
@@ -712,9 +705,9 @@ namespace modules {
               tend_tke(k,j,i) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*blade_weight(k,j,i)*turb_factor;
             }
           });
-          check_for_nan_inf(tend_u  ,__FILE__,__LINE__);
-          check_for_nan_inf(tend_v  ,__FILE__,__LINE__);
-          check_for_nan_inf(tend_tke,__FILE__,__LINE__);
+          // check_for_nan_inf(tend_u  ,__FILE__,__LINE__);
+          // check_for_nan_inf(tend_v  ,__FILE__,__LINE__);
+          // check_for_nan_inf(tend_tke,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Update the disk's yaw angle and rot angle
           ///////////////////////////////////////////////////
@@ -728,7 +721,7 @@ namespace modules {
           // check_for_nan_inf(turbine.yaw_angle,__FILE__,__LINE__);
           // check_for_nan_inf(turbine.rot_angle,__FILE__,__LINE__);
         } // if (turbine.active)
-      } // for (int iturb = 0; iturb < turbine_group.num_turbines; iturb++)
+      } // for (int iturb = 0; iturb < turbine_group.turbines.size(); iturb++)
 
       ///////////////////////////////////////////////////
       // Application of tendencies onto model variables
@@ -739,9 +732,9 @@ namespace modules {
         vvel(k,j,i) += dt * tend_v  (k,j,i);
         tke (k,j,i) += dt * tend_tke(k,j,i);
       });
-      check_for_nan_inf(uvel,__FILE__,__LINE__);
-      check_for_nan_inf(vvel,__FILE__,__LINE__);
-      check_for_nan_inf(tke ,__FILE__,__LINE__);
+      // check_for_nan_inf(uvel,__FILE__,__LINE__);
+      // check_for_nan_inf(vvel,__FILE__,__LINE__);
+      // check_for_nan_inf(tke ,__FILE__,__LINE__);
 
       // So all tasks know how large the trace is. Makes PNetCDF output easier to manage
       trace_size++;

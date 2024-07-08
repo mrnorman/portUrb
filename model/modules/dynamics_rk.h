@@ -848,7 +848,7 @@ namespace modules {
       for (int tr=0; tr < num_tracers; tr++) {
         std::string tracer_desc;
         bool        tracer_found, positive, adds_mass, diffuse;
-        coupler.get_tracer_info( tracer_names[tr] , tracer_desc, tracer_found , positive , adds_mass , diffuse );
+        coupler.get_tracer_info( tracer_names.at(tr) , tracer_desc, tracer_found , positive , adds_mass , diffuse );
         tracer_positive_host (tr) = positive;
         tracer_adds_mass_host(tr) = adds_mass;
       }
@@ -1167,7 +1167,7 @@ namespace modules {
       auto  tracer_adds_mass = dm.get<bool const,1>("tracer_adds_mass");
       core::MultiField<real,3> dm_tracers;
       auto tracer_names = coupler.get_tracer_names();
-      for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real,3>(tracer_names[tr]) ); }
+      for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real,3>(tracer_names.at(tr)) ); }
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         real rho   = state(idR,hs+k,hs+j,hs+i);
         real u     = state(idU,hs+k,hs+j,hs+i) / rho;
@@ -1220,7 +1220,7 @@ namespace modules {
       auto  tracer_adds_mass = dm.get<bool const,1>("tracer_adds_mass");
       core::MultiField<real const,3> dm_tracers;
       auto tracer_names = coupler.get_tracer_names();
-      for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real const,3>(tracer_names[tr]) ); }
+      for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real const,3>(tracer_names.at(tr)) ); }
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         real rho_d = dm_rho_d(k,j,i);
         real u     = dm_uvel (k,j,i);

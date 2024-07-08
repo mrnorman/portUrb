@@ -106,10 +106,10 @@ namespace core {
     void add_dimension( std::string name , int len ) {
       int dimid = find_dimension( name );
       if (dimid > 0) {
-        if ( dimensions[dimid].len != len ) {
+        if ( dimensions.at(dimid).len != len ) {
           std::cerr << "ERROR: Attempting to add a dimension of name [" << name
                     << "] with length [" << len 
-                    << "]. However, it already exists with length [" << dimensions[dimid].len << "].";
+                    << "]. However, it already exists with length [" << dimensions.at(dimid).len << "].";
           endrun();
         }
         return;  // Avoid adding a duplicate entry
@@ -137,15 +137,15 @@ namespace core {
       // Make sure we don't have a duplicate entry
       int entry_ind = find_entry(name);
       if ( entry_ind != -1) {
-        if (dims != entries[entry_ind].dims) {
+        if (dims != entries.at(entry_ind).dims) {
           std::cerr << "ERROR: Trying to re-register name [" << name << "] with different dimensions";
           endrun();
         }
-        if (dim_names != entries[entry_ind].dim_names) {
+        if (dim_names != entries.at(entry_ind).dim_names) {
           std::cerr << "ERROR: Trying to re-register name [" << name << "] with different dimension names";
           endrun();
         }
-        if (positive != entries[entry_ind].positive) {
+        if (positive != entries.at(entry_ind).positive) {
           std::cerr << "ERROR: Trying to re-register name [" << name << "] with different positivity attribute";
           endrun();
         }
@@ -160,18 +160,18 @@ namespace core {
         }
         // Make sure the dimensions are the same size as existing ones of the same name
         for (int i=0; i < dim_names.size(); i++) {
-          int dimid = find_dimension(dim_names[i]);
+          int dimid = find_dimension(dim_names.at(i));
           if (dimid == -1) {
             Dimension loc;
-            loc.name = dim_names[i];
-            loc.len  = dims     [i];
+            loc.name = dim_names.at(i);
+            loc.len  = dims     .at(i);
             dimensions.push_back(loc);
           } else {
-            if (dimensions[dimid].len != dims[i]) {
+            if (dimensions.at(dimid).len != dims.at(i)) {
               std::cerr << "ERROR: Trying to register and allocate name [" << name << "]. " <<
-                           "Dimension of name [" << dim_names[i] << "] already exists with a different " <<
-                           "length of [" << dimensions[dimid].len << "]. The length you provided for " << 
-                           "that dimension name in this call is [" << dims[i] << "]. ";
+                           "Dimension of name [" << dim_names.at(i) << "] already exists with a different " <<
+                           "length of [" << dimensions.at(dimid).len << "]. The length you provided for " << 
+                           "that dimension name in this call is [" << dims.at(i) << "]. ";
               endrun("");
             }
           }
@@ -181,7 +181,7 @@ namespace core {
         std::string loc_dim_name = "";
         for (int i=0; i < dims.size(); i++) { // i is local var dims index
           for (int ii=0; ii < this->dimensions.size(); ii++) { // ii is data manager dimensions index
-            if (dims[i] == this->dimensions[ii].len) loc_dim_name = this->dimensions[i].name;
+            if (dims.at(i) == this->dimensions.at(ii).len) loc_dim_name = this->dimensions.at(i).name;
             break;
           }
           if (loc_dim_name == "") {
@@ -212,7 +212,7 @@ namespace core {
     // deallocate a named entry, and erase the entry from the list
     void unregister_and_deallocate( std::string name ) {
       int id = find_entry_or_error( name );
-      deallocate( entries[id].ptr , entries[id].name.c_str() );
+      deallocate( entries.at(id).ptr , entries.at(id).name.c_str() );
       entries.erase( entries.begin() + id );
     }
 
@@ -220,7 +220,7 @@ namespace core {
     // reset the dirty flag to false for all entries
     // when the dirty flag is true, then the entry has been potentially written to since its creation or previous cleaning
     void clean_all_entries() {
-      for (int i=0; i < entries.size(); i++) { entries[i].dirty = false; }
+      for (int i=0; i < entries.size(); i++) { entries.at(i).dirty = false; }
     }
 
 
@@ -228,7 +228,7 @@ namespace core {
     // when the dirty flag is true, then the entry has been potentially written to since its creation or previous cleaning
     void clean_entry( std::string name ) {
       int id = find_entry_or_error( name );
-      entries[id].dirty = false;
+      entries.at(id).dirty = false;
     }
 
 
@@ -236,7 +236,7 @@ namespace core {
     // when the dirty flag is true, then the entry has been potentially written to since its creation or previous cleaning
     bool entry_is_dirty( std::string name ) const {
       int id = find_entry_or_error( name );
-      return entries[id].dirty;
+      return entries.at(id).dirty;
     }
 
 
@@ -245,7 +245,7 @@ namespace core {
     std::vector<std::string> get_dirty_entries( ) const {
       std::vector<std::string> dirty_entries;
       for (int i=0; i < entries.size(); i++) {
-        if (entries[i].dirty) dirty_entries.push_back( entries[i].name );
+        if (entries.at(i).dirty) dirty_entries.push_back( entries.at(i).name );
       }
       return dirty_entries;
     }
@@ -273,7 +273,7 @@ namespace core {
       if (!validate_dims<N>(id)) {
         std::cerr << "ERROR: Calling get() with name [" << name << "] with the wrong number of dimensions"; endrun("");
       }
-      Array<T,N,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , entries[id].dims );
+      Array<T,N,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , entries.at(id).dims );
       return ret;
     }
 
@@ -286,7 +286,7 @@ namespace core {
     Array<T,N,memSpace,styleC> get( std::string name ) {
       // Make sure we have this name as an entry
       int id = find_entry_or_error( name );
-      entries[id].dirty = true;
+      entries.at(id).dirty = true;
       // Make sure it's the right type and dimensionality
       if (!validate_type<T>(id)) {
         std::cerr << "ERROR: Calling get() with name [" << name << "] with the wrong type"; endrun("");
@@ -294,7 +294,7 @@ namespace core {
       if (!validate_dims<N>(id)) {
         std::cerr << "ERROR: Calling get() with name [" << name << "] with the wrong number of dimensions"; endrun("");
       }
-      Array<T,N,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , entries[id].dims );
+      Array<T,N,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , entries.at(id).dims );
       return ret;
     }
 
@@ -318,12 +318,12 @@ namespace core {
                      "dimensions is not compatible. You need two or more dimensions in the variable to call this.";
         endrun("");
       }
-      int nlev = entries[id].dims[0];
+      int nlev = entries.at(id).dims.at(0);
       int ncol = 1;
-      for (int i=1; i < entries[id].dims.size(); i++) {
-        ncol *= entries[id].dims[i];
+      for (int i=1; i < entries.at(id).dims.size(); i++) {
+        ncol *= entries.at(id).dims.at(i);
       }
-      Array<T,2,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , nlev , ncol );
+      Array<T,2,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , nlev , ncol );
       return ret;
     }
 
@@ -338,16 +338,16 @@ namespace core {
     Array<T,2,memSpace,styleC> get_lev_col( std::string name ) {
       // Make sure we have this name as an entry
       int id = find_entry_or_error( name );
-      entries[id].dirty = true;
+      entries.at(id).dirty = true;
       // Make sure it's the right type
       validate_type<T>(id);
       validate_dims_lev_col(id);
-      int nlev = entries[id].dims[0];
+      int nlev = entries.at(id).dims.at(0);
       int ncol = 1;
-      for (int i=1; i < entries[id].dims.size(); i++) {
-        ncol *= entries[id].dims[i];
+      for (int i=1; i < entries.at(id).dims.size(); i++) {
+        ncol *= entries.at(id).dims.at(i);
       }
-      Array<T,2,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , nlev , ncol );
+      Array<T,2,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , nlev , ncol );
       return ret;
     }
 
@@ -363,11 +363,11 @@ namespace core {
       int id = find_entry_or_error( name );
       // Make sure it's the right type
       validate_type<T>(id);
-      int ncells = entries[id].dims[0];
-      for (int i=1; i < entries[id].dims.size(); i++) {
-        ncells *= entries[id].dims[i];
+      int ncells = entries.at(id).dims.at(0);
+      for (int i=1; i < entries.at(id).dims.size(); i++) {
+        ncells *= entries.at(id).dims.at(i);
       }
-      Array<T,1,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , ncells );
+      Array<T,1,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , ncells );
       return ret;
     }
 
@@ -381,14 +381,14 @@ namespace core {
     Array<T,1,memSpace,styleC> get_collapsed( std::string name ) {
       // Make sure we have this name as an entry
       int id = find_entry_or_error( name );
-      entries[id].dirty = true;
+      entries.at(id).dirty = true;
       // Make sure it's the right type
       validate_type<T>(id);
-      int ncells = entries[id].dims[0];
-      for (int i=1; i < entries[id].dims.size(); i++) {
-        ncells *= entries[id].dims[i];
+      int ncells = entries.at(id).dims.at(0);
+      for (int i=1; i < entries.at(id).dims.size(); i++) {
+        ncells *= entries.at(id).dims.at(i);
       }
-      Array<T,1,memSpace,styleC> ret( name.c_str() , (T *) entries[id].ptr , ncells );
+      Array<T,1,memSpace,styleC> ret( name.c_str() , (T *) entries.at(id).ptr , ncells );
       return ret;
     }
 
@@ -397,7 +397,7 @@ namespace core {
     // All floating point values are checked for infinities. All entries are checked for NaNs.
     // This is EXPENSIVE. All arrays are copied to the host, and the checks are performed on the host
     void validate_all( bool die_on_failed_check = false ) const {
-      for (int id = 0; id < entries.size(); id++) { validate( entries[id].name , die_on_failed_check ); }
+      for (int id = 0; id < entries.size(); id++) { validate( entries.at(id).name , die_on_failed_check ); }
     }
 
 
@@ -484,7 +484,7 @@ namespace core {
     template <class T>
     void validate_single_pos(std::string name , bool die_on_failed_check = false) const {
       int id = find_entry_or_error( name );
-      if (entries[id].positive) {
+      if (entries.at(id).positive) {
         auto arr = get_collapsed<T>(name).createHostCopy();
         for (int i=0; i < arr.get_elem_count(); i++) {
           if ( arr(i) < 0. ) {
@@ -500,7 +500,7 @@ namespace core {
     // INTERNAL USE: Return the id of the named entry or -1 if it isn't found
     int find_entry( std::string name ) const {
       for (int i=0; i < entries.size(); i++) {
-        if (entries[i].name == name) return i;
+        if (entries.at(i).name == name) return i;
       }
       return -1;
     }
@@ -509,7 +509,7 @@ namespace core {
     // INTERNAL USE: Return the id of the named dimension or -1 if it isn't found
     int find_dimension( std::string name ) const {
       for (int i=0; i < dimensions.size(); i++) {
-        if (dimensions[i].name == name) return i;
+        if (dimensions.at(i).name == name) return i;
       }
       return -1;
     }
@@ -528,7 +528,7 @@ namespace core {
     // INTERNAL USE: Return the product of the vector of dimensions
     int get_data_size( std::vector<int> dims ) const {
       int size = 1;
-      for (int i=0; i < dims.size(); i++) { size *= dims[i]; }
+      for (int i=0; i < dims.size(); i++) { size *= dims.at(i); }
       return size;
     }
 
@@ -540,12 +540,12 @@ namespace core {
         std::cerr << "ERROR: Attempting to get size of dimension name [" << name << "], but it doesn't exist. ";
         endrun("ERROR: Could not find dimension.");
       }
-      return dimensions[id].len;
+      return dimensions.at(id).len;
     }
 
 
     Entry const & get_entry( std::string name ) const {
-      return entries[find_entry_or_error(name)];
+      return entries.at(find_entry_or_error(name));
     }
 
 
@@ -557,14 +557,14 @@ namespace core {
 
     // INTERNAL USE: Return whether the entry id's type is the same as the templated type
     template <class T> size_t entry_type_is_same(int id) const {
-      return entries[id].type_hash == get_type_hash<T>();
+      return entries.at(id).type_hash == get_type_hash<T>();
     }
 
 
     // INTERNAL USE: End the run if the templated type is not the same as the entry id's type
     template <class T>
     bool validate_type(int id) const {
-      if ( entries[id].type_hash != get_type_hash<T>() ) return false;
+      if ( entries.at(id).type_hash != get_type_hash<T>() ) return false;
       return true;
     }
 
@@ -573,14 +573,14 @@ namespace core {
     //     number of dimensions
     template <int N>
     bool validate_dims(int id) const {
-      if ( N != entries[id].dims.size() ) return false;
+      if ( N != entries.at(id).dims.size() ) return false;
       return true;
     }
 
 
     // INTERNAL USE: End the run if the entry id's of dimensions < 2
     bool validate_dims_lev_col(int id) const {
-      if ( entries[id].dims.size() < 2 ) return false;
+      if ( entries.at(id).dims.size() < 2 ) return false;
       return true;
     }
 
@@ -590,7 +590,7 @@ namespace core {
     void finalize() {
       yakl::fence();
       for (int i=0; i < entries.size(); i++) {
-        deallocate( entries[i].ptr , entries[i].name.c_str() );
+        deallocate( entries.at(i).ptr , entries.at(i).name.c_str() );
       }
       entries    = std::vector<Entry>();
       dimensions = std::vector<Dimension>();

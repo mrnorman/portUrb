@@ -13,7 +13,7 @@ void ColumnNudger::set_column( core::Coupler &coupler , std::vector<std::string>
   column = real2d("column",names.size(),nz);
   auto &dm = coupler.get_data_manager_readonly();
   core::MultiField<real const,3> state;
-  for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real const,3>(names[i]) ); }
+  for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real const,3>(names.at(i)) ); }
   column = get_column_average( coupler , state );
 }
 
@@ -27,7 +27,7 @@ void ColumnNudger::nudge_to_column( core::Coupler &coupler , real dt , real time
   auto &dm = coupler.get_data_manager_readwrite();
   auto immersed = dm.get<real const,3>("immersed_proportion");
   core::MultiField<real,3> state;
-  for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,3>(names[i]) ); }
+  for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,3>(names.at(i)) ); }
   auto state_col_avg = get_column_average( coupler , state );
   YAKL_SCOPE( column , this->column );
   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,

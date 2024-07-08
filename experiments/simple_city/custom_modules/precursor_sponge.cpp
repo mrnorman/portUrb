@@ -28,8 +28,8 @@ namespace custom_modules {
     core::MultiField<real const,3> fields_precursor;
     int numvars = vnames.size();
     for (int i=0; i < numvars; i++) {
-      fields_main     .add_field( dm_main     .get<real      ,3>(vnames[i]) );
-      fields_precursor.add_field( dm_precursor.get<real const,3>(vnames[i]) );
+      fields_main     .add_field( dm_main     .get<real      ,3>(vnames.at(i)) );
+      fields_precursor.add_field( dm_precursor.get<real const,3>(vnames.at(i)) );
     }
 
     real time_factor = dt / time_scale;

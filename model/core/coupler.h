@@ -155,14 +155,14 @@ namespace core {
           if (nranks % nproc_y == 0) { nproc_y_choices.push_back(nproc_y); }
         }
         real aspect_real = static_cast<double>(ny_glob)/nx_glob;
-        nproc_y = nproc_y_choices[0];
+        nproc_y = nproc_y_choices.at(0);
         real aspect = static_cast<double>(nproc_y)/(nranks/nproc_y);
         real min_dist = std::abs(aspect-aspect_real);
         for (int i=1; i < nproc_y_choices.size(); i++) {
-          aspect = static_cast<double>(nproc_y_choices[i])/(nranks/nproc_y);
+          aspect = static_cast<double>(nproc_y_choices.at(i))/(nranks/nproc_y);
           real dist = std::abs(aspect-aspect_real);
           if (dist < min_dist) {
-            nproc_y = nproc_y_choices[i];
+            nproc_y = nproc_y_choices.at(i);
             min_dist = dist;
           }
         }
@@ -364,7 +364,7 @@ namespace core {
         auto dirty_entry_names = dm.get_dirty_entries();
         std::cout << "PortUrb Module " << name << " wrote to the following coupler entries: ";
         for (int e=0; e < dirty_entry_names.size(); e++) {
-          std::cout << dirty_entry_names[e];
+          std::cout << dirty_entry_names.at(e);
           if (e < dirty_entry_names.size()-1) std::cout << ", ";
         }
         std::cout << "\n\n";
@@ -388,7 +388,7 @@ namespace core {
       fields.add_field(dm.get<real const,3>("wvel"       ));
       fields.add_field(dm.get<real const,3>("temp"       ));
       auto tracer_names = get_tracer_names();
-      for (int tr=0; tr < tracer_names.size(); tr++) { fields.add_field(dm.get<real const,3>(tracer_names[tr])); }
+      for (int tr=0; tr < tracer_names.size(); tr++) { fields.add_field(dm.get<real const,3>(tracer_names.at(tr))); }
       yakl::ScalarLiveOut<bool> nan_present(false);
       yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<4>(fields.get_num_fields(),get_nz(),get_ny(),get_nx()) ,
                                                  YAKL_LAMBDA (int l, int k, int j, int i) {
@@ -405,17 +405,17 @@ namespace core {
                     bool diffuse   = true        ) {
       int ind = get_tracer_index(tracer_name);
       if (ind != -1) {
-        if (tracers[ind].positive != positive) {
+        if (tracers.at(ind).positive != positive) {
           std::cerr << "ERROR: adding tracer [" << tracer_name
                     << "] that already exists with different positivity attribute";
           endrun();
         }
-        if (tracers[ind].adds_mass != adds_mass) {
+        if (tracers.at(ind).adds_mass != adds_mass) {
           std::cerr << "ERROR: adding tracer [" << tracer_name
                     << "] that already exists with different add_mass attribute";
           endrun();
         }
-        if (tracers[ind].diffuse != diffuse) {
+        if (tracers.at(ind).diffuse != diffuse) {
           std::cerr << "ERROR: adding tracer [" << tracer_name
                     << "] that already exists with different diffuse attribute";
           endrun();
@@ -433,7 +433,7 @@ namespace core {
     
     std::vector<std::string> get_tracer_names() const {
       std::vector<std::string> ret;
-      for (int i=0; i < tracers.size(); i++) { ret.push_back( tracers[i].name ); }
+      for (int i=0; i < tracers.size(); i++) { ret.push_back( tracers.at(i).name ); }
       return ret;
     }
 
@@ -442,11 +442,11 @@ namespace core {
                          bool &positive , bool &adds_mass, bool &diffuse) const {
       std::vector<std::string> ret;
       for (int i=0; i < tracers.size(); i++) {
-        if (tracer_name == tracers[i].name) {
-          positive    = tracers[i].positive ;
-          tracer_desc = tracers[i].desc     ;
-          adds_mass   = tracers[i].adds_mass;
-          diffuse     = tracers[i].diffuse  ;
+        if (tracer_name == tracers.at(i).name) {
+          positive    = tracers.at(i).positive ;
+          tracer_desc = tracers.at(i).desc     ;
+          adds_mass   = tracers.at(i).adds_mass;
+          diffuse     = tracers.at(i).diffuse  ;
           tracer_found = true;
           return;
         }
@@ -456,7 +456,7 @@ namespace core {
 
     
     int get_tracer_index( std::string tracer_name ) const {
-      for (int i=0; i < tracers.size(); i++) { if (tracer_name == tracers[i].name) return i; }
+      for (int i=0; i < tracers.size(); i++) { if (tracer_name == tracers.at(i).name) return i; }
       return -1;
     }
 
@@ -557,11 +557,11 @@ namespace core {
       nc.create_var<real>( "etime"        , {"t"} );
       nc.create_var<real>( "file_counter" , {"t"} );
       auto tracer_names = get_tracer_names();
-      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names[tr] , dimnames_3d ); }
+      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names.at(tr) , dimnames_3d ); }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
-        auto name = output_vars[ivar].name;
-        auto hash = output_vars[ivar].type_hash;
-        auto dims = output_vars[ivar].dims;
+        auto name = output_vars.at(ivar).name;
+        auto hash = output_vars.at(ivar).type_hash;
+        auto dims = output_vars.at(ivar).dims;
         if        (dims == DIMS_COLUMN ) {
           if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_column ); }
           else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_column ); }
@@ -605,12 +605,12 @@ namespace core {
       nc.write_all(dm.get<real const,3>("wvel"       ),"wvel"       ,start_3d);
       nc.write_all(dm.get<real const,3>("temp"       ),"temperature",start_3d);
       for (int i=0; i < tracer_names.size(); i++) {
-        nc.write_all(dm.get<real const,3>(tracer_names[i]),tracer_names[i],start_3d);
+        nc.write_all(dm.get<real const,3>(tracer_names.at(i)),tracer_names.at(i),start_3d);
       }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
-        auto name = output_vars[ivar].name;
-        auto hash = output_vars[ivar].type_hash;
-        auto dims = output_vars[ivar].dims;
+        auto name = output_vars.at(ivar).name;
+        auto hash = output_vars.at(ivar).type_hash;
+        auto dims = output_vars.at(ivar).dims;
         if        (dims == DIMS_COLUMN ) {
           nc.begin_indep_data();
           if (is_mainproc()) {
@@ -632,7 +632,7 @@ namespace core {
           else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,3>(name),name,start_3d); }
         }
       }
-      for (int i=0; i < out_write_funcs.size(); i++) { out_write_funcs[i](*this,nc); }
+      for (int i=0; i < out_write_funcs.size(); i++) { out_write_funcs.at(i)(*this,nc); }
       nc.close();
       file_counter++;
       yakl::timer_stop("coupler_output");
@@ -674,12 +674,12 @@ namespace core {
       nc.read_all(dm.get<real,3>("wvel"       ),"wvel"       ,start_3d);
       nc.read_all(dm.get<real,3>("temp"       ),"temperature",start_3d);
       for (int i=0; i < tracer_names.size(); i++) {
-        nc.read_all(dm.get<real,3>(tracer_names[i]),tracer_names[i],start_3d);
+        nc.read_all(dm.get<real,3>(tracer_names.at(i)),tracer_names.at(i),start_3d);
       }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
-        auto name = output_vars[ivar].name;
-        auto hash = output_vars[ivar].type_hash;
-        auto dims = output_vars[ivar].dims;
+        auto name = output_vars.at(ivar).name;
+        auto hash = output_vars.at(ivar).type_hash;
+        auto dims = output_vars.at(ivar).dims;
         if        (dims == DIMS_COLUMN ) {
           if      (hash == get_type_hash<float >()) { nc.read_all(dm.get<float ,1>(name),name,start_column); }
           else if (hash == get_type_hash<double>()) { nc.read_all(dm.get<double,1>(name),name,start_column); }
@@ -697,7 +697,7 @@ namespace core {
           else if (hash == get_type_hash<uchar >()) { nc.read_all(dm.get<uchar ,3>(name),name,start_3d); }
         }
       }
-      for (int i=0; i < restart_read_funcs.size(); i++) { restart_read_funcs[i](*this,nc); }
+      for (int i=0; i < restart_read_funcs.size(); i++) { restart_read_funcs.at(i)(*this,nc); }
       nc.close();
       file_counter++;
       yakl::timer_stop("overwrite_with_restart");

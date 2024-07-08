@@ -41,57 +41,57 @@ namespace core {
 
     void clone_into( Options & rhs ) const {
       for (int i=0; i < this->options.size(); i++) {
-        if      (options[i].type_hash == get_type_hash<short int>             ()) { clone_specific<short int>             (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<int>                   ()) { clone_specific<int>                   (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<long int>              ()) { clone_specific<long int>              (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<long long int>         ()) { clone_specific<long long int>         (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<unsigned short int>    ()) { clone_specific<unsigned short int>    (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<unsigned int>          ()) { clone_specific<unsigned int>          (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<unsigned long int>     ()) { clone_specific<unsigned long int>     (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<unsigned long long int>()) { clone_specific<unsigned long long int>(i,rhs); }
-        else if (options[i].type_hash == get_type_hash<float>                 ()) { clone_specific<float>                 (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<double>                ()) { clone_specific<double>                (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<long double>           ()) { clone_specific<long double>           (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<bool>                  ()) { clone_specific<bool>                  (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<char>                  ()) { clone_specific<char>                  (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<std::string>           ()) { clone_specific<std::string>           (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<std::vector<int>>      ()) { clone_specific<std::vector<int>>      (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<std::vector<float>>    ()) { clone_specific<std::vector<float>>    (i,rhs); }
-        else if (options[i].type_hash == get_type_hash<std::vector<double>>   ()) { clone_specific<std::vector<double>>   (i,rhs); }
+        if      (options.at(i).type_hash == get_type_hash<short int>             ()) { clone_specific<short int>             (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<int>                   ()) { clone_specific<int>                   (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<long int>              ()) { clone_specific<long int>              (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<long long int>         ()) { clone_specific<long long int>         (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<unsigned short int>    ()) { clone_specific<unsigned short int>    (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<unsigned int>          ()) { clone_specific<unsigned int>          (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<unsigned long int>     ()) { clone_specific<unsigned long int>     (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<unsigned long long int>()) { clone_specific<unsigned long long int>(i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<float>                 ()) { clone_specific<float>                 (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<double>                ()) { clone_specific<double>                (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<long double>           ()) { clone_specific<long double>           (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<bool>                  ()) { clone_specific<bool>                  (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<char>                  ()) { clone_specific<char>                  (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<std::string>           ()) { clone_specific<std::string>           (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<std::vector<int>>      ()) { clone_specific<std::vector<int>>      (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<std::vector<float>>    ()) { clone_specific<std::vector<float>>    (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<std::vector<double>>   ()) { clone_specific<std::vector<double>>   (i,rhs); }
       }
     }
 
 
     template <class T>
     void clone_specific( int i , Options & rhs ) const {
-      rhs.add_option<T>( options[i].key , *static_cast<T *>(options[i].data) );
+      rhs.add_option<T>( options.at(i).key , *static_cast<T *>(options.at(i).data) );
     }
 
 
     void delete_generic(int id) {
-      if      (options[id].type_hash == get_type_hash<short int>             ()) { delete_specific<short int>             (id); }
-      else if (options[id].type_hash == get_type_hash<int>                   ()) { delete_specific<int>                   (id); }
-      else if (options[id].type_hash == get_type_hash<long int>              ()) { delete_specific<long int>              (id); }
-      else if (options[id].type_hash == get_type_hash<long long int>         ()) { delete_specific<long long int>         (id); }
-      else if (options[id].type_hash == get_type_hash<unsigned short int>    ()) { delete_specific<unsigned short int>    (id); }
-      else if (options[id].type_hash == get_type_hash<unsigned int>          ()) { delete_specific<unsigned int>          (id); }
-      else if (options[id].type_hash == get_type_hash<unsigned long int>     ()) { delete_specific<unsigned long int>     (id); }
-      else if (options[id].type_hash == get_type_hash<unsigned long long int>()) { delete_specific<unsigned long long int>(id); }
-      else if (options[id].type_hash == get_type_hash<float>                 ()) { delete_specific<float>                 (id); }
-      else if (options[id].type_hash == get_type_hash<double>                ()) { delete_specific<double>                (id); }
-      else if (options[id].type_hash == get_type_hash<long double>           ()) { delete_specific<long double>           (id); }
-      else if (options[id].type_hash == get_type_hash<bool>                  ()) { delete_specific<bool>                  (id); }
-      else if (options[id].type_hash == get_type_hash<char>                  ()) { delete_specific<char>                  (id); }
-      else if (options[id].type_hash == get_type_hash<std::string>           ()) { delete_specific<std::string>           (id); }
-      else if (options[id].type_hash == get_type_hash<std::vector<int>>      ()) { delete_specific<std::vector<int>>      (id); }
-      else if (options[id].type_hash == get_type_hash<std::vector<float>>    ()) { delete_specific<std::vector<float>>    (id); }
-      else if (options[id].type_hash == get_type_hash<std::vector<double>>   ()) { delete_specific<std::vector<double>>   (id); }
+      if      (options.at(id).type_hash == get_type_hash<short int>             ()) { delete_specific<short int>             (id); }
+      else if (options.at(id).type_hash == get_type_hash<int>                   ()) { delete_specific<int>                   (id); }
+      else if (options.at(id).type_hash == get_type_hash<long int>              ()) { delete_specific<long int>              (id); }
+      else if (options.at(id).type_hash == get_type_hash<long long int>         ()) { delete_specific<long long int>         (id); }
+      else if (options.at(id).type_hash == get_type_hash<unsigned short int>    ()) { delete_specific<unsigned short int>    (id); }
+      else if (options.at(id).type_hash == get_type_hash<unsigned int>          ()) { delete_specific<unsigned int>          (id); }
+      else if (options.at(id).type_hash == get_type_hash<unsigned long int>     ()) { delete_specific<unsigned long int>     (id); }
+      else if (options.at(id).type_hash == get_type_hash<unsigned long long int>()) { delete_specific<unsigned long long int>(id); }
+      else if (options.at(id).type_hash == get_type_hash<float>                 ()) { delete_specific<float>                 (id); }
+      else if (options.at(id).type_hash == get_type_hash<double>                ()) { delete_specific<double>                (id); }
+      else if (options.at(id).type_hash == get_type_hash<long double>           ()) { delete_specific<long double>           (id); }
+      else if (options.at(id).type_hash == get_type_hash<bool>                  ()) { delete_specific<bool>                  (id); }
+      else if (options.at(id).type_hash == get_type_hash<char>                  ()) { delete_specific<char>                  (id); }
+      else if (options.at(id).type_hash == get_type_hash<std::string>           ()) { delete_specific<std::string>           (id); }
+      else if (options.at(id).type_hash == get_type_hash<std::vector<int>>      ()) { delete_specific<std::vector<int>>      (id); }
+      else if (options.at(id).type_hash == get_type_hash<std::vector<float>>    ()) { delete_specific<std::vector<float>>    (id); }
+      else if (options.at(id).type_hash == get_type_hash<std::vector<double>>   ()) { delete_specific<std::vector<double>>   (id); }
     }
 
 
     template <class T>
     void delete_specific(int id) {
-      delete (T *) options[id].data;
+      delete (T *) options.at(id).data;
     }
 
 
@@ -104,7 +104,7 @@ namespace core {
         T * ptr = new T(value);
         options.push_back({ key , (void *) ptr , get_type_hash<T>() });
       } else {
-        *((T *) options[id].data) = value;
+        *((T *) options.at(id).data) = value;
       }
     }
 
@@ -121,17 +121,17 @@ namespace core {
     T get_option( std::string key ) const {
       validate_type<T>();
       int id = find_option_or_die( key );
-      if (get_type_hash<T>() != options[id].type_hash) {
+      if (get_type_hash<T>() != options.at(id).type_hash) {
         std::cerr << "ERROR: Requesting option using the wrong type for key [" << key << "]" << std::endl;
         endrun("");
       }
-      return *( (T *) options[id].data);
+      return *( (T *) options.at(id).data);
     }
 
 
     int find_option( std::string key ) const {
       for (int i=0; i < options.size(); i++) {
-        if (key == options[i].key) return i;
+        if (key == options.at(i).key) return i;
       }
       return -1;
     }

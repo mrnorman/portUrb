@@ -95,10 +95,12 @@ namespace core {
         yakl::fence();
         for (int i=0; i < n; i++) {
           auto arr = receives.at(i).arr;
+          yakl::verbose_inform(std::string("RECEIVE ADDRESS: ")+std::to_string((unsigned long long)receives.at(i).arr.data()));
           check( MPI_Irecv( arr.data() , arr.size() , get_type<T>() , receives.at(i).them , receives.at(i).tag , comm , &(rReq.at(i)) ) );
         }
         for (int i=0; i < n; i++) {
           auto arr = sends.at(i).arr;
+          yakl::verbose_inform(std::string("SEND ADDRESS: ")+std::to_string((unsigned long long)sends.at(i).arr.data()));
           check( MPI_Isend( arr.data() , arr.size() , get_type<T>() , sends   .at(i).them , sends   .at(i).tag , comm , &(sReq.at(i)) ) );
         }
         check( MPI_Waitall(n, sReq.data(), sStat.data()) );
@@ -109,11 +111,13 @@ namespace core {
         std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> receive_host_arrays(n);
         std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> send_host_arrays(n);
         for (int i=0; i < n; i++) {
+          yakl::verbose_inform(std::string("RECEIVE ADDRESS: ")+std::to_string((unsigned long long)receives.at(i).arr.data()));
           receive_host_arrays.at(i) = receives.at(i).arr.createHostObject();
           check( MPI_Irecv( receive_host_arrays.at(i).data() , receive_host_arrays.at(i).size() , get_type<T>() ,
                             receives.at(i).them , receives.at(i).tag , comm , &(rReq.at(i)) ) );
         }
         for (int i=0; i < n; i++) {
+          yakl::verbose_inform(std::string("SEND ADDRESS: ")+std::to_string((unsigned long long)sends.at(i).arr.data()));
           send_host_arrays   .at(i) = sends   .at(i).arr.createHostCopy();
           check( MPI_Isend( send_host_arrays.at(i).data() , send_host_arrays.at(i).size() , get_type<T>() ,
                             sends.at(i).them , sends.at(i).tag , comm , &(sReq.at(i)) ) );

@@ -473,7 +473,6 @@ namespace modules {
               }
             }
           });
-          // check_for_nan_inf(umag_19_5m_2d,__FILE__,__LINE__);
           {
             real xr = 3*dx;
             int nper  = 10;
@@ -498,7 +497,6 @@ namespace modules {
               }
             });
           }
-          // check_for_nan_inf(disk_weight,__FILE__,__LINE__);
           if (do_blades) {
             int nper = 10;
             real xr = 2*dx;
@@ -566,9 +564,6 @@ namespace modules {
                 }
               }
             });
-            // check_for_nan_inf(blade1_weight,__FILE__,__LINE__);
-            // check_for_nan_inf(blade2_weight,__FILE__,__LINE__);
-            // check_for_nan_inf(blade3_weight,__FILE__,__LINE__);
           }
           using yakl::componentwise::operator>;
           yakl::SArray<real,1,6> weights_tot;
@@ -578,15 +573,12 @@ namespace modules {
           weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
           weights_tot(4) = yakl::intrinsics::sum(umag_19_5m_2d);
           weights_tot(5) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
-          check_for_nan_inf(weights_tot,__FILE__,__LINE__);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-          check_for_nan_inf(weights_tot,__FILE__,__LINE__);
           real blade1_tot = weights_tot(0);
           real blade2_tot = weights_tot(1);
           real blade3_tot = weights_tot(2);
           real disk_tot   = weights_tot(3);
           real umag_19_5m = weights_tot(4) / weights_tot(5);
-          // check_for_nan_inf(umag_19_5m,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
@@ -615,28 +607,19 @@ namespace modules {
             }
           });
           if (! do_blades) { disk_weight.deep_copy_to(blade_weight); }
-          // check_for_nan_inf(turb_prop   ,__FILE__,__LINE__);
-          // check_for_nan_inf(disk_u      ,__FILE__,__LINE__);
-          // check_for_nan_inf(disk_v      ,__FILE__,__LINE__);
-          // check_for_nan_inf(blade_weight,__FILE__,__LINE__);
           // Calculate local sums
           SArray<real,1,3> sums;
           sums(0) = yakl::intrinsics::sum( disk_u       );
           sums(1) = yakl::intrinsics::sum( disk_v       );
           sums(2) = yakl::intrinsics::sum( blade_weight );
-          check_for_nan_inf(sums,__FILE__,__LINE__);
           // Calculate global sums
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
-          check_for_nan_inf(sums,__FILE__,__LINE__);
           real glob_u    = sums(0);
           real glob_v    = sums(1);
           real blade_tot = sums(2);
           real glob_unorm = glob_u*cos_yaw;
           real glob_vnorm = glob_v*sin_yaw;
           real glob_mag   = std::sqrt(glob_unorm*glob_unorm + glob_vnorm*glob_vnorm);
-          // check_for_nan_inf(glob_unorm,__FILE__,__LINE__);
-          // check_for_nan_inf(glob_vnorm,__FILE__,__LINE__);
-          // check_for_nan_inf(glob_mag  ,__FILE__,__LINE__);
           turbine.mag_trace    .push_back(std::sqrt(glob_u    *glob_u    +glob_v    *glob_v    ));
           turbine.normmag_trace.push_back(std::sqrt(glob_unorm*glob_unorm+glob_vnorm*glob_vnorm));
           //////////////////////////////////////////////////////////////////
@@ -644,21 +627,16 @@ namespace modules {
           //////////////////////////////////////////////////////////////////
           real a = 0;
           for (int iter = 0; iter < 100; iter++) {
-            real C_T = interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ); // Interpolate thrust coefficient
+            real C_T = std::min( 1._fp , interp( ref_velmag , ref_thrust_coef , glob_mag/(1-a) ) );
             a        = 0.5_fp * ( 1 - std::sqrt(1-C_T) );                       // From 1-D momentum theory
-            // check_for_nan_inf(C_T,__FILE__,__LINE__);
-            // check_for_nan_inf(a  ,__FILE__,__LINE__);
           }
           real mag0 = glob_mag  /(1-a);  // wind magintude at infinity
           real u0   = glob_unorm/(1-a);  // u-velocity at infinity
           real v0   = glob_vnorm/(1-a);  // v-velocity at infinity
-          // check_for_nan_inf(mag0,__FILE__,__LINE__);
-          // check_for_nan_inf(u0  ,__FILE__,__LINE__);
-          // check_for_nan_inf(v0  ,__FILE__,__LINE__);
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
-          real betti_pert = 0; // turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
+          real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
           turbine.normmag0_trace.push_back( mag0 );
           turbine.betti_trace.push_back( betti_pert );
           real mult = 1;
@@ -666,9 +644,6 @@ namespace modules {
           mag0 *= mult;
           u0   *= mult;
           v0   *= mult;
-          // check_for_nan_inf(mag0,__FILE__,__LINE__);
-          // check_for_nan_inf(u0  ,__FILE__,__LINE__);
-          // check_for_nan_inf(v0  ,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
@@ -677,21 +652,14 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag0 ) : 0; // Interpolate rotation speed
-          // check_for_nan_inf(C_T      ,__FILE__,__LINE__);
-          // check_for_nan_inf(C_P      ,__FILE__,__LINE__);
-          // check_for_nan_inf(pwr      ,__FILE__,__LINE__);
-          // check_for_nan_inf(rot_speed,__FILE__,__LINE__);
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace     .push_back( turbine.yaw_angle );
           turbine.power_trace   .push_back( pwr               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
-          // check_for_nan_inf(turb_factor,__FILE__,__LINE__);
           // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE = f_TKE * (C_T - C_P);
-          // check_for_nan_inf(f_TKE,__FILE__,__LINE__);
-          // check_for_nan_inf(C_TKE,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
@@ -705,9 +673,6 @@ namespace modules {
               tend_tke(k,j,i) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*blade_weight(k,j,i)*turb_factor;
             }
           });
-          // check_for_nan_inf(tend_u  ,__FILE__,__LINE__);
-          // check_for_nan_inf(tend_v  ,__FILE__,__LINE__);
-          // check_for_nan_inf(tend_tke,__FILE__,__LINE__);
           ///////////////////////////////////////////////////
           // Update the disk's yaw angle and rot angle
           ///////////////////////////////////////////////////
@@ -717,9 +682,6 @@ namespace modules {
           turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
           turbine.rot_angle -= rot_speed*dt;
           if (turbine.rot_angle < -2*M_PI) turbine.rot_angle += 2*M_PI;
-          // check_for_nan_inf(max_yaw_speed    ,__FILE__,__LINE__);
-          // check_for_nan_inf(turbine.yaw_angle,__FILE__,__LINE__);
-          // check_for_nan_inf(turbine.rot_angle,__FILE__,__LINE__);
         } // if (turbine.active)
       } // for (int iturb = 0; iturb < turbine_group.turbines.size(); iturb++)
 
@@ -732,9 +694,6 @@ namespace modules {
         vvel(k,j,i) += dt * tend_v  (k,j,i);
         tke (k,j,i) += dt * tend_tke(k,j,i);
       });
-      // check_for_nan_inf(uvel,__FILE__,__LINE__);
-      // check_for_nan_inf(vvel,__FILE__,__LINE__);
-      // check_for_nan_inf(tke ,__FILE__,__LINE__);
 
       // So all tasks know how large the trace is. Makes PNetCDF output easier to manage
       trace_size++;

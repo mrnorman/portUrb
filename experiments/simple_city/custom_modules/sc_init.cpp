@@ -470,10 +470,10 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
 
-      real constexpr uref       = 12;   // Velocity at hub height
-      real constexpr theta0     = 300;
-      real constexpr href       = 150;   // Height of hub / center of windmills
-      real constexpr von_karman = 0.40;
+      real uref       = coupler.get_option<real>("hub_height_wind_mag",12); // Velocity at hub height
+      real theta0     = 300;
+      real href       = coupler.get_option<real>("turbine_hub_height",90);  // Height of hub / center of windmills
+      real von_karman = 0.40;
       real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
       realHost1d press_host("press",nz);
       press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;

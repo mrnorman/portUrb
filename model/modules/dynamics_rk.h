@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef PORTURB_ORD
-      yakl::index_t static constexpr ord = 11;
+      yakl::index_t static constexpr ord = 9;
     #else
       yakl::index_t static constexpr ord = PORTURB_ORD;
     #endif

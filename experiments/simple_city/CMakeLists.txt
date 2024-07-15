@@ -46,4 +46,7 @@ add_executable(abl abl.cpp)
 yakl_process_target(abl)
 target_link_libraries(abl ${mylibs})
 
+add_executable(windfarm_ensemble windfarm_ensemble.cpp)
+yakl_process_target(windfarm_ensemble)
+target_link_libraries(windfarm_ensemble ${mylibs})
 

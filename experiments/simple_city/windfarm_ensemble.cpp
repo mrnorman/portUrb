@@ -46,16 +46,12 @@ int main(int argc, char** argv) {
     core::Ensembler ensembler;
 
     // Add wind dimension
-    ensembler.register_dimension( 7 , [=] (int ind, core::Coupler &coupler) {
+    ensembler.register_dimension( 3 , [=] (int ind, core::Coupler &coupler) {
       // Set the wind
       real wind = 0;
       if      (ind == 0) { wind =  3; }
-      else if (ind == 1) { wind =  7; }
-      else if (ind == 2) { wind = 11; }
-      else if (ind == 3) { wind = 15; }
-      else if (ind == 4) { wind = 19; }
-      else if (ind == 5) { wind = 23; }
-      else if (ind == 6) { wind = 27; }
+      else if (ind == 1) { wind = 15; }
+      else if (ind == 2) { wind = 27; }
       coupler.set_option<real>("hub_height_wind_mag",wind);
       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
@@ -63,14 +59,11 @@ int main(int argc, char** argv) {
       return 1;
     });
     // Add turbine distance dimension, each with its own multiplier to the total ranks for that ensemble
-    ensembler.register_dimension( 5 , [=] (int ind, core::Coupler &coupler) {
+    ensembler.register_dimension( 2 , [=] (int ind, core::Coupler &coupler) {
       int rank_mult;
       int diams;
-      if      (ind == 0) { diams =  3; rank_mult = 1*1; }
-      else if (ind == 1) { diams =  6; rank_mult = 2*2; }
-      else if (ind == 2) { diams =  9; rank_mult = 3*3; }
-      else if (ind == 3) { diams = 12; rank_mult = 4*4; }
-      else if (ind == 4) { diams = 15; rank_mult = 5*5; }
+      if      (ind == 0) { diams =  5; rank_mult = 1*1; }
+      else if (ind == 1) { diams = 10; rank_mult = 2*2; }
       coupler.set_option<real>("turbine_diameters_apart", (real) diams);
       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("diams-")+std::to_string(diams));
       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("diams-")+std::to_string(diams));
@@ -78,7 +71,7 @@ int main(int argc, char** argv) {
       return rank_mult;
     });
 
-    auto par_comm = ensembler.create_coupler_comm( coupler , 8 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler , 4 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     std::cout.rdbuf(ostr.rdbuf());

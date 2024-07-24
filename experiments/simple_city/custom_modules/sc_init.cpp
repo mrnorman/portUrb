@@ -497,6 +497,35 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "AWAKEN_neutral") {
+
+      real uref   = 6.27;
+      real theta0 = 305;
+      real href   = 89;
+      real pwr    = 0.116;
+      real slope  = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
+      realHost1d press_host("press",nz);
+      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
+      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
+      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
+      auto press = press_host.createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        real zloc = (k+0.5_fp)*dz;
+        real ustar = uref;
+        real u     = ustar * std::pow( zloc/href , pwr );
+        real p     = press(k);
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i) = rt / theta0;
+        dm_uvel (k,j,i) = u;
+        dm_vvel (k,j,i) = 0;
+        dm_wvel (k,j,i) = 0;
+        dm_temp (k,j,i) = T;
+        dm_rho_v(k,j,i) = 0;
+        if (k == 0) dm_surface_temp(j,i) = 300;
+      });
+
     }
 
     int hs = 1;

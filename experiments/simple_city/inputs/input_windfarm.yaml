@@ -1,10 +1,10 @@
 ---
 # Simulation time in seconds
-sim_time: 3601.  # 86400
+sim_time: 21601.  # 86400
 
 # Number of cells to use in the CRMs
-nx_glob: 240
-ny_glob: 240
+nx_glob: 400
+ny_glob: 100
 nz     : 100
 # nx_glob: 400
 # ny_glob: 400
@@ -14,26 +14,26 @@ nz     : 100
 # nz     : 10
 
 # Domain size of the CRMs
-xlen: 2400
-ylen: 2400
-zlen: 1000
+xlen: 2000
+ylen: 500
+zlen: 500
 
-init_data: ABL_neutral2
+init_data: AWAKEN_neutral
 
 # Output filename
-out_prefix: no_platform
+out_prefix: validation
 
 # CRM physics time step
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 10.
+out_freq: 900.
 
 inform_freq: 10.
 
 latitude: 0.
 
-run_main: true
+run_main: false
 
 restart_file: 
 
@@ -43,7 +43,6 @@ roughness: 0.0002
 
 dyn_cycle: 1
 
-turbine_file: ./inputs/NREL_5MW_126_RWT.yaml
+turbine_file: ./inputs/NREL_2.8MW_127_RWT.yaml
 
-# platform_motions_file: ./inputs/platform_motions.nc
 

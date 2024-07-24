@@ -6,7 +6,7 @@
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
 #include "surface_flux.h"
-#include "column_nudging.h"
+#include "uniform_pg_wind_forcing.h"
 #include "perturb_temperature.h"
 #include "precursor_sponge.h"
 #include "sponge_layer.h"
@@ -79,9 +79,6 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::WindmillActuators                 windmills;
 
-    // Classes working on coupler_precursor
-    modules::ColumnNudger                      column_nudger;
-
     // Run the initialization modules on coupler_main
     custom_modules::sc_init     ( coupler_main );
     les_closure  .init          ( coupler_main );
@@ -96,7 +93,6 @@ int main(int argc, char** argv) {
 
     windmills    .init      ( coupler_main );
     time_averager.init      ( coupler_main );
-    column_nudger.set_column( coupler_prec , {"uvel","vvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -151,10 +147,14 @@ int main(int argc, char** argv) {
           coupler_main.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt); } , "time_averager"     );
         }
 
-        coupler_prec.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column(c,dt,dt*100); } , "column_nudger"  );
-        coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);        } , "dycore"         );
-        coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);        } , "surface_fluxes" );
-        coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);        } , "les_closure"    );
+        using modules::uniform_pg_wind_forcing_height;
+        real h = 89;
+        real u = 6.27;
+        real v = 0;
+        coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v); } , "pg_forcing"     );
+        coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);       } , "dycore"         );
+        coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);       } , "surface_fluxes" );
+        coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);       } , "les_closure"    );
       }
 
       // Update time step

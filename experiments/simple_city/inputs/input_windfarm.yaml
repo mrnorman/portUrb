@@ -3,7 +3,7 @@
 sim_time: 21601.  # 86400
 
 # Number of cells to use in the CRMs
-nx_glob: 400
+nx_glob: 500
 ny_glob: 100
 nz     : 100
 # nx_glob: 400
@@ -14,9 +14,9 @@ nz     : 100
 # nz     : 10
 
 # Domain size of the CRMs
-xlen: 2000
-ylen: 500
-zlen: 500
+xlen: 5000
+ylen: 1000
+zlen: 1000
 
 init_data: AWAKEN_neutral
 
@@ -39,10 +39,10 @@ restart_file:
 
 restart_file_precursor: # no_platform_precursor_00000008.nc
 
-roughness: 0.0002
+roughness: 0.3
 
 dyn_cycle: 1
 
-turbine_file: ./inputs/NREL_2.8MW_127_RWT.yaml
+turbine_file: ./inputs/NREL_2.8MW_127_RWT_old.yaml
 
 

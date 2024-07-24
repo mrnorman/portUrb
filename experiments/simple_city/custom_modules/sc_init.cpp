@@ -500,6 +500,7 @@ namespace custom_modules {
     } else if (coupler.get_option<std::string>("init_data") == "AWAKEN_neutral") {
 
       real uref   = 6.27;
+      real angle  = 4.33;
       real theta0 = 305;
       real href   = 89;
       real pwr    = 0.116;
@@ -518,8 +519,8 @@ namespace custom_modules {
         real r     = rt / theta0;
         real T     = p/R_d/r;
         dm_rho_d(k,j,i) = rt / theta0;
-        dm_uvel (k,j,i) = u;
-        dm_vvel (k,j,i) = 0;
+        dm_uvel (k,j,i) = u*std::cos(angle/180*M_PI);
+        dm_vvel (k,j,i) = u*std::sin(angle/180*M_PI);
         dm_wvel (k,j,i) = 0;
         dm_temp (k,j,i) = T;
         dm_rho_v(k,j,i) = 0;

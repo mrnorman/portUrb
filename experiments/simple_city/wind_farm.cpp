@@ -76,7 +76,8 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
 
     // Classes working on coupler_main
-    custom_modules::Time_Averager              time_averager;
+    custom_modules::Time_Averager              time_averager_main;
+    custom_modules::Time_Averager              time_averager_prec;
     modules::WindmillActuators                 windmills;
 
     // Run the initialization modules on coupler_main
@@ -91,8 +92,10 @@ int main(int argc, char** argv) {
     coupler_main.clone_into(coupler_prec);
     /////////////////////////////////////////////////////////////////////////
 
-    windmills    .init      ( coupler_main );
-    time_averager.init      ( coupler_main );
+    windmills         .init( coupler_main );
+    time_averager_main.init( coupler_main );
+
+    time_averager_prec.init( coupler_prec );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -144,17 +147,18 @@ int main(int argc, char** argv) {
           coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
           coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
           coupler_main.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt); } , "les_closure"       );
-          coupler_main.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt); } , "time_averager"     );
+          coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt); } , "time_averager"     );
         }
 
         using modules::uniform_pg_wind_forcing_height;
         real h = 89;
-        real u = 6.27;
-        real v = 0;
+        real u = 6.27*std::cos(4.33/180*M_PI);
+        real v = 6.27*std::sin(4.33/180*M_PI);
         coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v); } , "pg_forcing"     );
         coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);       } , "dycore"         );
         coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);       } , "surface_fluxes" );
         coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);       } , "les_closure"    );
+        coupler_prec.run_module( [&] (Coupler &c) { time_averager_prec.accumulate (c,dt);       } , "time_averager"  );
       }
 
       // Update time step
@@ -169,7 +173,8 @@ int main(int argc, char** argv) {
       if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
         if (run_main) coupler_main.write_output_file( out_prefix , true );
         coupler_prec.write_output_file( out_prefix_prec , true );
-        time_averager.reset(coupler_main);
+        time_averager_main.reset(coupler_main);
+        time_averager_prec.reset(coupler_prec);
         output_counter.reset();
       }
     } // End main simulation loop

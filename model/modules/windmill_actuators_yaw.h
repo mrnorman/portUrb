@@ -31,7 +31,7 @@ namespace modules {
         auto thrust_coef_vec = config["thrust_coef"       ].as<std::vector<real>>();
         auto power_coef_vec  = config["power_coef"        ].as<std::vector<real>>();
         auto power_vec       = config["power_megawatts"   ].as<std::vector<real>>();
-        bool do_blades = false;
+        bool do_blades       = false;
         if ( config["rotation_rpm"] ) do_blades = true;
         auto rotation_vec = do_blades ? config["rotation_rpm"].as<std::vector<real>>() : std::vector<real>();
         // Allocate YAKL arrays to ensure the data is contiguous and to load into the data manager later
@@ -151,7 +151,7 @@ namespace modules {
         loc.active      = active;
         loc.base_loc_x  = base_loc_x;
         loc.base_loc_y  = base_loc_y;
-        loc.yaw_angle   = 0.;
+        loc.yaw_angle   = coupler.get_option<real>("turbine_initial_yaw",0);
         loc.rot_angle   = 0.;
         loc.yaw_tend    = YawTend();
         loc.ref_turbine = ref_turbine;
@@ -404,6 +404,7 @@ namespace modules {
       auto tke            = dm.get<real      ,3>("TKE"          );
       auto turb_prop_tot  = dm.get<real      ,3>("windmill_prop");
       auto blade_prop_tot = dm.get<real      ,3>("blade_prop"   );
+      auto do_blades      = coupler.get_option<bool>("turbine_do_blades",false);
 
       real3d tend_u  ("tend_u"  ,nz,ny,nx);
       real3d tend_v  ("tend_v"  ,nz,ny,nx);
@@ -430,7 +431,7 @@ namespace modules {
           real dom_y2 = (j_beg+ny)*dy;
           // Use monte carlo to compute proportion of the turbine in each cell
           // Get reference data for later computations
-          bool do_blades       = turbine.ref_turbine.rotation_host.initialized();
+          do_blades = do_blades && turbine.ref_turbine.rotation_host.initialized();
           real rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
           real hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
           real base_x          = turbine.base_loc_x;
@@ -679,7 +680,9 @@ namespace modules {
           // Using only the hub cell's velocity leads to odd behavior. I'm going to use the disk-averaged
           // u and v velocity instead (note it's *not* normal u an v velocity but just plain u and v)
           real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
-          turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
+          if (! coupler.get_option<bool>("turbine_fixed_yaw",false)) {
+            turbine.yaw_angle = turbine.yaw_tend( glob_u , glob_v , dt , turbine.yaw_angle , max_yaw_speed );
+          }
           turbine.rot_angle -= rot_speed*dt;
           if (turbine.rot_angle < -2*M_PI) turbine.rot_angle += 2*M_PI;
         } // if (turbine.active)

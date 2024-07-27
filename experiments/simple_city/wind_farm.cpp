@@ -56,12 +56,13 @@ int main(int argc, char** argv) {
     coupler_main.set_option<real       >( "latitude"               , config["latitude"    ].as<real       >(0  ) );
     coupler_main.set_option<real       >( "roughness"              , config["roughness"   ].as<real       >(0.1) );
     coupler_main.set_option<std::string>( "turbine_file"           , config["turbine_file"].as<std::string>()    );
-    coupler_main.set_option<bool       >( "turbine_do_blades"   , false );
-    coupler_main.set_option<real       >( "turbine_initial_yaw" , 0     );
-    coupler_main.set_option<bool       >( "turbine_fixed_yaw"   , true  );
+    coupler_main.set_option<bool       >( "turbine_do_blades"        , false );
+    coupler_main.set_option<real       >( "turbine_initial_yaw"      , 0     );
+    coupler_main.set_option<bool       >( "turbine_fixed_yaw"        , true  );
+    coupler_main.set_option<bool       >( "turbine_floating_motions" , false );
 
-    coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.4_fp*xlen});
-    coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
+    coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
+    coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.4_fp*ylen});
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -149,8 +150,8 @@ int main(int argc, char** argv) {
         if (run_main) {
           custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
                                             {"density_dry","uvel","vvel","wvel","temp"} ,
-                                            (int) (0.2*nx_glob) , (int) (0.2*nx_glob) ,
-                                            (int) (0.2*ny_glob) , (int) (0.2*ny_glob) );
+                                            (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
+                                            (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );
           coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
           coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
           coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );

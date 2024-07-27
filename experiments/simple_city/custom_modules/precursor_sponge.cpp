@@ -31,7 +31,7 @@ namespace custom_modules {
       fields_precursor.add_field( dm_precursor.get<real const,3>(vnames.at(i)) );
     }
 
-    real p = 3;
+    real p = 5;
 
     real time_factor = dt / time_scale;
 

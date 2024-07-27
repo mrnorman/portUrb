@@ -637,14 +637,18 @@ namespace modules {
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
-          real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
           turbine.normmag0_trace.push_back( mag0 );
-          turbine.betti_trace.push_back( betti_pert );
-          real mult = 1;
-          if ( mag0 > 1.e-10 ) mult = std::max(0._fp,mag0+betti_pert)/mag0;
-          mag0 *= mult;
-          u0   *= mult;
-          v0   *= mult;
+          if (coupler.get_option<bool>("turbine_floating_motions",false)) {
+            real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
+            turbine.betti_trace.push_back( betti_pert );
+            real mult = 1;
+            if ( mag0 > 1.e-10 ) mult = std::max(0._fp,mag0+betti_pert)/mag0;
+            mag0 *= mult;
+            u0   *= mult;
+            v0   *= mult;
+          } else {
+            turbine.betti_trace.push_back( 0 );
+          }
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////

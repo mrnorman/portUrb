@@ -61,9 +61,11 @@ namespace modules {
     u_v = coupler.get_parallel_comm().all_reduce( u_v , MPI_SUM , "uniform_pg_allreduce" );
     real u = u_v(0)/(ny_glob*nx_glob);
     real v = u_v(1)/(ny_glob*nx_glob);
+    real u_forcing = dt / tau*(u0-u);
+    real v_forcing = dt / tau*(v0-v);
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-      uvel(k,j,i) += dt/tau*(u0-u);
-      vvel(k,j,i) += dt/tau*(v0-v);
+      uvel(k,j,i) += u_forcing;
+      vvel(k,j,i) += v_forcing;
     });
     counter++;
     coupler.set_option<size_t>("uniform_pg_wind_forcing_counter",counter);

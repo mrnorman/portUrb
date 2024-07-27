@@ -59,7 +59,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 50;
-      real cfl = coupler.get_option<real>("cfl",0.65);
+      real cfl = coupler.get_option<real>("cfl",0.70);
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
     // real compute_time_step( core::Coupler const &coupler ) const {
@@ -540,7 +540,7 @@ namespace modules {
         if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_x(1,l,k,j,i) , limits_x(0,l,k,j,i+1) ,
-                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
+                                          { false , immersed(hs-1) , immersed(hs+1) } );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_x(1,l,k,j,i  ) = vals(0);
@@ -558,7 +558,7 @@ namespace modules {
         if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_y(1,l,k,j,i) , limits_y(0,l,k,j+1,i) ,
-                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
+                                          { false , immersed(hs-1) , immersed(hs+1) } );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_y(1,l,k,j  ,i) = vals(0);
@@ -576,7 +576,7 @@ namespace modules {
         if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
         if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_z(1,l,k,j,i) , limits_z(0,l,k+1,j,i) ,
-                                          { ! any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1)} );
+                                          { false , immersed(hs-1) , immersed(hs+1) } );
         } else {
           auto vals = matmul_cr( s2e , stencil );
           limits_z(1,l,k  ,j,i) = vals(0);
@@ -714,7 +714,7 @@ namespace modules {
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
                                           YAKL_LAMBDA (int l, int kk, int j, int i) {
-          if (l == idW || l > idP) {
+          if (l == idW) {
             fields(l,      kk,hs+j,hs+i) = 0;
             fields(l,hs+nz+kk,hs+j,hs+i) = 0;
           } else {
@@ -797,7 +797,7 @@ namespace modules {
 
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
-          if (l == idW || l > idP) {
+          if (l == idW) {
             limits_z(0,l,0 ,j,i) = 0;
             limits_z(1,l,0 ,j,i) = 0;
             limits_z(0,l,nz,j,i) = 0;

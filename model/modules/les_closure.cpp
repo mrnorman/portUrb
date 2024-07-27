@@ -4,8 +4,20 @@
 namespace modules {
 
   void LES_Closure::init( core::Coupler &coupler ) const {
+    auto nx  = coupler.get_nx  ();
+    auto ny  = coupler.get_ny  ();
+    auto nz  = coupler.get_nz  ();
+    auto &dm = coupler.get_data_manager_readwrite();
     coupler.add_tracer( "TKE" , "mass-weighted TKE" , true , false , false );
-    coupler.get_data_manager_readwrite().get<real,3>("TKE") = 0.1;
+    dm.get<real,3>("TKE") = 0.1;
+    dm.register_and_allocate<real>("tke_src_buoy" ,"",{nz,ny,nx});    dm.get<real,3>("tke_src_buoy" ) = 0;
+    dm.register_and_allocate<real>("tke_src_diss" ,"",{nz,ny,nx});    dm.get<real,3>("tke_src_diss" ) = 0;
+    dm.register_and_allocate<real>("tke_src_shear","",{nz,ny,nx});    dm.get<real,3>("tke_src_shear") = 0;
+    dm.register_and_allocate<real>("tke_src_trans","",{nz,ny,nx});    dm.get<real,3>("tke_src_trans") = 0;
+    coupler.register_output_variable<real>( "tke_src_buoy"  , core::Coupler::DIMS_3D );
+    coupler.register_output_variable<real>( "tke_src_diss"  , core::Coupler::DIMS_3D );
+    coupler.register_output_variable<real>( "tke_src_shear" , core::Coupler::DIMS_3D );
+    coupler.register_output_variable<real>( "tke_src_trans" , core::Coupler::DIMS_3D );
   }
 
 
@@ -26,6 +38,10 @@ namespace modules {
     auto &dm            = coupler.get_data_manager_readwrite();
     real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
     auto immersed       = dm.get<real const,3>("immersed_proportion_halos");
+    auto tke_src_buoy   = dm.get<real,3>("tke_src_buoy" );
+    auto tke_src_diss   = dm.get<real,3>("tke_src_diss" );
+    auto tke_src_shear  = dm.get<real,3>("tke_src_shear");
+    auto tke_src_trans  = dm.get<real,3>("tke_src_trans");
     real constexpr Pr = 0.7;
 
     real4d state , tracers;
@@ -205,49 +221,57 @@ namespace modules {
           }
         }
       }
-      if (i < nx && j < ny && k < nz) {
-        real rho   = state(idR,hs+k,hs+j,hs+i);
-        real K     = tke      (hs+k,hs+j,hs+i);
-        real t     = state(idT,hs+k,hs+j,hs+i);
-        real dt_dz = ( state(idT,hs+k+1,hs+j,hs+i) - state(idT,hs+k-1,hs+j,hs+i) ) / (2*dz);
-        real N     = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
-        real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-        real km    = 0.1_fp * ell * std::sqrt(K);
-        real Pr_t  = delta / (1+2*ell);
-        // Compute tke cell-averaged source
-        tke_source(k,j,i) = 0;
-        if (immersed(hs+k,hs+j,hs+i) < 1) {
-          // Buoyancy source
-          if (enable_gravity) tke_source(k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
-          // TKE dissipation
-          tke_source(k,j,i) -= rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
-          // Shear production
-          int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
-          int ip1 = immersed(hs+k,hs+j,hs+i+1) > 0 ? i : i+1;
-          int jm1 = immersed(hs+k,hs+j-1,hs+i) > 0 ? j : j-1;
-          int jp1 = immersed(hs+k,hs+j+1,hs+i) > 0 ? j : j+1;
-          int km1 = immersed(hs+k-1,hs+j,hs+i) > 0 ? k : k-1;
-          int kp1 = immersed(hs+k+1,hs+j,hs+i) > 0 ? k : k+1;
-          real du_dx = ( state(idU,hs+k,hs+j,hs+i+1) - state(idU,hs+k,hs+j,hs+i-1) ) / (2*dx);
-          real dv_dx = ( state(idV,hs+k,hs+j,hs+ip1) - state(idV,hs+k,hs+j,hs+im1) ) / (2*dx);
-          real dw_dx = ( state(idW,hs+k,hs+j,hs+ip1) - state(idW,hs+k,hs+j,hs+im1) ) / (2*dx);
-          real du_dy = ( state(idU,hs+k,hs+jp1,hs+i) - state(idU,hs+k,hs+jm1,hs+i) ) / (2*dy);
-          real dv_dy = ( state(idV,hs+k,hs+j+1,hs+i) - state(idV,hs+k,hs+j-1,hs+i) ) / (2*dy);
-          real dw_dy = ( state(idW,hs+k,hs+jp1,hs+i) - state(idW,hs+k,hs+jm1,hs+i) ) / (2*dy);
-          real du_dz = ( state(idU,hs+kp1,hs+j,hs+i) - state(idU,hs+km1,hs+j,hs+i) ) / (2*dz);
-          real dv_dz = ( state(idV,hs+kp1,hs+j,hs+i) - state(idV,hs+km1,hs+j,hs+i) ) / (2*dz);
-          real dw_dz = ( state(idW,hs+k+1,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i) ) / (2*dz);
-          real j1_i1 = (du_dx + du_dx) * du_dx;
-          real j1_i2 = (dv_dx + du_dy) * dv_dx;
-          real j1_i3 = (dw_dx + du_dz) * dw_dx;
-          real j2_i1 = (du_dy + dv_dx) * du_dy;
-          real j2_i2 = (dv_dy + dv_dy) * dv_dy;
-          real j2_i3 = (dw_dy + dv_dz) * dw_dy;
-          real j3_i1 = (du_dz + dw_dx) * du_dz;
-          real j3_i2 = (dv_dz + dw_dy) * dv_dz;
-          real j3_i3 = (dw_dz + dw_dz) * dw_dz;
-          tke_source(k,j,i) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
+    });
+
+    halo_bcs_z( coupler , state , tracers , tke );
+
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      real rho   = state(idR,hs+k,hs+j,hs+i);
+      real K     = tke      (hs+k,hs+j,hs+i);
+      real t     = state(idT,hs+k,hs+j,hs+i);
+      real dt_dz = ( state(idT,hs+k+1,hs+j,hs+i) - state(idT,hs+k-1,hs+j,hs+i) ) / (2*dz);
+      real N     = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
+      real ell   = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+      real km    = 0.1_fp * ell * std::sqrt(K);
+      real Pr_t  = delta / (1+2*ell);
+      // Compute tke cell-averaged source
+      tke_source(k,j,i) = 0;
+      if (immersed(hs+k,hs+j,hs+i) < 1) {
+        // Buoyancy source
+        if (enable_gravity) {
+          tke_src_buoy(k,j,i)  = -(grav*rho*km)/(t*Pr_t)*dt_dz;
+          tke_source  (k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
         }
+        // TKE dissipation
+        tke_src_diss(k,j,i)  = -rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+        tke_source  (k,j,i) -=  rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+        // Shear production
+        int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
+        int ip1 = immersed(hs+k,hs+j,hs+i+1) > 0 ? i : i+1;
+        int jm1 = immersed(hs+k,hs+j-1,hs+i) > 0 ? j : j-1;
+        int jp1 = immersed(hs+k,hs+j+1,hs+i) > 0 ? j : j+1;
+        int km1 = immersed(hs+k-1,hs+j,hs+i) > 0 ? k : k-1;
+        int kp1 = immersed(hs+k+1,hs+j,hs+i) > 0 ? k : k+1;
+        real du_dx = ( state(idU,hs+k,hs+j,hs+i+1) - state(idU,hs+k,hs+j,hs+i-1) ) / (2*dx);
+        real dv_dx = ( state(idV,hs+k,hs+j,hs+ip1) - state(idV,hs+k,hs+j,hs+im1) ) / (2*dx);
+        real dw_dx = ( state(idW,hs+k,hs+j,hs+ip1) - state(idW,hs+k,hs+j,hs+im1) ) / (2*dx);
+        real du_dy = ( state(idU,hs+k,hs+jp1,hs+i) - state(idU,hs+k,hs+jm1,hs+i) ) / (2*dy);
+        real dv_dy = ( state(idV,hs+k,hs+j+1,hs+i) - state(idV,hs+k,hs+j-1,hs+i) ) / (2*dy);
+        real dw_dy = ( state(idW,hs+k,hs+jp1,hs+i) - state(idW,hs+k,hs+jm1,hs+i) ) / (2*dy);
+        real du_dz = ( state(idU,hs+kp1,hs+j,hs+i) - state(idU,hs+km1,hs+j,hs+i) ) / (2*dz);
+        real dv_dz = ( state(idV,hs+kp1,hs+j,hs+i) - state(idV,hs+km1,hs+j,hs+i) ) / (2*dz);
+        real dw_dz = ( state(idW,hs+k+1,hs+j,hs+i) - state(idW,hs+k-1,hs+j,hs+i) ) / (2*dz);
+        real j1_i1 = (du_dx + du_dx) * du_dx;
+        real j1_i2 = (dv_dx + du_dy) * dv_dx;
+        real j1_i3 = (dw_dx + du_dz) * dw_dx;
+        real j2_i1 = (du_dy + dv_dx) * du_dy;
+        real j2_i2 = (dv_dy + dv_dy) * dv_dy;
+        real j2_i3 = (dw_dy + dv_dz) * dw_dy;
+        real j3_i1 = (du_dz + dw_dx) * du_dz;
+        real j3_i2 = (dv_dz + dw_dy) * dv_dz;
+        real j3_i3 = (dw_dz + dw_dz) * dw_dz;
+        tke_src_shear(k,j,i)  = rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
+        tke_source   (k,j,i) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
       }
     });
 
@@ -267,6 +291,9 @@ namespace modules {
       real tend_tke = -(flux_tke_x(k,j,i+1) - flux_tke_x(k,j,i)) / dx -
                        (flux_tke_y(k,j+1,i) - flux_tke_y(k,j,i)) / dy -
                        (flux_tke_z(k+1,j,i) - flux_tke_z(k,j,i)) / dz + tke_source(k,j,i);
+      tke_src_trans(k,j,i) = -(flux_tke_x(k,j,i+1) - flux_tke_x(k,j,i)) / dx -
+                              (flux_tke_y(k,j+1,i) - flux_tke_y(k,j,i)) / dy -
+                              (flux_tke_z(k+1,j,i) - flux_tke_z(k,j,i)) / dz;
 
       state(idU,hs+k,hs+j,hs+i) *= state(idR,hs+k,hs+j,hs+i);
       state(idU,hs+k,hs+j,hs+i) += dtphys * tend_ru ;
@@ -420,16 +447,16 @@ namespace modules {
         state(idU,      kk,j,i) = state(idU,hs+0   ,j,i);
         state(idV,      kk,j,i) = state(idV,hs+0   ,j,i);
         state(idW,      kk,j,i) = 0;
-        state(idT,      kk,j,i) = surface_temp(j,i) == 0 ? state(idT,hs+0,j,i) : surface_temp(j,i);
-        tke  (          kk,j,i) = 0;
+        state(idT,      kk,j,i) = state(idT,hs+0   ,j,i);
+        tke  (          kk,j,i) = tke  (    hs+0   ,j,i);
         state(idU,hs+nz+kk,j,i) = state(idU,hs+nz-1,j,i);
         state(idV,hs+nz+kk,j,i) = state(idV,hs+nz-1,j,i);
         state(idW,hs+nz+kk,j,i) = 0;
         state(idT,hs+nz+kk,j,i) = state(idT,hs+nz-1,j,i);
-        tke  (    hs+nz+kk,j,i) = 0;
+        tke  (    hs+nz+kk,j,i) = tke  (    hs+nz-1,j,i);
         for (int l=0; l < num_tracers; l++) {
-          tracers(l,      kk,j,i) = 0;
-          tracers(l,hs+nz+kk,j,i) = 0;
+          tracers(l,      kk,j,i) = tracers(l,hs+0   ,j,i);
+          tracers(l,hs+nz+kk,j,i) = tracers(l,hs+nz-1,j,i);
         }
         {
           int  k0       = hs;
@@ -474,6 +501,40 @@ namespace modules {
       });
     } else {
       yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+    }
+  }
+
+
+  void LES_Closure::halo_bcs_zero_vel( core::Coupler const & coupler ,
+                                       real4d        const & state   ,
+                                       real4d        const & tracers ,
+                                       real3d        const & tke     ) const {
+    using yakl::c::parallel_for;
+    using yakl::c::SimpleBounds;
+    auto nx             = coupler.get_nx();
+    auto ny             = coupler.get_ny();
+    auto nz             = coupler.get_nz();
+    auto dz             = coupler.get_dz();
+    auto num_tracers    = tracers.extent(0);
+    auto px             = coupler.get_px();
+    auto py             = coupler.get_py();
+    auto nproc_x        = coupler.get_nproc_x();
+    auto nproc_y        = coupler.get_nproc_y();
+    auto &neigh         = coupler.get_neighbor_rankid_matrix();
+    auto &dm            = coupler.get_data_manager_readonly();
+    auto grav           = coupler.get_option<real>("grav");
+    auto gamma          = coupler.get_option<real>("gamma_d");
+    auto C0             = coupler.get_option<real>("C0");
+    auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
+    auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
+    auto surface_temp   = dm.get<real const,2>("surface_temp_halos");
+    // z-direction BC's
+    if (bc_z == "solid_wall") {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
+                                        YAKL_LAMBDA (int kk, int j, int i) {
+        state(idU,      kk,j,i) = 0;
+        state(idV,      kk,j,i) = 0;
+      });
     }
   }
 

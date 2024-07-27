@@ -33,15 +33,15 @@ inform_freq: 10.
 
 latitude: 0.
 
-run_main: false
+run_main: true
 
 restart_file: 
 
-restart_file_precursor: # no_platform_precursor_00000008.nc
+restart_file_precursor: validation_precursor_00000024.nc
 
 roughness: 0.3
 
-dyn_cycle: 1
+dyn_cycle: 10
 
 turbine_file: ./inputs/NREL_2.8MW_127_RWT_old.yaml
 

@@ -48,14 +48,15 @@ namespace modules {
     havg_fields = coupler.get_parallel_comm().all_reduce( havg_fields , MPI_SUM , "sponge_Allreduce" );
 
     real time_factor = dt / time_scale;
+    real z1 = 0.9*zlen;
+    real z2 = 1.0*zlen;
+    real p  = 3;
 
-    // use a cosine relaxation in space:  ((cos(pi*rel_dist)+1)/2)^2
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,num_layers,ny,nx) ,
                                       YAKL_LAMBDA (int ifld, int kloc, int j, int i) {
       int k = nz - 1 - kloc;
       real z = (k+0.5_fp)*dz;
-      real rel_dist = ( zlen - z ) / ( num_layers * dz );
-      real space_factor = ( cos(M_PI*rel_dist) + 1 ) / 2;
+      real space_factor = std::pow((z-z1)/(z2-z1),p);
       real factor = space_factor * time_factor;
       full_fields(ifld,k,j,i) += ( havg_fields(ifld,kloc)/(nx_glob*ny_glob) - full_fields(ifld,k,j,i) ) * factor;
     });

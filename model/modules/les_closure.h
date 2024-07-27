@@ -45,6 +45,10 @@ namespace modules {
                      real4d        const & tracers ,
                      real3d        const & tke     ) const;
 
+    void halo_bcs_zero_vel( core::Coupler const & coupler ,
+                            real4d        const & state   ,
+                            real4d        const & tracers ,
+                            real3d        const & tke     ) const;
   };
 
 }

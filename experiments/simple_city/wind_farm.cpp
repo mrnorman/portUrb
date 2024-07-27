@@ -6,10 +6,10 @@
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
 #include "surface_flux.h"
-#include "uniform_pg_wind_forcing.h"
 #include "perturb_temperature.h"
 #include "precursor_sponge.h"
 #include "sponge_layer.h"
+#include "column_nudging.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     coupler_main.set_option<real       >( "roughness"              , config["roughness"   ].as<real       >(0.1) );
     coupler_main.set_option<std::string>( "turbine_file"           , config["turbine_file"].as<std::string>()    );
 
-    coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen});
+    coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.4_fp*xlen});
     coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
@@ -74,6 +74,9 @@ int main(int argc, char** argv) {
     // Classes that can work on multiple couplers without issue (no internal state)
     modules::LES_Closure                       les_closure;
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
+
+    // Classes working on coupler_prec
+    modules::ColumnNudger                      column_nudger;
 
     // Classes working on coupler_main
     custom_modules::Time_Averager              time_averager_main;
@@ -95,7 +98,8 @@ int main(int argc, char** argv) {
     windmills         .init( coupler_main );
     time_averager_main.init( coupler_main );
 
-    time_averager_prec.init( coupler_prec );
+    time_averager_prec.init ( coupler_prec );
+    column_nudger.set_column( coupler_prec , {"uvel","vvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -118,11 +122,12 @@ int main(int argc, char** argv) {
       coupler_prec.overwrite_with_restart();
       auto &dm_prec = coupler_prec.get_data_manager_readonly();
       auto &dm_main = coupler_main     .get_data_manager_readwrite();
-      dm_prec.get<real const,4>("density_dry").deep_copy_to(dm_main.get<real,4>("density_dry"));
-      dm_prec.get<real const,4>("uvel"       ).deep_copy_to(dm_main.get<real,4>("uvel"       ));
-      dm_prec.get<real const,4>("vvel"       ).deep_copy_to(dm_main.get<real,4>("vvel"       ));
-      dm_prec.get<real const,4>("wvel"       ).deep_copy_to(dm_main.get<real,4>("wvel"       ));
-      dm_prec.get<real const,4>("temp"       ).deep_copy_to(dm_main.get<real,4>("temp"       ));
+      dm_prec.get<real const,3>("density_dry").deep_copy_to(dm_main.get<real,3>("density_dry"));
+      dm_prec.get<real const,3>("uvel"       ).deep_copy_to(dm_main.get<real,3>("uvel"       ));
+      dm_prec.get<real const,3>("vvel"       ).deep_copy_to(dm_main.get<real,3>("vvel"       ));
+      dm_prec.get<real const,3>("wvel"       ).deep_copy_to(dm_main.get<real,3>("wvel"       ));
+      dm_prec.get<real const,3>("temp"       ).deep_copy_to(dm_main.get<real,3>("temp"       ));
+      dm_prec.get<real const,3>("TKE"        ).deep_copy_to(dm_main.get<real,3>("TKE"        ));
     } else {
       if (out_freq >= 0) coupler_prec.write_output_file( out_prefix_prec );
     }
@@ -141,8 +146,9 @@ int main(int argc, char** argv) {
         if (run_main) {
           custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
                                             {"density_dry","uvel","vvel","wvel","temp"} ,
-                                            (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
-                                            (int) (0.1*ny_glob) , (int) (0.1*ny_glob) , (int) (0.1*nz) );
+                                            (int) (0.2*nx_glob) , (int) (0.2*nx_glob) ,
+                                            (int) (0.2*ny_glob) , (int) (0.2*ny_glob) );
+          coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
           coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
           coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
           coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
@@ -150,15 +156,12 @@ int main(int argc, char** argv) {
           coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt); } , "time_averager"     );
         }
 
-        using modules::uniform_pg_wind_forcing_height;
-        real h = 89;
-        real u = 6.27*std::cos(4.33/180*M_PI);
-        real v = 6.27*std::sin(4.33/180*M_PI);
-        coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v); } , "pg_forcing"     );
-        coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);       } , "dycore"         );
-        coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);       } , "surface_fluxes" );
-        coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);       } , "les_closure"    );
-        coupler_prec.run_module( [&] (Coupler &c) { time_averager_prec.accumulate (c,dt);       } , "time_averager"  );
+        coupler_prec.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column (c,dt,dt*100);    } , "column_nudger"  );
+        coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
+        coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
+        coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );
+        coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);           } , "les_closure"    );
+        coupler_prec.run_module( [&] (Coupler &c) { time_averager_prec.accumulate (c,dt);           } , "time_averager"  );
       }
 
       // Update time step

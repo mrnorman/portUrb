@@ -714,7 +714,7 @@ namespace modules {
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
                                           YAKL_LAMBDA (int l, int kk, int j, int i) {
-          if (l == idW) {
+          if (l == idW || l == idT) {
             fields(l,      kk,hs+j,hs+i) = 0;
             fields(l,hs+nz+kk,hs+j,hs+i) = 0;
           } else {
@@ -797,7 +797,7 @@ namespace modules {
 
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
-          if (l == idW) {
+          if (l == idW || l == idT) {
             limits_z(0,l,0 ,j,i) = 0;
             limits_z(1,l,0 ,j,i) = 0;
             limits_z(0,l,nz,j,i) = 0;

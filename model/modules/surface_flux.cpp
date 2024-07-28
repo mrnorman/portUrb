@@ -67,7 +67,7 @@ namespace modules {
         real mag = std::sqrt(v*v+w*w);
         tend_v(k,j,i) += -c_dx*(v-0 )*mag/dx;
         tend_w(k,j,i) += -c_dx*(w-0 )*mag/dx;
-        tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
+        // tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
         tend_T(k,j,i) +=        hf       /dx;
       }
       indk = hs+k;  indj = hs+j;  indi = hs+i+1;
@@ -80,7 +80,7 @@ namespace modules {
         real mag = std::sqrt(v*v+w*w);
         tend_v(k,j,i) += -c_dx*(v-0 )*mag/dx;
         tend_w(k,j,i) += -c_dx*(w-0 )*mag/dx;
-        tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
+        // tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
         tend_T(k,j,i) +=        hf       /dx;
       }
       indk = hs+k;  indj = hs+j-1;  indi = hs+i;
@@ -93,7 +93,7 @@ namespace modules {
         real mag = std::sqrt(u*u+w*w);
         tend_u(k,j,i) += -c_dy*(u-0 )*mag/dy;
         tend_w(k,j,i) += -c_dy*(w-0 )*mag/dy;
-        tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
+        // tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
         tend_T(k,j,i) +=        hf       /dy;
       }
       indk = hs+k;  indj = hs+j+1;  indi = hs+i;
@@ -106,7 +106,7 @@ namespace modules {
         real mag = std::sqrt(u*u+w*w);
         tend_u(k,j,i) += -c_dy*(u-0 )*mag/dy;
         tend_w(k,j,i) += -c_dy*(w-0 )*mag/dy;
-        tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
+        // tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
         tend_T(k,j,i) +=        hf       /dy;
       }
       indk = hs+k-1;  indj = hs+j;  indi = hs+i;
@@ -119,7 +119,7 @@ namespace modules {
         real mag = std::sqrt(u*u+v*v);
         tend_u(k,j,i) += -c_dz*(u-0 )*mag/dz;
         tend_v(k,j,i) += -c_dz*(v-0 )*mag/dz;
-        tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
+        // tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
         tend_T(k,j,i) +=        hf       /dz;
       }
       indk = hs+k+1;  indj = hs+j;  indi = hs+i;
@@ -132,7 +132,7 @@ namespace modules {
         real mag = std::sqrt(u*u+v*v);
         tend_u(k,j,i) += -c_dz*(u-0 )*mag/dz;
         tend_v(k,j,i) += -c_dz*(v-0 )*mag/dz;
-        tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
+        // tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
         tend_T(k,j,i) +=        hf       /dz;
       }
     });

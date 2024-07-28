@@ -447,7 +447,7 @@ namespace modules {
         state(idU,      kk,j,i) = state(idU,hs+0   ,j,i);
         state(idV,      kk,j,i) = state(idV,hs+0   ,j,i);
         state(idW,      kk,j,i) = 0;
-        state(idT,      kk,j,i) = state(idT,hs+0   ,j,i);
+        state(idT,      kk,j,i) = surface_temp(     j,i);
         tke  (          kk,j,i) = tke  (    hs+0   ,j,i);
         state(idU,hs+nz+kk,j,i) = state(idU,hs+nz-1,j,i);
         state(idV,hs+nz+kk,j,i) = state(idV,hs+nz-1,j,i);

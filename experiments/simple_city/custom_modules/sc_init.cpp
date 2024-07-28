@@ -524,7 +524,7 @@ namespace custom_modules {
         dm_wvel (k,j,i) = 0;
         dm_temp (k,j,i) = T;
         dm_rho_v(k,j,i) = 0;
-        if (k == 0) dm_surface_temp(j,i) = 300;
+        if (k == 0) dm_surface_temp(j,i) = theta0;
       });
 
     }

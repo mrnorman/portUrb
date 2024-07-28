@@ -10,6 +10,7 @@
 #include "precursor_sponge.h"
 #include "sponge_layer.h"
 #include "column_nudging.h"
+#include "uniform_pg_wind_forcing.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -60,6 +61,7 @@ int main(int argc, char** argv) {
     coupler_main.set_option<real       >( "turbine_initial_yaw"      , 0     );
     coupler_main.set_option<bool       >( "turbine_fixed_yaw"        , true  );
     coupler_main.set_option<bool       >( "turbine_floating_motions" , false );
+    coupler_main.set_option<bool       >( "weno_all"                 , false );
 
     coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
     coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.4_fp*ylen});
@@ -103,7 +105,7 @@ int main(int argc, char** argv) {
     time_averager_main.init( coupler_main );
 
     time_averager_prec.init ( coupler_prec );
-    column_nudger.set_column( coupler_prec , {"uvel","vvel"} );
+    column_nudger.set_column( coupler_prec , {"density_dry","temp"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -152,16 +154,21 @@ int main(int argc, char** argv) {
                                             {"density_dry","uvel","vvel","wvel","temp"} ,
                                             (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                             (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );
-          coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
-          coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
-          coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
-          coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
-          coupler_main.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt); } , "les_closure"       );
-          coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt); } , "time_averager"     );
+          // coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,10); } , "sponge"            );
+          coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);           } , "dycore"            );
+          coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);           } , "surface_fluxes"    );
+          coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt);           } , "windmillactuators" );
+          coupler_main.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);           } , "les_closure"       );
+          coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt);           } , "time_averager"     );
         }
 
+        using modules::uniform_pg_wind_forcing_height;
+        real h = 89;
+        real u = 6.27*std::cos(4.33/180*M_PI);
+        real v = 6.27*std::sin(4.33/180*M_PI);
+        coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v);     } , "pg_forcing"     );
         coupler_prec.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column (c,dt,dt*100);    } , "column_nudger"  );
-        coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
+        // coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
         coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
         coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );
         coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);           } , "les_closure"    );

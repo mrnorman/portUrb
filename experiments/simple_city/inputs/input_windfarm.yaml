@@ -39,7 +39,7 @@ restart_file:
 
 restart_file_precursor: # validation_precursor_00000024.nc
 
-roughness: 0.3
+roughness: 0.05
 
 dyn_cycle: 10
 

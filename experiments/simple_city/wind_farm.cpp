@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     coupler_main.set_option<real       >( "turbine_initial_yaw"      , 0     );
     coupler_main.set_option<bool       >( "turbine_fixed_yaw"        , true  );
     coupler_main.set_option<bool       >( "turbine_floating_motions" , false );
-    coupler_main.set_option<bool       >( "weno_all"                 , false );
+    coupler_main.set_option<bool       >( "weno_all"                 , true  );
 
     coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
     coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.4_fp*ylen});

@@ -475,15 +475,16 @@ namespace modules {
             }
           });
           {
-            real xr = 3*dx;
+            real xr = 2*dx;
             int nper  = 10;
             int num_x = (int) std::ceil(xr*2 /dx*nper);
             int num_y = (int) std::ceil(rad*2/dy*nper);
             int num_z = (int) std::ceil(rad*2/dz*nper);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
-              real x = -xr  + 2*xr *i/(num_x-1);
-              real y = -rad + 2*rad*j/(num_y-1);
-              real z = -rad + 2*rad*k/(num_z-1);
+              real x = -xr  + (2*xr *i)/(num_x-1);
+              real y = -rad + (2*rad*j)/(num_y-1);
+              real z = -rad + (2*rad*k)/(num_z-1);
+              real proj1d = proj_shape_1d(x,xr);
               // Now rotate x and y according to the yaw angle, and translate to base location
               real xp = base_x     + cos_yaw*x - sin_yaw*y;
               real yp = base_y     + sin_yaw*x + cos_yaw*y;
@@ -494,7 +495,7 @@ namespace modules {
                 int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int  k = static_cast<int>(std::floor((zp       )/dz));
                 real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad && x < 0) yakl::atomicAdd( disk_weight(k,j,i) , thrust_shape(rloc/rad) );
+                if (rloc <= rad) yakl::atomicAdd( disk_weight(k,j,i) , thrust_shape(rloc/rad)*proj1d );
               }
             });
           }

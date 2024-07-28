@@ -1,6 +1,6 @@
 ---
 # Simulation time in seconds
-sim_time: 21601.  # 86400
+sim_time: 7201.  # 86400
 
 # Number of cells to use in the CRMs
 nx_glob: 500
@@ -27,17 +27,17 @@ out_prefix: validation
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 900.
+out_freq: 600.
 
 inform_freq: 10.
 
 latitude: 0.
 
-run_main: false
+run_main: true
 
 restart_file: 
 
-restart_file_precursor: # validation_precursor_00000024.nc
+restart_file_precursor: z0_0.05/validation_precursor_00000024.nc
 
 roughness: 0.05
 

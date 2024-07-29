@@ -1,11 +1,11 @@
 ---
 # Simulation time in seconds
-sim_time: 7201.  # 86400
+sim_time: 21601.  # 86400
 
 # Number of cells to use in the CRMs
-nx_glob: 500
-ny_glob: 100
-nz     : 100
+nx_glob: 1000
+ny_glob: 300
+nz     : 120
 # nx_glob: 400
 # ny_glob: 400
 # nz     : 40
@@ -15,8 +15,8 @@ nz     : 100
 
 # Domain size of the CRMs
 xlen: 5000
-ylen: 1000
-zlen: 1000
+ylen: 1500
+zlen: 600
 
 init_data: AWAKEN_neutral
 
@@ -37,9 +37,9 @@ run_main: true
 
 restart_file: 
 
-restart_file_precursor: z0_0.05/validation_precursor_00000024.nc
+restart_file_precursor: # z0_0.05/validation_precursor_00000024.nc
 
-roughness: 0.05
+roughness: 0.03
 
 dyn_cycle: 10
 

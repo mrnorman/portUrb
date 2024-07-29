@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     coupler_main.set_option<bool       >( "weno_all"                 , true  );
 
     coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
-    coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.4_fp*ylen});
+    coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero

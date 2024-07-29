@@ -475,7 +475,7 @@ namespace modules {
             }
           });
           {
-            real xr = 2*dx;
+            real xr = 3*dx;
             int nper  = 10;
             int num_x = (int) std::ceil(xr*2 /dx*nper);
             int num_y = (int) std::ceil(rad*2/dy*nper);
@@ -501,7 +501,7 @@ namespace modules {
           }
           if (do_blades) {
             int nper = 10;
-            real xr = 2*dx;
+            real xr = 3*dx;
             real yr = 5*dy;
             int num_x = 2*xr/dx*nper;
             int num_y = 2*yr/dy*nper;

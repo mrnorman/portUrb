@@ -209,7 +209,7 @@ namespace modules {
 
 
     struct DefaultThrustShape {
-      YAKL_INLINE real operator() ( real r , int a = 5 , int b = 2 , real c = 0.5 ) const {
+      YAKL_INLINE real operator() ( real r , int a = 3 , int b = 0 , real c = 0 ) const {
         if ( r > 1 ) return 0;
         // Compute c^a and r^a
         real c_a = c;

@@ -91,26 +91,26 @@ def dirhub(fname) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-# end         = 27
-# misfit_best = 100
-# for i in range(1,end+1) :
-#     fname = "validation_000000"+str(i).zfill(2)+".nc"
-#     ti = turbulent_intensity(fname)
-#     se = shear_exponent     (fname)
-#     uh = uhub               (fname)
-#     dh = dirhub             (fname)
-#     misfit = 1*(ti-0.097)**2/0.097**2 +\
-#              1*(se-0.116)**2/0.116**2 +\
-#              5*(uh-6.27 )**2/6.27 **2 +\
-#              1*(dh-4.33 )**2/4.33 **2
-#     if (misfit < misfit_best) :
-#         fname_best = fname
-#         misfit_best = misfit
-#     print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
-# print("Best file: ",fname_best)
+end         = 3
+misfit_best = 100
+for i in range(1,end+1) :
+    fname = "validation_000000"+str(i).zfill(2)+".nc"
+    ti = turbulent_intensity(fname)
+    se = shear_exponent     (fname)
+    uh = uhub               (fname)
+    dh = dirhub             (fname)
+    misfit = (ti-0.097)**2/0.097**2 +\
+             (se-0.116)**2/0.116**2 +\
+             (uh-6.27 )**2/6.27 **2 +\
+             (dh-4.33 )**2/4.33 **2
+    if (misfit < misfit_best) :
+        ind_best = i
+        misfit_best = misfit
+    print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
+print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
 
-fname_best  = "validation_00000013.nc"
-fname_best2 = "validation_precursor_00000013.nc"
+fname_best  = "validation_000000"+str(ind_best).zfill(2)+".nc"
+fname_best2 = "validation_precursor_000000"+str(ind_best).zfill(2)+".nc"
 
 nc   = Dataset(fname_best,"r")
 x    = (nc.variables["x"][:]-0.3*5000)/127
@@ -153,6 +153,17 @@ plt.ylim(-4,4)
 divider = make_axes_locatable(plt.gca())
 cax = divider.append_axes("bottom", size="5%", pad=0.5)
 plt.colorbar(CS,orientation="horizontal",cax=cax)
+plt.show()
+plt.close()
+
+nc = Dataset(fname_best,"r")
+nt = nc.dimensions["num_time_steps"].size
+plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["normmag_trace_turb_0"][:],label="normmag")
+plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["normmag0_trace_turb_0"][:],label="normmag0")
+plt.xlabel("Time [s]")
+plt.ylabel("Normal wind magnitude [m/s]")
+plt.legend()
+plt.xlim(0,600)
 plt.show()
 plt.close()
 
@@ -214,11 +225,11 @@ v    = nc.variables["avg_v"][:z2+1,y1:y2+1,:]
 mag  = np.sqrt(u*u + v*v)
 fig, (ax1,ax2,ax3,ax4,ax5) = plt.subplots(5, 1,sharex=True)
 Y,Z  = np.meshgrid(y[y1:y2+1],z[:z2+1])
-CS1 = ax1.contourf(Y,Z,mag[:,:,get_ind(x, 0)],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
-CS2 = ax2.contourf(Y,Z,mag[:,:,get_ind(x, 2)],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
-CS3 = ax3.contourf(Y,Z,mag[:,:,get_ind(x, 4)],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
-CS4 = ax4.contourf(Y,Z,mag[:,:,get_ind(x, 8)],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
-CS5 = ax5.contourf(Y,Z,mag[:,:,get_ind(x,10)],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
+CS1 = ax1.contourf(Y,Z,mag[:,:,get_ind(x, 0)+6],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
+CS2 = ax2.contourf(Y,Z,mag[:,:,get_ind(x, 2)  ],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
+CS3 = ax3.contourf(Y,Z,mag[:,:,get_ind(x, 4)  ],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
+CS4 = ax4.contourf(Y,Z,mag[:,:,get_ind(x, 8)  ],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
+CS5 = ax5.contourf(Y,Z,mag[:,:,get_ind(x,10)  ],levels=np.arange(0,10,0.1),cmap="coolwarm",extend="both")
 ax1.add_patch(Ellipse([0,89],1,127,fill=False,edgecolor="black",linestyle='--'))
 ax2.add_patch(Ellipse([0,89],1,127,fill=False,edgecolor="black",linestyle='--'))
 ax3.add_patch(Ellipse([0,89],1,127,fill=False,edgecolor="black",linestyle='--'))
@@ -231,3 +242,4 @@ plt.show()
 
 
 print("Average power generation: ",np.mean(nc.variables["power_trace_turb_0"][:]*1000))
+

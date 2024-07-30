@@ -208,27 +208,13 @@ namespace modules {
     };
 
 
+    // IMPORTANT: It looks like c cannot be zero or bad things happen. So make it close to zero if you want zero
     struct DefaultThrustShape {
-      YAKL_INLINE real operator() ( real r , int a = 3 , int b = 0 , real c = 0 ) const {
+      YAKL_INLINE real operator() ( real r , real a = 4 , real b = -8 , real c = 0.01 ) const {
+        using std::pow;
         if ( r > 1 ) return 0;
-        // Compute c^a and r^a
-        real c_a = c;
-        real r_a = r;
-        for (int i=0; i < a-1; i++) {
-          c_a *= c;
-          r_a *= r;
-        }
-        // Compute c^b
-        real c_b = c;
-        for (int i=0; i < b-1; i++) {
-          c_b *= c;
-        }
-        // Compute r^(2a)
-        real r_2a = r;
-        for (int i=0; i < 2*a-1; i++) {
-          r_2a *= r;
-        }
-        return std::pow( ( 2*r_2a*(c_a-2*c_b) - r_a*(c_a - 4*c_b) ) / c_b , 1.f/(a-b) );
+        // ((2*(c^a-2*c^b)*x^(2*a)-(c^a-4*c^b)*x^a)/c^b)^(1/(a-b))
+        return pow( (2*(pow(c,a)-2*pow(c,b))*pow(r,(2*a))-(pow(c,a)-4*pow(c,b))*pow(r,a))/pow(c,b) , 1/(a-b) );
       }
     };
 
@@ -475,7 +461,7 @@ namespace modules {
             }
           });
           {
-            real xr = 3*dx;
+            real xr = 5*dx;
             int nper  = 10;
             int num_x = (int) std::ceil(xr*2 /dx*nper);
             int num_y = (int) std::ceil(rad*2/dy*nper);
@@ -501,7 +487,7 @@ namespace modules {
           }
           if (do_blades) {
             int nper = 10;
-            real xr = 3*dx;
+            real xr = 5*dx;
             real yr = 5*dy;
             int num_x = 2*xr/dx*nper;
             int num_y = 2*yr/dy*nper;

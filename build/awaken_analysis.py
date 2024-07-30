@@ -91,7 +91,7 @@ def dirhub(fname,x1=2.5,x2=2.0) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 4
+end         = 8
 misfit_best = 100
 for i in range(1,end+1) :
     fname = "validation_000000"+str(i).zfill(2)+".nc"
@@ -112,8 +112,8 @@ print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
 fname_best  = "validation_000000"+str(ind_best).zfill(2)+".nc"
 fname_best2 = "validation_precursor_000000"+str(ind_best).zfill(2)+".nc"
 
-# fname_best  = "validation_00000003.nc"
-# fname_best2 = "validation_precursor_00000003.nc"
+# fname_best  = "validation_00000004.nc"
+# fname_best2 = "validation_precursor_00000004.nc"
 
 nc   = Dataset(fname_best,"r")
 x    = (nc.variables["x"][:]-0.3*5000)/127
@@ -173,6 +173,10 @@ plt.close()
 nc = Dataset(fname_best,"r")
 nt = nc.dimensions["num_time_steps"].size
 plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["power_trace_turb_0"][:]*1000)
+N = int((nt-1)*60./600.)
+xvals = np.convolve([i/(nt-1)*600 for i in range(nt)], np.ones(N)/N, mode='valid')
+yvals = np.convolve(nc.variables["power_trace_turb_0"][:]*1000, np.ones(N)/N, mode='valid')
+plt.plot(xvals,yvals)
 plt.xlabel("Time [s]")
 plt.ylabel("Power [kW]")
 plt.xlim(0,600)
@@ -213,6 +217,16 @@ ax22.plot(y[y1:y2+1],tke[:,get_ind(x, 2)])
 ax32.plot(y[y1:y2+1],tke[:,get_ind(x, 4)])
 ax42.plot(y[y1:y2+1],tke[:,get_ind(x, 6)])
 ax52.plot(y[y1:y2+1],tke[:,get_ind(x,10)])
+ax11.set_ylim(0.25,1.05)
+ax21.set_ylim(0.25,1.05)
+ax31.set_ylim(0.25,1.05)
+ax41.set_ylim(0.25,1.05)
+ax51.set_ylim(0.25,1.05)
+ax12.set_ylim(0.0,2.0)
+ax22.set_ylim(0.0,2.0)
+ax32.set_ylim(0.0,2.0)
+ax42.set_ylim(0.0,2.0)
+ax52.set_ylim(0.0,2.0)
 plt.show()
 plt.close()
 

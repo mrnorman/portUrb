@@ -103,6 +103,7 @@ namespace modules {
       std::vector<real>       betti_trace;    // Time trace of floating motions perturbations
       std::vector<real>       cp_trace;       // Time trace of coefficient of power
       std::vector<real>       ct_trace;       // Time trace of coefficient of thrust
+      real                    mag0_inertial;  // Intertial freestream normal wind magnitude (for power generation)
       real                    yaw_angle;      // Current yaw angle   (radians going counter-clockwise from facing west)
       real                    rot_angle;      // Current rotation angle (radians)
       YawTend                 yaw_tend;       // Functor to compute the change in yaw
@@ -150,13 +151,14 @@ namespace modules {
                          turb_y2 < dom_y1 ); // Turbine's below
         std::random_device rd{};
         Turbine loc;
-        loc.active      = active;
-        loc.base_loc_x  = base_loc_x;
-        loc.base_loc_y  = base_loc_y;
-        loc.yaw_angle   = coupler.get_option<real>("turbine_initial_yaw",0);
-        loc.rot_angle   = 0.;
-        loc.yaw_tend    = YawTend();
-        loc.ref_turbine = ref_turbine;
+        loc.active        = active;
+        loc.base_loc_x    = base_loc_x;
+        loc.base_loc_y    = base_loc_y;
+        loc.yaw_angle     = coupler.get_option<real>("turbine_initial_yaw",0);
+        loc.rot_angle     = 0.;
+        loc.yaw_tend      = YawTend();
+        loc.ref_turbine   = ref_turbine;
+        loc.mag0_inertial = 0;
         loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
                                    loc.ref_turbine.power_coef_host  ,
                                    loc.ref_turbine.thrust_coef_host );
@@ -566,9 +568,11 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Using induction factor, interpolate power coefficient and power for normal wind magnitude at infinity
           real C_T       = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
-          real C_P       = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
-          real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
-          real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag0 ) : 0; // Interpolate rotation speed
+          real inertial_tau = 30;
+          turbine.mag0_inertial = mag0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.mag0_inertial;
+          real C_P       = interp( ref_velmag , ref_power_coef  , turbine.mag0_inertial ); // Interpolate power coef
+          real pwr       = interp( ref_velmag , ref_power       , turbine.mag0_inertial ); // Interpolate power
+          real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , turbine.mag0_inertial ) : 0; // Interpolate rotation speed
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace  .push_back( turbine.yaw_angle );
           turbine.power_trace.push_back( pwr               );

@@ -55,13 +55,13 @@ def shear_exponent(fname) :
             count += 1
     return tot / count
 
-def uhub(fname) :
+def uhub(fname,x1=2.5,x2=2.0) :
     nc   = Dataset(fname,"r")
     x    = nc.variables["x"][:]
     y    = nc.variables["y"][:]
     z    = nc.variables["z"][:]
-    i1   = get_ind(x,5000/3.-127*2.5)
-    i2   = get_ind(x,5000/3.-127*2.0)
+    i1   = get_ind(x,5000/3.-127*x1)
+    i2   = get_ind(x,5000/3.-127*x2)
     j1   = get_ind(y,1500/2.-127*2)
     j2   = get_ind(y,1500/2.+127*2)
     for k in range(nc.dimensions["z"].size) :
@@ -77,13 +77,13 @@ def uhub(fname) :
     mag2 = np.mean(np.sqrt(u*u+v*v))
     return mag1*(z[k2]-89)/(z[k2]-z[k1]) + mag2*(89-z[k1])/(z[k2]-z[k1])
 
-def dirhub(fname) :
+def dirhub(fname,x1=2.5,x2=2.0) :
     nc   = Dataset(fname,"r")
     x    = nc.variables["x"][:]
     y    = nc.variables["y"][:]
     z    = nc.variables["z"][:]
-    i1   = get_ind(x,5000/3.-127*2.5)
-    i2   = get_ind(x,5000/3.-127*2.0)
+    i1   = get_ind(x,5000/3.-127*x1)
+    i2   = get_ind(x,5000/3.-127*x2)
     j1   = get_ind(y,1500/2.-127*2)
     j2   = get_ind(y,1500/2.+127*2)
     kref = get_ind(z,89)
@@ -91,7 +91,7 @@ def dirhub(fname) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 1
+end         = 4
 misfit_best = 100
 for i in range(1,end+1) :
     fname = "validation_000000"+str(i).zfill(2)+".nc"
@@ -176,7 +176,7 @@ plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["power_trace_turb_0"][:]
 plt.xlabel("Time [s]")
 plt.ylabel("Power [kW]")
 plt.xlim(0,600)
-plt.ylim(0,1000)
+plt.ylim(0,1100)
 plt.show()
 plt.close()
 

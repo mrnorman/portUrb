@@ -91,7 +91,7 @@ def dirhub(fname) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 3
+end         = 1
 misfit_best = 100
 for i in range(1,end+1) :
     fname = "validation_000000"+str(i).zfill(2)+".nc"
@@ -111,6 +111,9 @@ print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
 
 fname_best  = "validation_000000"+str(ind_best).zfill(2)+".nc"
 fname_best2 = "validation_precursor_000000"+str(ind_best).zfill(2)+".nc"
+
+# fname_best  = "validation_00000003.nc"
+# fname_best2 = "validation_precursor_00000003.nc"
 
 nc   = Dataset(fname_best,"r")
 x    = (nc.variables["x"][:]-0.3*5000)/127
@@ -241,5 +244,9 @@ fig.colorbar(CS5, cax=cbar_ax)
 plt.show()
 
 
-print("Average power generation: ",np.mean(nc.variables["power_trace_turb_0"][:]*1000))
+print("Average power generation [kW]              : ",np.mean(nc.variables["power_trace_turb_0"][:]*1000))
+print("Average power coefficient                  : ",np.mean(nc.variables["cp_trace_turb_0"][:]))
+print("Average thrust coefficient                 : ",np.mean(nc.variables["ct_trace_turb_0"][:]))
+print("Average disk norm wind mag [m/s]           : ",np.mean(nc.variables["normmag_trace_turb_0"][:]))
+print("Average disk freestream norm wind mag [m/s]: ",np.mean(nc.variables["normmag0_trace_turb_0"][:]))
 

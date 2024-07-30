@@ -101,6 +101,8 @@ namespace modules {
       std::vector<real>       normmag_trace;  // Time trace of disk-integrated normal velocity
       std::vector<real>       normmag0_trace; // Time trace of disk-integrated free-stream normal velocity used for look-ups
       std::vector<real>       betti_trace;    // Time trace of floating motions perturbations
+      std::vector<real>       cp_trace;       // Time trace of coefficient of power
+      std::vector<real>       ct_trace;       // Time trace of coefficient of thrust
       real                    yaw_angle;      // Current yaw angle   (radians going counter-clockwise from facing west)
       real                    rot_angle;      // Current rotation angle (radians)
       YawTend                 yaw_tend;       // Functor to compute the change in yaw
@@ -137,10 +139,10 @@ namespace modules {
         real dom_y1  = (j_beg+0 )*dy;
         real dom_y2  = (j_beg+ny)*dy;
         // Rectangular bounds of this turbine's potential influence
-        real turb_x1 = base_loc_x-ref_turbine.blade_radius-5*std::sqrt(dx*dy);
-        real turb_x2 = base_loc_x+ref_turbine.blade_radius+5*std::sqrt(dx*dy);
-        real turb_y1 = base_loc_y-ref_turbine.blade_radius-5*std::sqrt(dx*dy);
-        real turb_y2 = base_loc_y+ref_turbine.blade_radius+5*std::sqrt(dx*dy);
+        real turb_x1 = base_loc_x-ref_turbine.blade_radius-6*std::sqrt(dx*dy);
+        real turb_x2 = base_loc_x+ref_turbine.blade_radius+6*std::sqrt(dx*dy);
+        real turb_y1 = base_loc_y-ref_turbine.blade_radius-6*std::sqrt(dx*dy);
+        real turb_y2 = base_loc_y+ref_turbine.blade_radius+6*std::sqrt(dx*dy);
         // Determine if the two domains overlap
         bool active = !( turb_x1 > dom_x2 || // Turbine's to the right
                          turb_x2 < dom_x1 || // Turbine's to the left
@@ -290,10 +292,10 @@ namespace modules {
         }
       }
 
-      dm.register_and_allocate<real>("windmill_prop","",{nz,ny,nx});
-      coupler.register_output_variable<real>( "windmill_prop" , core::Coupler::DIMS_3D );
-      dm.register_and_allocate<real>("blade_prop","",{nz,ny,nx});
-      coupler.register_output_variable<real>( "blade_prop" , core::Coupler::DIMS_3D );
+      dm.register_and_allocate<real>("windmill_proj_weight","",{nz,ny,nx});
+      coupler.register_output_variable<real>( "windmill_proj_weight" , core::Coupler::DIMS_3D );
+      dm.register_and_allocate<real>("windmill_samp_weight","",{nz,ny,nx});
+      coupler.register_output_variable<real>( "windmill_samp_weight" , core::Coupler::DIMS_3D );
       // Create an output module in the coupler to dump the windmill portions and the power trace from task zero
       coupler.register_write_output_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
         if (trace_size > 0) {
@@ -306,12 +308,16 @@ namespace modules {
             std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
             std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
             std::string betti_vname    = std::string("betti_trace_turb_"   ) + std::to_string(iturb);
+            std::string cp_vname       = std::string("cp_trace_turb_"      ) + std::to_string(iturb);
+            std::string ct_vname       = std::string("ct_trace_turb_"      ) + std::to_string(iturb);
             nc.create_var<real>( pow_vname      , {"num_time_steps"} );
             nc.create_var<real>( yaw_vname      , {"num_time_steps"} );
             nc.create_var<real>( mag_vname      , {"num_time_steps"} );
             nc.create_var<real>( normmag_vname  , {"num_time_steps"} );
             nc.create_var<real>( normmag0_vname , {"num_time_steps"} );
             nc.create_var<real>( betti_vname    , {"num_time_steps"} );
+            nc.create_var<real>( cp_vname       , {"num_time_steps"} );
+            nc.create_var<real>( ct_vname       , {"num_time_steps"} );
           }
           nc.enddef();
           nc.begin_indep_data();
@@ -324,24 +330,32 @@ namespace modules {
               realHost1d normmag_arr ("normmag_arr" ,trace_size);
               realHost1d normmag0_arr("normmag0_arr",trace_size);
               realHost1d betti_arr   ("betti_arr"   ,trace_size);
+              realHost1d cp_arr      ("cp_arr"      ,trace_size);
+              realHost1d ct_arr      ("ct_arr"      ,trace_size);
               for (int i=0; i < trace_size; i++) { power_arr   (i) = turbine.power_trace   .at(i); }
               for (int i=0; i < trace_size; i++) { yaw_arr     (i) = turbine.yaw_trace     .at(i)/M_PI*180; }
               for (int i=0; i < trace_size; i++) { mag_arr     (i) = turbine.mag_trace     .at(i); }
               for (int i=0; i < trace_size; i++) { normmag_arr (i) = turbine.normmag_trace .at(i); }
               for (int i=0; i < trace_size; i++) { normmag0_arr(i) = turbine.normmag0_trace.at(i); }
               for (int i=0; i < trace_size; i++) { betti_arr   (i) = turbine.betti_trace   .at(i); }
+              for (int i=0; i < trace_size; i++) { cp_arr      (i) = turbine.cp_trace      .at(i); }
+              for (int i=0; i < trace_size; i++) { ct_arr      (i) = turbine.ct_trace      .at(i); }
               std::string pow_vname      = std::string("power_trace_turb_"   ) + std::to_string(iturb);
               std::string yaw_vname      = std::string("yaw_trace_turb_"     ) + std::to_string(iturb);
               std::string mag_vname      = std::string("mag_trace_turb_"     ) + std::to_string(iturb);
               std::string normmag_vname  = std::string("normmag_trace_turb_" ) + std::to_string(iturb);
               std::string normmag0_vname = std::string("normmag0_trace_turb_") + std::to_string(iturb);
               std::string betti_vname    = std::string("betti_trace_turb_"   ) + std::to_string(iturb);
+              std::string cp_vname       = std::string("cp_trace_turb_"      ) + std::to_string(iturb);
+              std::string ct_vname       = std::string("ct_trace_turb_"      ) + std::to_string(iturb);
               nc.write( power_arr    , pow_vname      );
               nc.write( yaw_arr      , yaw_vname      );
               nc.write( mag_arr      , mag_vname      );
               nc.write( normmag_arr  , normmag_vname  );
               nc.write( normmag0_arr , normmag0_vname );
               nc.write( betti_arr    , betti_vname    );
+              nc.write( cp_arr       , cp_vname       );
+              nc.write( ct_arr       , ct_vname       );
             }
             coupler.get_parallel_comm().barrier();
             turbine.power_trace   .clear();
@@ -350,6 +364,8 @@ namespace modules {
             turbine.normmag_trace .clear();
             turbine.normmag0_trace.clear();
             turbine.betti_trace   .clear();
+            turbine.cp_trace      .clear();
+            turbine.ct_trace      .clear();
           }
           nc.end_indep_data();
         }
@@ -373,39 +389,40 @@ namespace modules {
                 PROJ_SHAPE_2D const & proj_shape_2d = DefaultProjectionShape2D() ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      auto nx             = coupler.get_nx   ();
-      auto ny             = coupler.get_ny   ();
-      auto nz             = coupler.get_nz   ();
-      auto dx             = coupler.get_dx   ();
-      auto dy             = coupler.get_dy   ();
-      auto dz             = coupler.get_dz   ();
-      auto zlen           = coupler.get_zlen();
-      auto i_beg          = coupler.get_i_beg();
-      auto j_beg          = coupler.get_j_beg();
-      auto myrank         = coupler.get_myrank();
-      auto &dm            = coupler.get_data_manager_readwrite();
-      auto rho_d          = dm.get<real const,3>("density_dry"  );
-      auto uvel           = dm.get<real      ,3>("uvel"         );
-      auto vvel           = dm.get<real      ,3>("vvel"         );
-      auto tke            = dm.get<real      ,3>("TKE"          );
-      auto turb_prop_tot  = dm.get<real      ,3>("windmill_prop");
-      auto blade_prop_tot = dm.get<real      ,3>("blade_prop"   );
-      auto do_blades      = coupler.get_option<bool>("turbine_do_blades",false);
+      auto nx              = coupler.get_nx   ();
+      auto ny              = coupler.get_ny   ();
+      auto nz              = coupler.get_nz   ();
+      auto dx              = coupler.get_dx   ();
+      auto dy              = coupler.get_dy   ();
+      auto dz              = coupler.get_dz   ();
+      auto zlen            = coupler.get_zlen();
+      auto i_beg           = coupler.get_i_beg();
+      auto j_beg           = coupler.get_j_beg();
+      auto myrank          = coupler.get_myrank();
+      auto &dm             = coupler.get_data_manager_readwrite();
+      auto rho_d           = dm.get<real const,3>("density_dry"  );
+      auto uvel            = dm.get<real      ,3>("uvel"         );
+      auto vvel            = dm.get<real      ,3>("vvel"         );
+      auto tke             = dm.get<real      ,3>("TKE"          );
+      auto proj_weight_tot = dm.get<real      ,3>("windmill_proj_weight");
+      auto samp_weight_tot = dm.get<real      ,3>("windmill_samp_weight");
 
       real3d tend_u  ("tend_u"  ,nz,ny,nx);
       real3d tend_v  ("tend_v"  ,nz,ny,nx);
       real3d tend_tke("tend_tke",nz,ny,nx);
-      tend_u   = 0;
-      tend_v   = 0;
-      tend_tke = 0;
-      turb_prop_tot = 0;
-      blade_prop_tot = 0;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        tend_u         (k,j,i) = 0;
+        tend_v         (k,j,i) = 0;
+        tend_tke       (k,j,i) = 0;
+        proj_weight_tot(k,j,i) = 0;
+        samp_weight_tot(k,j,i) = 0;
+      });
 
       for (int iturb = 0; iturb < turbine_group.turbines.size(); iturb++) {
         auto &turbine = turbine_group.turbines.at(iturb);
         if (turbine.active) {
           ///////////////////////////////////////////////////
-          // Sampling of turbine disk and blades
+          // Sampling of turbine disk
           ///////////////////////////////////////////////////
           // Pre-compute rotation matrix terms
           real cos_yaw = std::cos(turbine.yaw_angle);
@@ -417,7 +434,6 @@ namespace modules {
           real dom_y2 = (j_beg+ny)*dy;
           // Use monte carlo to compute proportion of the turbine in each cell
           // Get reference data for later computations
-          do_blades = do_blades && turbine.ref_turbine.rotation_host.initialized();
           real rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
           real hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
           real base_x          = turbine.base_loc_x;
@@ -427,26 +443,14 @@ namespace modules {
           auto ref_power_coef  = turbine.ref_turbine.power_coef_host ; // For interpolation
           auto ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
           auto ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
+          bool do_blades       = ref_rotation.initialized();
           real proj_rad = std::max( 5._fp , 5*std::sqrt(dx*dy) ); // Arbitrarily limit to 5m for now
-          real blade1_theta = turbine.rot_angle + (0./3.)*2*M_PI;
-          real blade2_theta = turbine.rot_angle + (1./3.)*2*M_PI;
-          real blade3_theta = turbine.rot_angle + (2./3.)*2*M_PI;
-          real cos_blade1_theta = std::cos(blade1_theta);
-          real cos_blade2_theta = std::cos(blade2_theta);
-          real cos_blade3_theta = std::cos(blade3_theta);
-          real sin_blade1_theta = std::sin(blade1_theta);
-          real sin_blade2_theta = std::sin(blade2_theta);
-          real sin_blade3_theta = std::sin(blade3_theta);
-          real3d blade1_weight("blade1_weight",nz,ny,nx);
-          real3d blade2_weight("blade2_weight",nz,ny,nx);
-          real3d blade3_weight("blade3_weight",nz,ny,nx);
-          real3d disk_weight  ("disk_weight"  ,nz,ny,nx);
+          real3d disk_weight_proj("disk_weight_proj",nz,ny,nx);
+          real3d disk_weight_samp("disk_weight_samp",nz,ny,nx);
           real2d umag_19_5m_2d("umag_19_5m_2d"   ,ny,nx);
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-            disk_weight(k,j,i) = 0;
-            blade1_weight(k,j,i) = 0;
-            blade2_weight(k,j,i) = 0;
-            blade3_weight(k,j,i) = 0;
+            disk_weight_proj(k,j,i) = 0;
+            disk_weight_samp(k,j,i) = 0;
             if (k == 0) {
               real x = (i_beg+i+0.5)*dx;
               real y = (j_beg+j+0.5)*dy;
@@ -481,135 +485,56 @@ namespace modules {
                 int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
                 int  k = static_cast<int>(std::floor((zp       )/dz));
                 real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad) yakl::atomicAdd( disk_weight(k,j,i) , thrust_shape(rloc/rad)*proj1d );
-              }
-            });
-          }
-          if (do_blades) {
-            int nper = 10;
-            real xr = 5*dx;
-            real yr = 5*dy;
-            int num_x = 2*xr/dx*nper;
-            int num_y = 2*yr/dy*nper;
-            int num_z = rad /dz*nper;
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
-              real x = -xr + 2*xr*i/(num_x-1);
-              real y = -yr + 2*yr*j/(num_y-1);
-              real z =        rad*k/(num_z-1);
-              real proj2d = proj_shape_2d(x,y,xr,yr);
-              // Sample Blade 1
-              {
-                // Rotate about x-axis to account for rotation
-                real xr = x;
-                real yr = cos_blade1_theta*y - sin_blade1_theta*z;
-                real zr = sin_blade1_theta*y + cos_blade1_theta*z;
-                // Rotate about z-axis to account for yaw, and translate to hub center
-                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
-                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
-                real zp = hub_height + zr;                     
-                // if it's in this task's domain, then increment the appropriate cell count atomically
-                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                  int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade1_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
-                }
-              }
-              // Sample Blade 2
-              {
-                // Rotate about x-axis to account for rotation
-                real xr = x;
-                real yr = cos_blade2_theta*y - sin_blade2_theta*z;
-                real zr = sin_blade2_theta*y + cos_blade2_theta*z;
-                // Rotate about z-axis to account for yaw, and translate to hub center
-                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
-                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
-                real zp = hub_height + zr;                     
-                // if it's in this task's domain, then increment the appropriate cell count atomically
-                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                  int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade2_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
-                }
-              }
-              // Sample Blade 3
-              {
-                // Rotate about x-axis to account for rotation
-                real xr = x;
-                real yr = cos_blade3_theta*y - sin_blade3_theta*z;
-                real zr = sin_blade3_theta*y + cos_blade3_theta*z;
-                // Rotate about z-axis to account for yaw, and translate to hub center
-                real xp = base_x     + cos_yaw*xr - sin_yaw*yr;
-                real yp = base_y     + sin_yaw*xr + cos_yaw*yr;
-                real zp = hub_height + zr;                     
-                // if it's in this task's domain, then increment the appropriate cell count atomically
-                if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 && zp >= 0 && zp <= zlen ) {
-                  int i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                  int j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                  int k = static_cast<int>(std::floor((zp       )/dz));
-                  yakl::atomicAdd( blade3_weight(k,j,i) , thrust_shape(z/rad)*proj2d );
+                if (rloc <= rad) {
+                  yakl::atomicAdd( disk_weight_proj(k,j,i) , thrust_shape(rloc/rad)*proj1d );
+                  if (x > 0 && x < dx) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad) );
                 }
               }
             });
           }
           using yakl::componentwise::operator>;
-          yakl::SArray<real,1,6> weights_tot;
-          weights_tot(0) = yakl::intrinsics::sum(blade1_weight);
-          weights_tot(1) = yakl::intrinsics::sum(blade2_weight);
-          weights_tot(2) = yakl::intrinsics::sum(blade3_weight);
-          weights_tot(3) = yakl::intrinsics::sum(disk_weight  );
-          weights_tot(4) = yakl::intrinsics::sum(umag_19_5m_2d);
-          weights_tot(5) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
+          yakl::SArray<real,1,4> weights_tot;
+          weights_tot(0) = yakl::intrinsics::sum(disk_weight_proj);
+          weights_tot(1) = yakl::intrinsics::sum(disk_weight_samp);
+          weights_tot(2) = yakl::intrinsics::sum(umag_19_5m_2d   );
+          weights_tot(3) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-          real blade1_tot = weights_tot(0);
-          real blade2_tot = weights_tot(1);
-          real blade3_tot = weights_tot(2);
-          real disk_tot   = weights_tot(3);
-          real umag_19_5m = weights_tot(4) / weights_tot(5);
+          real disk_proj_tot = weights_tot(0);
+          real disk_samp_tot = weights_tot(1);
+          real umag_19_5m    = weights_tot(2) / weights_tot(3);
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
           // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
-          real3d turb_prop   ("turb_prop"   ,nz,ny,nx);
-          real3d disk_u      ("disk_u"      ,nz,ny,nx);
-          real3d disk_v      ("disk_v"      ,nz,ny,nx);
-          real3d blade_weight("blade_weight",nz,ny,nx);
+          real3d disk_u("disk_u",nz,ny,nx);
+          real3d disk_v("disk_v",nz,ny,nx);
           // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-            if (disk_weight(k,j,i) > 0) {
-              turb_prop    (k,j,i)  = disk_weight(k,j,i)/disk_tot;
-              turb_prop_tot(k,j,i) += turb_prop(k,j,i);
-              disk_u       (k,j,i)  = turb_prop(k,j,i)*uvel(k,j,i);
-              disk_v       (k,j,i)  = turb_prop(k,j,i)*vvel(k,j,i);
+            if (disk_weight_samp(k,j,i) > 0) {
+              disk_weight_samp(k,j,i) /= disk_samp_tot;
+              samp_weight_tot (k,j,i) += disk_weight_samp(k,j,i);
+              disk_u          (k,j,i)  = disk_weight_samp(k,j,i)*uvel(k,j,i);
+              disk_v          (k,j,i)  = disk_weight_samp(k,j,i)*vvel(k,j,i);
             } else {
-              turb_prop    (k,j,i)  = 0;
-              disk_u       (k,j,i)  = 0;
-              disk_v       (k,j,i)  = 0;
+              disk_u          (k,j,i) = 0;
+              disk_v          (k,j,i) = 0;
             }
-            if (do_blades) {
-              real b1_wt = blade1_tot > 0 ? blade1_weight(k,j,i)/blade1_tot : 0;
-              real b2_wt = blade2_tot > 0 ? blade2_weight(k,j,i)/blade2_tot : 0;
-              real b3_wt = blade3_tot > 0 ? blade3_weight(k,j,i)/blade3_tot : 0;
-              blade_weight(k,j,i) = std::max( std::max( b1_wt , b2_wt ) , b3_wt );
+            if (disk_weight_proj(k,j,i) > 0) {
+              disk_weight_proj(k,j,i) /= disk_proj_tot;
+              proj_weight_tot (k,j,i) += disk_weight_proj(k,j,i);
             }
           });
-          if (! do_blades) { disk_weight.deep_copy_to(blade_weight); }
-          // Calculate local sums
-          SArray<real,1,3> sums;
-          sums(0) = yakl::intrinsics::sum( disk_u       );
-          sums(1) = yakl::intrinsics::sum( disk_v       );
-          sums(2) = yakl::intrinsics::sum( blade_weight );
-          // Calculate global sums
+          SArray<real,1,2> sums;
+          sums(0) = yakl::intrinsics::sum( disk_u );
+          sums(1) = yakl::intrinsics::sum( disk_v );
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
           real glob_u    = sums(0);
           real glob_v    = sums(1);
-          real blade_tot = sums(2);
           real glob_unorm = glob_u*cos_yaw;
           real glob_vnorm = glob_v*sin_yaw;
           real glob_mag   = std::sqrt(glob_unorm*glob_unorm + glob_vnorm*glob_vnorm);
-          turbine.mag_trace    .push_back(std::sqrt(glob_u    *glob_u    +glob_v    *glob_v    ));
-          turbine.normmag_trace.push_back(std::sqrt(glob_unorm*glob_unorm+glob_vnorm*glob_vnorm));
+          turbine.mag_trace    .push_back(std::sqrt(glob_u*glob_u+glob_v*glob_v));
+          turbine.normmag_trace.push_back(glob_mag);
           //////////////////////////////////////////////////////////////////
           // Computation axial induction factor and freestream velocities
           //////////////////////////////////////////////////////////////////
@@ -645,8 +570,10 @@ namespace modules {
           real pwr       = interp( ref_velmag , ref_power       , mag0 ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag0 ) : 0; // Interpolate rotation speed
           // Keep track of the turbine yaw angle and the power production for this time step
-          turbine.yaw_trace     .push_back( turbine.yaw_angle );
-          turbine.power_trace   .push_back( pwr               );
+          turbine.yaw_trace  .push_back( turbine.yaw_angle );
+          turbine.power_trace.push_back( pwr               );
+          turbine.cp_trace   .push_back( C_P               );
+          turbine.ct_trace   .push_back( C_T               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
           // Fraction of thrust that didn't generate power to send into TKE
@@ -656,13 +583,10 @@ namespace modules {
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-            if (turb_prop(k,j,i) > 0 || blade_weight(k,j,i) > 0) {
-              blade_weight(k,j,i) /= blade_tot;
-              blade_prop_tot(k,j,i) += blade_weight(k,j,i);
-              real r       = rho_d(k,j,i);         // Needed for tendency on mass-weighted TKE tracer
-              tend_u  (k,j,i) += -0.5_fp  *C_T  *mag0*u0       *blade_weight(k,j,i)*turb_factor;
-              tend_v  (k,j,i) += -0.5_fp  *C_T  *mag0*v0       *blade_weight(k,j,i)*turb_factor;
-              tend_tke(k,j,i) +=  0.5_fp*r*C_TKE*mag0*mag0*mag0*blade_weight(k,j,i)*turb_factor;
+            if (disk_weight_proj(k,j,i) > 0) {
+              tend_u  (k,j,i) += -0.5_fp             *C_T  *mag0*u0       *disk_weight_proj(k,j,i)*turb_factor;
+              tend_v  (k,j,i) += -0.5_fp             *C_T  *mag0*v0       *disk_weight_proj(k,j,i)*turb_factor;
+              tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*mag0*mag0*mag0*disk_weight_proj(k,j,i)*turb_factor;
             }
           });
           ///////////////////////////////////////////////////

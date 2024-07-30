@@ -10,14 +10,6 @@ namespace modules {
     auto &dm = coupler.get_data_manager_readwrite();
     coupler.add_tracer( "TKE" , "mass-weighted TKE" , true , false , false );
     dm.get<real,3>("TKE") = 0.1;
-    dm.register_and_allocate<real>("tke_src_buoy" ,"",{nz,ny,nx});    dm.get<real,3>("tke_src_buoy" ) = 0;
-    dm.register_and_allocate<real>("tke_src_diss" ,"",{nz,ny,nx});    dm.get<real,3>("tke_src_diss" ) = 0;
-    dm.register_and_allocate<real>("tke_src_shear","",{nz,ny,nx});    dm.get<real,3>("tke_src_shear") = 0;
-    dm.register_and_allocate<real>("tke_src_trans","",{nz,ny,nx});    dm.get<real,3>("tke_src_trans") = 0;
-    coupler.register_output_variable<real>( "tke_src_buoy"  , core::Coupler::DIMS_3D );
-    coupler.register_output_variable<real>( "tke_src_diss"  , core::Coupler::DIMS_3D );
-    coupler.register_output_variable<real>( "tke_src_shear" , core::Coupler::DIMS_3D );
-    coupler.register_output_variable<real>( "tke_src_trans" , core::Coupler::DIMS_3D );
   }
 
 
@@ -38,10 +30,6 @@ namespace modules {
     auto &dm            = coupler.get_data_manager_readwrite();
     real delta          = std::pow( dx*dy*dz , 1._fp/3._fp );
     auto immersed       = dm.get<real const,3>("immersed_proportion_halos");
-    auto tke_src_buoy   = dm.get<real,3>("tke_src_buoy" );
-    auto tke_src_diss   = dm.get<real,3>("tke_src_diss" );
-    auto tke_src_shear  = dm.get<real,3>("tke_src_shear");
-    auto tke_src_trans  = dm.get<real,3>("tke_src_trans");
     real constexpr Pr = 0.7;
 
     real4d state , tracers;
@@ -239,11 +227,9 @@ namespace modules {
       if (immersed(hs+k,hs+j,hs+i) < 1) {
         // Buoyancy source
         if (enable_gravity) {
-          tke_src_buoy(k,j,i)  = -(grav*rho*km)/(t*Pr_t)*dt_dz;
           tke_source  (k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
         }
         // TKE dissipation
-        tke_src_diss(k,j,i)  = -rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
         tke_source  (k,j,i) -=  rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
         // Shear production
         int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
@@ -270,7 +256,6 @@ namespace modules {
         real j3_i1 = (du_dz + dw_dx) * du_dz;
         real j3_i2 = (dv_dz + dw_dy) * dv_dz;
         real j3_i3 = (dw_dz + dw_dz) * dw_dz;
-        tke_src_shear(k,j,i)  = rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
         tke_source   (k,j,i) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
       }
     });
@@ -291,9 +276,6 @@ namespace modules {
       real tend_tke = -(flux_tke_x(k,j,i+1) - flux_tke_x(k,j,i)) / dx -
                        (flux_tke_y(k,j+1,i) - flux_tke_y(k,j,i)) / dy -
                        (flux_tke_z(k+1,j,i) - flux_tke_z(k,j,i)) / dz + tke_source(k,j,i);
-      tke_src_trans(k,j,i) = -(flux_tke_x(k,j,i+1) - flux_tke_x(k,j,i)) / dx -
-                              (flux_tke_y(k,j+1,i) - flux_tke_y(k,j,i)) / dy -
-                              (flux_tke_z(k+1,j,i) - flux_tke_z(k,j,i)) / dz;
 
       state(idU,hs+k,hs+j,hs+i) *= state(idR,hs+k,hs+j,hs+i);
       state(idU,hs+k,hs+j,hs+i) += dtphys * tend_ru ;

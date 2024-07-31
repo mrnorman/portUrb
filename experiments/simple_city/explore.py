@@ -37,6 +37,12 @@ ui = u/(1-a)
 
 plt.plot(u,u ,label="reference")
 plt.plot(u,ui,label="freestream")
+u = np.arange(0.1,30,0.001)
+a = comp_a(u)
+for i in range(1) :
+  a = comp_a(u/(1-a))
+ui = u/(1-a)
+plt.plot(u,ui,label="freestream 1 iter")
 plt.xlabel("disk-integrated normal velocity magnitude")
 plt.ylabel("free stream velocity magnitude")
 plt.legend()

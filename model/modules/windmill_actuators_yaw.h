@@ -381,14 +381,7 @@ namespace modules {
     }
 
 
-    template < class THRUST_SHAPE  = DefaultThrustShape       ,
-               class PROJ_SHAPE_1D = DefaultProjectionShape1D ,
-               class PROJ_SHAPE_2D = DefaultProjectionShape2D >
-    void apply( core::Coupler      & coupler                                     ,
-                real                 dt                                          ,
-                THRUST_SHAPE  const & thrust_shape  = DefaultThrustShape()       ,
-                PROJ_SHAPE_1D const & proj_shape_1d = DefaultProjectionShape1D() ,
-                PROJ_SHAPE_2D const & proj_shape_2d = DefaultProjectionShape2D() ) {
+    void apply( core::Coupler & coupler , real dt ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       auto nx              = coupler.get_nx   ();
@@ -408,6 +401,9 @@ namespace modules {
       auto tke             = dm.get<real      ,3>("TKE"          );
       auto proj_weight_tot = dm.get<real      ,3>("windmill_proj_weight");
       auto samp_weight_tot = dm.get<real      ,3>("windmill_samp_weight");
+      auto thrust_shape = DefaultThrustShape();
+      auto proj_shape_1d = DefaultProjectionShape1D();
+      auto proj_shape_2d = DefaultProjectionShape2D();
 
       real3d tend_u  ("tend_u"  ,nz,ny,nx);
       real3d tend_v  ("tend_v"  ,nz,ny,nx);
@@ -489,7 +485,7 @@ namespace modules {
                 real rloc = std::sqrt(y*y+z*z);
                 if (rloc <= rad) {
                   yakl::atomicAdd( disk_weight_proj(k,j,i) , thrust_shape(rloc/rad)*proj1d );
-                  if (x > dx && x < 2*dx) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad) );
+                  if (x > 0 && x < 5*dx) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad)*proj1d );
                 }
               }
             });
@@ -567,9 +563,9 @@ namespace modules {
           // Computation of disk properties
           ///////////////////////////////////////////////////
           // Using induction factor, interpolate power coefficient and power for normal wind magnitude at infinity
-          real C_T       = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
           real inertial_tau = 30;
           turbine.mag0_inertial = mag0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.mag0_inertial;
+          real C_T       = interp( ref_velmag , ref_thrust_coef , turbine.mag0_inertial ); // Interpolate power coef
           real C_P       = interp( ref_velmag , ref_power_coef  , turbine.mag0_inertial ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , turbine.mag0_inertial ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , turbine.mag0_inertial ) : 0; // Interpolate rotation speed

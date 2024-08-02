@@ -485,7 +485,7 @@ namespace modules {
                 real rloc = std::sqrt(y*y+z*z);
                 if (rloc <= rad) {
                   yakl::atomicAdd( disk_weight_proj(k,j,i) , thrust_shape(rloc/rad)*proj1d );
-                  if (x > -0.5*dx && x < 5*dx) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad)*proj1d );
+                  if (x > 0 && x < 5*dx) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad)*proj1d );
                 }
               }
             });

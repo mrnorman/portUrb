@@ -616,11 +616,16 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , mag_lookup ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag_lookup ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag_lookup ) : 0; // Interpolate rotation speed
+          real a  = std::max( 0._fp , std::min( 1._fp-1.e-10_fp , 1 - C_P / C_T ) );
+          C_T     = 4*a*(1-a);
+          C_P     = pwr*1000*1000/(0.5*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*mag_lookup);
+          real T  = 2*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*a*(1-a);
+          if ( C_P > C_T ) yakl::yakl_throw("C_P > C_T");
           // Keep track of the turbine yaw angle and the power production for this time step
-          turbine.yaw_trace  .push_back( turbine.yaw_angle );
-          turbine.power_trace.push_back( pwr               );
-          turbine.cp_trace   .push_back( C_P               );
-          turbine.ct_trace   .push_back( C_T               );
+          turbine.yaw_trace   .push_back( turbine.yaw_angle );
+          turbine.power_trace .push_back( pwr               );
+          turbine.cp_trace    .push_back( C_P               );
+          turbine.ct_trace    .push_back( C_T               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
           real turb_factor = M_PI*rad*rad/(dx*dy*dz);
           // Fraction of thrust that didn't generate power to send into TKE

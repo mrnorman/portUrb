@@ -91,7 +91,7 @@ def dirhub(fname,x1=2.5,x2=2.0) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 17
+end         = 1
 misfit_best = 100
 for i in range(1,end+1) :
     fname = "validation_000000"+str(i).zfill(2)+".nc"
@@ -188,18 +188,6 @@ ax2.set_ylim(-0.05,0.5)
 ax1.grid(True,linestyle='--')
 ax2.grid(True,linestyle='--')
 plt.show()
-
-nc = Dataset(fname_best,"r")
-nt = nc.dimensions["num_time_steps"].size
-plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["normmag_trace_turb_0"][:],label="normmag")
-plt.plot([i/(nt-1)*600 for i in range(nt)],nc.variables["normmag0_trace_turb_0"][:],label="normmag0")
-plt.xlabel("Time [s]")
-plt.ylabel("Normal wind magnitude [m/s]")
-plt.legend()
-plt.grid(visible=True,linestyle='--')
-plt.xlim(0,600)
-plt.show()
-plt.close()
 
 nc = Dataset(fname_best,"r")
 nt = nc.dimensions["num_time_steps"].size
@@ -302,6 +290,4 @@ nc   = Dataset(fname_best,"r")
 print("Average power generation [kW]              : ",np.mean(nc.variables["power_trace_turb_0"][:]*1000))
 print("Average power coefficient                  : ",np.mean(nc.variables["cp_trace_turb_0"][:]))
 print("Average thrust coefficient                 : ",np.mean(nc.variables["ct_trace_turb_0"][:]))
-print("Average disk norm wind mag [m/s]           : ",np.mean(nc.variables["normmag_trace_turb_0"][:]))
-print("Average disk freestream norm wind mag [m/s]: ",np.mean(nc.variables["normmag0_trace_turb_0"][:]))
 

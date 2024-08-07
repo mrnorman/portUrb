@@ -502,10 +502,10 @@ namespace modules {
           real upstream_y_offset = -5*rad*std::sin(upstream_dir);
           {
             real xr = 5*dx;
-            int nper  = 10;
-            int num_x = (int) std::ceil(xr*2 /dx*nper);
-            int num_y = (int) std::ceil(rad*2/dy*nper);
-            int num_z = (int) std::ceil(rad*2/dz*nper);
+            int nper  = 100;
+            int num_x = 50;
+            int num_y = 1000;
+            int num_z = 1000;
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
               real x = -xr  + (2*xr *i)/(num_x-1);
               real y = -rad + (2*rad*j)/(num_y-1);
@@ -516,21 +516,21 @@ namespace modules {
               real yp = base_y     + sin_yaw*x + cos_yaw*y;
               real zp = hub_height + z;
               // if it's in this task's domain, then increment the appropriate cell count atomically
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
-                int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int  k = static_cast<int>(std::floor((zp       )/dz));
+              int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
+              int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
+              int tk = static_cast<int>(std::round(zp/dz-0.5      ));
+              if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
                 real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad) yakl::atomicAdd( disk_weight_proj(k,j,i) , thrust_shape(rloc/rad)*proj1d );
+                if (rloc <= rad) yakl::atomicAdd( disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
               }
               xp += upstream_x_offset;
               yp += upstream_y_offset;
-              if (xp >= dom_x1 && xp < dom_x2 && yp >= dom_y1 && yp < dom_y2 ) {
-                int  i = static_cast<int>(std::floor((xp-dom_x1)/dx));
-                int  j = static_cast<int>(std::floor((yp-dom_y1)/dy));
-                int  k = static_cast<int>(std::floor((zp       )/dz));
+              ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
+              tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
+              tk = static_cast<int>(std::round(zp/dz-0.5      ));
+              if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
                 real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad) yakl::atomicAdd( disk_weight_samp(k,j,i) , thrust_shape(rloc/rad)*proj1d );
+                if (rloc <= rad) yakl::atomicAdd( disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
               }
             });
           }

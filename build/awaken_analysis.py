@@ -91,7 +91,7 @@ def dirhub(fname,x1=2.5,x2=2.0) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 1
+end         = 2
 misfit_best = 100
 for i in range(1,end+1) :
     fname = "validation_000000"+str(i).zfill(2)+".nc"
@@ -109,7 +109,7 @@ for i in range(1,end+1) :
     print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
 
 # TODO: REMOVE THIS!!!!!!!!!!!!!
-# ind_best = end
+ind_best = end
 
 print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
 
@@ -184,7 +184,7 @@ fig, (ax1,ax2) = plt.subplots(2, 1,sharex=True)
 ax1.plot(x[x1:x2+1],delta)
 ax2.plot(x[x1:x2+1],theta)
 ax1.set_ylim(0,0.7)
-ax2.set_ylim(-0.05,0.5)
+ax2.set_ylim(-0.1,0.5)
 ax1.grid(True,linestyle='--')
 ax2.grid(True,linestyle='--')
 plt.show()

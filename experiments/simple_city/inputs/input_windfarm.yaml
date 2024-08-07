@@ -27,7 +27,7 @@ out_prefix: validation
 dt_phys: 0.
 
 # Output frequency in seconds
-out_freq: 600.
+out_freq: 900.
 
 inform_freq: 10.
 

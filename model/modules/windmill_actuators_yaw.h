@@ -616,7 +616,7 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , mag_lookup ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag_lookup ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag_lookup ) : 0; // Interpolate rotation speed
-          real a  = std::max( 0._fp , std::min( 1._fp-1.e-10_fp , 1 - C_P / C_T ) );
+          real a  = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
           C_T     = 4*a*(1-a);
           C_P     = pwr*1000*1000/(0.5*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*mag_lookup);
           real T  = 2*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*a*(1-a);

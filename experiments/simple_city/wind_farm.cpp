@@ -9,7 +9,6 @@
 #include "perturb_temperature.h"
 #include "precursor_sponge.h"
 #include "sponge_layer.h"
-#include "column_nudging.h"
 #include "uniform_pg_wind_forcing.h"
 
 int main(int argc, char** argv) {
@@ -81,9 +80,6 @@ int main(int argc, char** argv) {
     modules::LES_Closure                       les_closure;
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
 
-    // Classes working on coupler_prec
-    modules::ColumnNudger                      column_nudger;
-
     // Classes working on coupler_main
     custom_modules::Time_Averager              time_averager_main;
     custom_modules::Time_Averager              time_averager_prec;
@@ -105,7 +101,6 @@ int main(int argc, char** argv) {
     time_averager_main.init( coupler_main );
 
     time_averager_prec.init ( coupler_prec );
-    column_nudger.set_column( coupler_prec , {"density_dry","temp"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler_main.get_option<real>("elapsed_time");
@@ -167,7 +162,6 @@ int main(int argc, char** argv) {
         real u = 6.27*std::cos(4.33/180*M_PI);
         real v = 6.27*std::sin(4.33/180*M_PI);
         coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v);     } , "pg_forcing"     );
-        coupler_prec.run_module( [&] (Coupler &c) { column_nudger.nudge_to_column (c,dt,dt*100);    } , "column_nudger"  );
         // coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
         coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
         coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );

@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
       real        dtphys_in         = 0.;  // Dycore determined time step size
       int         dyn_cycle         = 10;
       std::string init_data         = "AWAKEN_neutral";
-      real        out_freq          = 600;
+      real        out_freq          = 1800;
       real        inform_freq       = 10;
       std::string out_prefix        = coupler_main.get_option<std::string>("out_prefix");
       std::string out_prefix_prec   = out_prefix+std::string("_precursor");
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
       coupler_main.set_option<std::string      >( "restart_file"             , restart_file      );
       coupler_main.set_option<std::string      >( "restart_file_precursor"   , restart_file_prec );
       coupler_main.set_option<real             >( "latitude"                 , 0.                );
-      coupler_main.set_option<real             >( "roughness"                , 0.03              );
+      coupler_main.set_option<real             >( "roughness"                , 0.0002            );
       coupler_main.set_option<std::string      >( "turbine_file"             , "./inputs/NREL_5MW_126_RWT.yaml" );
       coupler_main.set_option<bool             >( "turbine_do_blades"        , false );
       coupler_main.set_option<real             >( "turbine_initial_yaw"      , 0     );

@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     core::Coupler coupler_main;
     core::Coupler coupler_prec;
 
-    coupler_main.set_option<std::string>("ensemble_stdout","ensemble_"      );
+    coupler_main.set_option<std::string>("ensemble_stdout","ensemble"       );
     coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed");
 
     // This holds all of the model's variables, dimension sizes, and options
@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
       std::cout << "Ensemble memeber using an initial hub wind speed of ["
                 << coupler_main.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
-      real        sim_time          = 7201.;
+      real        sim_time          = 3600*4+1;
       int         nx_glob           = 500;
       int         ny_glob           = 150;
       int         nz                = 60;

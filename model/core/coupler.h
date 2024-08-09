@@ -530,7 +530,7 @@ namespace core {
       auto etime       = get_option<real>("elapsed_time");
       int i_beg        = get_i_beg();
       int j_beg        = get_j_beg();
-      yakl::SimplePNetCDF nc;
+      yakl::SimplePNetCDF nc(par_comm.get_mpi_comm());
       std::stringstream fname;
       fname << prefix << "_" << std::setw(8) << std::setfill('0') << file_counter << ".nc";
       MPI_Info info;
@@ -655,7 +655,7 @@ namespace core {
       int i_beg = get_i_beg();
       int j_beg = get_j_beg();
       auto tracer_names = get_tracer_names();
-      yakl::SimplePNetCDF nc;
+      yakl::SimplePNetCDF nc(par_comm.get_mpi_comm());
       nc.open( get_option<std::string>("restart_file") , NC_NOWRITE );
       nc.begin_indep_data();
       real etime;

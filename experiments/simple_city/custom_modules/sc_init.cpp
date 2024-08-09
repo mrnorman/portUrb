@@ -98,8 +98,6 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_z","solid_wall");
     auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
 
-    YAML::Node config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
-
     if (coupler.get_option<std::string>("init_data") == "city") {
       real height_mean = 60;
       real height_std  = 10;
@@ -165,8 +163,8 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "building") {
 
-      auto u_g = config["geostrophic_u"].as<real>(10.);
-      auto v_g = config["geostrophic_v"].as<real>(0. );
+      auto u_g = coupler.get_option<real>("geostrophic_u",10.);
+      auto v_g = coupler.get_option<real>("geostrophic_v",0. );
       real constexpr uref       = 10;   // Velocity at hub height
       real constexpr theta0     = 300;
       real constexpr href       = 100;   // Height of hub / center of windmills
@@ -295,8 +293,8 @@ namespace custom_modules {
         }
       }
       auto pressGLL = pressGLL_host.createDeviceCopy();
-      auto u_g = config["geostrophic_u"].as<real>(10.);
-      auto v_g = config["geostrophic_v"].as<real>(0. );
+      auto u_g = coupler.get_option<real>("geostrophic_u",10.);
+      auto v_g = coupler.get_option<real>("geostrophic_v",0. );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
@@ -365,8 +363,8 @@ namespace custom_modules {
         }
       }
       auto pressGLL = pressGLL_host.createDeviceCopy();
-      auto u_g = config["geostrophic_u"].as<real>(10.);
-      auto v_g = config["geostrophic_v"].as<real>(0. );
+      auto u_g = coupler.get_option<real>("geostrophic_u",10.);
+      auto v_g = coupler.get_option<real>("geostrophic_v",0. );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
@@ -435,8 +433,8 @@ namespace custom_modules {
         }
       }
       auto pressGLL = pressGLL_host.createDeviceCopy();
-      auto u_g = config["geostrophic_u"].as<real>(10.);
-      auto v_g = config["geostrophic_v"].as<real>(0. );
+      auto u_g = coupler.get_option<real>("geostrophic_u",10.);
+      auto v_g = coupler.get_option<real>("geostrophic_v",0. );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;

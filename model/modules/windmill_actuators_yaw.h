@@ -104,8 +104,6 @@ namespace modules {
       std::vector<real>       betti_trace;       // Time trace of floating motions perturbations
       std::vector<real>       cp_trace;          // Time trace of coefficient of power
       std::vector<real>       ct_trace;          // Time trace of coefficient of thrust
-      real                    u_disk_inertial;   // Intertial freestream normal wind magnitude (for power generation)
-      real                    v_disk_inertial;   // Intertial freestream normal wind magnitude (for power generation)
       real                    u_samp_inertial;   // Intertial freestream normal wind magnitude (for power generation)
       real                    v_samp_inertial;   // Intertial freestream normal wind magnitude (for power generation)
       real                    yaw_angle;         // Current yaw angle (radians counter-clockwise from facing west)
@@ -162,8 +160,6 @@ namespace modules {
         loc.rot_angle       = 0.;
         loc.yaw_tend        = YawTend();
         loc.ref_turbine     = ref_turbine;
-        loc.u_disk_inertial = 0;
-        loc.v_disk_inertial = 0;
         loc.u_samp_inertial = 0;
         loc.v_samp_inertial = 0;
         loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
@@ -456,6 +452,9 @@ namespace modules {
           auto ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
           auto ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
           bool do_blades       = ref_rotation.initialized();
+          // Zero out disk weights for projection and sampling
+          // Compute 19.5m horizontal wind magnitude for floating platform motions
+          // Compute wind direction and offset for upstream sampling to get freestream velocities
           real3d disk_weight_proj("disk_weight_proj",nz,ny,nx);
           real3d disk_weight_samp("disk_weight_samp",nz,ny,nx);
           real3d uvel_3d         ("uvel_3d"         ,nz,ny,nx);
@@ -500,6 +499,7 @@ namespace modules {
           real upstream_dir      = std::atan2( upstream_vvel , upstream_uvel );
           real upstream_x_offset = -5*rad*std::cos(upstream_dir);
           real upstream_y_offset = -5*rad*std::sin(upstream_dir);
+          // Compute and sum weights for disk projection and upstream sampling
           {
             real xr = 5*dx;
             int nper  = 100;
@@ -544,21 +544,14 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
-          // Aggregate disk-averaged quantites and the proportion of the turbine in each cell
-          real3d proj_u("proj_u",nz,ny,nx);
-          real3d proj_v("proj_v",nz,ny,nx);
+          // Normalize disk weights for projection and upstream sampling
+          // Aggregate disk-averaged wind velocities in upstream sampling region
           real3d samp_u("samp_u",nz,ny,nx);
           real3d samp_v("samp_v",nz,ny,nx);
-          // Sum up weighted normal wind magnitude over the disk by proportion in each cell for this MPI task
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
             if (disk_weight_proj(k,j,i) > 0) {
               disk_weight_proj(k,j,i) /= disk_proj_tot;
               proj_weight_tot (k,j,i) += disk_weight_proj(k,j,i);
-              proj_u          (k,j,i)  = disk_weight_proj(k,j,i)*uvel(k,j,i);
-              proj_v          (k,j,i)  = disk_weight_proj(k,j,i)*vvel(k,j,i);
-            } else {
-              proj_u          (k,j,i) = 0;
-              proj_v          (k,j,i) = 0;
             }
             if (disk_weight_samp(k,j,i) > 0) {
               disk_weight_samp(k,j,i) /= disk_samp_tot;
@@ -570,31 +563,15 @@ namespace modules {
               samp_v          (k,j,i) = 0;
             }
           });
-          SArray<real,1,4> sums;
-          sums(0) = yakl::intrinsics::sum( proj_u );
-          sums(1) = yakl::intrinsics::sum( proj_v );
-          sums(2) = yakl::intrinsics::sum( samp_u );
-          sums(3) = yakl::intrinsics::sum( samp_v );
+          SArray<real,1,2> sums;
+          sums(0) = yakl::intrinsics::sum( samp_u );
+          sums(1) = yakl::intrinsics::sum( samp_v );
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
-          real glob_proj_u = sums(0);
-          real glob_proj_v = sums(1);
-          real glob_samp_u = sums(2);
-          real glob_samp_v = sums(3);
-          turbine.u_disk_trace.push_back( glob_proj_u );
-          turbine.v_disk_trace.push_back( glob_proj_v );
-          turbine.u_samp_trace.push_back( glob_samp_u );
-          turbine.v_samp_trace.push_back( glob_samp_v );
-          real inertial_tau = 30;
-          turbine.u_disk_inertial = glob_proj_u*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_disk_inertial;
-          turbine.v_disk_inertial = glob_proj_v*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_disk_inertial;
-          turbine.u_samp_inertial = glob_samp_u*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
-          turbine.v_samp_inertial = glob_samp_v*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
-          real uloc       = turbine.u_samp_inertial*cos_yaw;
-          real vloc       = turbine.v_samp_inertial*sin_yaw;
-          real mag_lookup = std::sqrt(uloc*uloc + vloc*vloc);
-          real u0         = glob_samp_u*cos_yaw;
-          real v0         = glob_samp_v*sin_yaw;
-          real mag0       = std::sqrt( u0*u0 + v0*v0 );
+          turbine.u_samp_trace.push_back( sums(0) );
+          turbine.v_samp_trace.push_back( sums(1) );
+          real u0   = sums(0)*cos_yaw;
+          real v0   = sums(1)*sin_yaw;
+          real mag0 = std::sqrt(u0*u0+v0*v0);
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
@@ -609,6 +586,13 @@ namespace modules {
           } else {
             turbine.betti_trace.push_back( 0 );
           }
+          // Compute inertial normal freestream u-velocity and v-velocity
+          real inertial_tau = 30;
+          turbine.u_samp_inertial = u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
+          turbine.v_samp_inertial = v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
+          real &uloc      = turbine.u_samp_inertial;
+          real &vloc      = turbine.v_samp_inertial;
+          real mag_lookup = std::sqrt(uloc*uloc + vloc*vloc); // Normal magnitude with inertia
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
@@ -616,10 +600,9 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , mag_lookup ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , mag_lookup ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag_lookup ) : 0; // Interpolate rotation speed
-          real a  = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
-          C_T     = 4*a*(1-a);
-          C_P     = pwr*1000*1000/(0.5*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*mag_lookup);
-          real T  = 2*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*a*(1-a);
+          real a = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
+          C_T    = 4*a*(1-a);
+          C_P    = pwr*1000*1000/(0.5*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*mag_lookup);
           if ( C_P > C_T ) yakl::yakl_throw("C_P > C_T");
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace   .push_back( turbine.yaw_angle );

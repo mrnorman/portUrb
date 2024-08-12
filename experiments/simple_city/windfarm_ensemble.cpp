@@ -22,24 +22,42 @@ int main(int argc, char** argv) {
     core::Coupler coupler_main;
     core::Coupler coupler_prec;
 
-    coupler_main.set_option<std::string>("ensemble_stdout","ensemble"       );
-    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed");
+    coupler_main.set_option<std::string>("ensemble_stdout","ensemble" );
+    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent");
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Ensembler ensembler;
 
     // Add wind dimension
-    auto func_nranks  = [=] (int ind) { return 1; };
-    auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-      real wind = (ind+1)*3-1;
-      coupler.set_option<real>("hub_height_wind_mag",wind);
-      ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
-      ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
-      // ensembler.append_coupler_string(coupler,"restart_file"   ,std::string("wind-")+std::to_string(wind));
-    };
-    ensembler.register_dimension( 9 , func_nranks , func_coupler );
+    {
+      auto func_nranks  = [=] (int ind) { return 1; };
+      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+        real wind = (ind+1)*3-1;
+        coupler.set_option<real>("hub_height_wind_mag",wind);
+        ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
+        ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
+      };
+      ensembler.register_dimension( 9 , func_nranks , func_coupler );
+    }
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
+    // Add floating dimension
+    {
+      auto func_nranks  = [=] (int ind) { return 1; };
+      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+        if (ind == 0) {
+          coupler.set_option<bool>( "turbine_floating_motions" , false );
+          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("fixed-"));
+          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("fixed-"));
+        } else {
+          coupler.set_option<bool>( "turbine_floating_motions" , true );
+          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("floating-"));
+          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("floating-"));
+        }
+      };
+      ensembler.register_dimension( 2 , func_nranks , func_coupler );
+    }
+
+    auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     std::cout.rdbuf(ostr.rdbuf());
@@ -51,7 +69,7 @@ int main(int argc, char** argv) {
       std::cout << "Ensemble memeber using an initial hub wind speed of ["
                 << coupler_main.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
-      real        sim_time          = 3600*4+1;
+      real        sim_time          = 3600*8+1;
       int         nx_glob           = 500;
       int         ny_glob           = 150;
       int         nz                = 60;
@@ -78,7 +96,6 @@ int main(int argc, char** argv) {
       coupler_main.set_option<bool             >( "turbine_do_blades"        , false );
       coupler_main.set_option<real             >( "turbine_initial_yaw"      , 0     );
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"        , false );
-      coupler_main.set_option<bool             >( "turbine_floating_motions" , false );
       coupler_main.set_option<bool             >( "weno_all"                 , true  );
       coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
       coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});

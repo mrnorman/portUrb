@@ -2,28 +2,40 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import xarray
 
-nc_float = Dataset("floating/no_platform_00000004.nc","r")
-nc_fixed = Dataset("fixed/no_platform_00000004.nc","r")
-nz = nc_float.dimensions["z"].size
-ny = nc_float.dimensions["y"].size
-nx = nc_float.dimensions["x"].size
-x = nc_float.variables["x"][:]/1000.
-y = nc_float.variables["y"][:]/1000.
-z = nc_float.variables["z"][:]/1000.
-X,Y = np.meshgrid(x,y)
+t1 = 2
+t2 = 3
+times = [str(i).zfill(7) for i in range(t1,t2+1)]
 
-float_power_trace_turb_0 = nc_float.variables["power_trace_turb_0"][:]
-fixed_power_trace_turb_0 = nc_fixed.variables["power_trace_turb_0"][:]
+winds = [2,5,8,11,14,17,20,23,26]
 
-plt.plot(float_power_trace_turb_0,label="floating")
-plt.plot(fixed_power_trace_turb_0,label="fixed")
-plt.legend()
-plt.show()
+prefixes_float = [ "turbulent_wind-2.000000_floating-_"  ,\
+                   "turbulent_wind-5.000000_floating-_"  ,\
+                   "turbulent_wind-8.000000_floating-_"  ,\
+                   "turbulent_wind-11.000000_floating-_" ,\
+                   "turbulent_wind-14.000000_floating-_" ,\
+                   "turbulent_wind-17.000000_floating-_" ,\
+                   "turbulent_wind-20.000000_floating-_" ,\
+                   "turbulent_wind-23.000000_floating-_" ,\
+                   "turbulent_wind-26.000000_floating-_" ]
 
-print("Floating: ",np.mean(float_power_trace_turb_0))
-print("Fixed   : ",np.mean(fixed_power_trace_turb_0))
+prefixes_fixed = [ "turbulent_wind-2.000000_fixed-_"  ,\
+                   "turbulent_wind-5.000000_fixed-_"  ,\
+                   "turbulent_wind-8.000000_fixed-_"  ,\
+                   "turbulent_wind-11.000000_fixed-_" ,\
+                   "turbulent_wind-14.000000_fixed-_" ,\
+                   "turbulent_wind-17.000000_fixed-_" ,\
+                   "turbulent_wind-20.000000_fixed-_" ,\
+                   "turbulent_wind-23.000000_fixed-_" ,\
+                   "turbulent_wind-26.000000_fixed-_" ]
 
+nc_fixed = [xarray.open_mfdataset(prefix+"0*.nc",concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
+nc_float = [xarray.open_mfdataset(prefix+"0*.nc",concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
 
-plt.close()
-
+for i in range(9) :
+  plt.plot(np.array(nc_fixed[i]["power_trace_turb_0"]),label="fixed")
+  plt.plot(np.array(nc_float[i]["power_trace_turb_0"]),label="float")
+  plt.legend()
+  plt.show()
+  plt.close()

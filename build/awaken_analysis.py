@@ -91,25 +91,25 @@ def dirhub(fname,x1=2.5,x2=2.0) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-# end         = 27
-# misfit_best = 100
-# for i in range(1,end+1) :
-#     fname = "validation_000000"+str(i).zfill(2)+".nc"
-#     ti = turbulent_intensity(fname)
-#     se = shear_exponent     (fname)
-#     uh = uhub               (fname)
-#     dh = dirhub             (fname)
-#     misfit = (ti-0.097)**2/0.097**2 +\
-#              (se-0.116)**2/0.116**2 +\
-#              (uh-6.27 )**2/6.27 **2 +\
-#              (dh-4.33 )**2/4.33 **2
-#     if (misfit < misfit_best) :
-#         ind_best = i
-#         misfit_best = misfit
-#     print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
+end         = 65
+misfit_best = 100
+for i in range(1,end+1) :
+    fname = "validation_000000"+str(i).zfill(2)+".nc"
+    ti = turbulent_intensity(fname)
+    se = shear_exponent     (fname)
+    uh = uhub               (fname)
+    dh = dirhub             (fname)
+    misfit = (ti-0.097)**2/0.097**2 +\
+             (se-0.116)**2/0.116**2 +\
+             (uh-6.27 )**2/6.27 **2 +\
+             (dh-4.33 )**2/4.33 **2
+    if (misfit < misfit_best) :
+        ind_best = i
+        misfit_best = misfit
+    print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
 
 # TODO: REMOVE THIS!!!!!!!!!!!!!
-ind_best = 27
+# ind_best = 27
 
 print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
 

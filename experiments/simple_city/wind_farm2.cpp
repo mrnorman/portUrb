@@ -37,20 +37,24 @@ int main(int argc, char** argv) {
     auto dyn_cycle    = config["dyn_cycle"   ].as<int        >(1);
     auto init_data    = config["init_data"   ].as<std::string>();
     // Optional YAML entries
-    auto out_freq          = config["out_freq"              ].as<real       >(sim_time/10. );
-    auto inform_freq       = config["inform_freq"           ].as<real       >(sim_time/100.);
-    auto out_prefix        = config["out_prefix"            ].as<std::string>("test"       );
-    auto restart_file      = config["restart_file"          ].as<std::string>(""           );
-
+    auto out_freq     = config["out_freq"    ].as<real       >(sim_time/10. );
+    auto inform_freq  = config["inform_freq" ].as<real       >(sim_time/100.);
+    auto out_prefix   = config["out_prefix"  ].as<std::string>("test"       );
+    auto restart_file = config["restart_file"].as<std::string>(""           );
     // Things the coupler might need to know about
-    coupler.set_option<std::string>( "standalone_input_file"  , inFile            );
-    coupler.set_option<std::string>( "out_prefix"             , out_prefix        );
-    coupler.set_option<std::string>( "init_data"              , init_data         );
-    coupler.set_option<real       >( "out_freq"               , out_freq          );
-    coupler.set_option<std::string>( "restart_file"           , restart_file      );
-    coupler.set_option<real       >( "latitude"               , config["latitude"    ].as<real       >(0  ) );
-    coupler.set_option<real       >( "roughness"              , config["roughness"   ].as<real       >(0.1) );
-    coupler.set_option<std::string>( "turbine_file"           , config["turbine_file"].as<std::string>()    );
+    coupler.set_option<std::string>( "standalone_input_file"    , inFile            );
+    coupler.set_option<std::string>( "out_prefix"               , out_prefix        );
+    coupler.set_option<std::string>( "init_data"                , init_data         );
+    coupler.set_option<real       >( "out_freq"                 , out_freq          );
+    coupler.set_option<std::string>( "restart_file"             , restart_file      );
+    coupler.set_option<real       >( "latitude"                 , config["latitude"        ].as<real       >(0     ) );
+    coupler.set_option<real       >( "roughness"                , config["roughness"       ].as<real       >(0.0002) );
+    coupler.set_option<std::string>( "turbine_file"             , config["turbine_file"    ].as<std::string>()       );
+    coupler.set_option<bool       >( "turbine_floating_motions" , config["floating_motions"].as<bool       >()       );
+    coupler.set_option<bool       >( "turbine_do_blades"        , false );
+    coupler.set_option<real       >( "turbine_initial_yaw"      , 0     );
+    coupler.set_option<bool       >( "turbine_fixed_yaw"        , false );
+    coupler.set_option<bool       >( "weno_all"                 , true  );
 
     coupler.set_option<std::vector<real>>("turbine_x_locs",{1.*xlen/6.,
                                                             3.*xlen/6.,
@@ -61,6 +65,7 @@ int main(int argc, char** argv) {
                                                             1.*xlen/6.,
                                                             3.*xlen/6.,
                                                             5.*xlen/6.});
+
     coupler.set_option<std::vector<real>>("turbine_y_locs",{1.*ylen/6.,
                                                             1.*ylen/6.,
                                                             1.*ylen/6.,
@@ -122,13 +127,16 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        using modules::uniform_pg_wind_forcing;
-        coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing      (c,dt); } , "pg_forcing"        );
-        coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
-        coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
-        coupler.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
-        coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt); } , "les_closure"       );
-        coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt); } , "time_averager"     );
+        using modules::uniform_pg_wind_forcing_height;
+        real h = 90;
+        real u = config["hub_height_wind_mag"].as<real>();
+        real v = 0;
+        coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v); } , "pg_forcing"        );
+        coupler.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);       } , "dycore"            );
+        coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);       } , "surface_fluxes"    );
+        coupler.run_module( [&] (Coupler &c) { windmills.apply               (c,dt);       } , "windmillactuators" );
+        coupler.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);       } , "les_closure"       );
+        coupler.run_module( [&] (Coupler &c) { time_averager.accumulate      (c,dt);       } , "time_averager"     );
       }
 
       // Update time step

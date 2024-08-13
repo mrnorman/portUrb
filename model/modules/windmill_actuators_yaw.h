@@ -97,8 +97,6 @@ namespace modules {
       real                    base_loc_y;        // y location of the tower base
       std::vector<real>       power_trace;       // Time trace of power generation
       std::vector<real>       yaw_trace;         // Time trace of yaw of the turbine
-      std::vector<real>       u_disk_trace;      // Time trace of disk-integrated velocity
-      std::vector<real>       v_disk_trace;      // Time trace of disk-integrated velocity
       std::vector<real>       u_samp_trace;      // Time trace of disk-integrated velocity
       std::vector<real>       v_samp_trace;      // Time trace of disk-integrated velocity
       std::vector<real>       betti_trace;       // Time trace of floating motions perturbations
@@ -309,8 +307,6 @@ namespace modules {
           for (int iturb=0; iturb < turbine_group.turbines.size(); iturb++) {
             std::string pow_vname    = std::string("power_trace_turb_" ) + std::to_string(iturb);
             std::string yaw_vname    = std::string("yaw_trace_turb_"   ) + std::to_string(iturb);
-            std::string u_disk_vname = std::string("u_disk_trace_turb_") + std::to_string(iturb);
-            std::string v_disk_vname = std::string("v_disk_trace_turb_") + std::to_string(iturb);
             std::string u_samp_vname = std::string("u_samp_trace_turb_") + std::to_string(iturb);
             std::string v_samp_vname = std::string("v_samp_trace_turb_") + std::to_string(iturb);
             std::string betti_vname  = std::string("betti_trace_turb_" ) + std::to_string(iturb);
@@ -318,8 +314,6 @@ namespace modules {
             std::string ct_vname     = std::string("ct_trace_turb_"    ) + std::to_string(iturb);
             nc.create_var<real>( pow_vname    , {"num_time_steps"} );
             nc.create_var<real>( yaw_vname    , {"num_time_steps"} );
-            nc.create_var<real>( u_disk_vname , {"num_time_steps"} );
-            nc.create_var<real>( v_disk_vname , {"num_time_steps"} );
             nc.create_var<real>( u_samp_vname , {"num_time_steps"} );
             nc.create_var<real>( v_samp_vname , {"num_time_steps"} );
             nc.create_var<real>( betti_vname  , {"num_time_steps"} );
@@ -333,8 +327,6 @@ namespace modules {
             if (turbine.active && turbine.sub_rankid == turbine.owning_sub_rankid) {
               realHost1d power_arr ("power_arr" ,trace_size);
               realHost1d yaw_arr   ("yaw_arr"   ,trace_size);
-              realHost1d u_disk_arr("u_disk_arr",trace_size);
-              realHost1d v_disk_arr("v_disk_arr",trace_size);
               realHost1d u_samp_arr("u_samp_arr",trace_size);
               realHost1d v_samp_arr("v_samp_arr",trace_size);
               realHost1d betti_arr ("betti_arr" ,trace_size);
@@ -342,8 +334,6 @@ namespace modules {
               realHost1d ct_arr    ("ct_arr"    ,trace_size);
               for (int i=0; i < trace_size; i++) { power_arr (i) = turbine.power_trace .at(i); }
               for (int i=0; i < trace_size; i++) { yaw_arr   (i) = turbine.yaw_trace   .at(i)/M_PI*180; }
-              for (int i=0; i < trace_size; i++) { u_disk_arr(i) = turbine.u_disk_trace.at(i); }
-              for (int i=0; i < trace_size; i++) { v_disk_arr(i) = turbine.v_disk_trace.at(i); }
               for (int i=0; i < trace_size; i++) { u_samp_arr(i) = turbine.u_samp_trace.at(i); }
               for (int i=0; i < trace_size; i++) { v_samp_arr(i) = turbine.v_samp_trace.at(i); }
               for (int i=0; i < trace_size; i++) { betti_arr (i) = turbine.betti_trace .at(i); }
@@ -351,8 +341,6 @@ namespace modules {
               for (int i=0; i < trace_size; i++) { ct_arr    (i) = turbine.ct_trace    .at(i); }
               std::string pow_vname    = std::string("power_trace_turb_" ) + std::to_string(iturb);
               std::string yaw_vname    = std::string("yaw_trace_turb_"   ) + std::to_string(iturb);
-              std::string u_disk_vname = std::string("u_disk_trace_turb_") + std::to_string(iturb);
-              std::string v_disk_vname = std::string("v_disk_trace_turb_") + std::to_string(iturb);
               std::string u_samp_vname = std::string("u_samp_trace_turb_") + std::to_string(iturb);
               std::string v_samp_vname = std::string("v_samp_trace_turb_") + std::to_string(iturb);
               std::string betti_vname  = std::string("betti_trace_turb_" ) + std::to_string(iturb);
@@ -360,8 +348,6 @@ namespace modules {
               std::string ct_vname     = std::string("ct_trace_turb_"    ) + std::to_string(iturb);
               nc.write( power_arr  , pow_vname    );
               nc.write( yaw_arr    , yaw_vname    );
-              nc.write( u_disk_arr , u_disk_vname );
-              nc.write( v_disk_arr , v_disk_vname );
               nc.write( u_samp_arr , u_samp_vname );
               nc.write( v_samp_arr , v_samp_vname );
               nc.write( betti_arr  , betti_vname  );
@@ -371,8 +357,6 @@ namespace modules {
             coupler.get_parallel_comm().barrier();
             turbine.power_trace   .clear();
             turbine.yaw_trace     .clear();
-            turbine.u_disk_trace  .clear();
-            turbine.v_disk_trace  .clear();
             turbine.u_samp_trace  .clear();
             turbine.v_samp_trace  .clear();
             turbine.betti_trace   .clear();

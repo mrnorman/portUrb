@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
       ensembler.register_dimension( 2 , func_nranks , func_coupler );
     }
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler_main , 6 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     std::cout.rdbuf(ostr.rdbuf());
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
       real        ylen              = 1500;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
-      int         dyn_cycle         = 10;
+      int         dyn_cycle         = 1;
       std::string init_data         = "AWAKEN_neutral";
       real        out_freq          = 1800;
       real        inform_freq       = 10;

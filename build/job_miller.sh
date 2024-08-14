@@ -6,7 +6,7 @@
 #SBATCH -A nwp501
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
-#SBATCH -t 8:00:00
+#SBATCH -t 24:00:00
 #SBATCH -N 27
 
 num_tasks=`echo "$SLURM_NNODES*4" | bc`

@@ -57,6 +57,7 @@ namespace core {
         else if (options.at(i).type_hash == get_type_hash<std::string>           ()) { clone_specific<std::string>           (i,rhs); }
         else if (options.at(i).type_hash == get_type_hash<std::vector<int>>      ()) { clone_specific<std::vector<int>>      (i,rhs); }
         else if (options.at(i).type_hash == get_type_hash<std::vector<float>>    ()) { clone_specific<std::vector<float>>    (i,rhs); }
+        else if (options.at(i).type_hash == get_type_hash<std::vector<bool>>     ()) { clone_specific<std::vector<bool>>     (i,rhs); }
         else if (options.at(i).type_hash == get_type_hash<std::vector<double>>   ()) { clone_specific<std::vector<double>>   (i,rhs); }
       }
     }
@@ -85,6 +86,7 @@ namespace core {
       else if (options.at(id).type_hash == get_type_hash<std::string>           ()) { delete_specific<std::string>           (id); }
       else if (options.at(id).type_hash == get_type_hash<std::vector<int>>      ()) { delete_specific<std::vector<int>>      (id); }
       else if (options.at(id).type_hash == get_type_hash<std::vector<float>>    ()) { delete_specific<std::vector<float>>    (id); }
+      else if (options.at(id).type_hash == get_type_hash<std::vector<bool>>     ()) { delete_specific<std::vector<bool>>     (id); }
       else if (options.at(id).type_hash == get_type_hash<std::vector<double>>   ()) { delete_specific<std::vector<double>>   (id); }
     }
 
@@ -189,6 +191,7 @@ namespace core {
            get_type_hash<T>() == get_type_hash<std::string>           () ||
            get_type_hash<T>() == get_type_hash<std::vector<int>>      () ||
            get_type_hash<T>() == get_type_hash<std::vector<float>>    () ||
+           get_type_hash<T>() == get_type_hash<std::vector<bool>>     () ||
            get_type_hash<T>() == get_type_hash<std::vector<double>>   () ) return true;
       return false;
     }

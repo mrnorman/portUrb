@@ -7,8 +7,8 @@ import xarray
 def get_ind(arr,val) :
     return np.argmin(np.abs(arr-val))
 
-t1 = 2
-t2 = 2
+t1 = 7
+t2 = 11
 times = [str(i).zfill(7) for i in range(t1,t2+1)]
 
 winds = [2,5,8,11,14,17,20,23,26]
@@ -48,6 +48,37 @@ zlen = z[-1]+dz/2
 ihub = get_ind(x,xlen/2)
 jhub = get_ind(y,ylen/2)
 khub = get_ind(z,90)
+
+for i in range(9) :
+  print(winds[i])
+  ufixed = np.array(nc_fixed[i]["u_samp_trace_turb_1"][:])
+  vfixed = np.array(nc_fixed[i]["v_samp_trace_turb_1"][:])
+  ufloat = np.array(nc_float[i]["u_samp_trace_turb_1"][:])
+  vfloat = np.array(nc_float[i]["v_samp_trace_turb_1"][:])
+  mag_fixed = np.sqrt(ufixed*ufixed+vfixed*vfixed)
+  mag_float = np.sqrt(ufloat*ufloat+vfloat*vfloat)
+  betti_pert = np.array(nc_float[i]["betti_trace_turb_0"][:])
+  print("Fixed:")
+  print("  Mean:   ",np.mean(mag_fixed))
+  print("  stddev: ",np.std (mag_fixed))
+  print("Floating:")
+  print("  Mean:   ",np.mean(mag_float))
+  print("  stddev: ",np.std (mag_float))
+  hist_float,bin_edges  = np.histogram(mag_float ,bins=np.arange(0,30,0.05)    ,density=True)
+  hist_fixed,bin_edges  = np.histogram(mag_fixed ,bins=np.arange(0,30,0.05)    ,density=True)
+  hist_betti,bin_edges2 = np.histogram(betti_pert,bins=np.arange(np.min(betti_pert),np.max(betti_pert),0.01),density=True)
+  f, (ax1,ax2,ax3,ax4) = plt.subplots(4, 1)
+  ax1.stairs(hist_fixed           ,bin_edges ,fill=True)
+  ax2.stairs(hist_float           ,bin_edges ,fill=True)
+  ax3.stairs(hist_float-hist_fixed,bin_edges ,fill=True)
+  ax4.stairs(hist_betti           ,bin_edges2,fill=True)
+  ax1.set_ylabel("Fixed"           ,wrap=True)
+  ax2.set_ylabel("Floating"        ,wrap=True)
+  ax3.set_ylabel("Floating - fixed",wrap=True)
+  ax4.set_ylabel("Perturbations"   ,wrap=True)
+  ax4.set_xlabel("Wind speed (m/s)")
+  plt.show()
+  plt.close()
 
 # xind = get_ind(x,xlen/3+128)
 # for i in range(9) :
@@ -94,17 +125,18 @@ khub = get_ind(z,90)
 #   plt.show()
 #   plt.close()
 
-xind = get_ind(x,xlen/3+128*8)
-for i in range(9) :
-  ufixed = np.array(nc_fixed[i]["avg_u"][khub,:,xind])
-  vfixed = np.array(nc_fixed[i]["avg_v"][khub,:,xind])
-  ufloat = np.array(nc_float[i]["avg_u"][khub,:,xind])
-  vfloat = np.array(nc_float[i]["avg_v"][khub,:,xind])
-  magfixed = np.sqrt(ufixed*ufixed+vfixed*vfixed)
-  magfloat = np.sqrt(ufloat*ufloat+vfloat*vfloat)
-  plt.plot(magfixed,label="fixed")
-  plt.plot(magfloat,label="float")
-  plt.title(str(winds[i])+" , 8 diam")
-  plt.legend()
-  plt.show()
-  plt.close()
+# xind = get_ind(x,xlen/3+128*8)
+# for i in range(9) :
+#   ufixed = np.array(nc_fixed[i]["avg_u"][khub,:,xind])
+#   vfixed = np.array(nc_fixed[i]["avg_v"][khub,:,xind])
+#   ufloat = np.array(nc_float[i]["avg_u"][khub,:,xind])
+#   vfloat = np.array(nc_float[i]["avg_v"][khub,:,xind])
+#   magfixed = np.sqrt(ufixed*ufixed+vfixed*vfixed)
+#   magfloat = np.sqrt(ufloat*ufloat+vfloat*vfloat)
+#   plt.plot(magfixed,label="fixed")
+#   plt.plot(magfloat,label="float")
+#   plt.title(str(winds[i])+" , 8 diam")
+#   plt.legend()
+#   plt.show()
+#   plt.close()
+

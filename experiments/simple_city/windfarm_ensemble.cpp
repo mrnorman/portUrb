@@ -97,8 +97,9 @@ int main(int argc, char** argv) {
       coupler_main.set_option<real             >( "turbine_initial_yaw"      , 0     );
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"        , false );
       coupler_main.set_option<bool             >( "weno_all"                 , true  );
-      coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen});
-      coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen});
+      coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen,0.3_fp*xlen+126*(2.5+2),0.3_fp*xlen+126*(2.5+4),0.3_fp*xlen+126*(2.5+8)});
+      coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen});
+      coupler_main.set_option<std::vector<bool>>("turbine_apply_thrust",{true,false,false,false});
 
       // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
       //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero

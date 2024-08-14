@@ -7,7 +7,7 @@ namespace modules {
   // TODO: For some regimes, we can try blending in the Joint North Sea Wave Observation Project JONSWAP spectrum
   struct Floating_motions_betti {
     int           static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
-    real          static constexpr dt_max         = 0.005;
+    real          static constexpr dt_max         = 0.001;
     yakl::index_t static constexpr rand_pool_size = 1024*10;
     realHost1d                     ref_vel;
     realHost1d                     ref_CP;

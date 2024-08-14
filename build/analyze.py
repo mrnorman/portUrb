@@ -2,8 +2,8 @@ import xarray
 import matplotlib.pyplot as plt
 import numpy as np
 
-nc_float = xarray.open_mfdataset(["floating_00000005.nc","floating_00000006.nc","floating_00000007.nc",],concat_dim="num_time_steps",combine="nested")
-nc_fixed = xarray.open_mfdataset(["fixed_00000005.nc"   ,"fixed_00000006.nc"   ,"fixed_00000007.nc"   ,],concat_dim="num_time_steps",combine="nested")
+nc_float = xarray.open_mfdataset(["floating_00000005.nc","floating_00000006.nc","floating_00000007.nc","floating_00000008.nc",],concat_dim="num_time_steps",combine="nested")
+nc_fixed = xarray.open_mfdataset(["fixed_00000005.nc"   ,"fixed_00000006.nc"   ,"fixed_00000007.nc"   ,"fixed_00000008.nc"   ,],concat_dim="num_time_steps",combine="nested")
 
 power_float  = np.array( nc_float["power_trace_turb_0"] )
 power_float += np.array( nc_float["power_trace_turb_1"] )

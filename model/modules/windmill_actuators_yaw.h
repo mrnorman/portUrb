@@ -112,6 +112,7 @@ namespace modules {
       int                     nranks;            // Number of MPI ranks involved with this turbine
       int                     sub_rankid;        // My process's rank ID in the sub communicator
       int                     owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
+      bool                    apply_thrust;      // Whether to apply the thrust to the simulation or not
       Floating_motions_betti  floating_motions;
     };
 
@@ -121,7 +122,8 @@ namespace modules {
       void add_turbine( core::Coupler       & coupler     ,
                         real                  base_loc_x  ,
                         real                  base_loc_y  ,
-                        RefTurbine    const & ref_turbine ) {
+                        RefTurbine    const & ref_turbine ,
+                        bool                  apply_thrust = true ) {
         using yakl::c::parallel_for;
         using yakl::c::SimpleBounds;
         auto i_beg  = coupler.get_i_beg();
@@ -160,6 +162,7 @@ namespace modules {
         loc.ref_turbine     = ref_turbine;
         loc.u_samp_inertial = 0;
         loc.v_samp_inertial = 0;
+        loc.apply_thrust    = apply_thrust;
         loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
                                    loc.ref_turbine.power_coef_host  ,
                                    loc.ref_turbine.thrust_coef_host );
@@ -284,8 +287,14 @@ namespace modules {
       if (coupler.option_exists("turbine_x_locs") && coupler.option_exists("turbine_y_locs")) {
         auto x_locs = coupler.get_option<std::vector<real>>("turbine_x_locs");
         auto y_locs = coupler.get_option<std::vector<real>>("turbine_y_locs");
+        std::vector<bool> apply_thrust;
+        apply_thrust.assign(x_locs.size(),true);
+        if (coupler.option_exists("turbine_apply_thrust")) {
+          apply_thrust = coupler.get_option<std::vector<bool>>("turbine_apply_thrust");
+        }
         for (int iturb = 0; iturb < x_locs.size(); iturb++) {
-          turbine_group.add_turbine( coupler , x_locs.at(iturb) , y_locs.at(iturb) , ref_turbine );
+          turbine_group.add_turbine( coupler , x_locs.at(iturb) , y_locs.at(iturb) , ref_turbine ,
+                                     apply_thrust.at(iturb) );
         }
       } else {
         for (real y = yinc/2; y < ylen; y += yinc) {
@@ -601,13 +610,15 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
-            if (disk_weight_proj(k,j,i) > 0) {
-              tend_u  (k,j,i) += -0.5_fp             *C_T  *mag0*u0       *disk_weight_proj(k,j,i)*turb_factor;
-              tend_v  (k,j,i) += -0.5_fp             *C_T  *mag0*v0       *disk_weight_proj(k,j,i)*turb_factor;
-              tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*mag0*mag0*mag0*disk_weight_proj(k,j,i)*turb_factor;
-            }
-          });
+          if (turbine.apply_thrust) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+              if (disk_weight_proj(k,j,i) > 0) {
+                tend_u  (k,j,i) += -0.5_fp             *C_T  *mag0*u0       *disk_weight_proj(k,j,i)*turb_factor;
+                tend_v  (k,j,i) += -0.5_fp             *C_T  *mag0*v0       *disk_weight_proj(k,j,i)*turb_factor;
+                tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*mag0*mag0*mag0*disk_weight_proj(k,j,i)*turb_factor;
+              }
+            });
+          }
           ///////////////////////////////////////////////////
           // Update the disk's yaw angle and rot angle
           ///////////////////////////////////////////////////

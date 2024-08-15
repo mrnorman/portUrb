@@ -311,7 +311,7 @@ namespace modules {
         auto k1 = Betti_tend( state         , etime      ,  turbine_wind , wind_19_5m );
         auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 ,  turbine_wind , wind_19_5m );
         auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 ,  turbine_wind , wind_19_5m );
-        auto k4 = Betti_tend( state+dt/2*k3 , etime+dt   ,  turbine_wind , wind_19_5m );
+        auto k4 = Betti_tend( state+dt  *k3 , etime+dt   ,  turbine_wind , wind_19_5m );
         state  = state + dt * (k1 + 2*k2 + 2*k3 + k4) / 6;
         etime += dt;
         wind  += state(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*state(5)*std::cos(state(4));

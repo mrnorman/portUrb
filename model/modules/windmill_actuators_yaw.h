@@ -3,7 +3,7 @@
 
 #include "main_header.h"
 #include "coupler.h"
-#include "Betti_simplified.h"
+#include "Betti.h"
 
 namespace modules {
 
@@ -164,9 +164,10 @@ namespace modules {
         loc.u_samp_inertial = 0;
         loc.v_samp_inertial = 0;
         loc.apply_thrust    = apply_thrust;
-        loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
-                                   loc.ref_turbine.power_coef_host  ,
-                                   loc.ref_turbine.thrust_coef_host );
+        loc.floating_motions.init("./inputs/Betti_NREL_5MW.nc");
+        // loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
+        //                            loc.ref_turbine.power_coef_host  ,
+        //                            loc.ref_turbine.thrust_coef_host );
         loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id

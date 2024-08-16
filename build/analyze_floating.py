@@ -11,26 +11,30 @@ t1 = 1
 t2 = 1
 times = [str(i).zfill(7) for i in range(t1,t2+1)]
 
-winds = [4,7,10,13,16,19,22]
+winds = [2,5,8,11,14,17,20,23,26]
 
-prefixes_fixed = [ "turbulent_wind-4.000000_fixed-_"  ,\
-                   "turbulent_wind-7.000000_fixed-_"  ,\
-                   "turbulent_wind-10.000000_fixed-_" ,\
-                   "turbulent_wind-13.000000_fixed-_" ,\
-                   "turbulent_wind-16.000000_fixed-_" ,\
-                   "turbulent_wind-19.000000_fixed-_" ,\
-                   "turbulent_wind-22.000000_fixed-_" ]
+prefixes_fixed = [ "turbulent_wind-2.000000_fixed-_"  ,\
+                   "turbulent_wind-5.000000_fixed-_"  ,\
+                   "turbulent_wind-8.000000_fixed-_"  ,\
+                   "turbulent_wind-11.000000_fixed-_" ,\
+                   "turbulent_wind-14.000000_fixed-_" ,\
+                   "turbulent_wind-17.000000_fixed-_" ,\
+                   "turbulent_wind-20.000000_fixed-_" ,\
+                   "turbulent_wind-23.000000_fixed-_" ,\
+                   "turbulent_wind-26.000000_fixed-_" ]
 
-prefixes_float = [ "turbulent_wind-4.000000_floating-_"  ,\
-                   "turbulent_wind-7.000000_floating-_"  ,\
-                   "turbulent_wind-10.000000_floating-_" ,\
-                   "turbulent_wind-13.000000_floating-_" ,\
-                   "turbulent_wind-16.000000_floating-_" ,\
-                   "turbulent_wind-19.000000_floating-_" ,\
-                   "turbulent_wind-22.000000_floating-_" ]
+prefixes_float = [ "turbulent_wind-2.000000_floating-_"  ,\
+                   "turbulent_wind-5.000000_floating-_"  ,\
+                   "turbulent_wind-8.000000_floating-_"  ,\
+                   "turbulent_wind-11.000000_floating-_" ,\
+                   "turbulent_wind-14.000000_floating-_" ,\
+                   "turbulent_wind-17.000000_floating-_" ,\
+                   "turbulent_wind-20.000000_floating-_" ,\
+                   "turbulent_wind-23.000000_floating-_" ,\
+                   "turbulent_wind-26.000000_floating-_" ]
 
-nc_fixed = [Dataset(prefix+"00000001.nc","r") for prefix in prefixes_fixed]
-nc_float = [Dataset(prefix+"00000002.nc","r") for prefix in prefixes_float]
+nc_fixed = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(2,4)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
+nc_float = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(2,4)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
 
 x = np.array(nc_fixed[0]["x"])
 y = np.array(nc_fixed[0]["y"])
@@ -71,9 +75,9 @@ for i in range(9) :
   ax1.set_ylabel("Fixed"           ,wrap=True)
   ax2.set_ylabel("Floating"        ,wrap=True)
   ax3.set_ylabel("Floating - fixed",wrap=True)
-  ax4.set_ylabel("Perturbations"   ,wrap=True)
+  ax4.set_ylabel("Floating Perturbations",wrap=True)
   ax4.set_xlabel("Wind speed (m/s)")
-  plt.show()
+  plt.savefig("downstream_histogram_8D_wind="+str(winds[i])+".png",dpi=600)
   plt.close()
 
 # xind = get_ind(x,xlen/3+128)

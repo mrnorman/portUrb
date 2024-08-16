@@ -13,29 +13,17 @@ times = [str(i).zfill(7) for i in range(t1,t2+1)]
 
 winds = [2,5,8,11,14,17,20,23,26]
 
-prefixes_float = [ "dt_0.05/turbulent_wind-2.000000_floating-_"  ,\
-                   "dt_0.05/turbulent_wind-5.000000_floating-_"  ,\
-                   "dt_0.05/turbulent_wind-8.000000_floating-_"  ,\
-                   "dt_0.05/turbulent_wind-11.000000_floating-_" ,\
-                   "dt_0.05/turbulent_wind-14.000000_floating-_" ,\
-                   "dt_0.05/turbulent_wind-17.000000_floating-_" ,\
-                   "dt_0.05/turbulent_wind-20.000000_floating-_" ,\
-                   "dt_0.05/turbulent_wind-23.000000_floating-_" ,\
-                   "dt_0.05/turbulent_wind-26.000000_floating-_" ]
+prefixes_float = [ "turbulent_wind-2.000000_"  ,\
+                   "turbulent_wind-5.000000_"  ,\
+                   "turbulent_wind-8.000000_"  ,\
+                   "turbulent_wind-11.000000_" ,\
+                   "turbulent_wind-14.000000_" ,\
+                   "turbulent_wind-17.000000_" ,\
+                   "turbulent_wind-20.000000_" ,\
+                   "turbulent_wind-23.000000_" ,\
+                   "turbulent_wind-26.000000_" ]
 
-nc_float = [Dataset(prefix+"00000010.nc","r") for prefix in prefixes_float]
-
-prefixes_float2 = [ "turbulent_wind-2.000000_floating-_"  ,\
-                    "turbulent_wind-5.000000_floating-_"  ,\
-                    "turbulent_wind-8.000000_floating-_"  ,\
-                    "turbulent_wind-11.000000_floating-_" ,\
-                    "turbulent_wind-14.000000_floating-_" ,\
-                    "turbulent_wind-17.000000_floating-_" ,\
-                    "turbulent_wind-20.000000_floating-_" ,\
-                    "turbulent_wind-23.000000_floating-_" ,\
-                    "turbulent_wind-26.000000_floating-_" ]
-
-nc_float2 = [Dataset(prefix+"00000001.nc","r") for prefix in prefixes_float2]
+nc_float = [Dataset(prefix+"00000003.nc","r") for prefix in prefixes_float]
 
 x = np.array(nc_float[0]["x"])
 y = np.array(nc_float[0]["y"])
@@ -52,7 +40,7 @@ khub = get_ind(z,90)
 
 for i in range(9) :
   print(winds[i])
-  arr = np.array(nc_float2[i]["betti_trace_turb_0"][:])
+  arr = np.array(nc_float[i]["betti_trace_turb_0"][:])
   mn = np.min(arr)
   mx = np.max(arr)
   hist_betti,bin_edges2 = np.histogram(arr,bins=np.arange(mn,mx,(mx-mn)/100),density=True)

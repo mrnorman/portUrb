@@ -9,12 +9,9 @@ namespace modules {
     int           static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
     real          static constexpr dt_max         = 0.05;
     yakl::index_t static constexpr rand_pool_size = 1024*10;
-    realHost1d                     ref_vel;
-    realHost1d                     ref_CP;
-    realHost1d                     ref_CT;
     SArray<real,1,6>               state;      // Current state vector
     real                           etime;      // Current elapsed time
-    SArray<real,1,rand_pool_size>  rand_pool;
+    std::vector<real>              rand_pool;
     int                            rand_pool_counter;
 
 
@@ -31,10 +28,7 @@ namespace modules {
 
 
     // TODO: Add some time steps for a spin-up phase in here
-    void init( realHost1d ref_vel , realHost1d ref_CP , realHost1d ref_CT ) {
-      this->ref_vel   = ref_vel;
-      this->ref_CP    = ref_CP;
-      this->ref_CT    = ref_CT;
+    void init() {
       this->state(0)  = -2;
       this->state(1)  = 0;
       this->state(2)  = 37.550;
@@ -42,19 +36,12 @@ namespace modules {
       this->state(4)  = 0;
       this->state(5)  = 0;
       this->etime     = 0;
+      rand_pool = std::vector<real>(rand_pool_size);
       std::random_device rd;
       std::mt19937 generator(137); // TODO: Undo this????
       std::uniform_real_distribution<real> distribution(0.,2.*M_PI);
-      for (int i=0; i < rand_pool_size; i++) { rand_pool(i) = distribution(generator); }
+      for (int i=0; i < rand_pool_size; i++) { rand_pool.at(i) = distribution(generator); }
       rand_pool_counter = 0;
-    }
-
-
-    // Return first-order-accurate interpolation of C_p and C_t based on provided wind magnitude
-    // returns   : Tuple of [C_p,C_t], which are coefficients of power and thrust, respectively
-    std::tuple<real,real> CpCt( real vel ) {
-      int vel_index = nearest_index( ref_vel , vel );
-      return std::make_tuple( ref_CP(vel_index) , ref_CT(vel_index) );
     }
 
 
@@ -89,7 +76,7 @@ namespace modules {
       real sum_a_x      = 0;
       real sum_a_y      = 0;
       for (int i=0; i < N; i++) {
-        real random_phase  = rand_pool(rand_pool_counter++);
+        real random_phase  = rand_pool.at(rand_pool_counter++);
         if (rand_pool_counter >= rand_pool_size) rand_pool_counter = 0;
         real delta_f       = (cutof_f - start_f) / (N-1);
         real f             = start_f + i*delta_f;
@@ -113,8 +100,8 @@ namespace modules {
     }
 
 
-    std::tuple<SArray<real,1,6>,real,real,real>
-    structure( SArray<real,1,6> const & x_1 , real t , real turbine_wind , real wind_19_5m ) {
+    std::tuple<SArray<real,1,6>,real,real>
+    structure( SArray<real,1,6> const & x_1 , real t , real turbine_wind , real wind_19_5m , real Ct ) {
       real constexpr g       = 9.80665 ;         // (m/s^2)  gravity acceleration
       real constexpr rho_w   = 1025    ;         // (kg/m^3) water density
       real constexpr M_N     = 240000  ;         // (kg)     Mass of nacelle
@@ -231,7 +218,6 @@ namespace modules {
                      
       // Wind Force
       real v_in      = turbine_wind + v_zeta + d_P*omega*cos_alpha;
-      auto [Cp,Ct]   = CpCt( v_in );
       real FA        = 0.5*rho*A*Ct*v_in*v_in;
       real FAN       = 0.5*rho*C_dN*A_N    *cos_alpha*std::pow(turbine_wind+v_zeta+d_N*omega*cos_alpha,2._fp);
       real FAT       = 0.5*rho*C_dT*h_T*D_T*cos_alpha*std::pow(turbine_wind+v_zeta+d_T*omega*cos_alpha,2._fp);
@@ -287,18 +273,18 @@ namespace modules {
       F(5) = Q_alpha;
       real avegQ_t = std::sqrt(Qt_zeta*Qt_zeta+Qt_eta*Qt_eta)/8;
       auto deriv = yakl::intrinsics::matmul_rc( yakl::intrinsics::matinv_ge(E) , F );
-      return std::make_tuple( deriv , v_in , Cp , avegQ_t );
+      return std::make_tuple( deriv , v_in , avegQ_t );
     }
 
 
     SArray<real,1,6>
-    Betti_tend( SArray<real,1,6> const & x , real t , real turbine_wind , real wind_19_5m ) {
-      auto [dx1dt,v_in,Cp,Q_t] = structure( x , t , turbine_wind , wind_19_5m );
+    Betti_tend( SArray<real,1,6> const & x , real t , real turbine_wind , real wind_19_5m , real Ct ) {
+      auto [dx1dt,v_in,Q_t] = structure( x , t , turbine_wind , wind_19_5m , Ct);
       return dx1dt;
     }
 
 
-    real time_step( real dt , real turbine_wind , real wind_19_5m ) {
+    real time_step( real dt , real turbine_wind , real wind_19_5m , real Ct ) {
       using yakl::componentwise::operator+;
       using yakl::componentwise::operator*;
       using yakl::componentwise::operator/;
@@ -308,10 +294,10 @@ namespace modules {
       for (int iter=0; iter < niter; iter++) {
         real constexpr d_Ph = 5.4305    ; // (m) Horizontal distance between BS and BP
         real constexpr d_Pv = 127.5879  ; // (m) Vertical distance between BS and BP
-        auto k1 = Betti_tend( state         , etime      ,  turbine_wind , wind_19_5m );
-        auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 ,  turbine_wind , wind_19_5m );
-        auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 ,  turbine_wind , wind_19_5m );
-        auto k4 = Betti_tend( state+dt  *k3 , etime+dt   ,  turbine_wind , wind_19_5m );
+        auto k1 = Betti_tend( state         , etime      ,  turbine_wind , wind_19_5m , Ct );
+        auto k2 = Betti_tend( state+dt/2*k1 , etime+dt/2 ,  turbine_wind , wind_19_5m , Ct );
+        auto k3 = Betti_tend( state+dt/2*k2 , etime+dt/2 ,  turbine_wind , wind_19_5m , Ct );
+        auto k4 = Betti_tend( state+dt  *k3 , etime+dt   ,  turbine_wind , wind_19_5m , Ct );
         state  = state + dt * (k1 + 2*k2 + 2*k3 + k4) / 6;
         etime += dt;
         wind  += state(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*state(5)*std::cos(state(4));

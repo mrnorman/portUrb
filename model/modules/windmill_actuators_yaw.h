@@ -3,7 +3,7 @@
 
 #include "main_header.h"
 #include "coupler.h"
-#include "Betti.h"
+#include "Betti_simplified.h"
 
 namespace modules {
 
@@ -164,10 +164,8 @@ namespace modules {
         loc.u_samp_inertial = 0;
         loc.v_samp_inertial = 0;
         loc.apply_thrust    = apply_thrust;
-        loc.floating_motions.init("./inputs/Betti_NREL_5MW.nc");
-        // loc.floating_motions.init( loc.ref_turbine.velmag_host      ,
-        //                            loc.ref_turbine.power_coef_host  ,
-        //                            loc.ref_turbine.thrust_coef_host );
+        // loc.floating_motions.init("./inputs/Betti_NREL_5MW.nc");
+        loc.floating_motions.init();
         loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id
@@ -580,7 +578,13 @@ namespace modules {
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
-            real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m );
+            real u0 = turbine.u_samp_inertial;
+            real v0 = turbine.v_samp_inertial;
+            real mag0 = std::sqrt( u0*u0 + v0*v0 );
+            real C_T = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
+            real C_P = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
+            real a   = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
+            real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m , 4*a*(1-a) );
             turbine.betti_trace.push_back( betti_pert );
             real mult = 1;
             if ( mag0 > 1.e-10 ) mult = std::max(0._fp,mag0+betti_pert)/mag0;

@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
     auto par_comm = ensembler.create_coupler_comm( coupler_main , 6 , MPI_COMM_WORLD );
+    // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     std::cout.rdbuf(ostr.rdbuf());
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
       std::cout << "Ensemble memeber using an initial hub wind speed of ["
                 << coupler_main.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
-      real        sim_time          = 3600*8+1;
+      real        sim_time          = 3600*12+1;
       int         nx_glob           = 500;
       int         ny_glob           = 150;
       int         nz                = 60;

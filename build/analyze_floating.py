@@ -33,8 +33,8 @@ prefixes_float = [ "turbulent_wind-2.000000_floating-_"  ,\
                    "turbulent_wind-23.000000_floating-_" ,\
                    "turbulent_wind-26.000000_floating-_" ]
 
-nc_fixed = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(2,4)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
-nc_float = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(2,4)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
+nc_fixed = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(13,25)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
+nc_float = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(13,25)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
 
 x = np.array(nc_fixed[0]["x"])
 y = np.array(nc_fixed[0]["y"])
@@ -51,10 +51,10 @@ khub = get_ind(z,90)
 
 for i in range(9) :
   print(winds[i])
-  ufixed = np.array(nc_fixed[i]["u_samp_trace_turb_1"][:])
-  vfixed = np.array(nc_fixed[i]["v_samp_trace_turb_1"][:])
-  ufloat = np.array(nc_float[i]["u_samp_trace_turb_1"][:])
-  vfloat = np.array(nc_float[i]["v_samp_trace_turb_1"][:])
+  ufixed = np.array(nc_fixed[i]["u_samp_trace_turb_2"][:])
+  vfixed = np.array(nc_fixed[i]["v_samp_trace_turb_2"][:])
+  ufloat = np.array(nc_float[i]["u_samp_trace_turb_2"][:])
+  vfloat = np.array(nc_float[i]["v_samp_trace_turb_2"][:])
   mag_fixed = np.sqrt(ufixed*ufixed+vfixed*vfixed)
   mag_float = np.sqrt(ufloat*ufloat+vfloat*vfloat)
   betti_pert = np.array(nc_float[i]["betti_trace_turb_0"][:])
@@ -77,7 +77,8 @@ for i in range(9) :
   ax3.set_ylabel("Floating - fixed",wrap=True)
   ax4.set_ylabel("Floating Perturbations",wrap=True)
   ax4.set_xlabel("Wind speed (m/s)")
-  plt.savefig("downstream_histogram_8D_wind="+str(winds[i])+".png",dpi=600)
+  # plt.savefig("downstream_histogram_8D_wind="+str(winds[i])+".png",dpi=600)
+  plt.show()
   plt.close()
 
 # xind = get_ind(x,xlen/3+128)

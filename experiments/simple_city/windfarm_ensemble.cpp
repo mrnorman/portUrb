@@ -16,8 +16,6 @@ int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
   yakl::init();
   {
-    yakl::timer_start("main");
-
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler_main;
     core::Coupler coupler_prec;
@@ -88,17 +86,17 @@ int main(int argc, char** argv) {
       std::string restart_file      = "";
       std::string restart_file_prec = "";
       bool        run_main          = true;
-      coupler_main.set_option<std::string      >( "init_data"                , init_data         );
-      coupler_main.set_option<real             >( "out_freq"                 , out_freq          );
-      coupler_main.set_option<std::string      >( "restart_file"             , restart_file      );
-      coupler_main.set_option<std::string      >( "restart_file_precursor"   , restart_file_prec );
-      coupler_main.set_option<real             >( "latitude"                 , 0.                );
-      coupler_main.set_option<real             >( "roughness"                , 0.0002            );
-      coupler_main.set_option<std::string      >( "turbine_file"             , "./inputs/NREL_5MW_126_RWT.yaml" );
-      coupler_main.set_option<bool             >( "turbine_do_blades"        , false );
-      coupler_main.set_option<real             >( "turbine_initial_yaw"      , 0     );
-      coupler_main.set_option<bool             >( "turbine_fixed_yaw"        , false );
-      coupler_main.set_option<bool             >( "weno_all"                 , true  );
+      coupler_main.set_option<std::string      >( "init_data"              , init_data         );
+      coupler_main.set_option<real             >( "out_freq"               , out_freq          );
+      coupler_main.set_option<std::string      >( "restart_file"           , restart_file      );
+      coupler_main.set_option<std::string      >( "restart_file_precursor" , restart_file_prec );
+      coupler_main.set_option<real             >( "latitude"               , 0.                );
+      coupler_main.set_option<real             >( "roughness"              , 0.0002            );
+      coupler_main.set_option<std::string      >( "turbine_file"           , "./inputs/NREL_5MW_126_RWT.yaml" );
+      coupler_main.set_option<bool             >( "turbine_do_blades"      , false );
+      coupler_main.set_option<real             >( "turbine_initial_yaw"    , 0     );
+      coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , false );
+      coupler_main.set_option<bool             >( "weno_all"               , true  );
       coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen,0.3_fp*xlen+126*(2.5+2),0.3_fp*xlen+126*(2.5+4),0.3_fp*xlen+126*(2.5+8)});
       coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen});
       coupler_main.set_option<std::vector<bool>>("turbine_apply_thrust",{true,false,false,false});
@@ -222,31 +220,10 @@ int main(int argc, char** argv) {
           output_counter.reset();
         }
       } // End main simulation loop
-    } // if (par_comm.valid()) {
-
-
-    yakl::timer_stop("main");
+      yakl::timer_stop("main");
+    } // if (par_comm.valid()) 
   }
   yakl::finalize();
   MPI_Finalize();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

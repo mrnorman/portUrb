@@ -50,3 +50,7 @@ add_executable(windfarm_ensemble windfarm_ensemble.cpp)
 yakl_process_target(windfarm_ensemble)
 target_link_libraries(windfarm_ensemble ${mylibs})
 
+add_executable(windfarm_ensemble_3x3 windfarm_ensemble_3x3.cpp)
+yakl_process_target(windfarm_ensemble_3x3)
+target_link_libraries(windfarm_ensemble_3x3 ${mylibs})
+

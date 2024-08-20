@@ -481,7 +481,12 @@ namespace modules {
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
           real upstream_uvel     = weights_tot(0);
           real upstream_vvel     = weights_tot(1);
-          real upstream_dir      = std::atan2( upstream_vvel , upstream_uvel );  // theta=tan^-1(v/u)
+          real upstream_dir;
+          if (coupler.option_exists("turbine_upstream_dir")) {
+            upstream_dir = coupler.get_option<real>("turbine_upstream_dir");
+          } else {
+            upstream_dir = std::atan2( upstream_vvel , upstream_uvel );  // theta=tan^-1(v/u)
+          }
           real upstream_x_offset = -5*rad*std::cos(upstream_dir);
           real upstream_y_offset = -5*rad*std::sin(upstream_dir);
           // Compute and sum weights for disk projection and upstream sampling

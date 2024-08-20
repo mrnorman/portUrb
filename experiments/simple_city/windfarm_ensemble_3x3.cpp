@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = (ind+1)*3-1;
+        real wind = ind*3+2;
         coupler.set_option<real>("hub_height_wind_mag",wind);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
@@ -68,11 +68,11 @@ int main(int argc, char** argv) {
                 << coupler.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
       real        sim_time          = 3600*12+1;
-      int         nx_glob           = 378;
-      int         ny_glob           = 378;
+      int         nx_glob           = 227;
+      int         ny_glob           = 227;
       int         nz                = 60;
-      real        xlen              = 3780;
-      real        ylen              = 3780;
+      real        xlen              = 2270;
+      real        ylen              = 2270;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
       int         dyn_cycle         = 10;
@@ -90,6 +90,7 @@ int main(int argc, char** argv) {
       coupler.set_option<bool             >( "turbine_do_blades"   , false );
       coupler.set_option<real             >( "turbine_initial_yaw" , 0     );
       coupler.set_option<bool             >( "turbine_fixed_yaw"   , false );
+      // coupler.set_option<real             >( "turbine_upstream_dir", 0     );
       coupler.set_option<bool             >( "weno_all"            , true  );
       coupler.set_option<std::vector<real>>("turbine_x_locs",{1.*xlen/6.,
                                                               3.*xlen/6.,

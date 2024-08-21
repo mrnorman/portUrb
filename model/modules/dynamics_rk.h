@@ -59,7 +59,7 @@ namespace modules {
       auto dy = coupler.get_dy();
       auto dz = coupler.get_dz();
       real constexpr maxwave = 350 + 50;
-      real cfl = coupler.get_option<real>("cfl",0.65);
+      real cfl = coupler.get_option<real>("cfl",0.60);
       return cfl * std::min( std::min( dx , dy ) , dz ) / maxwave;
     }
     // real compute_time_step( core::Coupler const &coupler ) const {

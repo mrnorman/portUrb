@@ -20,11 +20,8 @@ include_directories(${PORTURB_HOME}/model
 
 add_subdirectory(${PORTURB_HOME}/model model)
 
-add_library(custom_modules custom_modules/precursor_sponge.cpp
-                           custom_modules/sc_init.cpp)
-
-yakl_process_target(custom_modules)
-target_include_directories(custom_modules PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
+add_library(custom_modules INTERFACE)
+target_include_directories(custom_modules INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
 set(mylibs modules custom_modules model core ponni yaml-cpp "${PORTURB_LINK_FLAGS}")
 
@@ -45,6 +42,14 @@ target_link_libraries(city ${mylibs})
 add_executable(abl abl.cpp)
 yakl_process_target(abl)
 target_link_libraries(abl ${mylibs})
+
+add_executable(abl_neutral abl_neutral.cpp)
+yakl_process_target(abl_neutral)
+target_link_libraries(abl_neutral ${mylibs})
+
+add_executable(abl_convective abl_convective.cpp)
+yakl_process_target(abl_convective)
+target_link_libraries(abl_convective ${mylibs})
 
 add_executable(windfarm_ensemble windfarm_ensemble.cpp)
 yakl_process_target(windfarm_ensemble)

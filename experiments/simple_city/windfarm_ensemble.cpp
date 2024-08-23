@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
     core::Coupler coupler_main;
     core::Coupler coupler_prec;
 
-    coupler_main.set_option<std::string>("ensemble_stdout","ensemble" );
-    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent");
+    coupler_main.set_option<std::string>("ensemble_stdout","ensemble_fixed-yaw-upstream" );
+    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed-yaw-upstream");
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Ensembler ensembler;
@@ -30,12 +30,12 @@ int main(int argc, char** argv) {
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = (ind+1)*3-1;
+        real wind = ind+3;
         coupler.set_option<real>("hub_height_wind_mag",wind);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
       };
-      ensembler.register_dimension( 9 , func_nranks , func_coupler );
+      ensembler.register_dimension( 23 , func_nranks , func_coupler );
     }
 
     // Add floating dimension
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     }
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 6 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler_main , 2 , MPI_COMM_WORLD );
     // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
@@ -69,12 +69,12 @@ int main(int argc, char** argv) {
       std::cout << "Ensemble memeber using an initial hub wind speed of ["
                 << coupler_main.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
-      real        sim_time          = 3600*12+1;
+      real        sim_time          = 3600*24+1;
       int         nx_glob           = 500;
-      int         ny_glob           = 150;
+      int         ny_glob           = 100;
       int         nz                = 60;
       real        xlen              = 5000;
-      real        ylen              = 1500;
+      real        ylen              = 1000;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
       int         dyn_cycle         = 10;
@@ -95,11 +95,21 @@ int main(int argc, char** argv) {
       coupler_main.set_option<std::string      >( "turbine_file"           , "./inputs/NREL_5MW_126_RWT.yaml" );
       coupler_main.set_option<bool             >( "turbine_do_blades"      , false );
       coupler_main.set_option<real             >( "turbine_initial_yaw"    , 0     );
-      coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , false );
+      coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , true  );
+      coupler_main.set_option<real             >( "turbine_upstream_dir"   , 0     );
       coupler_main.set_option<bool             >( "weno_all"               , true  );
-      coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.3_fp*xlen,0.3_fp*xlen+126*(2.5+2),0.3_fp*xlen+126*(2.5+4),0.3_fp*xlen+126*(2.5+8)});
-      coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen,0.5_fp*ylen});
-      coupler_main.set_option<std::vector<bool>>("turbine_apply_thrust",{true,false,false,false});
+      coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen,
+                                                                   0.2_fp*xlen+126*(2.5+2),
+                                                                   0.2_fp*xlen+126*(2.5+4),
+                                                                   0.2_fp*xlen+126*(2.5+8)});
+      coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen,
+                                                                   0.5_fp*ylen,
+                                                                   0.5_fp*ylen,
+                                                                   0.5_fp*ylen});
+      coupler_main.set_option<std::vector<bool>>("turbine_apply_thrust",{true,
+                                                                         false,
+                                                                         false,
+                                                                         false});
 
       // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
       //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -193,7 +203,7 @@ int main(int argc, char** argv) {
           }
 
           using modules::uniform_pg_wind_forcing_height;
-          real h = 89;
+          real h = 90;
           real u = coupler_prec.get_option<real>("hub_height_wind_mag");
           real v = 0;
           coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v);     } , "pg_forcing"     );

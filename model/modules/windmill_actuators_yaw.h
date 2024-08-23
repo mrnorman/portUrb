@@ -576,47 +576,41 @@ namespace modules {
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
           turbine.u_samp_trace.push_back( sums(0) );
           turbine.v_samp_trace.push_back( sums(1) );
-          real u0   = sums(0)*cos_yaw;
-          real v0   = sums(1)*sin_yaw;
-          real mag0 = std::sqrt(u0*u0+v0*v0);
+          real instant_u0   = sums(0)*cos_yaw;
+          real instant_v0   = sums(1)*sin_yaw;
+          real instant_mag0 = std::sqrt(instant_u0*instant_u0+instant_v0*instant_v0);
+          // Compute inertial u and v at sampling disk
+          real inertial_tau = 30;
+          turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
+          turbine.v_samp_inertial = instant_v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
+          // Compute inertial wind magnitude
+          real inertial_u0   = turbine.u_samp_inertial;
+          real inertial_v0   = turbine.v_samp_inertial;
+          real inertial_mag0 = std::sqrt(inertial_u0*inertial_u0 + inertial_v0*inertial_v0);
+          ///////////////////////////////////////////////////
+          // Computation of disk properties
+          ///////////////////////////////////////////////////
+          real C_T       = interp( ref_velmag , ref_thrust_coef , inertial_mag0 ); // Interpolate power coef
+          real C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coef
+          real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power
+          real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , inertial_mag0 ) : 0; // Interpolate rot speed
+          real a         = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
+          C_T            = 4*a*(1-a);
+          C_P            = std::min( C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
-            real u0 = turbine.u_samp_inertial;
-            real v0 = turbine.v_samp_inertial;
-            real mag0 = std::sqrt( u0*u0 + v0*v0 );
-            real C_T = interp( ref_velmag , ref_thrust_coef , mag0 ); // Interpolate power coef
-            real C_P = interp( ref_velmag , ref_power_coef  , mag0 ); // Interpolate power coef
-            real a   = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
-            real betti_pert = turbine.floating_motions.time_step( dt , mag0 , umag_19_5m , 4*a*(1-a) );
+            real betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
             turbine.betti_trace.push_back( betti_pert );
             real mult = 1;
-            if ( mag0 > 1.e-10 ) mult = std::max(0._fp,mag0+betti_pert)/mag0;
-            mag0 *= mult;
-            u0   *= mult;
-            v0   *= mult;
+            if ( instant_mag0 > 1.e-10 ) mult = std::max(0._fp,instant_mag0+betti_pert)/instant_mag0;
+            instant_mag0 *= mult;
+            instant_u0   *= mult;
+            instant_v0   *= mult;
           } else {
             turbine.betti_trace.push_back( 0 );
           }
-          // Compute inertial normal freestream u-velocity and v-velocity
-          real inertial_tau = 30;
-          turbine.u_samp_inertial = u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
-          turbine.v_samp_inertial = v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
-          real &uloc      = turbine.u_samp_inertial;
-          real &vloc      = turbine.v_samp_inertial;
-          real mag_lookup = std::sqrt(uloc*uloc + vloc*vloc); // Normal magnitude with inertia
-          ///////////////////////////////////////////////////
-          // Computation of disk properties
-          ///////////////////////////////////////////////////
-          real C_T       = interp( ref_velmag , ref_thrust_coef , mag_lookup ); // Interpolate power coef
-          real C_P       = interp( ref_velmag , ref_power_coef  , mag_lookup ); // Interpolate power coef
-          real pwr       = interp( ref_velmag , ref_power       , mag_lookup ); // Interpolate power
-          real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , mag_lookup ) : 0; // Interpolate rotation speed
-          real a = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
-          C_T    = 4*a*(1-a);
-          C_P    = pwr*1000*1000/(0.5*1.2*M_PI*rad*rad*mag_lookup*mag_lookup*mag_lookup);
-          if ( C_P > C_T ) yakl::yakl_throw("C_P > C_T");
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace   .push_back( turbine.yaw_angle );
           turbine.power_trace .push_back( pwr               );
@@ -633,9 +627,10 @@ namespace modules {
           if (turbine.apply_thrust) {
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
               if (disk_weight_proj(k,j,i) > 0) {
-                tend_u  (k,j,i) += -0.5_fp             *C_T  *mag0*u0       *disk_weight_proj(k,j,i)*turb_factor;
-                tend_v  (k,j,i) += -0.5_fp             *C_T  *mag0*v0       *disk_weight_proj(k,j,i)*turb_factor;
-                tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*mag0*mag0*mag0*disk_weight_proj(k,j,i)*turb_factor;
+                real wt = disk_weight_proj(k,j,i)*turb_factor;
+                tend_u  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_u0               *wt;
+                tend_v  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_v0               *wt;
+                tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*instant_mag0*instant_mag0*instant_mag0*wt;
               }
             });
           }

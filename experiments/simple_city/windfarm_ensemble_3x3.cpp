@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    coupler.set_option<std::string>("ensemble_stdout","ensemble" );
+    coupler.set_option<std::string>("ensemble_stdout","ensemble_3x3" );
     coupler.set_option<std::string>("out_prefix"     ,"turbulent_3x3");
 
     // This holds all of the model's variables, dimension sizes, and options
@@ -28,12 +28,12 @@ int main(int argc, char** argv) {
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = ind*3+2;
+        real wind = ind+3;
         coupler.set_option<real>("hub_height_wind_mag",wind);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
       };
-      ensembler.register_dimension( 9 , func_nranks , func_coupler );
+      ensembler.register_dimension( 23 , func_nranks , func_coupler );
     }
 
     // Add floating dimension
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     }
     // coupler.set_option<bool>( "turbine_floating_motions" , true );
 
-    auto par_comm = ensembler.create_coupler_comm( coupler , 6 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler , 2 , MPI_COMM_WORLD );
     // auto par_comm = ensembler.create_coupler_comm( coupler , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler.get_option<std::string>("ensemble_stdout")+std::string(".out"));
@@ -68,11 +68,11 @@ int main(int argc, char** argv) {
                 << coupler.get_option<real>("hub_height_wind_mag")
                 << "] m/s" << std::endl;
       real        sim_time          = 3600*12+1;
-      int         nx_glob           = 227;
-      int         ny_glob           = 227;
+      int         nx_glob           = 378;
+      int         ny_glob           = 378;
       int         nz                = 60;
-      real        xlen              = 2270;
-      real        ylen              = 2270;
+      real        xlen              = 3780;
+      real        ylen              = 3780;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
       int         dyn_cycle         = 10;

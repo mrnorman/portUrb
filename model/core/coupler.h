@@ -382,18 +382,32 @@ namespace core {
       std::vector<std::string> names;
       auto &dm = get_data_manager_readonly();
       MultiField<real const,3> fields;
-      fields.add_field(dm.get<real const,3>("density_dry"));
-      fields.add_field(dm.get<real const,3>("uvel"       ));
-      fields.add_field(dm.get<real const,3>("vvel"       ));
-      fields.add_field(dm.get<real const,3>("wvel"       ));
-      fields.add_field(dm.get<real const,3>("temp"       ));
+      fields.add_field(dm.get<real const,3>("density_dry"));  names.push_back("density_dry");
+      fields.add_field(dm.get<real const,3>("uvel"       ));  names.push_back("uvel"       );
+      fields.add_field(dm.get<real const,3>("vvel"       ));  names.push_back("vvel"       );
+      fields.add_field(dm.get<real const,3>("wvel"       ));  names.push_back("wvel"       );
+      fields.add_field(dm.get<real const,3>("temp"       ));  names.push_back("temp"       );
       auto tracer_names = get_tracer_names();
-      for (int tr=0; tr < tracer_names.size(); tr++) { fields.add_field(dm.get<real const,3>(tracer_names.at(tr))); }
+      for (int tr=0; tr < tracer_names.size(); tr++) {
+        fields.add_field(dm.get<real const,3>(tracer_names.at(tr)));
+        names.push_back(tracer_names.at(tr));
+      }
       yakl::ScalarLiveOut<bool> nan_present(false);
+      bool1d field_has_nan("field_has_nan",fields.get_num_fields());
+      field_has_nan = false;
       yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<4>(fields.get_num_fields(),get_nz(),get_ny(),get_nx()) ,
                                                  YAKL_LAMBDA (int l, int k, int j, int i) {
-        if (std::isnan(fields(l,k,j,i)) || !std::isfinite(fields(l,k,j,i))) nan_present = true;
+        if (std::isnan(fields(l,k,j,i)) || !std::isfinite(fields(l,k,j,i))) {
+          nan_present = true;
+          field_has_nan(l) = true;
+        }
       });
+      auto field_has_nan_host = field_has_nan.createHostCopy();
+      for (int l=0; l < field_has_nan_host.size(); l++) {
+        if (field_has_nan_host(l)) {
+          std::cout << names.at(l) << ": has NaN" << std::endl;
+        }
+      }
       return nan_present.hostRead();
     }
 

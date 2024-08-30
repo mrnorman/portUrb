@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
       if (coupler_main.is_mainproc()) std::cout << "Ensemble memeber using an initial hub wind speed of ["
                                                 << coupler_main.get_option<real>("hub_height_wind_mag")
                                                 << "] m/s" << std::endl;
-      real        sim_time          = 3600*24+1;
+      real        sim_time          = 401;
       int         nx_glob           = 500;
       int         ny_glob           = 100;
       int         nz                = 60;
@@ -202,22 +202,22 @@ int main(int argc, char** argv) {
                                               {"density_dry","uvel","vvel","wvel","temp"} ,
                                               (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                               (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );
-            coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);           } , "dycore"            );
-            coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);           } , "surface_fluxes"    );
-            coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt);           } , "windmillactuators" );
-            coupler_main.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);           } , "les_closure"       );
-            coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt);           } , "time_averager"     );
+            coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt); } , "dycore"            );
+            coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt); } , "surface_fluxes"    );
+            coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt); } , "windmillactuators" );
+            coupler_main.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt); } , "les_closure"       );
+            coupler_main.run_module( [&] (Coupler &c) { time_averager_main.accumulate(c,dt); } , "time_averager"     );
           }
 
           using modules::uniform_pg_wind_forcing_height;
           real h = 90;
           real u = coupler_prec.get_option<real>("hub_height_wind_mag");
           real v = 0;
-          coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v);     } , "pg_forcing"     );
-          coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
-          coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );
-          coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);           } , "les_closure"    );
-          coupler_prec.run_module( [&] (Coupler &c) { time_averager_prec.accumulate (c,dt);           } , "time_averager"  );
+          coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v); } , "pg_forcing"     );
+          coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);       } , "dycore"         );
+          coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);       } , "surface_fluxes" );
+          coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);       } , "les_closure"    );
+          coupler_prec.run_module( [&] (Coupler &c) { time_averager_prec.accumulate (c,dt);       } , "time_averager"  );
         }
 
         // Update time step

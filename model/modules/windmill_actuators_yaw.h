@@ -537,6 +537,9 @@ namespace modules {
               }
             });
           }
+          #ifdef YAKL_AUTO_PROFILE
+            yakl::timer_start("disk_and_betti");
+          #endif
           using yakl::componentwise::operator>;
           yakl::SArray<real,1,4> weights_tot2;
           weights_tot2(0) = yakl::intrinsics::sum(umag_19_5m_2d);
@@ -590,12 +593,20 @@ namespace modules {
           real C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coef
           real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , inertial_mag0 ) : 0; // Interpolate rot speed
-          real a         = std::max( 0._fp , std::min( 1._fp - 1.e-10_fp , 1 - C_P / C_T ) );
-          C_T            = 4*a*(1-a);
-          C_P            = std::min( C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
+          if (inertial_mag0 > 1.e-10) {
+            real a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
+            C_T    = 4*a*(1-a);
+            C_P    = std::min( C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
+          } else {
+            C_T = 0;
+            C_P = 0;
+          }
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
+          #ifdef YAKL_AUTO_PROFILE
+            yakl::timer_start("betti");
+          #endif
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
             real betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
             turbine.betti_trace.push_back( betti_pert );
@@ -607,6 +618,9 @@ namespace modules {
           } else {
             turbine.betti_trace.push_back( 0 );
           }
+          #ifdef YAKL_AUTO_PROFILE
+            yakl::timer_stop("betti");
+          #endif
           // Compute inertial u and v at sampling disk
           real inertial_tau = 30;
           turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
@@ -621,6 +635,9 @@ namespace modules {
           // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE = f_TKE * (C_T - C_P);
+          #ifdef YAKL_AUTO_PROFILE
+            yakl::timer_stop("disk_and_betti");
+          #endif
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////

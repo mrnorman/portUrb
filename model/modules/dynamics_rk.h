@@ -710,6 +710,33 @@ namespace modules {
       auto hy_theta_cells  = dm.get<float const,1>("hy_theta_cells");
       auto surface_temp    = dm.get<real const,2>("surface_temp");
 
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,hs) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int ii) {
+          fields(l,hs+k,hs+j,      ii) = fields(l,hs+k,hs+j,hs+0   );
+        });
+      }
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,hs) ,
+                                          YAKL_LAMBDA (int l, int k, int j, int ii) {
+          fields(l,hs+k,hs+j,hs+nx+ii) = fields(l,hs+k,hs+j,hs+nx-1);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,hs,nx) ,
+                                          YAKL_LAMBDA (int l, int k, int jj, int i) {
+          fields(l,hs+k,      jj,hs+i) = fields(l,hs+k,hs+0   ,hs+i);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,hs,nx) ,
+                                          YAKL_LAMBDA (int l, int k, int jj, int i) {
+          fields(l,hs+k,hs+ny+jj,hs+i) = fields(l,hs+k,hs+ny-1,hs+i);
+        });
+      }
+
       // z-direction BC's
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,

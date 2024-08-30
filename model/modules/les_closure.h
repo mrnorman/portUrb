@@ -55,7 +55,7 @@ namespace modules {
       for (int l=0; l < num_tracers; l++) { fields.add_field( tracers.slice<3>(l,0,0,0) ); }
       fields.add_field( tke );
       coupler.halo_exchange( fields , hs );
-      halo_bcs_z( coupler , state , tracers , tke );
+      halo_bcs( coupler , state , tracers , tke );
 
       real3d flux_ru_x     ("flux_ru_x"                 ,nz  ,ny  ,nx+1);
       real3d flux_rv_x     ("flux_rv_x"                 ,nz  ,ny  ,nx+1);
@@ -224,7 +224,7 @@ namespace modules {
         }
       });
 
-      halo_bcs_z( coupler , state , tracers , tke );
+      halo_bcs( coupler , state , tracers , tke );
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         real rho   = state(idR,hs+k,hs+j,hs+i);
@@ -411,7 +411,7 @@ namespace modules {
 
 
 
-    void halo_bcs_z( core::Coupler const & coupler ,
+    void halo_bcs( core::Coupler const & coupler ,
                      real4d        const & state   ,
                      real4d        const & tracers ,
                      real3d        const & tke     ) const {
@@ -435,6 +435,39 @@ namespace modules {
       auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
       auto surface_temp   = dm.get<real const,2>("surface_temp_halos");
       if (!enable_gravity) grav = 0;
+
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , YAKL_LAMBDA (int k, int j, int ii) {
+          for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+j,ii) = state  (l,hs+k,hs+j,hs+0);
+          for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+j,ii) = tracers(l,hs+k,hs+j,hs+0);
+          tke(hs+k,hs+j,ii) = tke(hs+k,hs+j,hs+0);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , YAKL_LAMBDA (int k, int j, int ii) {
+          for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+j,hs+nx+ii) = state  (l,hs+k,hs+j,hs+nx-1);
+          for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+j,hs+nx+ii) = tracers(l,hs+k,hs+j,hs+nx-1);
+          tke(hs+k,hs+j,hs+nx+ii) = tke(hs+k,hs+j,hs+nx-1);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , YAKL_LAMBDA (int k, int jj, int i) {
+          for (int l=0; l < num_state  ; l++) state  (l,hs+k,jj,hs+i) = state  (l,hs+k,hs+0,hs+i);
+          for (int l=0; l < num_tracers; l++) tracers(l,hs+k,jj,hs+i) = tracers(l,hs+k,hs+0,hs+i);
+          tke(hs+k,jj,hs+i) = tke(hs+k,hs+0,hs+i);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , YAKL_LAMBDA (int k, int jj, int i) {
+          for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+ny+jj,hs+i) = state  (l,hs+k,hs+ny-1,hs+i);
+          for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+ny+jj,hs+i) = tracers(l,hs+k,hs+ny-1,hs+i);
+          tke(hs+k,hs+ny+jj,hs+i) = tke(hs+k,hs+ny-1,hs+i);
+        });
+      }
+
       // z-direction BC's
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,

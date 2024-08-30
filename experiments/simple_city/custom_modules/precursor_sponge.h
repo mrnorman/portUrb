@@ -7,8 +7,6 @@ namespace custom_modules {
   
   inline void precursor_sponge( core::Coupler            & coupler_main      ,
                                 core::Coupler      const & coupler_precursor ,
-                                real                       dt                ,
-                                real                       time_scale        ,
                                 std::vector<std::string>   vnames            ,
                                 int                        cells_x1 = 0      ,
                                 int                        cells_x2 = 0      ,
@@ -35,14 +33,13 @@ namespace custom_modules {
 
     real p = 5;
 
-    real time_factor = dt / time_scale;
-
     if (cells_x1 > 0) {
       real i1 = 0;
       real i2 = cells_x1;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
         if (i_beg+i < cells_x1) {
           real weight = std::pow((i2-(i_beg+i))/(i2-i1),p);
+          if (i_beg+i == 0) weight = 1;
           fields_main(l,k,j,i) = weight*fields_precursor(l,k,j,i) + (1-weight)*fields_main(l,k,j,i);
         }
       });
@@ -53,6 +50,7 @@ namespace custom_modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
         if (nx_glob-1-(i_beg+i) < cells_x2) {
           real weight = std::pow(((i_beg+i)-i1)/(i2-i1),p);
+          if (i_beg+i == nx_glob-1) weight = 1;
           fields_main(l,k,j,i) = weight*fields_precursor(l,k,j,i) + (1-weight)*fields_main(l,k,j,i);
         }
       });
@@ -63,6 +61,7 @@ namespace custom_modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
         if (j_beg+j < cells_y1) {
           real weight = std::pow((j2-(j_beg+j))/(j2-j1),p);
+          if (j_beg+j == 0) weight = 1;
           fields_main(l,k,j,i) = weight*fields_precursor(l,k,j,i) + (1-weight)*fields_main(l,k,j,i);
         }
       });
@@ -73,6 +72,7 @@ namespace custom_modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
         if (ny_glob-1-(j_beg+j) < cells_y2) {
           real weight = std::pow(((j_beg+j)-j1)/(j2-j1),p);
+          if (j_beg+j == ny_glob-1) weight = 1;
           fields_main(l,k,j,i) = weight*fields_precursor(l,k,j,i) + (1-weight)*fields_main(l,k,j,i);
         }
       });

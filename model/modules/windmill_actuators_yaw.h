@@ -579,10 +579,6 @@ namespace modules {
           real instant_u0   = sums(0)*cos_yaw;
           real instant_v0   = sums(1)*sin_yaw;
           real instant_mag0 = std::sqrt(instant_u0*instant_u0+instant_v0*instant_v0);
-          // Compute inertial u and v at sampling disk
-          real inertial_tau = 30;
-          turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
-          turbine.v_samp_inertial = instant_v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
           // Compute inertial wind magnitude
           real inertial_u0   = turbine.u_samp_inertial;
           real inertial_v0   = turbine.v_samp_inertial;
@@ -611,6 +607,10 @@ namespace modules {
           } else {
             turbine.betti_trace.push_back( 0 );
           }
+          // Compute inertial u and v at sampling disk
+          real inertial_tau = 30;
+          turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
+          turbine.v_samp_inertial = instant_v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
           // Keep track of the turbine yaw angle and the power production for this time step
           turbine.yaw_trace   .push_back( turbine.yaw_angle );
           turbine.power_trace .push_back( pwr               );

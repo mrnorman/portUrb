@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         if (run_main) {
-          custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
+          custom_modules::precursor_sponge( coupler_main , coupler_prec ,
                                             {"density_dry","uvel","vvel","wvel","temp"} ,
                                             (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                             (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );

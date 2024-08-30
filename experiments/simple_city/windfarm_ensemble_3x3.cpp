@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
       real        ylen              = 3780;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
-      int         dyn_cycle         = 10;
+      int         dyn_cycle         = 1;
       std::string init_data         = "ABL_neutral2";
       real        out_freq          = 1800;
       real        inform_freq       = 10;
@@ -151,6 +151,9 @@ int main(int argc, char** argv) {
       coupler_main.clone_into(coupler_prec);
       /////////////////////////////////////////////////////////////////////////
 
+      coupler_main.set_option<std::string>("bc_x","precursor");
+      coupler_main.set_option<std::string>("bc_y","precursor");
+
       windmills         .init( coupler_main );
       time_averager_main.init( coupler_main );
 
@@ -199,7 +202,7 @@ int main(int argc, char** argv) {
         {
           using core::Coupler;
           if (run_main) {
-            custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
+            custom_modules::precursor_sponge( coupler_main , coupler_prec ,
                                               {"density_dry","uvel","vvel","wvel","temp"} ,
                                               (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                               (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );

@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     auto ylen        = 4000;
     auto zlen        = 1200;
     auto dtphys_in   = 0;    // Use dycore time step
-    auto dyn_cycle   = 10;
+    auto dyn_cycle   = 1;
     auto out_freq    = 1800;
     auto inform_freq = 10;
     auto out_prefix  = "ABL_neutral";

@@ -23,52 +23,56 @@ int main(int argc, char** argv) {
     coupler_main.set_option<std::string>("ensemble_stdout","ensemble_fixed-yaw-upstream" );
     coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed-yaw-upstream");
 
-    // This holds all of the model's variables, dimension sizes, and options
-    core::Ensembler ensembler;
+    // // This holds all of the model's variables, dimension sizes, and options
+    // core::Ensembler ensembler;
 
-    // Add wind dimension
-    {
-      auto func_nranks  = [=] (int ind) { return 1; };
-      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = ind+3;
-        coupler.set_option<real>("hub_height_wind_mag",wind);
-        ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
-        ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
-      };
-      ensembler.register_dimension( 23 , func_nranks , func_coupler );
-    }
+    // // Add wind dimension
+    // {
+    //   auto func_nranks  = [=] (int ind) { return 1; };
+    //   auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+    //     real wind = ind+3;
+    //     coupler.set_option<real>("hub_height_wind_mag",wind);
+    //     ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
+    //     ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
+    //   };
+    //   ensembler.register_dimension( 23 , func_nranks , func_coupler );
+    // }
 
-    // Add floating dimension
-    {
-      auto func_nranks  = [=] (int ind) { return 1; };
-      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        if (ind == 0) {
-          coupler.set_option<bool>( "turbine_floating_motions" , false );
-          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("fixed-"));
-          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("fixed-"));
-        } else {
-          coupler.set_option<bool>( "turbine_floating_motions" , true );
-          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("floating-"));
-          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("floating-"));
-        }
-      };
-      ensembler.register_dimension( 2 , func_nranks , func_coupler );
-    }
-    // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
+    // // Add floating dimension
+    // {
+    //   auto func_nranks  = [=] (int ind) { return 1; };
+    //   auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+    //     if (ind == 0) {
+    //       coupler.set_option<bool>( "turbine_floating_motions" , false );
+    //       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("fixed-"));
+    //       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("fixed-"));
+    //     } else {
+    //       coupler.set_option<bool>( "turbine_floating_motions" , true );
+    //       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("floating-"));
+    //       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("floating-"));
+    //     }
+    //   };
+    //   ensembler.register_dimension( 2 , func_nranks , func_coupler );
+    // }
+    // // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 2 , MPI_COMM_WORLD );
-    // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
+    // auto par_comm = ensembler.create_coupler_comm( coupler_main , 2 , MPI_COMM_WORLD );
+    // // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
-    auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
-    std::cout.rdbuf(ostr.rdbuf());
-    std::cerr.rdbuf(ostr.rdbuf());
+    // auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
+    // std::cout.rdbuf(ostr.rdbuf());
+    // std::cerr.rdbuf(ostr.rdbuf());
+
+    core::ParallelComm par_comm(MPI_COMM_WORLD);
+    coupler_main.set_option<real>("hub_height_wind_mag",12);
+    coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
     if (par_comm.valid()) {
       yakl::timer_start("main");
 
-      std::cout << "Ensemble memeber using an initial hub wind speed of ["
-                << coupler_main.get_option<real>("hub_height_wind_mag")
-                << "] m/s" << std::endl;
+      if (coupler_main.is_mainproc()) std::cout << "Ensemble memeber using an initial hub wind speed of ["
+                                                << coupler_main.get_option<real>("hub_height_wind_mag")
+                                                << "] m/s" << std::endl;
       real        sim_time          = 3600*24+1;
       int         nx_glob           = 500;
       int         ny_glob           = 100;
@@ -77,9 +81,9 @@ int main(int argc, char** argv) {
       real        ylen              = 1000;
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
-      int         dyn_cycle         = 10;
+      int         dyn_cycle         = 1;
       std::string init_data         = "ABL_neutral2";
-      real        out_freq          = 1800;
+      real        out_freq          = 100;
       real        inform_freq       = 10;
       std::string out_prefix        = coupler_main.get_option<std::string>("out_prefix");
       std::string out_prefix_prec   = out_prefix+std::string("_precursor");
@@ -143,6 +147,9 @@ int main(int argc, char** argv) {
       coupler_main.clone_into(coupler_prec);
       /////////////////////////////////////////////////////////////////////////
 
+      coupler_main.set_option<std::string>("bc_x","precursor");
+      coupler_main.set_option<std::string>("bc_y","precursor");
+
       windmills         .init( coupler_main );
       time_averager_main.init( coupler_main );
 
@@ -191,7 +198,7 @@ int main(int argc, char** argv) {
         {
           using core::Coupler;
           if (run_main) {
-            custom_modules::precursor_sponge( coupler_main , coupler_prec , dt , dt*100 ,
+            custom_modules::precursor_sponge( coupler_main , coupler_prec ,
                                               {"density_dry","uvel","vvel","wvel","temp"} ,
                                               (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                               (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );

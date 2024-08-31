@@ -252,8 +252,7 @@ namespace modules {
     // Class data members
     TurbineGroup  turbine_group;
     int           trace_size;
-    real          etime;
-    std::mt19937  gen;
+    int           sample_counter;
 
 
     void init( core::Coupler &coupler ) {
@@ -383,11 +382,7 @@ namespace modules {
         }
         trace_size = 0;
       });
-
-      etime = 0;
-
-      std::random_device rd{};
-      gen = std::mt19937{rd()};
+      sample_counter = 0;
     }
 
 
@@ -493,35 +488,35 @@ namespace modules {
           real2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {
             real xr = 5*dx;
-            int nper  = 100;
-            int num_x = 50;
-            int num_y = 1000;
-            int num_z = 1000;
+            int num_x = std::round(xr*2);
+            int num_y = std::round(rad*2);
+            int num_z = std::round(rad*2);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
               real x = -xr  + (2*xr *i)/(num_x-1);
               real y = -rad + (2*rad*j)/(num_y-1);
               real z = -rad + (2*rad*k)/(num_z-1);
-              real proj1d = proj_shape_1d(x,xr);
-              // Now rotate x and y according to the yaw angle, and translate to base location
-              real xp = base_x     + cos_yaw*x - sin_yaw*y;
-              real yp = base_y     + sin_yaw*x + cos_yaw*y;
-              real zp = hub_height + z;
-              // if it's in this task's domain, then increment the appropriate cell count atomically
-              int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
-              int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
-              int tk = static_cast<int>(std::round(zp/dz-0.5      ));
-              if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad) yakl::atomicAdd( disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
-              }
-              xp += upstream_x_offset;
-              yp += upstream_y_offset;
-              ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
-              tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
-              tk = static_cast<int>(std::round(zp/dz-0.5      ));
-              if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                real rloc = std::sqrt(y*y+z*z);
-                if (rloc <= rad) yakl::atomicAdd( disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+              real rloc = std::sqrt(y*y+z*z);
+              if (rloc <= rad) {
+                real proj1d = proj_shape_1d(x,xr);
+                // Now rotate x and y according to the yaw angle, and translate to base location
+                real xp = base_x     + cos_yaw*x - sin_yaw*y;
+                real yp = base_y     + sin_yaw*x + cos_yaw*y;
+                real zp = hub_height + z;
+                // if it's in this task's domain, then increment the appropriate cell count atomically
+                int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
+                int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
+                int tk = static_cast<int>(std::round(zp/dz-0.5      ));
+                if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
+                  yakl::atomicAdd( disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+                }
+                xp += upstream_x_offset;
+                yp += upstream_y_offset;
+                ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
+                tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
+                tk = static_cast<int>(std::round(zp/dz-0.5      ));
+                if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
+                  yakl::atomicAdd( disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+                }
               }
             });
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
@@ -537,9 +532,6 @@ namespace modules {
               }
             });
           }
-          #ifdef YAKL_AUTO_PROFILE
-            yakl::timer_start("disk_and_betti");
-          #endif
           using yakl::componentwise::operator>;
           yakl::SArray<real,1,4> weights_tot2;
           weights_tot2(0) = yakl::intrinsics::sum(umag_19_5m_2d);
@@ -604,9 +596,6 @@ namespace modules {
           //////////////////////////////////////////////////////////////////
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
-          #ifdef YAKL_AUTO_PROFILE
-            yakl::timer_start("betti");
-          #endif
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
             real betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
             turbine.betti_trace.push_back( betti_pert );
@@ -618,9 +607,6 @@ namespace modules {
           } else {
             turbine.betti_trace.push_back( 0 );
           }
-          #ifdef YAKL_AUTO_PROFILE
-            yakl::timer_stop("betti");
-          #endif
           // Compute inertial u and v at sampling disk
           real inertial_tau = 30;
           turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
@@ -635,9 +621,6 @@ namespace modules {
           // Fraction of thrust that didn't generate power to send into TKE
           real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
           real C_TKE = f_TKE * (C_T - C_P);
-          #ifdef YAKL_AUTO_PROFILE
-            yakl::timer_stop("disk_and_betti");
-          #endif
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
@@ -677,7 +660,6 @@ namespace modules {
 
       // So all tasks know how large the trace is. Makes PNetCDF output easier to manage
       trace_size++;
-      etime += dt;
     }
 
 

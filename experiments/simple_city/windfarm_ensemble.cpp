@@ -8,7 +8,6 @@
 #include "surface_flux.h"
 #include "perturb_temperature.h"
 #include "precursor_sponge.h"
-#include "sponge_layer.h"
 #include "uniform_pg_wind_forcing.h"
 #include "Ensembler.h"
 
@@ -30,13 +29,14 @@ int main(int argc, char** argv) {
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = ind+3;
+        real wind = ind*2+5;
         coupler.set_option<real>("hub_height_wind_mag",wind);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
       };
-      ensembler.register_dimension( 23 , func_nranks , func_coupler );
+      ensembler.register_dimension( 10 , func_nranks , func_coupler );
     }
+    // coupler_main.set_option<real>("hub_height_wind_mag",12);
 
     // Add floating dimension
     {
@@ -56,10 +56,12 @@ int main(int argc, char** argv) {
     }
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 6 , MPI_COMM_WORLD );
-    // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
+    // // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
+    auto orig_cout_buf = std::cout.rdbuf();
+    auto orig_cerr_buf = std::cerr.rdbuf();
     std::cout.rdbuf(ostr.rdbuf());
     std::cerr.rdbuf(ostr.rdbuf());
 
@@ -73,7 +75,7 @@ int main(int argc, char** argv) {
       if (coupler_main.is_mainproc()) std::cout << "Ensemble memeber using an initial hub wind speed of ["
                                                 << coupler_main.get_option<real>("hub_height_wind_mag")
                                                 << "] m/s" << std::endl;
-      real        sim_time          = 3600*12+1;
+      real        sim_time          = 3600*24+1;
       int         nx_glob           = 500;
       int         ny_glob           = 100;
       int         nz                = 60;
@@ -239,8 +241,12 @@ int main(int argc, char** argv) {
       } // End main simulation loop
       yakl::timer_stop("main");
     } // if (par_comm.valid()) 
+
+    std::cout.rdbuf(orig_cout_buf);
+    std::cerr.rdbuf(orig_cerr_buf);
   }
   yakl::finalize();
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 }
 

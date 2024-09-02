@@ -386,9 +386,21 @@ namespace modules {
       auto hy_theta_cells = dm.get<float const,1>("hy_theta_cells"); // Hydrostatic potential temperature
       auto immersed_prop  = dm.get<real const,3>("dycore_immersed_proportion_halos"); // Immersed Proportion
 
-      real immersed_tau = dt;
-
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        real immersed_tau = dt;
+        if        ( immersed_prop(hs+k  ,hs+j  ,hs+i-1) == 0 || immersed_prop(hs+k  ,hs+j  ,hs+i+1) == 0 || 
+                    immersed_prop(hs+k  ,hs+j-1,hs+i  ) == 0 || immersed_prop(hs+k  ,hs+j+1,hs+i  ) == 0 || 
+                    immersed_prop(hs+k-1,hs+j  ,hs+i  ) == 0 || immersed_prop(hs+k+1,hs+j  ,hs+i  ) == 0 ) {
+          immersed_tau = dt*8;
+        } else if ( immersed_prop(hs+k  ,hs+j  ,hs+i-2) == 0 || immersed_prop(hs+k  ,hs+j  ,hs+i+2) == 0 || 
+                    immersed_prop(hs+k  ,hs+j-2,hs+i  ) == 0 || immersed_prop(hs+k  ,hs+j+2,hs+i  ) == 0 || 
+                    immersed_prop(hs+k-2,hs+j  ,hs+i  ) == 0 || immersed_prop(hs+k+2,hs+j  ,hs+i  ) == 0 ) {
+          immersed_tau = dt*4;
+        } else if ( immersed_prop(hs+k  ,hs+j  ,hs+i-3) == 0 || immersed_prop(hs+k  ,hs+j  ,hs+i+3) == 0 || 
+                    immersed_prop(hs+k  ,hs+j-3,hs+i  ) == 0 || immersed_prop(hs+k  ,hs+j+3,hs+i  ) == 0 || 
+                    immersed_prop(hs+k-3,hs+j  ,hs+i  ) == 0 || immersed_prop(hs+k+3,hs+j  ,hs+i  ) == 0 ) {
+          immersed_tau = dt*2;
+        }
         real mult = dt/immersed_tau * std::pow( immersed_prop(hs+k,hs+j,hs+i) , immersed_power );
         // TODO: Find a way to calculate drag in here
         // Density

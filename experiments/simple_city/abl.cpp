@@ -5,7 +5,6 @@
 #include "sc_init.h"
 #include "les_closure.h"
 #include "surface_flux.h"
-#include "column_nudging.h"
 #include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
 
@@ -75,7 +74,6 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV     dycore;
     custom_modules::Time_Averager                 time_averager;
     modules::LES_Closure                          les_closure;
-    modules::ColumnNudger                         column_nudger;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -86,7 +84,6 @@ int main(int argc, char** argv) {
     les_closure  .init          ( coupler );
     dycore       .init          ( coupler ); // Dycore should initialize its own state here
     time_averager.init          ( coupler );
-    column_nudger.set_column    ( coupler , {"uvel"} );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -116,14 +113,12 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        // auto run_nudger    = [&] (Coupler &c) { column_nudger.nudge_to_column    (c,dt,dt*100)    };
         auto run_geo       = [&] (Coupler &c) { modules::geostrophic_wind_forcing(c,dt,lat_g,u_g,v_g); };
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step                 (c,dt);               };
         auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer            (c,dt,dt*100,10);     };
         auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes    (c,dt);               };
         auto run_les       = [&] (Coupler &c) { les_closure.apply                (c,dt);               };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate         (c,dt);               };
-        // coupler.run_module( run_nudger    , "column_nudger"       );
         coupler.run_module( run_geo       , "geostrophic_forcing" );
         coupler.run_module( run_dycore    , "dycore"              );
         coupler.run_module( run_sponge    , "sponge"              );

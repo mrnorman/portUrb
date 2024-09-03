@@ -535,6 +535,7 @@ namespace modules {
       halo_boundary_conditions( coupler , fields_loc );
 
       typedef limiter::WenoLimiter<float,ord> Limiter;
+      typedef limiter::WenoLimiter<float,3> Limiter3;
 
       // Create arrays to hold cell interface interpolations
       float5d limits_x("limits_x",2,num_state+num_tracers+1,nz,ny,nx+1);
@@ -550,7 +551,12 @@ namespace modules {
           stencil (ii) = fields_loc (l,hs+k,hs+j,i+ii);
         }
         if (l == idV || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        if (any_immersed(k,j,i) || weno_all) {
+        if (immersed_prop(hs+k,hs+j,hs+i) > 0) {
+          SArray<float,1,3> sten3;
+          for (int ii=-1; ii <= 1; ii++) { sten3(ii+1) = stencil(hs+ii); }
+          Limiter3::compute_limited_edges( sten3 , limits_x(1,l,k,j,i) , limits_x(0,l,k,j,i+1) ,
+                                           { false , false , false } );
+        } else if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_x(1,l,k,j,i) , limits_x(0,l,k,j,i+1) ,
                                           { !any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1) } );
         } else {
@@ -568,7 +574,12 @@ namespace modules {
           stencil (jj) = fields_loc (l,hs+k,j+jj,hs+i);
         }
         if (l == idU || l == idW || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        if (any_immersed(k,j,i) || weno_all) {
+        if (immersed_prop(hs+k,hs+j,hs+i) > 0) {
+          SArray<float,1,3> sten3;
+          for (int jj=-1; jj <= 1; jj++) { sten3(jj+1) = stencil(hs+jj); }
+          Limiter3::compute_limited_edges( sten3 , limits_y(1,l,k,j,i) , limits_y(0,l,k,j+1,i) ,
+                                           { false , false , false } );
+        } else if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_y(1,l,k,j,i) , limits_y(0,l,k,j+1,i) ,
                                           { !any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1) } );
         } else {
@@ -586,7 +597,12 @@ namespace modules {
           stencil (kk) = fields_loc (l,k+kk,hs+j,hs+i);
         }
         if (l == idU || l == idV || l == idP) modify_stencil_immersed_der0( stencil , immersed );
-        if (any_immersed(k,j,i) || weno_all) {
+        if (immersed_prop(hs+k,hs+j,hs+i) > 0) {
+          SArray<float,1,3> sten3;
+          for (int kk=-1; kk <= 1; kk++) { sten3(kk+1) = stencil(hs+kk); }
+          Limiter3::compute_limited_edges( sten3 , limits_z(1,l,k,j,i) , limits_z(0,l,k+1,j,i) ,
+                                           { false , false , false } );
+        } else if (any_immersed(k,j,i) || weno_all) {
           Limiter::compute_limited_edges( stencil , limits_z(1,l,k,j,i) , limits_z(0,l,k+1,j,i) ,
                                           { !any_immersed(k,j,i) , immersed(hs-1) , immersed(hs+1) } );
         } else {

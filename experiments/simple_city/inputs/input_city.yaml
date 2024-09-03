@@ -35,6 +35,14 @@ roughness: 0.002
 
 use_weno: true
 
-dyn_cycle: 10
+geostrophic_u  : 9
+geostrophic_v  : 0
+geostrophic_lat: 33.5
+
+dyn_cycle: 1
+
+cfl: 0.6
+
+enable_gravity: true
 
 

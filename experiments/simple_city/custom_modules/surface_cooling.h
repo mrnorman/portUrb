@@ -1,0 +1,28 @@
+#pragma once
+
+#include "coupler.h"
+
+namespace custom_modules {
+  
+  inline void surface_cooling( core::Coupler &coupler , real dt ) {
+    using yakl::c::parallel_for;
+    using yakl::c::SimpleBounds;
+    if (coupler.option_exists("standalone_input_file")) {
+      YAML::Node config = YAML::LoadFile(coupler.get_option<std::string>("standalone_input_file"));
+      real rate = config["surface_cooling_rate"].as<real>(0.);
+      auto sfc_temp       = coupler.get_data_manager_readwrite().get<real,2>("surface_temp"       );
+      auto sfc_temp_halos = coupler.get_data_manager_readwrite().get<real,2>("surface_temp_halos" );
+      auto sfc_imm_temp   = coupler.get_data_manager_readwrite().get<real,3>("immersed_temp_halos").slice<2>(0,0,0);
+      int ny = sfc_temp_halos.extent(0);
+      int nx = sfc_temp_halos.extent(1);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
+        if (j < ny && i < nx) sfc_temp(j,i) -= dt*rate/3600;
+        sfc_temp_halos(j,i) -= dt*rate/3600;
+        sfc_imm_temp  (j,i) -= dt*rate/3600;
+      });
+    }
+  }
+
+}
+
+

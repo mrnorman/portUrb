@@ -7,64 +7,86 @@ import xarray
 def get_ind(arr,val) :
     return np.argmin(np.abs(arr-val))
 
-t1 = 1
-t2 = 1
+t1 = 2
+t2 = 4
 times = [str(i).zfill(7) for i in range(t1,t2+1)]
 
-winds = [i for i in range(3,26)]
+winds = [i for i in range(5,24,2)]
 
 N = len(winds)
 
-prefixes_fixed = [ "turbulent_fixed-yaw-upstream_wind-3.000000_fixed-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-4.000000_fixed-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-5.000000_fixed-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-6.000000_fixed-_"  ,\
+# prefixes_fixed = [ "turbulent_fixed-yaw-upstream_wind-3.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-4.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-5.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-6.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-7.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-8.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-9.000000_fixed-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-10.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-11.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-12.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-13.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-14.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-15.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-16.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-17.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-18.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-19.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-20.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-21.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-22.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-23.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-24.000000_fixed-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-25.000000_fixed-_" ]
+# 
+# prefixes_float = [ "turbulent_fixed-yaw-upstream_wind-3.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-4.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-5.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-6.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-7.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-8.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-9.000000_floating-_"  ,\
+#                    "turbulent_fixed-yaw-upstream_wind-10.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-11.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-12.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-13.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-14.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-15.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-16.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-17.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-18.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-19.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-20.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-21.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-22.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-23.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-24.000000_floating-_" ,\
+#                    "turbulent_fixed-yaw-upstream_wind-25.000000_floating-_" ]
+
+prefixes_fixed = [ "turbulent_fixed-yaw-upstream_wind-5.000000_fixed-_"  ,\
                    "turbulent_fixed-yaw-upstream_wind-7.000000_fixed-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-8.000000_fixed-_"  ,\
                    "turbulent_fixed-yaw-upstream_wind-9.000000_fixed-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-10.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-11.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-12.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-13.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-14.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-15.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-16.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-17.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-18.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-19.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-20.000000_fixed-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-21.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-22.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-23.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-24.000000_fixed-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-25.000000_fixed-_" ]
+                   "turbulent_fixed-yaw-upstream_wind-23.000000_fixed-_" ]
 
-prefixes_float = [ "turbulent_fixed-yaw-upstream_wind-3.000000_floating-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-4.000000_floating-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-5.000000_floating-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-6.000000_floating-_"  ,\
+prefixes_float = [ "turbulent_fixed-yaw-upstream_wind-5.000000_floating-_"  ,\
                    "turbulent_fixed-yaw-upstream_wind-7.000000_floating-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-8.000000_floating-_"  ,\
                    "turbulent_fixed-yaw-upstream_wind-9.000000_floating-_"  ,\
-                   "turbulent_fixed-yaw-upstream_wind-10.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-11.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-12.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-13.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-14.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-15.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-16.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-17.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-18.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-19.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-20.000000_floating-_" ,\
                    "turbulent_fixed-yaw-upstream_wind-21.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-22.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-23.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-24.000000_floating-_" ,\
-                   "turbulent_fixed-yaw-upstream_wind-25.000000_floating-_" ]
+                   "turbulent_fixed-yaw-upstream_wind-23.000000_floating-_" ]
 
-nc_fixed = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(4,10)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
-nc_float = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(4,10)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
+nc_fixed = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(12,24)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_fixed]
+nc_float = [xarray.open_mfdataset([prefix+"000000"+str(i).zfill(2)+".nc" for i in range(12,24)],concat_dim="num_time_steps",combine="nested") for prefix in prefixes_float]
 
 x = np.array(nc_fixed[0]["x"])
 y = np.array(nc_fixed[0]["y"])
@@ -85,8 +107,8 @@ wind_std_fixed = np.array([0. for i in range(N)])
 wind_std_float = np.array([0. for i in range(N)])
 for i in range(N) :
   print(winds[i])
-  var_fixed = np.array(nc_fixed[i]["u_samp_trace_turb_3"])
-  var_float = np.array(nc_float[i]["u_samp_trace_turb_3"])
+  var_fixed = np.array(nc_fixed[i]["u_samp_trace_turb_1"])
+  var_float = np.array(nc_float[i]["u_samp_trace_turb_1"])
   wind_mean_fixed[i] = np.mean(var_fixed)
   wind_mean_float[i] = np.mean(var_float)
   wind_std_fixed[i] = np.std(var_fixed)
@@ -140,18 +162,19 @@ for i in range(N) :
   #   plt.close()
 
 print(wind_mean_float-wind_mean_fixed)
+print(wind_std_float-wind_std_fixed)
 
-plt.plot(winds,wind_mean_float-wind_mean_fixed,label="wind_mean (float-fixed)")
-plt.legend()
-plt.xlabel("Average Hub Height Wind Speed (m/s)")
-plt.grid()
-plt.show()
-plt.close()
-
-
-plt.plot(winds,wind_std_float-wind_std_fixed,label="wind_std (float-fixed)")
-plt.legend()
-plt.xlabel("Average Hub Height Wind Speed (m/s)")
-plt.grid()
-plt.show()
-plt.close()
+# plt.plot(winds,wind_mean_float-wind_mean_fixed,label="wind_mean (float-fixed)")
+# plt.legend()
+# plt.xlabel("Average Hub Height Wind Speed (m/s)")
+# plt.grid()
+# plt.show()
+# plt.close()
+# 
+# 
+# plt.plot(winds,wind_std_float-wind_std_fixed,label="wind_std (float-fixed)")
+# plt.legend()
+# plt.xlabel("Average Hub Height Wind Speed (m/s)")
+# plt.grid()
+# plt.show()
+# plt.close()

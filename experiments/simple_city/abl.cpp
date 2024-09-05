@@ -7,6 +7,7 @@
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
+#include "surface_cooling.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -119,12 +120,14 @@ int main(int argc, char** argv) {
         auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes    (c,dt);               };
         auto run_les       = [&] (Coupler &c) { les_closure.apply                (c,dt);               };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate         (c,dt);               };
+        auto run_sfc_cool  = [&] (Coupler &c) { custom_modules::surface_cooling  (c,dt);               };
         coupler.run_module( run_geo       , "geostrophic_forcing" );
         coupler.run_module( run_dycore    , "dycore"              );
         coupler.run_module( run_sponge    , "sponge"              );
         coupler.run_module( run_surf_flux , "surface_fluxes"      );
         coupler.run_module( run_les       , "les_closure"         );
         coupler.run_module( run_tavg      , "time_averager"       );
+        coupler.run_module( run_sfc_cool  , "surface_cooling"     );
       }
 
       // Update time step

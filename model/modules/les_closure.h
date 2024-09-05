@@ -433,7 +433,6 @@ namespace modules {
       auto C0             = coupler.get_option<real>("C0");
       auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
       auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
-      auto surface_temp   = dm.get<real const,2>("surface_temp_halos");
       if (!enable_gravity) grav = 0;
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
@@ -475,7 +474,7 @@ namespace modules {
           state(idU,      kk,j,i) = state(idU,hs+0   ,j,i);
           state(idV,      kk,j,i) = state(idV,hs+0   ,j,i);
           state(idW,      kk,j,i) = 0;
-          state(idT,      kk,j,i) = surface_temp(     j,i);
+          state(idT,      kk,j,i) = state(idT,hs+0   ,j,i);
           tke  (          kk,j,i) = tke  (    hs+0   ,j,i);
           state(idU,hs+nz+kk,j,i) = state(idU,hs+nz-1,j,i);
           state(idV,hs+nz+kk,j,i) = state(idV,hs+nz-1,j,i);
@@ -490,7 +489,7 @@ namespace modules {
             int  k0       = hs;
             int  k        = k0-1-kk;
             real rho0     = state(idR,k0,j,i);
-            real theta0   = surface_temp(j,i) == 0 ? state(idT,k0,j,i) : surface_temp(j,i);
+            real theta0   = state(idT,k0,j,i);
             real rho0_gm1 = std::pow(rho0  ,gamma-1);
             real theta0_g = std::pow(theta0,gamma  );
             state(idR,k,j,i) = std::pow( rho0_gm1 + grav*(gamma-1)*dz*(kk+1)/(gamma*C0*theta0_g) ,
@@ -556,7 +555,6 @@ namespace modules {
       auto C0             = coupler.get_option<real>("C0");
       auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
       auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
-      auto surface_temp   = dm.get<real const,2>("surface_temp_halos");
       // z-direction BC's
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,

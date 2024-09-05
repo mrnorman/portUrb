@@ -15,7 +15,7 @@ zlen: 400
 init_data: ABL_stable
 
 # Output filename
-out_prefix: abl_stable_2m
+out_prefix: abl_stable_4m
 
 # CRM physics time step
 dt_phys: 0.
@@ -27,9 +27,9 @@ inform_freq: 10.
 
 latitude: 0.
 
-is_restart: true
+is_restart: false
 
-restart_file: abl_stable_2m_00000013.nc
+restart_file: 
 
 roughness: 0.05
 
@@ -39,5 +39,6 @@ geostrophic_u  : 8
 geostrophic_v  : 0
 geostrophic_lat: 73
 
-convective_khf: -6.923673424e-8
+convective_khf: 0
+surface_cooling_rate: 0.25
 

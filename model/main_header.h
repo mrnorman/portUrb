@@ -55,7 +55,7 @@ template <class T> inline void debug_print_avg( T var , char const * file , int 
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": avg(" << varname << ")  -->  " << yakl::intrinsics::sum( var )/var.size() << std::endl;
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": avg(" << varname << ")  -->  " << std::scientific << std::setprecision(17) << yakl::intrinsics::sum( var )/var.size() << std::endl;
 }
 
 template <class T> inline void debug_print_min( T var , char const * file , int line , char const * varname ) {

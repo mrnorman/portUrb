@@ -736,7 +736,6 @@ namespace modules {
       auto &dm             = coupler.get_data_manager_readonly();
       auto hy_dens_cells   = dm.get<float const,1>("hy_dens_cells" );
       auto hy_theta_cells  = dm.get<float const,1>("hy_theta_cells");
-      auto surface_temp    = dm.get<real const,2>("surface_temp");
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,hs) ,
@@ -811,7 +810,6 @@ namespace modules {
       auto &dm            = coupler.get_data_manager_readonly();
       auto hy_dens_edges  = dm.get<float const,1>("hy_dens_edges" );
       auto hy_theta_edges = dm.get<float const,1>("hy_theta_edges");
-      auto surface_temp   = dm.get<real const,2>("surface_temp"  );
       int npack = num_state + num_tracers + 1;
 
       // x-exchange
@@ -1162,7 +1160,6 @@ namespace modules {
         real4d tracers("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
         convert_coupler_to_dynamics( coupler , state , tracers );
         std::vector<MPI_Offset> start_3d = {0,(MPI_Offset)j_beg,(MPI_Offset)i_beg};
-        using yakl::componentwise::operator/;
         real3d data("data",nz,ny,nx);
         auto hy_dens_cells = dm.get<float const,1>("hy_dens_cells");
         yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {

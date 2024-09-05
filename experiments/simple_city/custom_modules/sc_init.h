@@ -350,39 +350,9 @@ namespace custom_modules {
         if   (z <  100) { return 265;              }
         else            { return 265+0.01*(z-100); }
       };
-      // Integrate RHS over GLL interval using GLL quadrature
-      real cst = -grav*std::pow( p0 , R_d/cp_d ) / cp_d;
-      real2d rhs("rhs",nz,nqpoints-1);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,nqpoints-1) , YAKL_LAMBDA (int k1, int k2) {
-        real z1 = (k1+0.5_fp)*dz + qpoints(k2  )*dz;
-        real z2 = (k1+0.5_fp)*dz + qpoints(k2+1)*dz;
-        rhs(k1,k2) = 0;
-        for (int k3 = 0; k3 < nqpoints; k3++) {
-          real z = 0.5_fp*(z1+z2) + qpoints(k3)*(z2-z1);
-          rhs(k1,k2) += cst/compute_theta(z) * qweights(k3);
-        }
-        rhs(k1,k2) *= (z2-z1);
-      });
-      auto rhs_host = rhs.createHostCopy();
-      realHost2d pressGLL_host("pressGLL",nz,nqpoints);
-      // Sum the pressure using RHS, and apply the correct power. Prefix sum over low dimensions, so do on host
-      pressGLL_host(0,0) = std::pow( p0 , R_d/cp_d );
-      for (int k = 0; k < nz; k++) {
-        for (int kk = 0; kk < nqpoints-1; kk++) {
-          pressGLL_host(k,kk+1) = pressGLL_host(k,kk) + rhs_host(k,kk);
-        }
-        if (k < nz-1) {
-          pressGLL_host(k+1,0) = pressGLL_host(k,nqpoints-1);
-        }
-      }
-      for (int k = 0; k < nz; k++) {
-        for (int kk = 0; kk < nqpoints; kk++) { 
-          pressGLL_host(k,kk) = std::pow( pressGLL_host(k,kk) , cp_d/R_d );
-        }
-      }
-      auto pressGLL = pressGLL_host.createDeviceCopy();
-      auto u_g = coupler.get_option<real>("geostrophic_u",10.);
-      auto v_g = coupler.get_option<real>("geostrophic_v",0. );
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
+      auto u_g = coupler.get_option<real>("geostrophic_u",8.);
+      auto v_g = coupler.get_option<real>("geostrophic_v",0.);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
@@ -412,6 +382,7 @@ namespace custom_modules {
         yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
         if ((k+0.5_fp)*dz <= 50) dm_temp(k,j,i) += rand.genFP<real>(-0.10,0.10);
         if (k == 0) dm_surface_temp(j,i) = 265;
+        if (k == 0) dm_surface_khf (j,i) = 0;
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {

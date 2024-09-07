@@ -112,13 +112,13 @@ namespace modules {
             real dt_dx = (state(idT,hs+k,hs+j,hs+i) - state(idT,hs+k,hs+j,hs+i-1))/dx;
             real dK_dx = (tke      (hs+k,hs+j,hs+i) - tke      (hs+k,hs+j,hs+i-1))/dx;
             // Quantities at interface i-1/2
-            real rho  = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1) + state(idR,hs+k,hs+j,hs+i) );
-            real K    = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1) + tke      (hs+k,hs+j,hs+i) );
-            real t    = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1) + state(idT,hs+k,hs+j,hs+i) );
-            real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
-            real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-            real km   = 0.1_fp * ell * std::sqrt(K);
-            real Pr_t = delta / (1+2*ell);
+            real rho         = 0.5_fp * ( state(idR,hs+k,hs+j,hs+i-1) + state(idR,hs+k,hs+j,hs+i) );
+            real K           = 0.5_fp * ( tke      (hs+k,hs+j,hs+i-1) + tke      (hs+k,hs+j,hs+i) );
+            real t           = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1) + state(idT,hs+k,hs+j,hs+i) );
+            real N           = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
+            real ell         = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
+            real km          = 0.1_fp * ell * std::sqrt(K);
+            real Pr_t        = delta / (1+2*ell);
             real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_x );
             real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_x );
             flux_ru_x (k,j,i) = -rho*visc_tot   *(du_dx + du_dx - 2._fp/3._fp*(du_dx+dv_dy+dw_dz));
@@ -360,7 +360,7 @@ namespace modules {
         state(idV,hs+k,hs+j,hs+i) = dm_vvel(k,j,i);
         state(idW,hs+k,hs+j,hs+i) = dm_wvel(k,j,i);
         state(idT,hs+k,hs+j,hs+i) = pow( rho_d*R_d*dm_temp(k,j,i)/C0 , 1._fp / gamma ) / rho_d;
-        tke      (hs+k,hs+j,hs+i) = dm_tke (k,j,i) / rho_d;
+        tke      (hs+k,hs+j,hs+i) = std::max( 0._fp , dm_tke (k,j,i) / rho_d );
         for (int tr=0; tr < num_tracers; tr++) { tracers(tr,hs+k,hs+j,hs+i) = dm_tracers(tr,k,j,i)/rho_d; }
       });
     }

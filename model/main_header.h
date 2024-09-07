@@ -15,7 +15,7 @@ using yakl::Array;
 using yakl::SArray;
 
 template <class T, int N>
-void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int line) {
+inline void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int line) {
   yakl::ScalarLiveOut<bool> nan_present(false);
   yakl::c::parallel_for( YAKL_AUTO_LABEL() , arr.size() , YAKL_LAMBDA (int i) {
     if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
@@ -24,12 +24,12 @@ void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int 
 }
 
 template <class T, typename std::enable_if<std::is_arithmetic<T>::value,bool>::type = false>
-void check_for_nan_inf(T val , std::string file , int line) {
+inline void check_for_nan_inf(T val , std::string file , int line) {
   if ( std::isnan(val) || !std::isfinite(val) ) std::cerr << file << ":" << line << " is NaN or inf" << std::endl;
 }
 
 template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
-void check_for_nan_inf(SArray<T,N,D0,D1,D2,D3> const & arr , std::string file , int line) {
+inline void check_for_nan_inf(SArray<T,N,D0,D1,D2,D3> const & arr , std::string file , int line) {
   bool nan_present = false;
   for (int i=0; i < arr.size(); i++) {
     if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
@@ -85,6 +85,8 @@ template <class T> inline void debug_print_val( T var , char const * file , int 
 #define DEBUG_PRINT_MAIN_MIN(var) { debug_print_min((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_MAX(var) { debug_print_max((var),__FILE__,__LINE__,#var); }
 #define DEBUG_PRINT_MAIN_VAL(var) { debug_print_val((var),__FILE__,__LINE__,#var); }
+
+#define DEBUG_NAN_INF_VAL(var) { if (std::isnan(var) || !std::isfinite(var)) { printf("WARNING: " #var " has a NaN or inf\n"); } }
 
 
 int constexpr max_fields = 50;

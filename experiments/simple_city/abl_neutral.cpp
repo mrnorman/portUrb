@@ -14,13 +14,13 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    auto sim_time    = 3600*8+1;
-    auto nx_glob     = 400;
-    auto ny_glob     = 400;
-    auto nz          = 120;
+    auto sim_time    = 3600*10+1;
+    auto nx_glob     = 800;
+    auto ny_glob     = 800;
+    auto nz          = 200;
     auto xlen        = 4000;
     auto ylen        = 4000;
-    auto zlen        = 1200;
+    auto zlen        = 1000;
     auto dtphys_in   = 0;    // Use dycore time step
     auto dyn_cycle   = 1;
     auto out_freq    = 1800;

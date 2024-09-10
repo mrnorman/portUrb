@@ -15,9 +15,9 @@ int main(int argc, char** argv) {
     yakl::timer_start("main");
 
     auto sim_time    = 3600*3+1;
-    auto nx_glob     = 600;
-    auto ny_glob     = 600;
-    auto nz          = 300;
+    auto nx_glob     = 1200;
+    auto ny_glob     = 1200;
+    auto nz          = 600;
     auto xlen        = 6000;
     auto ylen        = 6000;
     auto zlen        = 3000;

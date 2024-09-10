@@ -13,9 +13,10 @@ namespace custom_modules {
       auto sfc_temp       = coupler.get_data_manager_readwrite().get<real,2>("surface_temp"       );
       auto sfc_temp_halos = coupler.get_data_manager_readwrite().get<real,2>("surface_temp_halos" );
       auto sfc_imm_temp   = coupler.get_data_manager_readwrite().get<real,3>("immersed_temp_halos").slice<2>(0,0,0);
-      int ny = sfc_temp_halos.extent(0);
-      int nx = sfc_temp_halos.extent(1);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
+      int nx = coupler.get_nx();
+      int ny = coupler.get_ny();
+      int hs = (sfc_temp_halos.extent(0)-ny)/2;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int j, int i) {
         if (j < ny && i < nx) sfc_temp(j,i) -= dt*rate/3600;
         sfc_temp_halos(j,i) -= dt*rate/3600;
         sfc_imm_temp  (j,i) -= dt*rate/3600;

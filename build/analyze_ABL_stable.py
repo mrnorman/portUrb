@@ -9,10 +9,10 @@ def get_ind(arr,val) :
     return np.argmin(np.abs(arr-val))
 
 
-fnames = ["abl_stable_4m_00000033.nc",\
-          "abl_stable_4m_00000034.nc",\
-          "abl_stable_4m_00000035.nc",\
-          "abl_stable_4m_00000036.nc"]
+fnames = ["abl_stable_2m_00000033.nc",\
+          "abl_stable_2m_00000034.nc",\
+          "abl_stable_2m_00000035.nc",\
+          "abl_stable_2m_00000036.nc"]
 
 nc = Dataset(fnames[0],"r")
 x = np.array(nc["x"])/1000
@@ -73,7 +73,7 @@ plt.savefig("ABL_stable_avg_uvel_theta_height.png",dpi=600)
 plt.close()
 
 
-fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(12,10),sharey=True)
+fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(6,8),sharey=True)
 X,Y = np.meshgrid(x,y)
 zind = get_ind(z,.1)
 mn  = np.mean(theta[zind,:,:])
@@ -86,7 +86,7 @@ ax1.margins(x=0)
 divider = make_axes_locatable(ax1)
 cax1 = divider.append_axes("bottom", size="4%", pad=0.5)
 cbar1 = plt.colorbar(CS1,orientation="horizontal",cax=cax1)
-cbar1.ax.tick_params(labelrotation=30)
+cbar1.ax.tick_params(labelrotation=40)
 
 mn  = np.mean(wvel[zind,:,:])
 std = np.std (wvel[zind,:,:])
@@ -98,7 +98,7 @@ ax2.margins(x=0)
 divider = make_axes_locatable(ax2)
 cax2 = divider.append_axes("bottom", size="4%", pad=0.5)
 cbar2 = plt.colorbar(CS2,orientation="horizontal",cax=cax2)
-cbar2.ax.tick_params(labelrotation=30)
+cbar2.ax.tick_params(labelrotation=40)
 
 X,Z = np.meshgrid(x,z)
 yind = get_ind(z,0.2)
@@ -112,7 +112,7 @@ ax3.margins(x=0)
 divider = make_axes_locatable(ax3)
 cax3 = divider.append_axes("bottom", size="4%", pad=0.5)
 cbar3 = plt.colorbar(CS3,orientation="horizontal",cax=cax3)
-cbar3.ax.tick_params(labelrotation=30)
+cbar3.ax.tick_params(labelrotation=40)
 
 mn  = np.mean(wvel[:,yind,:])
 std = np.std (wvel[:,yind,:])
@@ -124,9 +124,9 @@ ax4.margins(x=0)
 divider = make_axes_locatable(ax4)
 cax4 = divider.append_axes("bottom", size="4%", pad=0.5)
 cbar4 = plt.colorbar(CS4,orientation="horizontal",cax=cax4)
-cbar4.ax.tick_params(labelrotation=30)
+cbar4.ax.tick_params(labelrotation=40)
 plt.tight_layout()
-# plt.savefig("ABL_stable_contourf.png",dpi=600)
-plt.show()
+plt.savefig("ABL_stable_contourf.png",dpi=600)
+# plt.show()
 plt.close()
 

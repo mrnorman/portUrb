@@ -149,7 +149,6 @@ int main(int argc, char** argv) {
                                             {"density_dry","uvel","vvel","wvel","temp"} ,
                                             (int) (0.1*nx_glob) , (int) (0.1*nx_glob) ,
                                             (int) (0.1*ny_glob) , (int) (0.1*ny_glob) );
-          // coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,10); } , "sponge"            );
           coupler_main.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);           } , "dycore"            );
           coupler_main.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);           } , "surface_fluxes"    );
           coupler_main.run_module( [&] (Coupler &c) { windmills.apply              (c,dt);           } , "windmillactuators" );
@@ -162,7 +161,6 @@ int main(int argc, char** argv) {
         real u = 6.27*std::cos(4.33/180*M_PI);
         real v = 6.27*std::sin(4.33/180*M_PI);
         coupler_prec.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,h,u,v);     } , "pg_forcing"     );
-        // coupler_prec.run_module( [&] (Coupler &c) { modules::sponge_layer         (c,dt,dt*100,10); } , "sponge"         );
         coupler_prec.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
         coupler_prec.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );
         coupler_prec.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);           } , "les_closure"    );

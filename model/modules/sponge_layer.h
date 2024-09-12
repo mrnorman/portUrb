@@ -5,11 +5,9 @@
 
 namespace modules {
 
-  inline void sponge_layer( core::Coupler &coupler , real dt , real time_scale , int num_layers ) {
+  inline void sponge_layer( core::Coupler &coupler , real dt , real time_scale , real top_prop ) {
     using yakl::c::parallel_for;
     using yakl::c::SimpleBounds;
-
-    num_layers = std::max(2,num_layers);
 
     auto ny_glob = coupler.get_ny_glob();
     auto nx_glob = coupler.get_nx_glob();
@@ -39,28 +37,28 @@ namespace modules {
     int num_fields = full_fields.get_num_fields();
 
     // Compute the horizontal average for each vertical level (that we use for the sponge layer)
-    real2d havg_fields("havg_fields",num_fields,num_layers);
+    real2d havg_fields("havg_fields",num_fields,nz);
     havg_fields = 0;
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,num_layers,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int kloc, int j, int i) {
-      int k = nz - 1 - kloc;
-      if (ifld != WFLD) yakl::atomicAdd( havg_fields(ifld,kloc) , full_fields(ifld,k,j,i) );
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
+                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
+      if (ifld != WFLD) yakl::atomicAdd( havg_fields(ifld,k) , full_fields(ifld,k,j,i) );
     });
 
     havg_fields = coupler.get_parallel_comm().all_reduce( havg_fields , MPI_SUM , "sponge_Allreduce" );
 
     real time_factor = dt / time_scale;
     real z1 = 0.9*zlen;
-    real z2 = 1.0*zlen;
+    real z2 = zlen;
     real p  = 3;
 
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,num_layers,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int kloc, int j, int i) {
-      int k = nz - 1 - kloc;
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
+                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
       real z = (k+0.5_fp)*dz;
-      real space_factor = std::pow((z-z1)/(z2-z1),p);
-      real factor = space_factor * time_factor;
-      full_fields(ifld,k,j,i) += ( havg_fields(ifld,kloc)/(nx_glob*ny_glob) - full_fields(ifld,k,j,i) ) * factor;
+      if (z > z1) {
+        real space_factor = std::pow((z-z1)/(z2-z1),p);
+        real factor = space_factor * time_factor;
+        full_fields(ifld,k,j,i) += ( havg_fields(ifld,k)/(nx_glob*ny_glob) - full_fields(ifld,k,j,i) ) * factor;
+      }
     });
   }
 

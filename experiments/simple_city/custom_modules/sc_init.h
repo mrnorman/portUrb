@@ -444,7 +444,62 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = theta0;
       });
 
-    }
+    } else if (coupler.get_option<std::string>("init_data") == "supercell") {
+
+      auto compute_temp = YAKL_LAMBDA (real z) -> real {
+        if (z < 12000) { return 300.+(213.-300.)/12000.*z; }
+        else           { return 213.; }
+      };
+      auto compute_qv = YAKL_LAMBDA (real z) -> real {
+        if (z < 12000) { return std::min(0.014_fp,std::pow(-3.17e-5_fp*z+0.53_fp,6._fp)); }
+        else           { return std::pow(4.62e-6_fp*z+0.1_fp,6._fp); }
+      };
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_temp_qv(compute_temp,compute_qv,nz,zlen,p0,grav,R_d,R_v).createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        dm_rho_d(k,j,i) = 0;
+        dm_uvel (k,j,i) = 0;
+        dm_vvel (k,j,i) = 0;
+        dm_wvel (k,j,i) = 0;
+        dm_temp (k,j,i) = 0;
+        dm_rho_v(k,j,i) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          real z         = (k+0.5)*dz + qpoints(kk)*dz;
+          real T         = compute_temp(z);
+          real qv        = compute_qv(z);
+          real p         = pressGLL(k,kk);
+          real rho_d     = p/((R_d+qv*R_v)*T);
+          real u         = z < 5000 ? -15+30*z/5000 : 15;
+          real v         = 0;
+          real w         = 0;
+          real rho_v     = qv*rho_d;
+          real wt = qweights(kk);
+          dm_rho_d(k,j,i) += rho_d * wt;
+          dm_uvel (k,j,i) += u     * wt;
+          dm_vvel (k,j,i) += v     * wt;
+          dm_wvel (k,j,i) += w     * wt;
+          dm_temp (k,j,i) += T     * wt;
+          dm_rho_v(k,j,i) += rho_v * wt;
+        }
+        if (k == 0) dm_surface_temp(j,i) = 300;
+        if (k == 0) dm_surface_khf (j,i) = 0;
+        real xloc = (i+i_beg+0.5_fp)*dx;
+        real yloc = (j+j_beg+0.5_fp)*dy;
+        real zloc = (k      +0.5_fp)*dz;
+        real x0 = xlen / 2;
+        real y0 = ylen / 2;
+        real z0 = 1500;
+        real radx = 10000;
+        real rady = 10000;
+        real radz = 1500;
+        real amp  = 5;
+        real xn = (xloc - x0) / radx;
+        real yn = (yloc - y0) / rady;
+        real zn = (zloc - z0) / radz;
+        real rad = sqrt( xn*xn + yn*yn + zn*zn );
+        if (rad < 1) dm_temp(k,j,i) += amp * pow( cos(M_PI*rad/2) , 2._fp );
+      });
+
+    } // if (init_data == ...)
 
     int hs = 1;
     {

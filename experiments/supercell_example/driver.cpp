@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         auto run_nudger    = [&] (Coupler &coupler) { column_nudger.nudge_to_column(coupler,dt,dt*10); };
-        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dt,dt*10,10);      };
+        auto run_sponge    = [&] (Coupler &coupler) { modules::sponge_layer(coupler,dt,dt*10,0.1);     };
         auto run_micro     = [&] (Coupler &coupler) { micro.time_step              (coupler,dt);       };
         auto run_dycore    = [&] (Coupler &coupler) { dycore.time_step     (coupler,dt);               };
         auto run_surf_flux = [&] (Coupler &coupler) { modules::apply_surface_fluxes(coupler,dt);       };

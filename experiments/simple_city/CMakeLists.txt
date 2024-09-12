@@ -51,6 +51,10 @@ add_executable(abl_convective abl_convective.cpp)
 yakl_process_target(abl_convective)
 target_link_libraries(abl_convective ${mylibs})
 
+add_executable(supercell supercell.cpp)
+yakl_process_target(supercell)
+target_link_libraries(supercell ${mylibs})
+
 add_executable(windfarm_ensemble windfarm_ensemble.cpp)
 yakl_process_target(windfarm_ensemble)
 target_link_libraries(windfarm_ensemble ${mylibs})

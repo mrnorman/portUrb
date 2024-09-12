@@ -597,7 +597,15 @@ namespace modules {
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
-            real betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
+            real betti_pert;
+            if (coupler.get_option<bool>( "turbine_floating_sine"  , false )) {
+              auto amp   = coupler.get_option<real>( "turbine_floating_sine_amp"  );
+              auto freq  = coupler.get_option<real>( "turbine_floating_sine_freq" );
+              auto etime = coupler.get_option<real>( "elapsed_time"               );
+              betti_pert = freq*amp*std::cos(freq*etime);
+            } else {
+              betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
+            }
             turbine.betti_trace.push_back( betti_pert );
             real mult = 1;
             if ( instant_mag0 > 1.e-10 ) mult = std::max(0._fp,instant_mag0+betti_pert)/instant_mag0;

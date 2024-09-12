@@ -168,10 +168,12 @@ namespace modules {
       E(5,1) = M_d*cos_alpha;
       E(5,3) = M_d*sin_alpha;
       E(5,5) = J_TOT        ;
+
       // Weight Forces
       real Qwe_zeta  = 0;
       real Qwe_eta   = (M_N + M_P + M_S)*g;
       real Qwe_alpha = ((M_N*d_Nv + M_P*d_Pv)*sin_alpha + (M_N*d_Nh + M_P*d_Ph )*cos_alpha)*g;
+
       // Buoyancy Forces d00 - d12 are unused dummy variables
       auto [h_wave,d01,d02,d03,d04] = pierson_moskowitz_spectrum( wind_19_5m , zeta       , 0 , t , nfreq );
       auto [h_p_rg,d05,d06,d07,d08] = pierson_moskowitz_spectrum( wind_19_5m , zeta + r_g , 0 , t , nfreq );
@@ -186,6 +188,7 @@ namespace modules {
       real Qb_zeta  = 0;
       real Qb_eta   = -rho_w*V_g*g;
       real Qb_alpha = -rho_w*V_g*g*d_G*sin_alpha;
+
       // Tie Rod Force
       real D_x        = l_a;
       real l_1        = std::sqrt(std::pow(h   - eta  - l_a*sin_alpha - d_t*cos_alpha,2._fp) +

@@ -92,6 +92,7 @@ int main(int argc, char** argv) {
       std::string restart_file      = "";
       std::string restart_file_prec = "";
       bool        run_main          = true;
+      real        hub_wind          = coupler_main.get_option<real>("hub_height_wind_mag");
       coupler_main.set_option<std::string      >( "init_data"              , init_data         );
       coupler_main.set_option<real             >( "out_freq"               , out_freq          );
       coupler_main.set_option<std::string      >( "restart_file"           , restart_file      );
@@ -104,6 +105,9 @@ int main(int argc, char** argv) {
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , true  );
       coupler_main.set_option<real             >( "turbine_upstream_dir"   , 0     );
       coupler_main.set_option<bool             >( "weno_all"               , true  );
+      coupler_main.set_option<bool             >( "turbine_floating_sine"  , true  );
+      coupler_main.set_option<real             >( "turbine_floating_sine_amp"  , 0.04*126 );
+      coupler_main.set_option<real             >( "turbine_floating_sine_freq" , .32*2*M_PI*hub_wind/126 );
       coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen,
                                                                    0.2_fp*xlen+126*(2.5+2),
                                                                    0.2_fp*xlen+126*(2.5+4),

@@ -47,6 +47,10 @@ add_executable(abl_neutral abl_neutral.cpp)
 yakl_process_target(abl_neutral)
 target_link_libraries(abl_neutral ${mylibs})
 
+add_executable(awaken_simplest awaken_simplest.cpp)
+yakl_process_target(awaken_simplest)
+target_link_libraries(awaken_simplest ${mylibs})
+
 add_executable(abl_convective abl_convective.cpp)
 yakl_process_target(abl_convective)
 target_link_libraries(abl_convective ${mylibs})

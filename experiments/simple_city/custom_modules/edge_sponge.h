@@ -11,7 +11,6 @@ namespace custom_modules {
   public:
     std::vector<std::string>  names;
     real2d                    column;
-    size_t                    seed;
 
     void set_column( core::Coupler &coupler ,
                      std::vector<std::string> names_in = {"density_dry","uvel","vvel","wvel","temp"} ) {
@@ -26,14 +25,13 @@ namespace custom_modules {
       core::MultiField<real const,3> state;
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real const,3>(names.at(i)) ); }
       column = get_column_average( coupler , state );
-      seed = 0;
     }
 
 
-    void apply( core::Coupler &coupler , real dt , real prop_x1 = 0.1 ,
-                                                   real prop_x2 = 0.1 ,
-                                                   real prop_y1 = 0.1 ,
-                                                   real prop_y2 = 0.1 ) {
+    void apply( core::Coupler &coupler , real prop_x1 = 0.1 ,
+                                         real prop_x2 = 0.1 ,
+                                         real prop_y1 = 0.1 ,
+                                         real prop_y2 = 0.1 ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       int nx_glob   = coupler.get_nx_glob();
@@ -44,38 +42,34 @@ namespace custom_modules {
       int ny        = coupler.get_ny();
       int nz        = coupler.get_nz();
       auto &dm      = coupler.get_data_manager_readwrite();
-      auto immersed = dm.get<real const,3>("immersed_proportion");
       core::MultiField<real,3> state;
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,3>(names.at(i)) ); }
       YAKL_SCOPE( column , this->column );
-      YAKL_SCOPE( seed   , this->seed   );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
                                         YAKL_LAMBDA (int l, int k, int j, int i) {
-        yakl::Random prng(seed + k*ny_glob*nx_glob + j*nx_glob + i);
         real prop_x = static_cast<real>(i_beg+i)/nx_glob;
         real prop_y = static_cast<real>(j_beg+j)/ny_glob;
         if (prop_x <= prop_x1) {
           real wt = (prop_x1-prop_x)/prop_x1;
           wt = wt*wt*wt;
-          state(l,k,j,i) = wt*column(l,k)*(1+prng.genFP<real>(-1.e-3,1.e-3)) + (1-wt)*state(l,k,j,i);
+          state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_x >= 1-prop_x2) {
           real wt = (prop_x-(1-prop_x2))/prop_x2;
           wt = wt*wt*wt;
-          state(l,k,j,i) = wt*column(l,k)*(1+prng.genFP<real>(-1.e-3,1.e-3)) + (1-wt)*state(l,k,j,i);
+          state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_y <= prop_y1) {
           real wt = (prop_y1-prop_y)/prop_y1;
           wt = wt*wt*wt;
-          state(l,k,j,i) = wt*column(l,k)*(1+prng.genFP<real>(-1.e-3,1.e-3)) + (1-wt)*state(l,k,j,i);
+          state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_y >= 1-prop_y2) {
           real wt = (prop_y-(1-prop_y2))/prop_y2;
           wt = wt*wt*wt;
-          state(l,k,j,i) = wt*column(l,k)*(1+prng.genFP<real>(-1.e-3,1.e-3)) + (1-wt)*state(l,k,j,i);
+          state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
       });
-      seed += nz*ny_glob*nx_glob;
     }
 
 

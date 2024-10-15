@@ -19,8 +19,8 @@ int main(int argc, char** argv) {
     core::Coupler coupler_main;
     core::Coupler coupler_prec;
 
-    coupler_main.set_option<std::string>("ensemble_stdout","ensemble_fixed-yaw-upstream" );
-    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed-yaw-upstream");
+    coupler_main.set_option<std::string>("ensemble_stdout","ensemble_fixed-yaw-upstream-stable" );
+    coupler_main.set_option<std::string>("out_prefix"     ,"turbulent_fixed-yaw-upstream-stable");
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Ensembler ensembler;
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
       real        zlen              = 600;
       real        dtphys_in         = 0.;  // Dycore determined time step size
       int         dyn_cycle         = 1;
-      std::string init_data         = "ABL_neutral2";
+      std::string init_data         = "ABL_stable_bvf";
       real        out_freq          = 1800;
       real        inform_freq       = 10;
       std::string out_prefix        = coupler_main.get_option<std::string>("out_prefix");
@@ -93,6 +93,7 @@ int main(int argc, char** argv) {
       std::string restart_file_prec = "";
       bool        run_main          = true;
       real        hub_wind          = coupler_main.get_option<real>("hub_height_wind_mag");
+      coupler_main.set_option<real>             ( "bvf_freq"               , 0.02              );
       coupler_main.set_option<std::string      >( "init_data"              , init_data         );
       coupler_main.set_option<real             >( "out_freq"               , out_freq          );
       coupler_main.set_option<std::string      >( "restart_file"           , restart_file      );
@@ -105,9 +106,9 @@ int main(int argc, char** argv) {
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , true  );
       coupler_main.set_option<real             >( "turbine_upstream_dir"   , 0     );
       coupler_main.set_option<bool             >( "weno_all"               , true  );
-      coupler_main.set_option<bool             >( "turbine_floating_sine"  , true  );
-      coupler_main.set_option<real             >( "turbine_floating_sine_amp"  , 0.04*126 );
-      coupler_main.set_option<real             >( "turbine_floating_sine_freq" , .32*2*M_PI*hub_wind/126 );
+      coupler_main.set_option<bool             >( "turbine_floating_sine"  , false );
+      // coupler_main.set_option<real             >( "turbine_floating_sine_amp"  , 0.04*126 );
+      // coupler_main.set_option<real             >( "turbine_floating_sine_freq" , .32*2*M_PI*hub_wind/126 );
       coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen,
                                                                    0.2_fp*xlen+126*(2.5+2),
                                                                    0.2_fp*xlen+126*(2.5+4),
@@ -145,7 +146,7 @@ int main(int argc, char** argv) {
       custom_modules::sc_init     ( coupler_main );
       les_closure  .init          ( coupler_main );
       dycore       .init          ( coupler_main );
-      modules::perturb_temperature( coupler_main , nz);
+      modules::perturb_temperature( coupler_main , nz );
 
       /////////////////////////////////////////////////////////////////////////
       // Everything previous to this is now replicated in coupler_precursor

@@ -5,6 +5,7 @@
 #include "sc_init.h"
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
+#include "edge_sponge.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -16,12 +17,12 @@ int main(int argc, char** argv) {
     core::Coupler coupler;
 
     real        sim_time     = 3600*4;
-    int         nx_glob      = 900;
-    int         ny_glob      = 500;
-    int         nz           = 50;
-    real        xlen         = 18000;
+    int         nx_glob      = 1900;
+    int         ny_glob      = 1000;
+    int         nz           = 60;
+    real        xlen         = 19000;
     real        ylen         = 10000;
-    real        zlen         = 1000;
+    real        zlen         = 600;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
     real        out_freq     = 100;
@@ -31,6 +32,7 @@ int main(int argc, char** argv) {
     std::string restart_file = "";
     real        latitude     = 0;
     real        roughness    = 0;
+    int         dyn_cycle    = 10;
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"     , out_prefix   );
@@ -44,9 +46,9 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "constant_vvel"  , 10*std::sin(M_PI/4.) );
     coupler.set_option<real       >( "constant_temp"  , 300                 );
     coupler.set_option<real       >( "constant_press" , 1.e5                );
-    coupler.set_option<std::string>( "turbine_file"             , "./inputs/NREL_5MW_126_RWT.yaml" );
+    coupler.set_option<std::string>( "turbine_file"             , "./inputs/NREL_2.8MW_127_RWT_new.yaml" );
     coupler.set_option<bool       >( "turbine_do_blades"        , false  );
-    coupler.set_option<real       >( "turbine_initial_yaw"      , M_PI/2 );
+    coupler.set_option<real       >( "turbine_initial_yaw"      , M_PI/4 );
     coupler.set_option<bool       >( "turbine_fixed_yaw"        , false  );
     coupler.set_option<bool       >( "turbine_floating_motions" , false  );
 
@@ -71,6 +73,7 @@ int main(int argc, char** argv) {
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
     modules::WindmillActuators                 windmills;
+    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -82,6 +85,7 @@ int main(int argc, char** argv) {
     dycore       .init      ( coupler ); // Dycore should initialize its own state here
     windmills    .init      ( coupler );
     time_averager.init      ( coupler );
+    edge_sponge  .set_column( coupler );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
@@ -104,13 +108,14 @@ int main(int argc, char** argv) {
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
       // If dt <= 0, then set it to the dynamical core's max stable time step
-      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler); }
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler)*dyn_cycle; }
       // If we're about to go past the final time, then limit to time step to exactly hit the final time
       if (etime + dt > sim_time) { dt = sim_time - etime; }
 
       // Run modules
       {
         using core::Coupler;
+        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply       (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step        (c,dt); } , "dycore"        );
         coupler.run_module( [&] (Coupler &c) { windmills.apply         (c,dt); } , "windmills"     );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply       (c,dt); } , "les_closure"   );

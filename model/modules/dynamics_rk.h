@@ -25,7 +25,7 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef PORTURB_ORD
-      yakl::index_t static constexpr ord = 11;
+      yakl::index_t static constexpr ord = 9;
     #else
       yakl::index_t static constexpr ord = PORTURB_ORD;
     #endif
@@ -859,6 +859,33 @@ namespace modules {
         });
       }
 
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,ny) ,
+                                          YAKL_LAMBDA (int l, int k, int j) {
+          limits_x(0,l,k,j,0 ) = limits_x(1,l,k,j,0 );
+        });
+      }
+      if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,ny) ,
+                                          YAKL_LAMBDA (int l, int k, int j) {
+          limits_x(1,l,k,j,nx) = limits_x(0,l,k,j,nx);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,nx) ,
+                                          YAKL_LAMBDA (int l, int k, int i) {
+          limits_y(0,l,k,0 ,i) = limits_y(1,l,k,0 ,i);
+        });
+      }
+
+      if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,nx) ,
+                                          YAKL_LAMBDA (int l, int k, int i) {
+          limits_y(1,l,k,ny,i) = limits_y(0,l,k,ny,i);
+        });
+      }
+
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
           if (l == idW || l == idT) {
@@ -987,7 +1014,13 @@ namespace modules {
         auto bc_z   = coupler.get_option<std::string>("bc_z","solid_wall");
         auto &dm    = coupler.get_data_manager_readwrite();
         if (!dm.entry_exists("dycore_immersed_proportion_halos")) {
-          auto immersed_prop = dm.get<real,3>("immersed_proportion");
+          auto immersed_prop = dm.get<real const,3>("immersed_proportion").createDeviceCopy<real>();
+          if (dm.entry_exists("windmill_proj_weight")) {
+            auto proj = dm.get<real const,3>("windmill_proj_weight");
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+              immersed_prop(k,j,i) += proj(k,j,i);
+            });
+          }
           core::MultiField<real,3> fields;
           fields.add_field( immersed_prop  );
           auto fields_halos = coupler.create_and_exchange_halos( fields , hs );
@@ -1014,7 +1047,7 @@ namespace modules {
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
                   for (int ii=0; ii < hsnew*2+1; ii++) {
-                    if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                    if (fields_halos_larger(0,k+kk,j+jj,i+ii) > 0) any_immersed(k,j,i) = true;
                   }
                 }
               }
@@ -1035,7 +1068,7 @@ namespace modules {
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
                   for (int ii=0; ii < hsnew*2+1; ii++) {
-                    if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                    if (fields_halos_larger(0,k+kk,j+jj,i+ii) > 0) any_immersed(k,j,i) = true;
                   }
                 }
               }
@@ -1056,7 +1089,7 @@ namespace modules {
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
                   for (int ii=0; ii < hsnew*2+1; ii++) {
-                    if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                    if (fields_halos_larger(0,k+kk,j+jj,i+ii) > 0) any_immersed(k,j,i) = true;
                   }
                 }
               }
@@ -1077,7 +1110,7 @@ namespace modules {
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
                   for (int ii=0; ii < hsnew*2+1; ii++) {
-                    if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                    if (fields_halos_larger(0,k+kk,j+jj,i+ii) > 0) any_immersed(k,j,i) = true;
                   }
                 }
               }
@@ -1098,7 +1131,7 @@ namespace modules {
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
                   for (int ii=0; ii < hsnew*2+1; ii++) {
-                    if (fields_halos_larger(0,k+kk,j+jj,i+ii)) any_immersed(k,j,i) = true;
+                    if (fields_halos_larger(0,k+kk,j+jj,i+ii) > 0) any_immersed(k,j,i) = true;
                   }
                 }
               }

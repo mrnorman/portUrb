@@ -37,7 +37,7 @@ run_main: true
 
 restart_file: 
 
-restart_file_precursor: # z0_0.05/validation_precursor_00000024.nc
+restart_file_precursor: 
 
 roughness: 0.03
 

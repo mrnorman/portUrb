@@ -91,30 +91,30 @@ def dirhub(fname,x1=2.5,x2=2.0) :
     v = nc.variables["avg_v"][kref,j1:j2+1,i1:i2+1]
     return np.mean(np.arctan2(v,u)/np.pi*180)
 
-end         = 65
-misfit_best = 100
-for i in range(1,end+1) :
-    fname = "validation_000000"+str(i).zfill(2)+".nc"
-    ti = turbulent_intensity(fname)
-    se = shear_exponent     (fname)
-    uh = uhub               (fname)
-    dh = dirhub             (fname)
-    misfit = (ti-0.097)**2/0.097**2 +\
-             (se-0.116)**2/0.116**2 +\
-             (uh-6.27 )**2/6.27 **2 +\
-             (dh-4.33 )**2/4.33 **2
-    if (misfit < misfit_best) :
-        ind_best = i
-        misfit_best = misfit
-    print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
+# end         = 144
+# misfit_best = 100
+# for i in range(1,end+1) :
+#     fname = "validation_"+str(i).zfill(8)+".nc"
+#     ti = turbulent_intensity(fname)
+#     se = shear_exponent     (fname)
+#     uh = uhub               (fname)
+#     dh = dirhub             (fname)
+#     misfit = (ti-0.097)**2/0.097**2 +\
+#              (se-0.116)**2/0.116**2 +\
+#              (uh-6.27 )**2/6.27 **2 +\
+#              (dh-4.33 )**2/4.33 **2
+#     if (misfit < misfit_best) :
+#         ind_best = i
+#         misfit_best = misfit
+#     print(fname,": ",ti," , ",se," , ",uh," , ",dh," , ",misfit)
 
 # TODO: REMOVE THIS!!!!!!!!!!!!!
-# ind_best = 27
+ind_best = 111
 
-print("Best file: ","validation_000000"+str(ind_best).zfill(2)+".nc")
+print("Best file: ","validation_"+str(ind_best).zfill(8)+".nc")
 
-fname_best  = "validation_000000"+str(ind_best).zfill(2)+".nc"
-fname_best2 = "validation_precursor_000000"+str(ind_best).zfill(2)+".nc"
+fname_best  = "validation_"+str(ind_best).zfill(8)+".nc"
+fname_best2 = "validation_precursor_"+str(ind_best).zfill(8)+".nc"
 
 nc   = Dataset(fname_best,"r")
 x    = (nc.variables["x"][:]-0.3*5000)/127
@@ -210,7 +210,10 @@ X,Y  = np.meshgrid(x,y)
 u    = nc.variables["avg_u"][get_ind(z,89),y1:y2+1,:]
 v    = nc.variables["avg_v"][get_ind(z,89),y1:y2+1,:]
 mag  = np.sqrt(u*u + v*v)
-tke  = nc.variables["avg_tke"][get_ind(z,89),y1:y2+1,:] / nc.variables["density_dry"][get_ind(z,89),y1:y2+1,:] + nc.variables["avg_tke_res"][get_ind(z,89),y1:y2+1,:]
+tke  = nc.variables["avg_tke"][get_ind(z,89),y1:y2+1,:] / nc.variables["density_dry"][get_ind(z,89),y1:y2+1,:] + \
+       ( nc.variables["avg_up_up"][get_ind(z,89),y1:y2+1,:] + \
+         nc.variables["avg_vp_vp"][get_ind(z,89),y1:y2+1,:] + \
+         nc.variables["avg_wp_wp"][get_ind(z,89),y1:y2+1,:] ) / 2
 nc   = Dataset(fname_best2,"r")
 x    = (nc.variables["x"][:]-0.3*5000)/127
 y    = (nc.variables["y"][:]-0.5*1500)/127
@@ -222,7 +225,10 @@ u    = nc.variables["avg_u"][get_ind(z,89),y1:y2+1,:]
 v    = nc.variables["avg_v"][get_ind(z,89),y1:y2+1,:]
 mag2  = np.sqrt(u*u + v*v)
 mag   = mag / mag2
-tke0 = nc.variables["avg_tke"][get_ind(z,89),y1:y2+1,:] / nc.variables["density_dry"][get_ind(z,89),y1:y2+1,:] + nc.variables["avg_tke_res"][get_ind(z,89),y1:y2+1,:]
+tke0 = nc.variables["avg_tke"][get_ind(z,89),y1:y2+1,:] / nc.variables["density_dry"][get_ind(z,89),y1:y2+1,:] + \
+       ( nc.variables["avg_up_up"][get_ind(z,89),y1:y2+1,:] + \
+         nc.variables["avg_vp_vp"][get_ind(z,89),y1:y2+1,:] + \
+         nc.variables["avg_wp_wp"][get_ind(z,89),y1:y2+1,:] ) / 2
 tke -= tke0
 fig, ((ax11,ax12),(ax21,ax22),(ax31,ax32),(ax41,ax42),(ax51,ax52)) = plt.subplots(5, 2,sharex=True)
 ax11.plot(y[y1:y2+1],mag[:,get_ind(x, 1)])

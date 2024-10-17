@@ -7,19 +7,20 @@
 
 namespace modules {
 
-  // Uses simple disk actuators to represent wind turbines in an LES model by applying friction terms to horizontal
+  // Uses disk actuators to represent wind turbines in an LES model by applying friction terms to horizontal
   //   velocities and adding a portion of the thrust not generating power to TKE.
   struct WindmillActuators {
 
 
-    // Stores information needed to imprint a turbine actuator disk onto the grid. The base location will
-    //   sit in the center cell, and there will be halo_x * halo_y on either side of the base cell
+    // Stores information needed to imprint a turbine actuator disk onto the grid.
     struct RefTurbine {
+      // Reference wind turbine (RWT) tables
       realHost1d velmag_host;      // Velocity magnitude at infinity (m/s)
       realHost1d thrust_coef_host; // Thrust coefficient             (dimensionless)
       realHost1d power_coef_host;  // Power coefficient              (dimensionless)
       realHost1d power_host;       // Power generation               (MW)
       realHost1d rotation_host;    // Rotation speed                 (radians / sec)
+      // Turbine properties
       real       hub_height;       // Hub height                     (m)
       real       blade_radius;     // Blade radius                   (m)
       real       max_yaw_speed;    // Angular active yawing speed    (radians / sec)
@@ -91,20 +92,21 @@ namespace modules {
     };
 
 
+    // Holds information about a turbine (location, reference_type, yaw, etc)
     struct Turbine {
       bool                    active;            // Whether this turbine affects this MPI task
       real                    base_loc_x;        // x location of the tower base
       real                    base_loc_y;        // y location of the tower base
       std::vector<real>       power_trace;       // Time trace of power generation
       std::vector<real>       yaw_trace;         // Time trace of yaw of the turbine
-      std::vector<real>       u_samp_trace;      // Time trace of disk-integrated velocity
-      std::vector<real>       v_samp_trace;      // Time trace of disk-integrated velocity
-      std::vector<real>       mag195_trace;      // Time trace of disk-integrated velocity
+      std::vector<real>       u_samp_trace;      // Time trace of disk-integrated inflow u velocity
+      std::vector<real>       v_samp_trace;      // Time trace of disk-integrated inflow v velocity
+      std::vector<real>       mag195_trace;      // Time trace of disk-integrated 19.5m infoat velocity
       std::vector<real>       betti_trace;       // Time trace of floating motions perturbations
       std::vector<real>       cp_trace;          // Time trace of coefficient of power
       std::vector<real>       ct_trace;          // Time trace of coefficient of thrust
-      real                    u_samp_inertial;   // Intertial freestream normal wind magnitude (for power generation)
-      real                    v_samp_inertial;   // Intertial freestream normal wind magnitude (for power generation)
+      real                    u_samp_inertial;   // Intertial inflow u-velocity normal to the turbine plane
+      real                    v_samp_inertial;   // Intertial inflow u-velocity normal to the turbine plane
       real                    yaw_angle;         // Current yaw angle (radians counter-clockwise from facing west)
       real                    rot_angle;         // Current rotation angle (radians)
       YawTend                 yaw_tend;          // Functor to compute the change in yaw
@@ -114,7 +116,7 @@ namespace modules {
       int                     sub_rankid;        // My process's rank ID in the sub communicator
       int                     owning_sub_rankid; // Subcommunicator rank ID of the owner of this turbine
       bool                    apply_thrust;      // Whether to apply the thrust to the simulation or not
-      Floating_motions_betti  floating_motions;
+      Floating_motions_betti  floating_motions;  // Class to handle floating motions due to waves, thrust, etc
     };
 
 
@@ -474,8 +476,8 @@ namespace modules {
           weights_tot(0) = yakl::intrinsics::sum(uvel_3d);
           weights_tot(1) = yakl::intrinsics::sum(vvel_3d);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-          real upstream_uvel     = weights_tot(0);
-          real upstream_vvel     = weights_tot(1);
+          real upstream_uvel = weights_tot(0);
+          real upstream_vvel = weights_tot(1);
           real upstream_dir;
           if (coupler.option_exists("turbine_upstream_dir")) {
             upstream_dir = coupler.get_option<real>("turbine_upstream_dir");
@@ -484,7 +486,7 @@ namespace modules {
           }
           real upstream_x_offset = -5*rad*std::cos(upstream_dir);
           real upstream_y_offset = -5*rad*std::sin(upstream_dir);
-          // Compute and sum weights for disk projection and upstream sampling
+          // Compute and sum weights for disk projection and upstream sampling projection
           real2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {
             real xr = 5*dx;
@@ -571,19 +573,20 @@ namespace modules {
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
           turbine.u_samp_trace.push_back( sums(0) );
           turbine.v_samp_trace.push_back( sums(1) );
-          real instant_u0   = sums(0)*cos_yaw;
-          real instant_v0   = sums(1)*sin_yaw;
-          real instant_mag0 = std::sqrt(instant_u0*instant_u0+instant_v0*instant_v0);
+          // Compute instantaneous wind magnitude
+          real instant_u0   = sums(0)*cos_yaw;  // instantaneous u-velocity normal to the turbine plane
+          real instant_v0   = sums(1)*sin_yaw;  // instantaneous v-velocity normal to the turbine plane
+          real instant_mag0 = std::max( 0._fp , instant_u0 + instant_v0 );
           // Compute inertial wind magnitude
-          real inertial_u0   = turbine.u_samp_inertial;
-          real inertial_v0   = turbine.v_samp_inertial;
-          real inertial_mag0 = std::sqrt(inertial_u0*inertial_u0 + inertial_v0*inertial_v0);
+          real inertial_u0   = turbine.u_samp_inertial;  // inertial u-velocity normal to the turbine plane
+          real inertial_v0   = turbine.v_samp_inertial;  // inertial v-velocity normal to the turbine plane
+          real inertial_mag0 = std::max( 0._fp , inertial_u0 + inertial_v0 );
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
-          real C_T       = interp( ref_velmag , ref_thrust_coef , inertial_mag0 ); // Interpolate power coef
-          real C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coef
-          real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power
+          real C_T       = interp( ref_velmag , ref_thrust_coef , inertial_mag0 ); // Interpolate thrust coefficient
+          real C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coefficient
+          real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power generation
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , inertial_mag0 ) : 0; // Interpolate rot speed
           if (inertial_mag0 > 1.e-10) {
             real a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
@@ -636,8 +639,8 @@ namespace modules {
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
               if (disk_weight_proj(k,j,i) > 0) {
                 real wt = disk_weight_proj(k,j,i)*turb_factor;
-                tend_u  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_u0               *wt;
-                tend_v  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_v0               *wt;
+                tend_u  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_mag0*cos_yaw     *wt;
+                tend_v  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_mag0*sin_yaw     *wt;
                 tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*instant_mag0*instant_mag0*instant_mag0*wt;
               }
             });

@@ -71,6 +71,10 @@ add_executable(turbine_stable_ensemble turbine_stable_ensemble.cpp)
 yakl_process_target(turbine_stable_ensemble)
 target_link_libraries(turbine_stable_ensemble ${mylibs})
 
+add_executable(turbine_convective_ensemble turbine_convective_ensemble.cpp)
+yakl_process_target(turbine_convective_ensemble)
+target_link_libraries(turbine_convective_ensemble ${mylibs})
+
 add_executable(windfarm_ensemble_3x3 windfarm_ensemble_3x3.cpp)
 yakl_process_target(windfarm_ensemble_3x3)
 target_link_libraries(windfarm_ensemble_3x3 ${mylibs})

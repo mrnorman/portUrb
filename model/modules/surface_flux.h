@@ -7,9 +7,9 @@ namespace modules {
 
   // Currently ignoring stability / universal functions
   inline void apply_surface_fluxes( core::Coupler &coupler , real dt ) {
-    using yakl::c::parallel_for;
-    using yakl::c::SimpleBounds;
-    using yakl::c::Bounds;
+    using yikl::parallel_for;
+    using yikl::SimpleBounds;
+    using yikl::Bounds;
     auto nx        = coupler.get_nx  ();
     auto ny        = coupler.get_ny  ();
     auto nz        = coupler.get_nz  ();
@@ -38,7 +38,7 @@ namespace modules {
 
     real vk = 0.40;   // von karman constant
 
-    parallel_for( YAKL_AUTO_LABEL() , Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , Bounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
       real r = dm_r(k,j,i);
       real u = dm_u(k,j,i);
       real v = dm_v(k,j,i);
@@ -129,7 +129,7 @@ namespace modules {
       }
     });
 
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
       dm_u(k,j,i) += dt*tend_u(k,j,i);
       dm_v(k,j,i) += dt*tend_v(k,j,i);
       dm_w(k,j,i) += dt*tend_w(k,j,i);

@@ -2,6 +2,7 @@
 #pragma once
 
 #define YIKL_AUTO_LABEL() (std::string(basename(__FILE__)) + std::string(":") + std::to_string(__LINE__)).c_str()
+#define YIKL_SCOPE(a,b) auto &a = std::ref(b).get()
 
 namespace yikl {
 
@@ -301,6 +302,14 @@ namespace yikl {
   inline void parallel_for( char const * str , Bounds<N,simple> const &bounds , F const &f ) {
     if (bounds.nIter == 0) return;
     Kokkos::parallel_for( str , bounds.nIter , KOKKOS_LAMBDA (int i) { callFunctor(f,bounds,i); });
+  }
+
+
+  template <class F>
+  inline void parallel_for( char const * str , int nIter , F const &f ) {
+    if (nIter == 0) return;
+    SimpleBounds<1> bounds(nIter);
+    Kokkos::parallel_for( str , nIter , KOKKOS_LAMBDA (int i) { callFunctor(f,bounds,i); });
   }
 
 }

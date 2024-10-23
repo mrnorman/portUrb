@@ -6,8 +6,8 @@
 namespace modules {
 
   inline void perturb_temperature( core::Coupler &coupler , int num_levels , bool thermal = false ) {
-    using yakl::c::parallel_for;
-    using yakl::c::SimpleBounds;
+    using yikl::parallel_for;
+    using yikl::SimpleBounds;
 
     auto nz    = coupler.get_nz();
     auto ny    = coupler.get_ny();
@@ -29,7 +29,7 @@ namespace modules {
     auto temp          = dm.get<real      ,3>("temp");
     auto immersed_prop = dm.get<real const,3>("immersed_proportion");
 
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_levels,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(num_levels,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
       yakl::Random prng(seed+k*ny*nx+j*nx+i);  // seed is a globally unique identifier
       real rand = prng.genFP<real>()*2._fp - 1._fp;  // Random number in [-1,1]
       real scaling = ( num_levels - static_cast<real>(k) ) / num_levels;  // Less effect at higher levels
@@ -39,7 +39,7 @@ namespace modules {
     if (thermal) {
       auto temp = dm.get<real,3>("temp");
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real xloc = (i+i_beg+0.5_fp)*dx;
         real yloc = (j+j_beg+0.5_fp)*dy;
         real zloc = (k      +0.5_fp)*dz;

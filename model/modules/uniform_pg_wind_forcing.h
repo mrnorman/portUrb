@@ -4,8 +4,8 @@
 namespace modules {
 
   inline void uniform_pg_wind_forcing( core::Coupler &coupler , real dt , real tau = 10 , size_t update_cycles = 1 ) {
-    using yakl::c::parallel_for;
-    using yakl::c::SimpleBounds;
+    using yikl::parallel_for;
+    using yikl::SimpleBounds;
     auto nz      = coupler.get_nz();
     auto ny      = coupler.get_ny();
     auto nx      = coupler.get_nx();
@@ -31,7 +31,7 @@ namespace modules {
     auto v0 = coupler.get_option<real>("uniform_pg_wind_forcing_v0");
     auto u  = coupler.get_option<real>("uniform_pg_wind_forcing_u");
     auto v  = coupler.get_option<real>("uniform_pg_wind_forcing_v");
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
       uvel(k,j,i) += dt/tau*(u0-u);
       vvel(k,j,i) += dt/tau*(v0-v);
     });
@@ -42,8 +42,8 @@ namespace modules {
 
   inline void uniform_pg_wind_forcing_height( core::Coupler &coupler , real dt , real height , real u0 , real v0 ,
                                               real tau = 10 ) {
-    using yakl::c::parallel_for;
-    using yakl::c::SimpleBounds;
+    using yikl::parallel_for;
+    using yikl::SimpleBounds;
     auto dz      = coupler.get_dz();
     auto nz      = coupler.get_nz();
     auto ny      = coupler.get_ny();
@@ -73,7 +73,7 @@ namespace modules {
     real v  = w1*v1 + w2*v2;
     real u_forcing = dt / tau*(u0-u);
     real v_forcing = dt / tau*(v0-v);
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
       uvel(k,j,i) += u_forcing;
       vvel(k,j,i) += v_forcing;
     });

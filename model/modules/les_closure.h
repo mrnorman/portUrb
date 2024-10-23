@@ -28,8 +28,8 @@ namespace modules {
 
 
     void apply( core::Coupler &coupler , real dtphys ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx             = coupler.get_nx  ();
       auto ny             = coupler.get_ny  ();
       auto nz             = coupler.get_nz  ();
@@ -85,7 +85,7 @@ namespace modules {
       // TKE dissipation
       // Shear production
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , KOKKOS_LAMBDA (int k, int j, int i) {
         if (j < ny && k < nz) {
           if (immersed(hs+k,hs+j,hs+i-1) == 1 || immersed(hs+k,hs+j,hs+i) == 1) {
             flux_ru_x (k,j,i) = 0;
@@ -226,7 +226,7 @@ namespace modules {
 
       halo_bcs( coupler , state , tracers , tke );
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real rho   = state(idR,hs+k,hs+j,hs+i);
         real K     = tke      (hs+k,hs+j,hs+i);
         real t     = state(idT,hs+k,hs+j,hs+i);
@@ -273,7 +273,7 @@ namespace modules {
         }
       });
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real tend_ru  = -(flux_ru_x (k,j,i+1) - flux_ru_x (k,j,i)) / dx -
                          (flux_ru_y (k,j+1,i) - flux_ru_y (k,j,i)) / dy -
                          (flux_ru_z (k+1,j,i) - flux_ru_z (k,j,i)) / dz;
@@ -325,8 +325,8 @@ namespace modules {
                                       real4d              &state   ,
                                       real4d              &tracers ,
                                       real3d              &tke     ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx           = coupler.get_nx();
       auto ny           = coupler.get_ny();
       auto nz           = coupler.get_nz();
@@ -353,7 +353,7 @@ namespace modules {
       state   = real4d("state"  ,num_state  ,nz+2*hs,ny+2*hs,nx+2*hs);
       tracers = real4d("tracers",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
       tke     = real3d("tke"                ,nz+2*hs,ny+2*hs,nx+2*hs);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real rho_d = dm_rho_d(k,j,i);
         state(idR,hs+k,hs+j,hs+i) = rho_d;
         state(idU,hs+k,hs+j,hs+i) = dm_uvel(k,j,i);
@@ -372,8 +372,8 @@ namespace modules {
                                       realConst4d    state   ,
                                       realConst4d    tracers ,
                                       realConst3d    tke     ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx           = coupler.get_nx();
       auto ny           = coupler.get_ny();
       auto nz           = coupler.get_nz();
@@ -397,7 +397,7 @@ namespace modules {
         if (diffuse) dm_tracers.add_field( dm.get<real,3>(tracer_names[tr]) );
       }
       auto num_tracers = dm_tracers.size();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real rho_d = state(idR,hs+k,hs+j,hs+i);
         dm_rho_d(k,j,i) = rho_d;
         dm_uvel (k,j,i) = state(idU,hs+k,hs+j,hs+i) / rho_d;
@@ -415,8 +415,8 @@ namespace modules {
                      real4d        const & state   ,
                      real4d        const & tracers ,
                      real3d        const & tke     ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx             = coupler.get_nx();
       auto ny             = coupler.get_ny();
       auto nz             = coupler.get_nz();
@@ -436,7 +436,7 @@ namespace modules {
       if (!enable_gravity) grav = 0;
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , YAKL_LAMBDA (int k, int j, int ii) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , KOKKOS_LAMBDA (int k, int j, int ii) {
           for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+j,ii) = state  (l,hs+k,hs+j,hs+0);
           for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+j,ii) = tracers(l,hs+k,hs+j,hs+0);
           tke(hs+k,hs+j,ii) = tke(hs+k,hs+j,hs+0);
@@ -444,7 +444,7 @@ namespace modules {
       }
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , YAKL_LAMBDA (int k, int j, int ii) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,hs) , KOKKOS_LAMBDA (int k, int j, int ii) {
           for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+j,hs+nx+ii) = state  (l,hs+k,hs+j,hs+nx-1);
           for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+j,hs+nx+ii) = tracers(l,hs+k,hs+j,hs+nx-1);
           tke(hs+k,hs+j,hs+nx+ii) = tke(hs+k,hs+j,hs+nx-1);
@@ -452,7 +452,7 @@ namespace modules {
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , YAKL_LAMBDA (int k, int jj, int i) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , KOKKOS_LAMBDA (int k, int jj, int i) {
           for (int l=0; l < num_state  ; l++) state  (l,hs+k,jj,hs+i) = state  (l,hs+k,hs+0,hs+i);
           for (int l=0; l < num_tracers; l++) tracers(l,hs+k,jj,hs+i) = tracers(l,hs+k,hs+0,hs+i);
           tke(hs+k,jj,hs+i) = tke(hs+k,hs+0,hs+i);
@@ -460,7 +460,7 @@ namespace modules {
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , YAKL_LAMBDA (int k, int jj, int i) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,hs,nx) , KOKKOS_LAMBDA (int k, int jj, int i) {
           for (int l=0; l < num_state  ; l++) state  (l,hs+k,hs+ny+jj,hs+i) = state  (l,hs+k,hs+ny-1,hs+i);
           for (int l=0; l < num_tracers; l++) tracers(l,hs+k,hs+ny+jj,hs+i) = tracers(l,hs+k,hs+ny-1,hs+i);
           tke(hs+k,hs+ny+jj,hs+i) = tke(hs+k,hs+ny-1,hs+i);
@@ -469,8 +469,8 @@ namespace modules {
 
       // z-direction BC's
       if (bc_z == "solid_wall") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int kk, int j, int i) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
+                                          KOKKOS_LAMBDA (int kk, int j, int i) {
           state(idU,      kk,j,i) = state(idU,hs+0   ,j,i);
           state(idV,      kk,j,i) = state(idV,hs+0   ,j,i);
           state(idW,      kk,j,i) = 0;
@@ -507,8 +507,8 @@ namespace modules {
           }
         });
       } else if (bc_z == "periodic") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int kk, int j, int i) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
+                                          KOKKOS_LAMBDA (int kk, int j, int i) {
           state(idR,      kk,j,i) = state(idR,nz+kk,j,i);
           state(idU,      kk,j,i) = state(idU,nz+kk,j,i);
           state(idV,      kk,j,i) = state(idV,nz+kk,j,i);
@@ -527,7 +527,7 @@ namespace modules {
           }
         });
       } else {
-        yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+        Kokkos::abort("ERROR: Specified invalid bc_z in coupler options");
       }
     }
 
@@ -537,8 +537,8 @@ namespace modules {
                             real4d        const & state   ,
                             real4d        const & tracers ,
                             real3d        const & tke     ) const {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx             = coupler.get_nx();
       auto ny             = coupler.get_ny();
       auto nz             = coupler.get_nz();
@@ -557,8 +557,8 @@ namespace modules {
       auto bc_z           = coupler.get_option<std::string>("bc_z","solid_wall");
       // z-direction BC's
       if (bc_z == "solid_wall") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int kk, int j, int i) {
+        parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) ,
+                                          KOKKOS_LAMBDA (int kk, int j, int i) {
           state(idU,      kk,j,i) = 0;
           state(idV,      kk,j,i) = 0;
         });

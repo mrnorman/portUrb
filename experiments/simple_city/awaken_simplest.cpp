@@ -19,9 +19,9 @@ int main(int argc, char** argv) {
     core::Coupler coupler;
 
     real        sim_time     = 3600*4;
-    int         nx_glob      = 1900;
-    int         ny_glob      = 1000;
-    int         nz           = 60;
+    int         nx_glob      = 475;
+    int         ny_glob      = 250;
+    int         nz           = 30;
     real        xlen         = 19000;
     real        ylen         = 10000;
     real        zlen         = 600;

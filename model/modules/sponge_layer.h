@@ -6,8 +6,8 @@
 namespace modules {
 
   inline void sponge_layer( core::Coupler &coupler , real dt , real time_scale , real top_prop ) {
-    using yakl::c::parallel_for;
-    using yakl::c::SimpleBounds;
+    using yikl::parallel_for;
+    using yikl::SimpleBounds;
 
     auto ny_glob = coupler.get_ny_glob();
     auto nx_glob = coupler.get_nx_glob();
@@ -39,9 +39,9 @@ namespace modules {
     // Compute the horizontal average for each vertical level (that we use for the sponge layer)
     real2d havg_fields("havg_fields",num_fields,nz);
     havg_fields = 0;
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
-      if (ifld != WFLD) yakl::atomicAdd( havg_fields(ifld,k) , full_fields(ifld,k,j,i) );
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
+                                      KOKKOS_LAMBDA (int ifld, int k, int j, int i) {
+      if (ifld != WFLD) Kokkos::atomic_add( &havg_fields(ifld,k) , full_fields(ifld,k,j,i) );
     });
 
     havg_fields = coupler.get_parallel_comm().all_reduce( havg_fields , MPI_SUM , "sponge_Allreduce" );
@@ -51,8 +51,8 @@ namespace modules {
     real z2 = zlen;
     real p  = 3;
 
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
+    parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
+                                      KOKKOS_LAMBDA (int ifld, int k, int j, int i) {
       real z = (k+0.5_fp)*dz;
       if (z > z1) {
         real space_factor = std::pow((z-z1)/(z2-z1),p);

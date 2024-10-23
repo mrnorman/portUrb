@@ -57,8 +57,8 @@ namespace custom_modules {
     }
 
     void accumulate( core::Coupler &coupler , real dt ) {
-      using yakl::c::parallel_for;
-      using yakl::c::SimpleBounds;
+      using yikl::parallel_for;
+      using yikl::SimpleBounds;
       auto nx_glob = coupler.get_nx_glob();
       auto ny_glob = coupler.get_ny_glob();
       auto nx      = coupler.get_nx();
@@ -86,7 +86,7 @@ namespace custom_modules {
       real inertia = etime / (etime + dt);
       real etime_long = coupler.get_option<real>("elapsed_time");
       real inertia_long = etime_long / (etime_long + dt);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YIKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         long_avg_u(k,j,i) = inertia_long * long_avg_u(k,j,i) + (1-inertia_long) * uvel(k,j,i);
         long_avg_v(k,j,i) = inertia_long * long_avg_v(k,j,i) + (1-inertia_long) * vvel(k,j,i);
         long_avg_w(k,j,i) = inertia_long * long_avg_w(k,j,i) + (1-inertia_long) * wvel(k,j,i);

@@ -58,7 +58,7 @@ namespace core {
         allocate   = [] (size_t bytes,char const *label) -> void * { return ::malloc(bytes); };
         deallocate = [] (void *ptr   ,char const *label)           {        ::free  (ptr); };
       } else {
-        yakl::yakl_throw("ERROR: DataManagerTemplate created with invalid memSpace template parameter");
+        Kokkos::abort("ERROR: DataManagerTemplate created with invalid memSpace template parameter");
       }
     }
 

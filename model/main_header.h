@@ -20,7 +20,7 @@ using yakl::SArray;
 template <class T, int N>
 inline void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int line) {
   yakl::ScalarLiveOut<bool> nan_present(false);
-  yakl::c::parallel_for( YAKL_AUTO_LABEL() , arr.size() , YAKL_LAMBDA (int i) {
+  yikl::parallel_for( YIKL_AUTO_LABEL() , arr.size() , KOKKOS_LAMBDA (int i) {
     if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
   });
   if ( nan_present.hostRead() ) std::cerr << file << ":" << line << ":" << arr.label() << ": has NaN or inf" << std::endl;

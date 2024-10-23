@@ -1,16 +1,19 @@
 
-set(YAKL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/YAKL)
-set(YAKL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/YAKL PARENT_SCOPE)
-set(YAKL_BIN  ${CMAKE_CURRENT_BINARY_DIR}/yakl)
-set(YAKL_BIN  ${CMAKE_CURRENT_BINARY_DIR}/yakl PARENT_SCOPE)
+set(CMAKE_CXX_STANDARD 17)
+
 set(Kokkos_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/kokkos)
 set(Kokkos_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/kokkos PARENT_SCOPE)
 set(Kokkos_BIN  ${CMAKE_CURRENT_BINARY_DIR}/kokkos)
 set(Kokkos_BIN  ${CMAKE_CURRENT_BINARY_DIR}/kokkos PARENT_SCOPE)
-add_subdirectory(${YAKL_HOME} ${YAKL_BIN})
 add_subdirectory(${Kokkos_HOME} ${Kokkos_BIN})
-include_directories(${YAKL_BIN})
 include_directories(${Kokkos_INCLUDE_DIRS_RET})
+
+set(YAKL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/YAKL)
+set(YAKL_HOME ${CMAKE_CURRENT_SOURCE_DIR}/../external/YAKL PARENT_SCOPE)
+set(YAKL_BIN  ${CMAKE_CURRENT_BINARY_DIR}/yakl)
+set(YAKL_BIN  ${CMAKE_CURRENT_BINARY_DIR}/yakl PARENT_SCOPE)
+add_subdirectory(${YAKL_HOME} ${YAKL_BIN})
+include_directories(${YAKL_BIN})
 
 set(YAML_CPP_BUILD_TOOLS   OFF CACHE BOOL "" FORCE)
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)

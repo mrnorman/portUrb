@@ -8,6 +8,8 @@ if ("${YAKL_ARCH}" STREQUAL "CUDA")
   enable_language(CUDA)
 endif()
 
+set(CMAKE_CXX_STANDARD 17)
+
 include_directories($ENV{PORTURB_HOME}/model
                     $ENV{PORTURB_HOME}/model/core
                     $ENV{PORTURB_HOME}/model/modules

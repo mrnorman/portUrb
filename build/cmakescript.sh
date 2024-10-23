@@ -24,6 +24,10 @@ if [[ "$PORTURB_ARCH" == "serial" ]]; then
   CMAKE_COMMAND+=(-DKokkos_ENABLE_SERIAL=ON)
   CMAKE_COMMAND+=(-DKokkos_ARCH_NATIVE=ON)
 fi
+if [[ "$PORTURB_ARCH" == "hip" ]]; then
+  CMAKE_COMMAND+=(-DKokkos_ENABLE_HIP=ON)
+  CMAKE_COMMAND+=(-DKokkos_ARCH_AMD_GFX90A=ON)
+fi
 if [[ "$PORTURB_DEBUG" == "ON" ]]; then
   CMAKE_COMMAND+=(-DYAKL_DEBUG=ON)
   CMAKE_COMMAND+=(-DKokkos_ENABLE_DEBUG=ON)

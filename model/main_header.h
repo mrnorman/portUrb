@@ -3,6 +3,8 @@
 
 #include "mpi.h"
 #include "YAKL.h"
+#include <Kokkos_Core.hpp>
+#include <Kokkos_Profiling_ProfileSection.hpp>
 #include "yaml-cpp/yaml.h"
 #include "Counter.h"
 #include <stdexcept>

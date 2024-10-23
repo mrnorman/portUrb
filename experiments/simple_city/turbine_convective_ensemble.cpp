@@ -14,6 +14,7 @@
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
   yakl::init();
+  Kokkos::initialize( argc , argv );
   {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler_main;
@@ -70,7 +71,8 @@ int main(int argc, char** argv) {
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
     if (par_comm.valid()) {
-      yakl::timer_start("main");
+      Kokkos::Profiling::ProfilingSection section("main");
+      section.start();
 
       if (coupler_main.is_mainproc()) std::cout << "Ensemble memeber using an initial hub wind speed of ["
                                                 << coupler_main.get_option<real>("hub_height_wind_mag")
@@ -236,14 +238,14 @@ int main(int argc, char** argv) {
           output_counter.reset();
         }
       } // End main simulation loop
-      yakl::timer_stop("main");
+      section.stop();
     } // if (par_comm.valid()) 
 
     std::cout.rdbuf(orig_cout_buf);
     std::cerr.rdbuf(orig_cerr_buf);
   }
+  Kokkos::finalize();
   yakl::finalize();
-  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 }
 

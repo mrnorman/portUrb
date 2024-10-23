@@ -17,26 +17,21 @@ if [ ! -f $1/CMakeLists.txt ]; then
   exit -1
 fi
 
-cmake      \
-  -DYAKL_CUDA_FLAGS="${YAKL_CUDA_FLAGS}"         \
-  -DYAKL_CXX_FLAGS="${YAKL_CXX_FLAGS}"           \
-  -DYAKL_SYCL_FLAGS="${YAKL_SYCL_FLAGS}"         \
-  -DYAKL_OPENMP_FLAGS="${YAKL_OPENMP_FLAGS}"     \
-  -DYAKL_HIP_FLAGS="${YAKL_HIP_FLAGS}"           \
-  -DYAKL_F90_FLAGS="${YAKL_F90_FLAGS}"           \
-  -DPORTURB_LINK_FLAGS="${PORTURB_LINK_FLAGS}"   \
-  -DYAKL_ARCH="${YAKL_ARCH}"                     \
-  -DYAKL_HAVE_MPI=ON                             \
-  -DYAKL_DEBUG="${YAKL_DEBUG}"                   \
-  -DYAKL_PROFILE="${YAKL_PROFILE}"               \
-  -DYAKL_AUTO_PROFILE="${YAKL_AUTO_PROFILE}"     \
-  -DYAKL_VERBOSE="${YAKL_VERBOSE}"               \
-  -DYAKL_VERBOSE_FILE="${YAKL_VERBOSE_FILE}"     \
-  -DYAKL_AUTO_FENCE="${YAKL_AUTO_FENCE}"         \
-  -DCMAKE_CUDA_HOST_COMPILER="${CXX}"            \
-  -DPORTURB_HOME="`pwd`/.."               \
-  -Wno-dev                                       \
-  $1
-
+CMAKE_COMMAND=(cmake)
+CMAKE_COMMAND+=(-DYAKL_HAVE_MPI=ON)
+CMAKE_COMMAND+=(-Wno-dev)
+if [[ "$PORTURB_ARCH" == "serial" ]]; then
+  CMAKE_COMMAND+=(-DKokkos_ENABLE_SERIAL=ON)
+  CMAKE_COMMAND+=(-DKokkos_ARCH_NATIVE=ON)
+fi
+if [[ "$PORTURB_DEBUG" == "ON" ]]; then
+  CMAKE_COMMAND+=(-DYAKL_DEBUG=ON)
+  CMAKE_COMMAND+=(-DKokkos_ENABLE_DEBUG=ON)
+  CMAKE_COMMAND+=(-DKokkos_ENABLE_DEBUG_BOUNDS_CHECK=ON)
+fi
+CMAKE_COMMAND+=($1)
+  
 ln -sf $1/inputs .
+
+"${CMAKE_COMMAND[@]}"
 

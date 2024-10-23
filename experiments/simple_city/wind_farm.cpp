@@ -14,8 +14,10 @@
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
   yakl::init();
+  Kokkos::initialize( argc , argv );
   {
-    yakl::timer_start("main");
+    Kokkos::Profiling::ProfilingSection section("main");
+    section.start();
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler_main;
@@ -185,8 +187,9 @@ int main(int argc, char** argv) {
       }
     } // End main simulation loop
 
-    yakl::timer_stop("main");
+    section.stop();
   }
+  Kokkos::finalize();
   yakl::finalize();
   MPI_Finalize();
 }

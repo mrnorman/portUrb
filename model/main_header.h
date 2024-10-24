@@ -5,6 +5,7 @@
 #include "YAKL.h"
 #include <Kokkos_Core.hpp>
 #include <Kokkos_Profiling_ProfileSection.hpp>
+#include <Kokkos_StdAlgorithms.hpp>
 #include "YIKL.h"
 #include "yaml-cpp/yaml.h"
 #include "Counter.h"
@@ -51,28 +52,28 @@ template <class T> inline void debug_print_sum( T var , char const * file , int 
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": sum(" << varname << ")  -->  " << yakl::intrinsics::sum( var ) << std::endl;
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": sum(" << varname << ")  -->  " << yikl::intrinsics::sum( var ) << std::endl;
 }
 
 template <class T> inline void debug_print_avg( T var , char const * file , int line , char const * varname ) {
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": avg(" << varname << ")  -->  " << std::scientific << std::setprecision(17) << yakl::intrinsics::sum( var )/var.size() << std::endl;
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": avg(" << varname << ")  -->  " << std::scientific << std::setprecision(17) << yikl::intrinsics::sum( var )/var.size() << std::endl;
 }
 
 template <class T> inline void debug_print_min( T var , char const * file , int line , char const * varname ) {
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": minval(" << varname << ")  -->  " << yakl::intrinsics::minval( var ) << std::endl;
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": minval(" << varname << ")  -->  " << yikl::intrinsics::minval( var ) << std::endl;
 }
 
 template <class T> inline void debug_print_max( T var , char const * file , int line , char const * varname ) {
   MPI_Barrier(MPI_COMM_WORLD);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": maxval(" << varname << ")  -->  " << yakl::intrinsics::maxval( var ) << std::endl;
+  if (rank == 0) std::cout << "*** DEBUG: " << file << ": " << line << ": maxval(" << varname << ")  -->  " << yikl::intrinsics::maxval( var ) << std::endl;
 }
 
 template <class T> inline void debug_print_val( T var , char const * file , int line , char const * varname ) {

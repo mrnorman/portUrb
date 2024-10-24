@@ -94,7 +94,7 @@ namespace modules {
     //     real dtz = cfl*dz/(std::abs(w)+cs);
     //     dt3d(k,j,i) = std::min(std::min(dtx,dty),dtz);
     //   });
-    //   real maxwave = yakl::intrinsics::minval(dt3d);
+    //   real maxwave = yikl::intrinsics::minval(dt3d);
     //   return coupler.get_parallel_comm().all_reduce( maxwave , MPI_MIN );
     // }
 

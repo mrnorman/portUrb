@@ -272,7 +272,7 @@ namespace modules {
       });
 
       // Reduce down the minimum time step among the cells
-      real dt_max = yakl::intrinsics::minval(dt2d);
+      real dt_max = yikl::intrinsics::minval(dt2d);
 
       // Number of subcycles
       int rainsplit = ceil(dt / dt_max);

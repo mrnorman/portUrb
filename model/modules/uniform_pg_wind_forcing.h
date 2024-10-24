@@ -17,8 +17,8 @@ namespace modules {
     auto counter = coupler.get_option<size_t>("uniform_pg_wind_forcing_counter",0);
     if (counter%update_cycles == 0) {
       SArray<real,1,2> u_v;
-      u_v(0) = yakl::intrinsics::sum(uvel);
-      u_v(1) = yakl::intrinsics::sum(vvel);
+      u_v(0) = yikl::intrinsics::sum(uvel);
+      u_v(1) = yikl::intrinsics::sum(vvel);
       u_v = coupler.get_parallel_comm().all_reduce( u_v , MPI_SUM , "uniform_pg_allreduce" );
       coupler.set_option<real>("uniform_pg_wind_forcing_u",u_v(0)/(nz*ny_glob*nx_glob));
       coupler.set_option<real>("uniform_pg_wind_forcing_v",u_v(1)/(nz*ny_glob*nx_glob));
@@ -56,10 +56,10 @@ namespace modules {
     int k1 = 0;
     for (int k=0; k < nz; k++) { if ((k+0.5)*dz > height) { k1 = k-1; break; } }
     SArray<real,2,2,2> u_v;
-    u_v(0,0) = yakl::intrinsics::sum(uvel.slice<2>(k1  ,0,0));
-    u_v(0,1) = yakl::intrinsics::sum(vvel.slice<2>(k1  ,0,0));
-    u_v(1,0) = yakl::intrinsics::sum(uvel.slice<2>(k1+1,0,0));
-    u_v(1,1) = yakl::intrinsics::sum(vvel.slice<2>(k1+1,0,0));
+    u_v(0,0) = yikl::intrinsics::sum(uvel.slice<2>(k1  ,0,0));
+    u_v(0,1) = yikl::intrinsics::sum(vvel.slice<2>(k1  ,0,0));
+    u_v(1,0) = yikl::intrinsics::sum(uvel.slice<2>(k1+1,0,0));
+    u_v(1,1) = yikl::intrinsics::sum(vvel.slice<2>(k1+1,0,0));
     u_v = coupler.get_parallel_comm().all_reduce( u_v , MPI_SUM , "uniform_pg_allreduce" );
     real u1 = u_v(0,0)/(ny_glob*nx_glob);
     real v1 = u_v(0,1)/(ny_glob*nx_glob);

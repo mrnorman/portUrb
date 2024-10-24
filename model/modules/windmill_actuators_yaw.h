@@ -473,8 +473,8 @@ namespace modules {
             }
           });
           SArray<real,1,2> weights_tot;
-          weights_tot(0) = yakl::intrinsics::sum(uvel_3d);
-          weights_tot(1) = yakl::intrinsics::sum(vvel_3d);
+          weights_tot(0) = yikl::intrinsics::sum(uvel_3d);
+          weights_tot(1) = yikl::intrinsics::sum(vvel_3d);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
           real upstream_uvel = weights_tot(0);
           real upstream_vvel = weights_tot(1);
@@ -536,10 +536,10 @@ namespace modules {
           }
           using yakl::componentwise::operator>;
           SArray<real,1,4> weights_tot2;
-          weights_tot2(0) = yakl::intrinsics::sum(umag_19_5m_2d);
-          weights_tot2(1) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
-          weights_tot2(2) = yakl::intrinsics::sum(disk_weight_proj);
-          weights_tot2(3) = yakl::intrinsics::sum(disk_weight_samp);
+          weights_tot2(0) = yikl::intrinsics::sum(umag_19_5m_2d);
+          weights_tot2(1) = (real) yikl::intrinsics::count(umag_19_5m_2d > 0._fp);
+          weights_tot2(2) = yikl::intrinsics::sum(disk_weight_proj);
+          weights_tot2(3) = yikl::intrinsics::sum(disk_weight_samp);
           weights_tot2 = turbine.par_comm.all_reduce( weights_tot2 , MPI_SUM , "windmill_Allreduce1" );
           real umag_19_5m    = weights_tot2(0) / weights_tot2(1);
           real disk_proj_tot = weights_tot2(2);
@@ -568,8 +568,8 @@ namespace modules {
             }
           });
           SArray<real,1,2> sums;
-          sums(0) = yakl::intrinsics::sum( samp_u );
-          sums(1) = yakl::intrinsics::sum( samp_v );
+          sums(0) = yikl::intrinsics::sum( samp_u );
+          sums(1) = yikl::intrinsics::sum( samp_v );
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
           turbine.u_samp_trace.push_back( sums(0) );
           turbine.v_samp_trace.push_back( sums(1) );

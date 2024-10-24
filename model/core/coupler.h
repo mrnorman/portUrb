@@ -516,7 +516,7 @@ namespace core {
       parallel_for( YIKL_AUTO_LABEL() , mag.size() , KOKKOS_LAMBDA (int i) {
         mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
       });
-      auto wind_mag = par_comm.reduce( yakl::intrinsics::maxval(mag) , MPI_MAX , 0 );
+      auto wind_mag = par_comm.reduce( yikl::intrinsics::maxval(mag) , MPI_MAX , 0 );
       if (is_mainproc()) {
         std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
                   << std::scientific << std::setw(10) << get_option<real>("elapsed_time") << " , " 

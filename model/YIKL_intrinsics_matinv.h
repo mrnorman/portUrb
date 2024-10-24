@@ -6,7 +6,7 @@ namespace yikl {
   namespace intrinsics {
 
     template <size_t n, class real>
-    YAKL_INLINE SArray<real,2,n,n> matinv_ge(SArray<real,2,n,n> const &a) {
+    KOKKOS_INLINE_FUNCTION SArray<real,2,n,n> matinv_ge(SArray<real,2,n,n> const &a) {
       SArray<real,2,n,n> scratch;
       SArray<real,2,n,n> inv;
 

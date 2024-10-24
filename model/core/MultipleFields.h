@@ -10,7 +10,7 @@ namespace core {
   template <int MAX_FIELDS, class T>
   class MultipleFields {
   public:
-    yakl::SArray<T,1,MAX_FIELDS> fields;
+    SArray<T,1,MAX_FIELDS> fields;
     int num_fields;
 
     KOKKOS_INLINE_FUNCTION MultipleFields() { num_fields = 0; }

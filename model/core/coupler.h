@@ -778,10 +778,6 @@ namespace core {
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange( core::MultiField<T,3> & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
@@ -839,20 +835,12 @@ namespace core {
           fields(v,hs+k,ny+hs+jj,i) = halo_recv_buf_N(v,k,jj,i);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange( yakl::Array<T,4,yakl::memDevice,yakl::styleC> const & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       int  npack  = fields.extent(0);
@@ -900,20 +888,12 @@ namespace core {
           fields(v,hs+k,ny+hs+jj,i) = halo_recv_buf_N(v,k,jj,i);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange( core::MultiField<T,2> & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
@@ -968,20 +948,12 @@ namespace core {
           fields(v,ny+hs+jj,i) = halo_recv_buf_N(v,jj,i);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange_x( yakl::Array<T,4,yakl::memDevice,yakl::styleC> const & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       int  npack  = fields.extent(0);
@@ -1009,20 +981,12 @@ namespace core {
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange_x( core::MultiField<T,3> & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
@@ -1060,20 +1024,12 @@ namespace core {
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange_y( core::MultiField<T,3> & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
@@ -1111,20 +1067,12 @@ namespace core {
           fields(v,hs+k,ny+hs+jj,hs+i) = halo_recv_buf_N(v,k,jj,i);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
 
     // Exchange halo values periodically in the horizontal
     template <class T>
     void halo_exchange_y( yakl::Array<T,4,yakl::memDevice,yakl::styleC> const & fields , int hs ) const {
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_start("halo_exchange");
-      #endif
       using yikl::parallel_for;
       using yikl::SimpleBounds;
       int  npack  = fields.extent(0);
@@ -1153,10 +1101,6 @@ namespace core {
           fields(v,hs+k,ny+hs+jj,hs+i) = halo_recv_buf_N(v,k,jj,i);
         });
       }
-      #ifdef YAKL_AUTO_PROFILE
-        par_comm.barrier();
-        yakl::timer_stop("halo_exchange");
-      #endif
     }
 
   };

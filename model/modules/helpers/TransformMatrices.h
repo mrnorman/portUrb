@@ -1,7 +1,7 @@
 #pragma once
 #include "main_header.h"
 #include <math.h>
-using yakl::SArray;
+using yikl::SArray;
 
 namespace TransformMatrices {
 

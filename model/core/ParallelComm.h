@@ -92,15 +92,13 @@ namespace core {
       std::vector<MPI_Status > rStat(n);
       #ifdef PORTURB_GPU_AWARE_MPI
         if (lab != "") yakl::timer_start(lab.c_str());
-        yakl::fence();
+        Kokkos::fence();
         for (int i=0; i < n; i++) {
           auto arr = receives.at(i).arr;
-          yakl::verbose_inform(std::string("RECEIVE ADDRESS: ")+std::to_string((unsigned long long)receives.at(i).arr.data()));
           check( MPI_Irecv( arr.data() , arr.size() , get_type<T>() , receives.at(i).them , receives.at(i).tag , comm , &(rReq.at(i)) ) );
         }
         for (int i=0; i < n; i++) {
           auto arr = sends.at(i).arr;
-          yakl::verbose_inform(std::string("SEND ADDRESS: ")+std::to_string((unsigned long long)sends.at(i).arr.data()));
           check( MPI_Isend( arr.data() , arr.size() , get_type<T>() , sends   .at(i).them , sends   .at(i).tag , comm , &(sReq.at(i)) ) );
         }
         check( MPI_Waitall(n, sReq.data(), sStat.data()) );
@@ -111,13 +109,11 @@ namespace core {
         std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> receive_host_arrays(n);
         std::vector<yakl::Array<T,N,yakl::memHost,yakl::styleC>> send_host_arrays(n);
         for (int i=0; i < n; i++) {
-          yakl::verbose_inform(std::string("RECEIVE ADDRESS: ")+std::to_string((unsigned long long)receives.at(i).arr.data()));
           receive_host_arrays.at(i) = receives.at(i).arr.createHostObject();
           check( MPI_Irecv( receive_host_arrays.at(i).data() , receive_host_arrays.at(i).size() , get_type<T>() ,
                             receives.at(i).them , receives.at(i).tag , comm , &(rReq.at(i)) ) );
         }
         for (int i=0; i < n; i++) {
-          yakl::verbose_inform(std::string("SEND ADDRESS: ")+std::to_string((unsigned long long)sends.at(i).arr.data()));
           send_host_arrays   .at(i) = sends   .at(i).arr.createHostCopy();
           check( MPI_Isend( send_host_arrays.at(i).data() , send_host_arrays.at(i).size() , get_type<T>() ,
                             sends.at(i).them , sends.at(i).tag , comm , &(sReq.at(i)) ) );
@@ -125,7 +121,7 @@ namespace core {
         check( MPI_Waitall(n, sReq.data(), sStat.data()) );
         check( MPI_Waitall(n, rReq.data(), rStat.data()) );
         for (int i=0; i < n; i++) { receive_host_arrays.at(i).deep_copy_to(receives.at(i).arr);}
-        yakl::fence();
+        Kokkos::fence();
         if (lab != "") yakl::timer_stop(lab.c_str());
       #endif
     }
@@ -153,8 +149,8 @@ namespace core {
     ////////////////////
     // Broadcast
     ////////////////////
-    template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
-    void broadcast( yakl::CSArray<T,N,D0,D1,D2,D3> const & arr , int root = 0 , std::string lab = "" ) const {
+    template <class T, int N, size_t D0, size_t D1, size_t D2, size_t D3>
+    void broadcast( SArray<T,N,D0,D1,D2,D3> const & arr , int root = 0 , std::string lab = "" ) const {
       if (nranks == 1) return;
       if (lab != "") yakl::timer_start( lab.c_str() );
       check( MPI_Bcast( arr.data()  , arr.size() , get_type<T>() , root , comm ) );
@@ -171,7 +167,7 @@ namespace core {
       } else {
         #ifdef PORTURB_GPU_AWARE_MPI
           if (lab != "") yakl::timer_start( lab.c_str() );
-          yakl::fence();
+          Kokkos::fence();
           check( MPI_Bcast( arr.data() , arr.size() , get_type<T>() , root , comm ) );
           if (lab != "") yakl::timer_stop( lab.c_str() );
         #else
@@ -196,11 +192,11 @@ namespace core {
     ////////////////////
     // Reduce
     ////////////////////
-    template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
-    yakl::CSArray<T,N,D0,D1,D2,D3> reduce( yakl::CSArray<T,N,D0,D1,D2,D3> loc , MPI_Op op , int root = 0 , std::string lab = "" ) const {
+    template <class T, int N, size_t D0, size_t D1, size_t D2, size_t D3>
+    SArray<T,N,D0,D1,D2,D3> reduce( SArray<T,N,D0,D1,D2,D3> loc , MPI_Op op , int root = 0 , std::string lab = "" ) const {
       if (nranks == 1) return loc;
       if (lab != "") yakl::timer_start( lab.c_str() );
-      yakl::CSArray<T,N,D0,D1,D2,D3> glob;
+      SArray<T,N,D0,D1,D2,D3> glob;
       check( MPI_Reduce( loc.data() , glob.data() , loc.size() , get_type<T>() , op , root , comm ) );
       if (lab != "") yakl::timer_stop( lab.c_str() );
       return glob;
@@ -219,7 +215,7 @@ namespace core {
         #ifdef PORTURB_GPU_AWARE_MPI
           if (lab != "") yakl::timer_start( lab.c_str() );
           auto glob = loc.createDeviceObject();
-          yakl::fence();
+          Kokkos::fence();
           check( MPI_Reduce( loc.data() , glob.data() , loc.size() , get_type<T>() , op , root , comm ) );
           if (lab != "") yakl::timer_stop( lab.c_str() );
           return glob;
@@ -248,11 +244,11 @@ namespace core {
     ////////////////////
     // Allreduce
     ////////////////////
-    template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
-    yakl::CSArray<T,N,D0,D1,D2,D3> all_reduce( yakl::CSArray<T,N,D0,D1,D2,D3> loc , MPI_Op op , std::string lab = "" ) const {
+    template <class T, int N, size_t D0, size_t D1, size_t D2, size_t D3>
+    SArray<T,N,D0,D1,D2,D3> all_reduce( SArray<T,N,D0,D1,D2,D3> loc , MPI_Op op , std::string lab = "" ) const {
       if (nranks == 1) return loc;
       if (lab != "") yakl::timer_start( lab.c_str() );
-      yakl::CSArray<T,N,D0,D1,D2,D3> glob;
+      SArray<T,N,D0,D1,D2,D3> glob;
       check( MPI_Allreduce( loc.data() , glob.data() , loc.size() , get_type<T>() , op , comm ) );
       if (lab != "") yakl::timer_stop( lab.c_str() );
       return glob;
@@ -271,7 +267,7 @@ namespace core {
         #ifdef PORTURB_GPU_AWARE_MPI
           if (lab != "") yakl::timer_start( lab.c_str() );
           auto glob = loc.createDeviceObject();
-          yakl::fence();
+          Kokkos::fence();
           check( MPI_Allreduce( loc.data() , glob.data() , loc.size() , get_type<T>() , op , comm ) );
           if (lab != "") yakl::timer_stop( lab.c_str() );
           return glob;
@@ -312,7 +308,7 @@ namespace core {
       else if (std::is_same<T,                double>::value) { return MPI_DOUBLE;                }
       else if (std::is_same<T,           long double>::value) { return MPI_LONG_DOUBLE;           }
       else if (std::is_same<T,                  bool>::value) { return MPI_C_BOOL;                }
-      else { yakl::yakl_throw("Invalid type for MPI operations"); }
+      else { Kokkos::abort("Invalid type for MPI operations"); }
     }
 
 
@@ -323,7 +319,7 @@ namespace core {
       MPI_Error_string(e, estring, &len);
       printf("MPI Error: %s\n", estring);
       std::cout << std::endl;
-      yakl::yakl_throw("MPI Error");
+      Kokkos::abort("MPI Error");
     }
   };
 

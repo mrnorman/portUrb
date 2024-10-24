@@ -304,9 +304,7 @@ namespace yikl {
 
   template <class F>
   inline void parallel_for( char const * str , int nIter , F const &f ) {
-    if (nIter == 0) return;
-    SimpleBounds<1> bounds(nIter);
-    Kokkos::parallel_for( str , nIter , KOKKOS_LAMBDA (int i) { callFunctor(f,bounds,i); });
+    parallel_for( str , SimpleBounds<1>(nIter) , f );
   }
 
 }

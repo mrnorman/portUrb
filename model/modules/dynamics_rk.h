@@ -513,7 +513,7 @@ namespace modules {
       SArray<float,2,ord,2> c2e;
       TransformMatrices::sten_to_coefs(s2c);
       TransformMatrices::coefs_to_gll_lower(c2e);
-      using yakl::intrinsics::matmul_cr;
+      using yikl::intrinsics::matmul_cr;
       s2e = matmul_cr( c2e , s2c );
 
       float4d fields_loc("fields_loc",num_state+num_tracers+1,nz+2*hs,ny+2*hs,nx+2*hs);

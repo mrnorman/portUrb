@@ -472,7 +472,7 @@ namespace modules {
               vvel_3d(k,j,i) = 0;
             }
           });
-          yakl::SArray<real,1,2> weights_tot;
+          SArray<real,1,2> weights_tot;
           weights_tot(0) = yakl::intrinsics::sum(uvel_3d);
           weights_tot(1) = yakl::intrinsics::sum(vvel_3d);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
@@ -535,7 +535,7 @@ namespace modules {
             });
           }
           using yakl::componentwise::operator>;
-          yakl::SArray<real,1,4> weights_tot2;
+          SArray<real,1,4> weights_tot2;
           weights_tot2(0) = yakl::intrinsics::sum(umag_19_5m_2d);
           weights_tot2(1) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
           weights_tot2(2) = yakl::intrinsics::sum(disk_weight_proj);

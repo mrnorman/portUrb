@@ -5,4 +5,8 @@
 #define YIKL_SCOPE(a,b) auto &a = std::ref(b).get()
 
 #include "YIKL_parallel_for.h"
+#include "YIKL_SArray.h"
+#include "YIKL_componentwise.h"
+#include "YIKL_intrinsics_matmul.h"
+#include "YIKL_intrinsics_matinv.h"
 

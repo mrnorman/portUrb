@@ -6,9 +6,9 @@ namespace modules {
 
   // TODO: For some regimes, we can try blending in the Joint North Sea Wave Observation Project JONSWAP spectrum
   struct Floating_motions_betti {
-    int           static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
-    real          static constexpr dt_max         = 0.05;
-    yakl::index_t static constexpr rand_pool_size = 1024*10;
+    int     static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
+    real    static constexpr dt_max         = 0.05;
+    size_t  static constexpr rand_pool_size = 1024*10;
     SArray<real,1,6>               state;      // Current state vector
     real                           etime;      // Current elapsed time
     std::vector<real>              rand_pool;
@@ -275,7 +275,7 @@ namespace modules {
       F(4) = omega;
       F(5) = Q_alpha;
       real avegQ_t = std::sqrt(Qt_zeta*Qt_zeta+Qt_eta*Qt_eta)/8;
-      auto deriv = yakl::intrinsics::matmul_rc( yakl::intrinsics::matinv_ge(E) , F );
+      auto deriv = yikl::intrinsics::matmul_rc( yikl::intrinsics::matinv_ge(E) , F );
       return std::make_tuple( deriv , v_in , avegQ_t );
     }
 
@@ -288,9 +288,9 @@ namespace modules {
 
 
     real time_step( real dt , real turbine_wind , real wind_19_5m , real Ct ) {
-      using yakl::componentwise::operator+;
-      using yakl::componentwise::operator*;
-      using yakl::componentwise::operator/;
+      using yikl::componentwise::operator+;
+      using yikl::componentwise::operator*;
+      using yikl::componentwise::operator/;
       int niter = std::ceil( dt / dt_max );
       dt = dt / niter;
       real wind = 0;

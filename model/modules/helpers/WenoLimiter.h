@@ -82,7 +82,7 @@ namespace limiter {
   }
 
 
-  template <yakl::index_t N, class real>
+  template <size_t N, class real>
   KOKKOS_INLINE_FUNCTION void static normalize( SArray<real,1,N> &s , real &mn , real &scale ) {
     mn = s(0);
     real mx = s(0);

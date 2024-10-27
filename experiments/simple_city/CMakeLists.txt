@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(portUrb)
 
+set(CMAKE_CXX_STANDARD 17)
+
 enable_language(Fortran)
 enable_language(CXX)
 enable_language(C)
@@ -23,59 +25,25 @@ add_subdirectory(${PORTURB_HOME}/model model)
 add_library(custom_modules INTERFACE)
 target_include_directories(custom_modules INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/custom_modules)
 
-set(mylibs modules custom_modules model core ponni yaml-cpp "${PORTURB_LINK_FLAGS}")
+set(mylibs modules custom_modules model core ponni yaml-cpp yakl "${PORTURB_LINK_FLAGS}")
 
-include(${YAKL_HOME}/yakl_utils.cmake)
+macro(process_target target_name)
+  add_executable(${target_name} ${target_name}.cpp)
+  target_compile_options(${target_name} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${PORTURB_CXX_FLAGS}>)
+  target_link_libraries(${target_name} ${mylibs})
+endmacro()
 
-add_executable(wind_farm2 wind_farm2.cpp)
-yakl_process_target(wind_farm2)
-target_link_libraries(wind_farm2 ${mylibs})
-
-add_executable(wind_farm wind_farm.cpp)
-yakl_process_target(wind_farm)
-target_link_libraries(wind_farm ${mylibs})
-
-add_executable(city city.cpp)
-yakl_process_target(city)
-target_link_libraries(city ${mylibs})
-
-add_executable(abl abl.cpp)
-yakl_process_target(abl)
-target_link_libraries(abl ${mylibs})
-
-add_executable(abl_neutral abl_neutral.cpp)
-yakl_process_target(abl_neutral)
-target_link_libraries(abl_neutral ${mylibs})
-
-add_executable(awaken_simplest awaken_simplest.cpp)
-yakl_process_target(awaken_simplest)
-target_link_libraries(awaken_simplest ${mylibs})
-
-add_executable(abl_convective abl_convective.cpp)
-yakl_process_target(abl_convective)
-target_link_libraries(abl_convective ${mylibs})
-
-add_executable(supercell supercell.cpp)
-yakl_process_target(supercell)
-target_link_libraries(supercell ${mylibs})
-
-add_executable(windfarm_ensemble windfarm_ensemble.cpp)
-yakl_process_target(windfarm_ensemble)
-target_link_libraries(windfarm_ensemble ${mylibs})
-
-add_executable(turbine_neutral_ensemble turbine_neutral_ensemble.cpp)
-yakl_process_target(turbine_neutral_ensemble)
-target_link_libraries(turbine_neutral_ensemble ${mylibs})
-
-add_executable(turbine_stable_ensemble turbine_stable_ensemble.cpp)
-yakl_process_target(turbine_stable_ensemble)
-target_link_libraries(turbine_stable_ensemble ${mylibs})
-
-add_executable(turbine_convective_ensemble turbine_convective_ensemble.cpp)
-yakl_process_target(turbine_convective_ensemble)
-target_link_libraries(turbine_convective_ensemble ${mylibs})
-
-add_executable(windfarm_ensemble_3x3 windfarm_ensemble_3x3.cpp)
-yakl_process_target(windfarm_ensemble_3x3)
-target_link_libraries(windfarm_ensemble_3x3 ${mylibs})
+process_target(wind_farm2)
+process_target(wind_farm)
+process_target(city)
+process_target(abl)
+process_target(abl_neutral)
+process_target(awaken_simplest)
+process_target(abl_convective)
+process_target(supercell)
+process_target(windfarm_ensemble)
+process_target(turbine_neutral_ensemble)
+process_target(turbine_stable_ensemble)
+process_target(turbine_convective_ensemble)
+process_target(windfarm_ensemble_3x3)
 

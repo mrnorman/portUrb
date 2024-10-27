@@ -58,7 +58,7 @@ namespace core {
         allocate   = [] (size_t bytes,char const *label) -> void * { return ::malloc(bytes); };
         deallocate = [] (void *ptr   ,char const *label)           {        ::free  (ptr); };
       } else {
-        yakl::yakl_throw("ERROR: DataManagerTemplate created with invalid memSpace template parameter");
+        Kokkos::abort("ERROR: DataManagerTemplate created with invalid memSpace template parameter");
       }
     }
 
@@ -91,7 +91,7 @@ namespace core {
           yakl::memcpy_host_to_host_void    ( loc.ptr , entry.ptr , entry.bytes );
         } else {
           yakl::memcpy_device_to_device_void( loc.ptr , entry.ptr , entry.bytes );
-          yakl::fence();
+          Kokkos::fence();
         }
         loc.bytes     = entry.bytes;
         loc.dims      = entry.dims;
@@ -588,7 +588,7 @@ namespace core {
     // Deallocate all entries, and set the entries and dimensions to empty vectors. This is called by the destructor
     // Generally meat for internal use, but perhaps there are cases where the user might want to call this directly.
     void finalize() {
-      yakl::fence();
+      Kokkos::fence();
       for (int i=0; i < entries.size(); i++) {
         deallocate( entries.at(i).ptr , entries.at(i).name.c_str() );
       }

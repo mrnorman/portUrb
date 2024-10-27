@@ -40,7 +40,7 @@ namespace modules {
       auto state_col_avg = get_column_average( coupler , state );
       YAKL_SCOPE( column , this->column );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (immersed(k,j,i) == 0) {
           state(l,k,j,i) += dt * ( column(l,k) - state_col_avg(l,k) ) / time_scale;
         }
@@ -60,11 +60,11 @@ namespace modules {
       real2d column("column",names.size(),nz);
       column = 0;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
-        yakl::atomicAdd( column(l,k) , state(l,k,j,i) );
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
+        Kokkos::atomic_add( &column(l,k) , state(l,k,j,i) );
       });
       column = coupler.get_parallel_comm().all_reduce( column , MPI_SUM , "column_nudging_Allreduce" );
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(names.size(),nz) , YAKL_LAMBDA (int l, int k) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(names.size(),nz) , KOKKOS_LAMBDA (int l, int k) {
         column(l,k) /= (nx_glob*ny_glob);
       });
       return column;

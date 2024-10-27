@@ -25,9 +25,9 @@ namespace modules {
   struct Dynamics_Euler_Stratified_WenoFV {
     // Order of accuracy (numerical convergence for smooth flows) for the dynamical core
     #ifndef PORTURB_ORD
-      yakl::index_t static constexpr ord = 11;
+      size_t static constexpr ord = 11;
     #else
-      yakl::index_t static constexpr ord = PORTURB_ORD;
+      size_t static constexpr ord = PORTURB_ORD;
     #endif
     int static constexpr hs  = (ord-1)/2; // Number of halo cells ("hs" == "halo size")
     int static constexpr num_state = 5;   // Number of state variables
@@ -39,8 +39,8 @@ namespace modules {
     int  static constexpr idT = 4;  // Density * potential temperature
 
 
-    template <yakl::index_t N>
-    YAKL_INLINE static void normalize( SArray<real,1,N> &s ) {
+    template <size_t N>
+    KOKKOS_INLINE_FUNCTION static void normalize( SArray<real,1,N> &s ) {
       real mn = s(0);
       real mx = s(0);
       for (int i=1; i < N; i++) {
@@ -81,7 +81,7 @@ namespace modules {
     //   auto temp  = dm.get<real const,3>("temp"       );
     //   real3d dt3d("dt3d",nz,ny,nx);
     //   real cfl = coupler.get_option<real>("cfl",0.15);
-    //   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+    //   parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
     //     real r = rho_d(k,j,i);
     //     real u = uvel (k,j,i);
     //     real v = vvel (k,j,i);
@@ -138,7 +138,7 @@ namespace modules {
 
 
 
-    template <yakl::index_t N>
+    template <size_t N>
     void time_step_generic_rk( core::Coupler            & coupler ,
                                SArray<real,2,N,N> const & A       ,
                                SArray<real,1,N>   const & b       ,
@@ -157,7 +157,7 @@ namespace modules {
       real4d tracers_tmp("tracers_tmp",num_tracers,nz+2*hs,ny+2*hs,nx+2*hs);
       enforce_immersed_boundaries( coupler , state , tracers );
       for (int is = 0; is < N; is++) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
           for (int l=0; l < num_state  ; l++) {
             state_tmp  (l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i);
             for (int l2=0; l2 <= is-1; l2++) { state_tmp  (l,hs+k,hs+j,hs+i) += dt*A(is,l2)*state_rk_tend  (l2,l,k,j,i); }
@@ -172,7 +172,7 @@ namespace modules {
         enforce_immersed_boundaries( coupler , state_tmp , tracers_tmp );
         compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
       }
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         for (int is = 0; is < N; is++) {
           for (int l=0; l < num_state  ; l++) { state  (l,hs+k,hs+j,hs+i) += dt*b(is)*state_rk_tend  (is,l,k,j,i); }
           for (int l=0; l < num_tracers; l++) { tracers(l,hs+k,hs+j,hs+i) += dt*b(is)*tracers_rk_tend(is,l,k,j,i); }
@@ -245,7 +245,7 @@ namespace modules {
       compute_tendencies(coupler,state,state_tend_n,tracers,tracers_tend_n);
       
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
           state  (l,hs+k,hs+j,hs+i) =  1.908535476882378 * state_n  (l,hs+k,hs+j,hs+i)      +
                                       -1.334951446162515 * state_nm1(l,hs+k,hs+j,hs+i)      +
@@ -306,7 +306,7 @@ namespace modules {
       compute_tendencies(coupler,state,state_tend,tracers,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
           state_tmp  (l,hs+k,hs+j,hs+i) = state  (l,hs+k,hs+j,hs+i) + dt_dyn * state_tend  (l,k,j,i);
         } else {
@@ -323,7 +323,7 @@ namespace modules {
       compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
           state_tmp  (l,hs+k,hs+j,hs+i) = (3._fp/4._fp) * state      (l,hs+k,hs+j,hs+i) + 
                                           (1._fp/4._fp) * state_tmp  (l,hs+k,hs+j,hs+i) +
@@ -344,7 +344,7 @@ namespace modules {
       compute_tendencies(coupler,state_tmp,state_tend,tracers_tmp,tracers_tend);
       // Apply tendencies
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
           state  (l,hs+k,hs+j,hs+i) = (1._fp/3._fp) * state      (l,hs+k,hs+j,hs+i) +
                                       (2._fp/3._fp) * state_tmp  (l,hs+k,hs+j,hs+i) +
@@ -389,7 +389,7 @@ namespace modules {
       if (! dm.entry_exists("dycore_immersed_tau")) {
         coupler.get_data_manager_readwrite().register_and_allocate<int>("dycore_immersed_tau","",{nz,ny,nx});
         auto immersed_tau = coupler.get_data_manager_readwrite().get<int,3>("dycore_immersed_tau");
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
           bool not_immersed_1 = false;
           bool not_immersed_2 = false;
           bool not_immersed_3 = false;
@@ -426,7 +426,7 @@ namespace modules {
 
       auto immersed_tau = dm.get<int const,3>("dycore_immersed_tau");
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real mult = std::pow( immersed_prop(hs+k,hs+j,hs+i) , immersed_power ) / immersed_tau(k,j,i);
         // TODO: Find a way to calculate drag in here
         // Density
@@ -475,8 +475,8 @@ namespace modules {
 
 
     // Once you encounter an immersed boundary, set zero derivative boundary conditions
-    template <class FP, yakl::index_t ORD>
-    YAKL_INLINE static void modify_stencil_immersed_der0( SArray<FP  ,1,ORD>       & stencil  ,
+    template <class FP, size_t ORD>
+    KOKKOS_INLINE_FUNCTION static void modify_stencil_immersed_der0( SArray<FP  ,1,ORD>       & stencil  ,
                                                           SArray<bool,1,ORD> const & immersed ) {
       int constexpr hs = (ORD-1)/2;
       // Don't modify the stencils of immersed cells
@@ -546,7 +546,7 @@ namespace modules {
       float4d fields_loc("fields_loc",num_state+num_tracers+1,nz+2*hs,ny+2*hs,nx+2*hs);
 
       // Compute pressure
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         fields_loc(idP,hs+k,hs+j,hs+i) = C0*std::pow(state(idT,hs+k,hs+j,hs+i),gamma) - hy_pressure_cells(hs+k);
         real r_r = 1._fp / state(idR,hs+k,hs+j,hs+i);
         fields_loc(idR,hs+k,hs+j,hs+i) = state(idR,hs+k,hs+j,hs+i);
@@ -569,7 +569,7 @@ namespace modules {
       float5d limits_z("limits_z",2,num_state+num_tracers+1,nz+1,ny,nx);
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int ii=0; ii<ord; ii++) {
@@ -587,7 +587,7 @@ namespace modules {
         }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int jj=0; jj<ord; jj++) {
@@ -605,7 +605,7 @@ namespace modules {
         }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         SArray<float,1,ord> stencil;
         SArray<bool,1,ord> immersed;
         for (int kk=0; kk<ord; kk++) {
@@ -636,7 +636,7 @@ namespace modules {
       // Speed of sound and its reciprocal. Using a constant speed of sound for upwinding
       float constexpr cs   = 350.;
       float constexpr r_cs = 1./cs;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , KOKKOS_LAMBDA (int k, int j, int i) {
         if (j < ny && k < nz) {
           limits_x(0,idR,k,j,i) += hy_dens_cells (hs+k);
           limits_x(1,idR,k,j,i) += hy_dens_cells (hs+k);
@@ -707,7 +707,7 @@ namespace modules {
 
       // Compute tendencies as the flux divergence + gravity source term + coriolis
       int mx = std::max(num_state,num_tracers);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(mx,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(mx,nz,ny,nx) , KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (l < num_state) {
           state_tend(l,k,j,i) = -( flux_x(l,k,j,i+1) - flux_x(l,k,j,i) ) * r_dx
                                 -( flux_y(l,k,j+1,i) - flux_y(l,k,j,i) ) * r_dy
@@ -750,27 +750,27 @@ namespace modules {
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int l, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int l, int k, int j, int ii) {
           fields(l,hs+k,hs+j,      ii) = fields(l,hs+k,hs+j,hs+0   );
         });
       }
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int l, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int l, int k, int j, int ii) {
           fields(l,hs+k,hs+j,hs+nx+ii) = fields(l,hs+k,hs+j,hs+nx-1);
         });
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int l, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int l, int k, int jj, int i) {
           fields(l,hs+k,      jj,hs+i) = fields(l,hs+k,hs+0   ,hs+i);
         });
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int l, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int l, int k, int jj, int i) {
           fields(l,hs+k,hs+ny+jj,hs+i) = fields(l,hs+k,hs+ny-1,hs+i);
         });
       }
@@ -778,7 +778,7 @@ namespace modules {
       // z-direction BC's
       if (bc_z == "solid_wall") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
-                                          YAKL_LAMBDA (int l, int kk, int j, int i) {
+                                          KOKKOS_LAMBDA (int l, int kk, int j, int i) {
           if (l == idW || l == idT) {
             fields(l,      kk,hs+j,hs+i) = 0;
             fields(l,hs+nz+kk,hs+j,hs+i) = 0;
@@ -789,12 +789,12 @@ namespace modules {
         });
       } else if (bc_z == "periodic") {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
-                                          YAKL_LAMBDA (int l, int kk, int j, int i) {
+                                          KOKKOS_LAMBDA (int l, int kk, int j, int i) {
           fields(l,      kk,hs+j,hs+i) = fields(l,nz+kk,hs+j,hs+i);
           fields(l,hs+nz+kk,hs+j,hs+i) = fields(l,hs+kk,hs+j,hs+i);
         });
       } else {
-        yakl::yakl_throw("ERROR: Specified invalid bc_z in coupler options");
+        Kokkos::abort("ERROR: Specified invalid bc_z in coupler options");
       }
       #ifdef YAKL_AUTO_PROFILE
         yakl::timer_stop("halo_boundary_conditions");
@@ -829,13 +829,13 @@ namespace modules {
         float3d edge_send_buf_E("edge_send_buf_E",npack,nz,ny);
         float3d edge_recv_buf_W("edge_recv_buf_W",npack,nz,ny);
         float3d edge_recv_buf_E("edge_recv_buf_E",npack,nz,ny);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , KOKKOS_LAMBDA (int v, int k, int j) {
           edge_send_buf_W(v,k,j) = limits_x(1,v,k,j,0 );
           edge_send_buf_E(v,k,j) = limits_x(0,v,k,j,nx);
         });
         coupler.get_parallel_comm().send_receive<float,3>( { {edge_recv_buf_W,neigh(1,0),4} , {edge_recv_buf_E,neigh(1,2),5} } ,
                                                            { {edge_send_buf_W,neigh(1,0),5} , {edge_send_buf_E,neigh(1,2),4} } );
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , YAKL_LAMBDA (int v, int k, int j) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,ny) , KOKKOS_LAMBDA (int v, int k, int j) {
           limits_x(0,v,k,j,0 ) = edge_recv_buf_W(v,k,j);
           limits_x(1,v,k,j,nx) = edge_recv_buf_E(v,k,j);
         });
@@ -847,13 +847,13 @@ namespace modules {
         float3d edge_send_buf_N("edge_send_buf_N",npack,nz,nx);
         float3d edge_recv_buf_S("edge_recv_buf_S",npack,nz,nx);
         float3d edge_recv_buf_N("edge_recv_buf_N",npack,nz,nx);
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , KOKKOS_LAMBDA (int v, int k, int i) {
             edge_send_buf_S(v,k,i) = limits_y(1,v,k,0 ,i);
             edge_send_buf_N(v,k,i) = limits_y(0,v,k,ny,i);
         });
         coupler.get_parallel_comm().send_receive<float,3>( { {edge_recv_buf_S,neigh(0,1),6} , {edge_recv_buf_N,neigh(2,1),7} } ,
                                                            { {edge_send_buf_S,neigh(0,1),7} , {edge_send_buf_N,neigh(2,1),6} } );
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , YAKL_LAMBDA (int v, int k, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,nz,nx) , KOKKOS_LAMBDA (int v, int k, int i) {
           limits_y(0,v,k,0 ,i) = edge_recv_buf_S(v,k,i);
           limits_y(1,v,k,ny,i) = edge_recv_buf_N(v,k,i);
         });
@@ -861,33 +861,33 @@ namespace modules {
 
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == 0) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,ny) ,
-                                          YAKL_LAMBDA (int l, int k, int j) {
+                                          KOKKOS_LAMBDA (int l, int k, int j) {
           limits_x(0,l,k,j,0 ) = limits_x(1,l,k,j,0 );
         });
       }
       if (coupler.get_option<std::string>("bc_x") == "precursor" && coupler.get_px() == coupler.get_nproc_x()-1) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,ny) ,
-                                          YAKL_LAMBDA (int l, int k, int j) {
+                                          KOKKOS_LAMBDA (int l, int k, int j) {
           limits_x(1,l,k,j,nx) = limits_x(0,l,k,j,nx);
         });
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == 0) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,nx) ,
-                                          YAKL_LAMBDA (int l, int k, int i) {
+                                          KOKKOS_LAMBDA (int l, int k, int i) {
           limits_y(0,l,k,0 ,i) = limits_y(1,l,k,0 ,i);
         });
       }
 
       if (coupler.get_option<std::string>("bc_y") == "precursor" && coupler.get_py() == coupler.get_nproc_y()-1) {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_state+num_tracers+1,nz,nx) ,
-                                          YAKL_LAMBDA (int l, int k, int i) {
+                                          KOKKOS_LAMBDA (int l, int k, int i) {
           limits_y(1,l,k,ny,i) = limits_y(0,l,k,ny,i);
         });
       }
 
       if (bc_z == "solid_wall") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , KOKKOS_LAMBDA (int l, int j, int i) {
           if (l == idW || l == idT) {
             limits_z(0,l,0 ,j,i) = 0;
             limits_z(1,l,0 ,j,i) = 0;
@@ -899,7 +899,7 @@ namespace modules {
           }
         });
       } else if (bc_z == "periodic") {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , YAKL_LAMBDA (int l, int j, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,nx) , KOKKOS_LAMBDA (int l, int j, int i) {
           limits_z(0,l,0 ,j,i) = limits_z(0,l,nz,j,i);
           limits_z(1,l,nz,j,i) = limits_z(1,l,0 ,j,i);
         });
@@ -962,7 +962,7 @@ namespace modules {
       auto r = dm.get<float,1>("hy_dens_cells"    );    r = 0;
       auto t = dm.get<float,1>("hy_theta_cells"   );    t = 0;
       auto p = dm.get<float,1>("hy_pressure_cells");    p = 0;
-      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
+      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , KOKKOS_LAMBDA (int k) {
         for (int j = 0; j < ny; j++) {
           for (int i = 0; i < nx; i++) {
             r(k) += state(idR,k,hs+j,hs+i);
@@ -975,12 +975,12 @@ namespace modules {
       coupler.get_parallel_comm().all_reduce( t , MPI_SUM ).deep_copy_to(t);
       coupler.get_parallel_comm().all_reduce( p , MPI_SUM ).deep_copy_to(p);
       real r_nx_ny = 1./(nx_glob*ny_glob);
-      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , YAKL_LAMBDA (int k) {
+      parallel_for( YAKL_AUTO_LABEL() , nz+2*hs , KOKKOS_LAMBDA (int k) {
         r(k) *= r_nx_ny;
         t(k) *= r_nx_ny;
         p(k) *= r_nx_ny;
       });
-      parallel_for( YAKL_AUTO_LABEL() , hs , YAKL_LAMBDA (int kk) {
+      parallel_for( YAKL_AUTO_LABEL() , hs , KOKKOS_LAMBDA (int kk) {
         {
           int  k0       = hs;
           int  k        = k0-1-kk;
@@ -1017,7 +1017,7 @@ namespace modules {
           auto immersed_prop = dm.get<real const,3>("immersed_proportion").createDeviceCopy<real>();
           if (dm.entry_exists("windmill_proj_weight")) {
             auto proj = dm.get<real const,3>("windmill_proj_weight");
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               immersed_prop(k,j,i) += proj(k,j,i);
             });
           }
@@ -1026,7 +1026,7 @@ namespace modules {
           auto fields_halos = coupler.create_and_exchange_halos( fields , hs );
           dm.register_and_allocate<real>("dycore_immersed_proportion_halos","",{nz+2*hs,ny+2*hs,nx+2*hs},
                                          {"z_halod","y_halod","x_halod"});
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , KOKKOS_LAMBDA (int kk, int j, int i) {
             fields_halos(0,      kk,j,i) = 1;
             fields_halos(0,hs+nz+kk,j,i) = 1;
           });
@@ -1038,11 +1038,11 @@ namespace modules {
             auto any_immersed = dm.get<bool,3>("dycore_any_immersed2");
             auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                              YAKL_LAMBDA (int kk, int j, int i) {
+                                              KOKKOS_LAMBDA (int kk, int j, int i) {
               fields_halos_larger(0,         kk,j,i) = 0;
               fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               any_immersed(k,j,i) = false;
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
@@ -1059,11 +1059,11 @@ namespace modules {
             auto any_immersed = dm.get<bool,3>("dycore_any_immersed4");
             auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                              YAKL_LAMBDA (int kk, int j, int i) {
+                                              KOKKOS_LAMBDA (int kk, int j, int i) {
               fields_halos_larger(0,         kk,j,i) = 0;
               fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               any_immersed(k,j,i) = false;
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
@@ -1080,11 +1080,11 @@ namespace modules {
             auto any_immersed = dm.get<bool,3>("dycore_any_immersed6");
             auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                              YAKL_LAMBDA (int kk, int j, int i) {
+                                              KOKKOS_LAMBDA (int kk, int j, int i) {
               fields_halos_larger(0,         kk,j,i) = 0;
               fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               any_immersed(k,j,i) = false;
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
@@ -1101,11 +1101,11 @@ namespace modules {
             auto any_immersed = dm.get<bool,3>("dycore_any_immersed8");
             auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                              YAKL_LAMBDA (int kk, int j, int i) {
+                                              KOKKOS_LAMBDA (int kk, int j, int i) {
               fields_halos_larger(0,         kk,j,i) = 0;
               fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               any_immersed(k,j,i) = false;
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
@@ -1122,11 +1122,11 @@ namespace modules {
             auto any_immersed = dm.get<bool,3>("dycore_any_immersed10");
             auto fields_halos_larger = coupler.create_and_exchange_halos( fields , hsnew );
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hsnew,ny+2*hsnew,nx+2*hsnew) ,
-                                              YAKL_LAMBDA (int kk, int j, int i) {
+                                              KOKKOS_LAMBDA (int kk, int j, int i) {
               fields_halos_larger(0,         kk,j,i) = 0;
               fields_halos_larger(0,hsnew+nz+kk,j,i) = 0;
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               any_immersed(k,j,i) = false;
               for (int kk=0; kk < hsnew*2+1; kk++) {
                 for (int jj=0; jj < hsnew*2+1; jj++) {
@@ -1154,14 +1154,14 @@ namespace modules {
         auto hy_dens_edges  = dm.get<float      ,1>("hy_dens_edges" );
         auto hy_theta_edges = dm.get<float      ,1>("hy_theta_edges");
         if (ord < 5) {
-          parallel_for( YAKL_AUTO_LABEL() , nz+1 , YAKL_LAMBDA (int k) {
+          parallel_for( YAKL_AUTO_LABEL() , nz+1 , KOKKOS_LAMBDA (int k) {
             hy_dens_edges(k) = std::exp( 0.5_fp*std::log(hy_dens_cells(hs+k-1)) +
                                          0.5_fp*std::log(hy_dens_cells(hs+k  )) );
             hy_theta_edges(k) = 0.5_fp*hy_theta_cells(hs+k-1) +
                                 0.5_fp*hy_theta_cells(hs+k  ) ;
           });
         } else {
-          parallel_for( YAKL_AUTO_LABEL() , nz+1 , YAKL_LAMBDA (int k) {
+          parallel_for( YAKL_AUTO_LABEL() , nz+1 , KOKKOS_LAMBDA (int k) {
             hy_dens_edges(k) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2)) +
                                           7./12.*std::log(hy_dens_cells(hs+k-1)) +
                                           7./12.*std::log(hy_dens_cells(hs+k  )) +
@@ -1206,17 +1206,17 @@ namespace modules {
         std::vector<MPI_Offset> start_3d = {0,(MPI_Offset)j_beg,(MPI_Offset)i_beg};
         real3d data("data",nz,ny,nx);
         auto hy_dens_cells = dm.get<float const,1>("hy_dens_cells");
-        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
           data(k,j,i) = state(idR,hs+k,hs+j,hs+i) - hy_dens_cells(hs+k);
         });
         nc.write_all(data,"density_pert",start_3d);
         auto hy_theta_cells = dm.get<float const,1>("hy_theta_cells");
-        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
           data(k,j,i) = state(idT,hs+k,hs+j,hs+i) / state(idR,hs+k,hs+j,hs+i) - hy_theta_cells(hs+k);
         });
         nc.write_all(data,"theta_pert",start_3d);
         auto hy_pressure_cells = dm.get<float const,1>("hy_pressure_cells");
-        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        yakl::c::parallel_for( yakl::c::Bounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
           data(k,j,i) = C0 * std::pow( state(idT,hs+k,hs+j,hs+i) , gamma ) - hy_pressure_cells(hs+k);
         });
         nc.write_all(data,"pressure_pert",start_3d);
@@ -1264,7 +1264,7 @@ namespace modules {
       core::MultiField<real,3> dm_tracers;
       auto tracer_names = coupler.get_tracer_names();
       for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real,3>(tracer_names.at(tr)) ); }
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real rho   = state(idR,hs+k,hs+j,hs+i);
         real u     = state(idU,hs+k,hs+j,hs+i) / rho;
         real v     = state(idV,hs+k,hs+j,hs+i) / rho;
@@ -1317,7 +1317,7 @@ namespace modules {
       core::MultiField<real const,3> dm_tracers;
       auto tracer_names = coupler.get_tracer_names();
       for (int tr=0; tr < num_tracers; tr++) { dm_tracers.add_field( dm.get<real const,3>(tracer_names.at(tr)) ); }
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real rho_d = dm_rho_d(k,j,i);
         real u     = dm_uvel (k,j,i);
         real v     = dm_vvel (k,j,i);

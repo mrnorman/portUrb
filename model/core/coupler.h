@@ -89,7 +89,7 @@ namespace core {
 
 
     ~Coupler() {
-      yakl::fence();
+      Kokkos::fence();
       dm.finalize();
       options.finalize();
       tracers = std::vector<Tracer>();
@@ -396,7 +396,7 @@ namespace core {
       bool1d field_has_nan("field_has_nan",fields.get_num_fields());
       field_has_nan = false;
       yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<4>(fields.get_num_fields(),get_nz(),get_ny(),get_nx()) ,
-                                                 YAKL_LAMBDA (int l, int k, int j, int i) {
+                                                 KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (std::isnan(fields(l,k,j,i)) || !std::isfinite(fields(l,k,j,i))) {
           nan_present = true;
           field_has_nan(l) = true;
@@ -505,7 +505,7 @@ namespace core {
     void inform_user( ) {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      yakl::fence();
+      Kokkos::fence();
       auto t2 = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double> dur_step = t2 - inform_timer;
       inform_timer = t2;
@@ -513,7 +513,7 @@ namespace core {
       auto v = get_data_manager_readonly().get_collapsed<real const>("vvel");
       auto w = get_data_manager_readonly().get_collapsed<real const>("wvel");
       auto mag = u.createDeviceObject();
-      parallel_for( YAKL_AUTO_LABEL() , mag.size() , YAKL_LAMBDA (int i) {
+      parallel_for( YAKL_AUTO_LABEL() , mag.size() , KOKKOS_LAMBDA (int i) {
         mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
       });
       auto wind_mag = par_comm.reduce( yakl::intrinsics::maxval(mag) , MPI_MAX , 0 );
@@ -596,15 +596,15 @@ namespace core {
       nc.enddef();
       // x-coordinate
       real1d xloc("xloc",nx);
-      parallel_for( YAKL_AUTO_LABEL() , nx , YAKL_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
+      parallel_for( YAKL_AUTO_LABEL() , nx , KOKKOS_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
       nc.write_all( xloc , "x" , {i_beg} );
       // y-coordinate
       real1d yloc("yloc",ny);
-      parallel_for( YAKL_AUTO_LABEL() , ny , YAKL_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
+      parallel_for( YAKL_AUTO_LABEL() , ny , KOKKOS_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
       nc.write_all( yloc , "y" , {j_beg} );
       // z-coordinate
       real1d zloc("zloc",nz);
-      parallel_for( YAKL_AUTO_LABEL() , nz , YAKL_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
+      parallel_for( YAKL_AUTO_LABEL() , nz , KOKKOS_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
       nc.begin_indep_data();
       if (is_mainproc()) nc.write( zloc , "z" );
       if (is_mainproc()) nc.write( etime        , "etime"        );
@@ -724,7 +724,7 @@ namespace core {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       typedef typename std::remove_cv<T>::type T_NOCV;
-      if (fields_in.get_num_fields() == 0) yakl::yakl_throw("ERROR: create_and_exchange_halos: create_halos input has zero fields");
+      if (fields_in.get_num_fields() == 0) Kokkos::abort("ERROR: create_and_exchange_halos: create_halos input has zero fields");
       auto num_fields = fields_in.get_num_fields();
       auto nz         = fields_in.get_field(0).extent(0);
       auto ny         = fields_in.get_field(0).extent(1);
@@ -733,13 +733,13 @@ namespace core {
       for (int i=0; i < num_fields; i++) {
         auto field = fields_in.get_field(i);
         if ( field.extent(0) != nz || field.extent(1) != ny || field.extent(2) != nx ) {
-          yakl::yakl_throw("ERROR: create_and_exchange_halos: sizes not equal among fields");
+          Kokkos::abort("ERROR: create_and_exchange_halos: sizes not equal among fields");
         }
         yakl::Array<T_NOCV,3,yakl::memDevice,yakl::styleC> ret(field.label(),nz+2*hs,ny+2*hs,nx+2*hs);
         fields_out.add_field( ret );
       }
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         fields_out(l,hs+k,hs+j,hs+i) = fields_in(l,k,j,i);
       });
       halo_exchange( fields_out , hs );
@@ -753,7 +753,7 @@ namespace core {
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
       typedef typename std::remove_cv<T>::type T_NOCV;
-      if (fields_in.get_num_fields() == 0) yakl::yakl_throw("ERROR: create_and_exchange_halos: create_halos input has zero fields");
+      if (fields_in.get_num_fields() == 0) Kokkos::abort("ERROR: create_and_exchange_halos: create_halos input has zero fields");
       auto num_fields = fields_in.get_num_fields();
       auto ny         = fields_in.get_field(0).extent(0);
       auto nx         = fields_in.get_field(0).extent(1);
@@ -761,13 +761,13 @@ namespace core {
       for (int i=0; i < num_fields; i++) {
         auto field = fields_in.get_field(i);
         if ( field.extent(0) != ny || field.extent(1) != nx ) {
-          yakl::yakl_throw("ERROR: create_and_exchange_halos: sizes not equal among fields");
+          Kokkos::abort("ERROR: create_and_exchange_halos: sizes not equal among fields");
         }
         yakl::Array<T_NOCV,2,yakl::memDevice,yakl::styleC> ret(field.label(),ny+2*hs,nx+2*hs);
         fields_out.add_field( ret );
       }
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_fields,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int j, int i) {
         fields_out(l,hs+j,hs+i) = fields_in(l,j,i);
       });
       halo_exchange( fields_out , hs );
@@ -784,7 +784,7 @@ namespace core {
       #endif
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      if (fields.get_num_fields() == 0) yakl::yakl_throw("ERROR: halo_exchange: create_halos input has zero fields");
+      if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
       int  npack  = fields.get_num_fields();
       auto nz     = fields.get_field(0).extent(0)-2*hs;
       auto ny     = fields.get_field(0).extent(1)-2*hs;
@@ -796,7 +796,7 @@ namespace core {
         if ( field.extent(0) != nz+2*hs ||
              field.extent(1) != ny+2*hs ||
              field.extent(2) != nx+2*hs ) {
-          yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
+          Kokkos::abort("ERROR: halo_exchange: sizes not equal among fields");
         }
       }
 
@@ -807,14 +807,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
                                                { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
@@ -827,14 +827,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
                                                { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,i) = halo_recv_buf_S(v,k,jj,i);
           fields(v,hs+k,ny+hs+jj,i) = halo_recv_buf_N(v,k,jj,i);
         });
@@ -868,14 +868,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
                                                { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
@@ -888,14 +888,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx+2*hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx+2*hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,i);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
                                                { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,i) = halo_recv_buf_S(v,k,jj,i);
           fields(v,hs+k,ny+hs+jj,i) = halo_recv_buf_N(v,k,jj,i);
         });
@@ -916,7 +916,7 @@ namespace core {
       #endif
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      if (fields.get_num_fields() == 0) yakl::yakl_throw("ERROR: halo_exchange: create_halos input has zero fields");
+      if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
       int  npack  = fields.get_num_fields();
       auto ny     = fields.get_field(0).extent(0)-2*hs;
       auto nx     = fields.get_field(0).extent(1)-2*hs;
@@ -925,7 +925,7 @@ namespace core {
       for (int i=0; i < npack; i++) {
         auto field = fields.get_field(i);
         if ( field.extent(0) != ny+2*hs || field.extent(1) != nx+2*hs ) {
-          yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
+          Kokkos::abort("ERROR: halo_exchange: sizes not equal among fields");
         }
       }
 
@@ -936,14 +936,14 @@ namespace core {
         yakl::Array<T,3,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,ny,hs);
         yakl::Array<T,3,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,ny,hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int j, int ii) {
           halo_send_buf_W(v,j,ii) = fields(v,hs+j,hs+ii);
           halo_send_buf_E(v,j,ii) = fields(v,hs+j,nx+ii);
         });
         get_parallel_comm().send_receive<T,3>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
                                                { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int j, int ii) {
           fields(v,hs+j,      ii) = halo_recv_buf_W(v,j,ii);
           fields(v,hs+j,nx+hs+ii) = halo_recv_buf_E(v,j,ii);
         });
@@ -956,14 +956,14 @@ namespace core {
         yakl::Array<T,3,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,hs,nx+2*hs);
         yakl::Array<T,3,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,hs,nx+2*hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int jj, int i) {
           halo_send_buf_S(v,jj,i) = fields(v,hs+jj,i);
           halo_send_buf_N(v,jj,i) = fields(v,ny+jj,i);
         });
         get_parallel_comm().send_receive<T,3>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
                                                { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(npack,hs,nx+2*hs) ,
-                                          YAKL_LAMBDA (int v, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int jj, int i) {
           fields(v,      jj,i) = halo_recv_buf_S(v,jj,i);
           fields(v,ny+hs+jj,i) = halo_recv_buf_N(v,jj,i);
         });
@@ -997,14 +997,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
                                                { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
@@ -1025,7 +1025,7 @@ namespace core {
       #endif
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      if (fields.get_num_fields() == 0) yakl::yakl_throw("ERROR: halo_exchange: create_halos input has zero fields");
+      if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
       int  npack  = fields.get_num_fields();
       auto nz     = fields.get_field(0).extent(0)-2*hs;
       auto ny     = fields.get_field(0).extent(1)-2*hs;
@@ -1037,7 +1037,7 @@ namespace core {
         if ( field.extent(0) != nz+2*hs ||
              field.extent(1) != ny+2*hs ||
              field.extent(2) != nx+2*hs ) {
-          yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
+          Kokkos::abort("ERROR: halo_exchange: sizes not equal among fields");
         }
       }
 
@@ -1048,14 +1048,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_W("halo_recv_buf_W",npack,nz,ny,hs);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_E("halo_recv_buf_E",npack,nz,ny,hs);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           halo_send_buf_W(v,k,j,ii) = fields(v,hs+k,hs+j,hs+ii);
           halo_send_buf_E(v,k,j,ii) = fields(v,hs+k,hs+j,nx+ii);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_W,neigh(1,0),0} , {halo_recv_buf_E,neigh(1,2),1} } ,
                                                { {halo_send_buf_W,neigh(1,0),1} , {halo_send_buf_E,neigh(1,2),0} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,ny,hs) ,
-                                          YAKL_LAMBDA (int v, int k, int j, int ii) {
+                                          KOKKOS_LAMBDA (int v, int k, int j, int ii) {
           fields(v,hs+k,hs+j,      ii) = halo_recv_buf_W(v,k,j,ii);
           fields(v,hs+k,hs+j,nx+hs+ii) = halo_recv_buf_E(v,k,j,ii);
         });
@@ -1076,20 +1076,20 @@ namespace core {
       #endif
       using yakl::c::parallel_for;
       using yakl::c::SimpleBounds;
-      if (fields.get_num_fields() == 0) yakl::yakl_throw("ERROR: halo_exchange: create_halos input has zero fields");
+      if (fields.get_num_fields() == 0) Kokkos::abort("ERROR: halo_exchange: create_halos input has zero fields");
       int  npack  = fields.get_num_fields();
       auto nz     = fields.get_field(0).extent(0)-2*hs;
       auto ny     = fields.get_field(0).extent(1)-2*hs;
       auto nx     = fields.get_field(0).extent(2)-2*hs;
       auto &neigh = get_neighbor_rankid_matrix();
-      yakl::fence();
+      Kokkos::fence();
 
       for (int i=0; i < npack; i++) {
         auto field = fields.get_field(i);
         if ( field.extent(0) != nz+2*hs ||
              field.extent(1) != ny+2*hs ||
              field.extent(2) != nx+2*hs ) {
-          yakl::yakl_throw("ERROR: halo_exchange: sizes not equal among fields");
+          Kokkos::abort("ERROR: halo_exchange: sizes not equal among fields");
         }
       }
       // y-direction exchanges
@@ -1099,14 +1099,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,hs+i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,hs+i);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
                                                { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,hs+i) = halo_recv_buf_S(v,k,jj,i);
           fields(v,hs+k,ny+hs+jj,hs+i) = halo_recv_buf_N(v,k,jj,i);
         });
@@ -1132,7 +1132,7 @@ namespace core {
       auto ny     = fields.extent(2)-2*hs;
       auto nx     = fields.extent(3)-2*hs;
       auto &neigh = get_neighbor_rankid_matrix();
-      yakl::fence();
+      Kokkos::fence();
 
       // y-direction exchanges
       {
@@ -1141,14 +1141,14 @@ namespace core {
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_S("halo_recv_buf_S",npack,nz,hs,nx);
         yakl::Array<T,4,yakl::memDevice,yakl::styleC> halo_recv_buf_N("halo_recv_buf_N",npack,nz,hs,nx);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           halo_send_buf_S(v,k,jj,i) = fields(v,hs+k,hs+jj,hs+i);
           halo_send_buf_N(v,k,jj,i) = fields(v,hs+k,ny+jj,hs+i);
         });
         get_parallel_comm().send_receive<T,4>( { {halo_recv_buf_S,neigh(0,1),2} , {halo_recv_buf_N,neigh(2,1),3} } ,
                                                { {halo_send_buf_S,neigh(0,1),3} , {halo_send_buf_N,neigh(2,1),2} } );
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(npack,nz,hs,nx) ,
-                                          YAKL_LAMBDA (int v, int k, int jj, int i) {
+                                          KOKKOS_LAMBDA (int v, int k, int jj, int i) {
           fields(v,hs+k,      jj,hs+i) = halo_recv_buf_S(v,k,jj,i);
           fields(v,hs+k,ny+hs+jj,hs+i) = halo_recv_buf_N(v,k,jj,i);
         });

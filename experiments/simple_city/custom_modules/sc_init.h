@@ -140,7 +140,7 @@ namespace custom_modules {
       for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
       for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
       auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real ustar = von_karman * uref / std::log((href+roughness)/roughness);
         real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
@@ -187,7 +187,7 @@ namespace custom_modules {
       } else {
         press = p0;
       }
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real p     = press(k);
         real rt    = std::pow( p/C0 , 1._fp/gamma );
@@ -224,7 +224,7 @@ namespace custom_modules {
       for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
       for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
       auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real ustar = von_karman * uref / std::log((href+roughness)/roughness);
         real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
@@ -274,7 +274,7 @@ namespace custom_modules {
       real T  = coupler.get_option<real>( "constant_temp"  , 300. );
       real p  = coupler.get_option<real>( "constant_press" , 1.e5 );
       real r  = p/(R_d*T);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = r;
         dm_uvel (k,j,i) = u;
         dm_vvel (k,j,i) = v;
@@ -286,7 +286,7 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
-      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
         if      (z <  500)            { return 300;                        }
         else if (z >= 500 && z < 650) { return 300+0.08*(z-500);           }
         else                          { return 300+0.08*150+0.003*(z-650); }
@@ -294,7 +294,7 @@ namespace custom_modules {
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       auto u_g = coupler.get_option<real>("geostrophic_u",10.);
       auto v_g = coupler.get_option<real>("geostrophic_v",0. );
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
         dm_vvel (k,j,i) = 0;
@@ -327,14 +327,14 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_convective") {
 
-      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
         if   (z <  600) { return 309;               }
         else            { return 309+0.004*(z-600); }
       };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       auto u_g = coupler.get_option<real>("geostrophic_u",9.);
       auto v_g = coupler.get_option<real>("geostrophic_v",0.);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
         dm_vvel (k,j,i) = 0;
@@ -368,14 +368,14 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_stable") {
 
-      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
         if   (z <  100) { return 265;              }
         else            { return 265+0.01*(z-100); }
       };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       auto u_g = coupler.get_option<real>("geostrophic_u",8.);
       auto v_g = coupler.get_option<real>("geostrophic_v",0.);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
         dm_vvel (k,j,i) = 0;
@@ -411,13 +411,13 @@ namespace custom_modules {
 
       real theta0 = 300;
       auto bvf    = coupler.get_option<real>("bvf_freq",0.01);
-      auto compute_theta = YAKL_LAMBDA (real z) -> real {
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
         return theta0*std::exp(bvf*bvf/grav*z);
       };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       real uref     = coupler.get_option<real>("hub_height_wind_mag",12); // Velocity at hub height
       real href     = coupler.get_option<real>("turbine_hub_height",90);  // Height of hub / center of windmills
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
         dm_vvel (k,j,i) = 0;
@@ -458,7 +458,7 @@ namespace custom_modules {
       for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
       for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
       auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real ustar = uref / std::log((href+roughness)/roughness);
         real u     = ustar * std::log((zloc+roughness)/roughness);
@@ -488,7 +488,7 @@ namespace custom_modules {
       for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
       for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
       auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         real zloc = (k+0.5_fp)*dz;
         real ustar = uref;
         real u     = ustar * std::pow( zloc/href , pwr );
@@ -507,16 +507,16 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "supercell") {
 
-      auto compute_temp = YAKL_LAMBDA (real z) -> real {
+      auto compute_temp = KOKKOS_LAMBDA (real z) -> real {
         if (z < 12000) { return 300.+(213.-300.)/12000.*z; }
         else           { return 213.; }
       };
-      auto compute_qv = YAKL_LAMBDA (real z) -> real {
+      auto compute_qv = KOKKOS_LAMBDA (real z) -> real {
         if (z < 12000) { return std::min(0.014_fp,std::pow(-3.17e-5_fp*z+0.53_fp,6._fp)); }
         else           { return std::pow(4.62e-6_fp*z+0.1_fp,6._fp); }
       };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_temp_qv(compute_temp,compute_qv,nz,zlen,p0,grav,R_d,R_v).createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
         dm_vvel (k,j,i) = 0;
@@ -602,7 +602,7 @@ namespace custom_modules {
     auto sfc_rough = dm.get<real,2>("surface_roughness_halos"  );
     auto sfc_temp  = dm.get<real,2>("surface_temp_halos"       );
     auto sfc_khf   = dm.get<real,2>("surface_khf_halos"        );
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int kk, int j, int i) {
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(hs,ny+2*hs,nx+2*hs) , KOKKOS_LAMBDA (int kk, int j, int i) {
       imm_prop (      kk,j,i) = 1;
       imm_rough(      kk,j,i) = sfc_rough(j,i);
       imm_temp (      kk,j,i) = sfc_temp (j,i);

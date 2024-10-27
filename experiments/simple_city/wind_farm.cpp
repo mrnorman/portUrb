@@ -13,6 +13,7 @@
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
+  Kokkos::initialize();
   yakl::init();
   {
     yakl::timer_start("main");
@@ -188,6 +189,7 @@ int main(int argc, char** argv) {
     yakl::timer_stop("main");
   }
   yakl::finalize();
+  Kokkos::finalize();
   MPI_Finalize();
 }
 

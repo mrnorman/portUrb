@@ -10,6 +10,7 @@
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
+  Kokkos::initialize();
   yakl::init();
   {
     yakl::timer_start("main");
@@ -75,7 +76,7 @@ int main(int argc, char** argv) {
     }
 
     real dt = dtphys_in;
-    yakl::fence();
+    Kokkos::fence();
     auto tm = std::chrono::high_resolution_clock::now();
     while (etime < sim_time) {
       // If dt <= 0, then set it to the dynamical core's max stable time step
@@ -117,6 +118,7 @@ int main(int argc, char** argv) {
     yakl::timer_stop("main");
   }
   yakl::finalize();
+  Kokkos::finalize();
   MPI_Finalize();
 }
 

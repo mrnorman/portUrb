@@ -8,7 +8,7 @@ namespace modules {
   struct Floating_motions_betti {
     int           static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
     real          static constexpr dt_max         = 0.05;
-    yakl::index_t static constexpr rand_pool_size = 1024*10;
+    size_t static constexpr rand_pool_size = 1024*10;
     SArray<real,1,6>               state;      // Current state vector
     real                           etime;      // Current elapsed time
     std::vector<real>              rand_pool;

@@ -46,7 +46,7 @@ namespace modules {
              velmag_host.size() != power_coef_host .size() ||
              velmag_host.size() != power_host      .size() ||
              (do_blades && (velmag_host.size() != rotation_host.size())) ) {
-          yakl::yakl_throw("ERROR: turbine arrays not all the same size");
+          Kokkos::abort("ERROR: turbine arrays not all the same size");
         }
         // Move from std::vectors into YAKL arrays
         for (int i=0; i < velmag_host.size(); i++) {
@@ -195,7 +195,7 @@ namespace modules {
         turbines.push_back(loc);
         // // Add the base to immersed_proportion
         // int N = 10;
-        // parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+        // parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         //   int count = 0;
         //   for (int kk=0; kk < N; kk++) {
         //     for (int jj=0; jj < N; jj++) {
@@ -220,7 +220,7 @@ namespace modules {
 
     // IMPORTANT: It looks like c cannot be zero or bad things happen. So make it close to zero if you want zero
     struct DefaultThrustShape {
-      YAKL_INLINE real operator() ( real r , real a = 4 , real b = -8 , real c = 0.01 ) const {
+      KOKKOS_INLINE_FUNCTION real operator() ( real r , real a = 4 , real b = -8 , real c = 0.01 ) const {
         using std::pow;
         if ( r > 1 ) return 0;
         // ((2*(c^a-2*c^b)*x^(2*a)-(c^a-4*c^b)*x^a)/c^b)^(1/(a-b))
@@ -230,7 +230,7 @@ namespace modules {
 
 
     struct DefaultProjectionShape1D {
-      YAKL_INLINE real operator() ( real x , real xr , int p = 2 ) const {
+      KOKKOS_INLINE_FUNCTION real operator() ( real x , real xr , int p = 2 ) const {
         real term = 1-(x/xr)*(x/xr);
         if (term <= 0) return 0;
         real term_p = term;
@@ -241,7 +241,7 @@ namespace modules {
 
 
     struct DefaultProjectionShape2D {
-      YAKL_INLINE real operator() ( real x , real y , real xr , real yr , int p = 2 ) const {
+      KOKKOS_INLINE_FUNCTION real operator() ( real x , real y , real xr , real yr , int p = 2 ) const {
         real term = 1-(x/xr)*(x/xr)-(y/yr)*(y/yr);
         if (term <= 0) return 0;
         real term_p = term;
@@ -415,7 +415,7 @@ namespace modules {
       real3d tend_u  ("tend_u"  ,nz,ny,nx);
       real3d tend_v  ("tend_v"  ,nz,ny,nx);
       real3d tend_tke("tend_tke",nz,ny,nx);
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         tend_u         (k,j,i) = 0;
         tend_v         (k,j,i) = 0;
         tend_tke       (k,j,i) = 0;
@@ -456,7 +456,7 @@ namespace modules {
           real3d disk_weight_samp("disk_weight_samp",nz,ny,nx);
           real3d uvel_3d         ("uvel_3d"         ,nz,ny,nx);
           real3d vvel_3d         ("vvel_3d"         ,nz,ny,nx);
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
             disk_weight_proj(k,j,i) = 0;
             disk_weight_samp(k,j,i) = 0;
             real x = (i_beg+i+0.5_fp)*dx;
@@ -493,7 +493,7 @@ namespace modules {
             int num_x = std::round(xr*2);
             int num_y = std::round(rad*2);
             int num_z = std::round(rad*2);
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , KOKKOS_LAMBDA (int k, int j, int i) {
               real x = -xr  + (2*xr *i)/(num_x-1);
               real y = -rad + (2*rad*j)/(num_y-1);
               real z = -rad + (2*rad*k)/(num_z-1);
@@ -509,7 +509,7 @@ namespace modules {
                 int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
                 int tk = static_cast<int>(std::round(zp/dz-0.5      ));
                 if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                  yakl::atomicAdd( disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+                  Kokkos::atomic_add( &disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
                 }
                 xp += upstream_x_offset;
                 yp += upstream_y_offset;
@@ -517,11 +517,11 @@ namespace modules {
                 tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
                 tk = static_cast<int>(std::round(zp/dz-0.5      ));
                 if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                  yakl::atomicAdd( disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+                  Kokkos::atomic_add( &disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
                 }
               }
             });
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , YAKL_LAMBDA (int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , KOKKOS_LAMBDA (int j, int i) {
               real x = (i_beg+i+0.5_fp)*dx;
               real y = (j_beg+j+0.5_fp)*dy;
               if (std::abs(x-(base_x+upstream_x_offset)) <= rad && std::abs(y-(base_y+upstream_y_offset)) <= rad) {
@@ -552,7 +552,7 @@ namespace modules {
           // Aggregate disk-averaged wind velocities in upstream sampling region
           real3d samp_u("samp_u",nz,ny,nx);
           real3d samp_v("samp_v",nz,ny,nx);
-          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+          parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
             if (disk_weight_proj(k,j,i) > 0) {
               disk_weight_proj(k,j,i) /= disk_proj_tot;
               proj_weight_tot (k,j,i) += disk_weight_proj(k,j,i);
@@ -636,7 +636,7 @@ namespace modules {
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
           if (turbine.apply_thrust) {
-            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               if (disk_weight_proj(k,j,i) > 0) {
                 real wt = disk_weight_proj(k,j,i)*turb_factor;
                 tend_u  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_mag0*cos_yaw     *wt;
@@ -663,7 +663,7 @@ namespace modules {
       // Application of tendencies onto model variables
       ///////////////////////////////////////////////////
       // Update velocities and TKE based on tendencies
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         uvel(k,j,i) += dt * tend_u  (k,j,i);
         vvel(k,j,i) += dt * tend_v  (k,j,i);
         tke (k,j,i) += dt * tend_tke(k,j,i);

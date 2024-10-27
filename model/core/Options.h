@@ -31,7 +31,7 @@ namespace core {
 
 
     void finalize() {
-      yakl::fence();
+      Kokkos::fence();
       for (int i=0; i < options.size(); i++) {
         delete_generic(i);
       }

@@ -36,7 +36,7 @@ namespace custom_modules {
     if (cells_x1 > 0) {
       real i1 = 0;
       real i2 = cells_x1;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (i_beg+i < cells_x1) {
           real weight = std::pow((i2-(i_beg+i))/(i2-i1),p);
           if (i_beg+i == 0) weight = 1;
@@ -47,7 +47,7 @@ namespace custom_modules {
     if (cells_x2 > 0) {
       real i1 = nx_glob-cells_x2;
       real i2 = nx_glob-1;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (nx_glob-1-(i_beg+i) < cells_x2) {
           real weight = std::pow(((i_beg+i)-i1)/(i2-i1),p);
           if (i_beg+i == nx_glob-1) weight = 1;
@@ -58,7 +58,7 @@ namespace custom_modules {
     if (cells_y1 > 0) {
       real j1 = 0;
       real j2 = cells_y1;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (j_beg+j < cells_y1) {
           real weight = std::pow((j2-(j_beg+j))/(j2-j1),p);
           if (j_beg+j == 0) weight = 1;
@@ -69,7 +69,7 @@ namespace custom_modules {
     if (cells_y2 > 0) {
       real j1 = ny_glob-cells_y2;
       real j2 = ny_glob-1;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , YAKL_LAMBDA (int l, int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(numvars,nz,ny,nx) , KOKKOS_LAMBDA (int l, int k, int j, int i) {
         if (ny_glob-1-(j_beg+j) < cells_y2) {
           real weight = std::pow(((j_beg+j)-j1)/(j2-j1),p);
           if (j_beg+j == ny_glob-1) weight = 1;

@@ -40,8 +40,8 @@ namespace modules {
     real2d havg_fields("havg_fields",num_fields,nz);
     havg_fields = 0;
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
-      if (ifld != WFLD) yakl::atomicAdd( havg_fields(ifld,k) , full_fields(ifld,k,j,i) );
+                                      KOKKOS_LAMBDA (int ifld, int k, int j, int i) {
+      if (ifld != WFLD) Kokkos::atomic_add( &havg_fields(ifld,k) , full_fields(ifld,k,j,i) );
     });
 
     havg_fields = coupler.get_parallel_comm().all_reduce( havg_fields , MPI_SUM , "sponge_Allreduce" );
@@ -52,7 +52,7 @@ namespace modules {
     real p  = 3;
 
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_fields,nz,ny,nx) ,
-                                      YAKL_LAMBDA (int ifld, int k, int j, int i) {
+                                      KOKKOS_LAMBDA (int ifld, int k, int j, int i) {
       real z = (k+0.5_fp)*dz;
       if (z > z1) {
         real space_factor = std::pow((z-z1)/(z2-z1),p);

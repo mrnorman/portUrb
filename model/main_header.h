@@ -17,7 +17,7 @@ using yakl::SArray;
 template <class T, int N>
 inline void check_for_nan_inf(Array<T,N,memDevice,styleC> arr , std::string file , int line) {
   yakl::ScalarLiveOut<bool> nan_present(false);
-  yakl::c::parallel_for( YAKL_AUTO_LABEL() , arr.size() , YAKL_LAMBDA (int i) {
+  yakl::c::parallel_for( YAKL_AUTO_LABEL() , arr.size() , KOKKOS_LAMBDA (int i) {
     if (std::isnan(arr.data()[i]) || !std::isfinite(arr.data()[i])) nan_present = true;
   });
   if ( nan_present.hostRead() ) std::cerr << file << ":" << line << ":" << arr.label() << ": has NaN or inf" << std::endl;
@@ -28,7 +28,7 @@ inline void check_for_nan_inf(T val , std::string file , int line) {
   if ( std::isnan(val) || !std::isfinite(val) ) std::cerr << file << ":" << line << " is NaN or inf" << std::endl;
 }
 
-template <class T, int N, yakl::index_t D0, yakl::index_t D1, yakl::index_t D2, yakl::index_t D3>
+template <class T, int N, size_t D0, size_t D1, size_t D2, size_t D3>
 inline void check_for_nan_inf(SArray<T,N,D0,D1,D2,D3> const & arr , std::string file , int line) {
   bool nan_present = false;
   for (int i=0; i < arr.size(); i++) {
@@ -93,13 +93,13 @@ int constexpr max_fields = 50;
 
 typedef double real;
 
-YAKL_INLINE real constexpr operator"" _fp( long double x ) {
+KOKKOS_INLINE_FUNCTION real constexpr operator"" _fp( long double x ) {
   return static_cast<real>(x);
 }
 
 
-YAKL_INLINE void endrun(char const * msg = "") {
-  yakl::yakl_throw(msg);
+KOKKOS_INLINE_FUNCTION void endrun(char const * msg = "") {
+  Kokkos::abort(msg);
 };
 
 

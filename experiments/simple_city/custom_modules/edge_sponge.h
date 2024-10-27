@@ -46,7 +46,7 @@ namespace custom_modules {
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,3>(names.at(i)) ); }
       YAKL_SCOPE( column , this->column );
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
         real prop_x = static_cast<real>(i_beg+i)/nx_glob;
         real prop_y = static_cast<real>(j_beg+j)/ny_glob;
         if (prop_x <= prop_x1) {
@@ -85,11 +85,11 @@ namespace custom_modules {
       real2d column("column",names.size(),nz);
       column = 0;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(names.size(),nz,ny,nx) ,
-                                        YAKL_LAMBDA (int l, int k, int j, int i) {
-        yakl::atomicAdd( column(l,k) , state(l,k,j,i) );
+                                        KOKKOS_LAMBDA (int l, int k, int j, int i) {
+        Kokkos::atomic_add( &column(l,k) , state(l,k,j,i) );
       });
       column = coupler.get_parallel_comm().all_reduce( column , MPI_SUM , "column_nudging_Allreduce" );
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(names.size(),nz) , YAKL_LAMBDA (int l, int k) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(names.size(),nz) , KOKKOS_LAMBDA (int l, int k) {
         column(l,k) /= (nx_glob*ny_glob);
       });
       return column;

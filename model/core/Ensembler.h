@@ -33,7 +33,7 @@ namespace core {
 
 
     ParallelComm create_coupler_comm( Coupler & coupler , int base_ranks = 1 , MPI_Comm comm_in = MPI_COMM_WORLD) {
-      if (dimensions.size() == 0) yakl::yakl_throw("Trying to tensor ensemble with no dimensions");
+      if (dimensions.size() == 0) Kokkos::abort("Trying to tensor ensemble with no dimensions");
       int nranks_tot, myrank;
       MPI_Comm_rank( comm_in , &myrank );
       MPI_Comm_size( comm_in , &nranks_tot );
@@ -82,7 +82,7 @@ namespace core {
           rank_beg += nranks;
         } } }
       } else {
-        yakl::yakl_throw("Requesting more ensemble dimensions than the 1-3 implemented");
+        Kokkos::abort("Requesting more ensemble dimensions than the 1-3 implemented");
       }
       return par_comm;
     }

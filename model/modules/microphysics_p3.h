@@ -84,7 +84,7 @@ namespace modules {
 
 
     // This must return the correct # of tracers **BEFORE** init(...) is called
-    YAKL_INLINE static int get_num_tracers() {
+    KOKKOS_INLINE_FUNCTION static int get_num_tracers() {
       return num_tracers;
     }
 
@@ -258,7 +258,7 @@ namespace modules {
       YAKL_SCOPE( grav       , this->grav       );
 
       // Save initial state, and compute inputs for p3(...)
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         // Compute total density
         real rho = rho_dry(k,i) + rho_c(k,i) + rho_r(k,i) + rho_i(k,i) + rho_v(k,i);
 
@@ -295,7 +295,7 @@ namespace modules {
         }
       });
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         // Assume cloud fracton is always 1
         cld_frac_l(k,i) = 1;
         cld_frac_i(k,i) = 1;
@@ -414,7 +414,7 @@ namespace modules {
       ///////////////////////////////////////////////////////////////////////////////
       // Convert P3 outputs into dynamics coupler state and tracer masses
       ///////////////////////////////////////////////////////////////////////////////
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         rho_c  (k,i) = std::max( qc(k,i)*rho_dry(k,i) , 0._fp );
         rho_nc (k,i) = std::max( nc(k,i)*rho_dry(k,i) , 0._fp );
         rho_r  (k,i) = std::max( qr(k,i)*rho_dry(k,i) , 0._fp );
@@ -437,19 +437,19 @@ namespace modules {
 
 
     // Returns saturation vapor pressure
-    YAKL_INLINE static real saturation_vapor_pressure(real temp) {
+    KOKKOS_INLINE_FUNCTION static real saturation_vapor_pressure(real temp) {
       real tc = temp - 273.15;
       return 610.94 * exp( 17.625*tc / (243.04+tc) );
     }
 
 
-    YAKL_INLINE static real latent_heat_condensation(real temp) {
+    KOKKOS_INLINE_FUNCTION static real latent_heat_condensation(real temp) {
       real tc = temp - 273.15;
       return (2500.8 - 2.36*tc + 0.0016*tc*tc - 0.00006*tc*tc*tc)*1000;
     }
 
 
-    YAKL_INLINE static real cp_moist(real rho_d, real rho_v, real rho_c, real cp_d, real cp_v, real cp_l) {
+    KOKKOS_INLINE_FUNCTION static real cp_moist(real rho_d, real rho_v, real rho_c, real cp_d, real cp_v, real cp_l) {
       // For the moist specific heat, ignore other species than water vapor and cloud droplets
       real rho = rho_d + rho_v + rho_c;
       return rho_d / rho * cp_d  +  rho_v / rho * cp_v  +  rho_c / rho * cp_l;
@@ -457,7 +457,7 @@ namespace modules {
 
 
     // Compute an instantaneous adjustment of sub or super saturation
-    YAKL_INLINE static void compute_adjusted_state(real rho, real rho_d , real &rho_v , real &rho_c , real &temp,
+    KOKKOS_INLINE_FUNCTION static void compute_adjusted_state(real rho, real rho_d , real &rho_v , real &rho_c , real &temp,
                                                    real R_v , real cp_d , real cp_v , real cp_l) {
       // Define a tolerance for convergence
       real tol = 1.e-6;

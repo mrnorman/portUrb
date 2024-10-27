@@ -13,6 +13,7 @@
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
+  Kokkos::initialize();
   yakl::init();
   {
     // This holds all of the model's variables, dimension sizes, and options
@@ -244,6 +245,7 @@ int main(int argc, char** argv) {
     std::cerr.rdbuf(orig_cerr_buf);
   }
   yakl::finalize();
+  Kokkos::finalize();
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 }

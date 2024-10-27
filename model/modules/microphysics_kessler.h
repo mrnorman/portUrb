@@ -42,7 +42,7 @@ namespace modules {
 
 
 
-    YAKL_INLINE static int get_num_tracers() {
+    KOKKOS_INLINE_FUNCTION static int get_num_tracers() {
       return num_tracers;
     }
 
@@ -73,7 +73,7 @@ namespace modules {
       auto rho_p = dm.get<real,3>("precip_liquid");
       auto precl = dm.get<real,2>("precl"        );
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , YAKL_LAMBDA (int k, int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         rho_v(k,j,i) = 0;
         rho_c(k,j,i) = 0;
         rho_p(k,j,i) = 0;
@@ -131,7 +131,7 @@ namespace modules {
       real p0   = this->p0;
 
       // Save initial state, and compute inputs for kessler(...)
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         zmid    (k,i) = (k+0.5_fp) * dz;
         qv      (k,i) = rho_v(k,i) / rho_dry(k,i);
         qc      (k,i) = rho_c(k,i) / rho_dry(k,i);
@@ -149,7 +149,7 @@ namespace modules {
       kessler(theta, qv, qc, qr, rho_dry, precl, zmid, exner, dt, R_d, cp_d, p0);
 
       // Post-process microphysics changes back to the coupler state
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         rho_v   (k,i) = qv(k,i)*rho_dry(k,i);
         rho_c   (k,i) = qc(k,i)*rho_dry(k,i);
         rho_r   (k,i) = qr(k,i)*rho_dry(k,i);
@@ -251,7 +251,7 @@ namespace modules {
       real2d velqr("velqr",nz  ,ncol);
       real2d dt2d ("dt2d" ,nz-1,ncol);
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
         r    (k,i) = 0.001_fp * rho(k,i);
         rhalf(k,i) = sqrt( rho(0,i) / rho(k,i) );
         pc   (k,i) = 3.8_fp / ( pow( pk(k,i) , cp/Rd ) * psl );
@@ -284,7 +284,7 @@ namespace modules {
       for (int nt=0; nt < rainsplit; nt++) {
 
         // Sedimentation term using upstream differencing
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (k == 0) {
             // Precipitation rate (m/s)
             precl(i) = precl(i) + rho(0,i) * qr(0,i) * velqr(0,i) / rhoqr;
@@ -298,7 +298,7 @@ namespace modules {
         });
 
         // Adjustment terms
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , YAKL_LAMBDA (int k, int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           // Autoconversion and accretion rates following KW eq. 2.13a,b
           real qrprod = qc(k,i) - ( qc(k,i)-dt0*std::max( 0.001_fp * (qc(k,i)-0.001_fp) , 0._fp ) ) /
                                   ( 1 + dt0 * 2.2_fp * pow( qr(k,i) , 0.875_fp ) );

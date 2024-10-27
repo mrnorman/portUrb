@@ -16,7 +16,7 @@ namespace custom_modules {
       int nx = coupler.get_nx();
       int ny = coupler.get_ny();
       int hs = (sfc_temp_halos.extent(0)-ny)/2;
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny+2*hs,nx+2*hs) , YAKL_LAMBDA (int j, int i) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny+2*hs,nx+2*hs) , KOKKOS_LAMBDA (int j, int i) {
         if (j < ny && i < nx) sfc_temp(j,i) -= dt*rate/3600;
         sfc_temp_halos(j,i) -= dt*rate/3600;
         sfc_imm_temp  (j,i) -= dt*rate/3600;

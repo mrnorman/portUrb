@@ -9,7 +9,7 @@ namespace profiles {
 
   // Computes a hydrostatic background density and potential temperature using c constant potential temperature
   // backgrounda for a single vertical location
-  YAKL_INLINE void hydro_const_theta( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
+  KOKKOS_INLINE_FUNCTION void hydro_const_theta( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
                                       real &r, real &t ) {
     const real theta0 = 300.;  //Background potential temperature
     const real exner0 = 1.;    //Surface-level Exner pressure
@@ -21,7 +21,7 @@ namespace profiles {
   }
 
 
-  YAKL_INLINE void hydro_const_bvf( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
+  KOKKOS_INLINE_FUNCTION void hydro_const_bvf( real z, real grav, real C0, real cp, real p0, real gamma, real rd,
                                     real &r, real &t ) {
     const real theta0 = 300.;  //Background potential temperature
     const real bvf    = 1.e-2; //Brunt-Vaisaila Frequency
@@ -35,7 +35,7 @@ namespace profiles {
 
 
   // Samples a 3-D ellipsoid at a point in space
-  YAKL_INLINE real sample_ellipse_cosine(real amp, real x   , real y   , real z   ,
+  KOKKOS_INLINE_FUNCTION real sample_ellipse_cosine(real amp, real x   , real y   , real z   ,
                                                    real x0  , real y0  , real z0  ,
                                                    real xrad, real yrad, real zrad) {
     //Compute distance from bubble center
@@ -51,14 +51,14 @@ namespace profiles {
   }
 
 
-  YAKL_INLINE real saturation_vapor_pressure(real temp) {
+  KOKKOS_INLINE_FUNCTION real saturation_vapor_pressure(real temp) {
     real tc = temp - 273.15;
     return 610.94 * std::exp( 17.625*tc / (243.04+tc) );
   }
 
 
   // Creates initial data at a point in space for the rising moist thermal test case
-  YAKL_INLINE void thermal(real x, real y, real z, real xlen, real ylen, real grav, real C0, real gamma,
+  KOKKOS_INLINE_FUNCTION void thermal(real x, real y, real z, real xlen, real ylen, real grav, real C0, real gamma,
                            real cp, real p0, real R_d, real R_v, real &rho, real &u, real &v, real &w,
                            real &theta, real &rho_v, real &hr, real &ht) {
     hydro_const_theta(z,grav,C0,cp,p0,gamma,R_d,hr,ht);
@@ -79,7 +79,7 @@ namespace profiles {
 
 
   // Compute supercell temperature profile at a vertical location
-  YAKL_INLINE real init_supercell_temperature(real z, real z_0, real z_trop, real z_top,
+  KOKKOS_INLINE_FUNCTION real init_supercell_temperature(real z, real z_0, real z_trop, real z_top,
                                               real T_0, real T_trop, real T_top) {
     if (z <= z_trop) {
       real lapse = - (T_trop - T_0) / (z_trop - z_0);
@@ -92,7 +92,7 @@ namespace profiles {
 
 
   // Compute supercell dry pressure profile at a vertical location
-  YAKL_INLINE real init_supercell_pressure_dry(real z, real z_0, real z_trop, real z_top,
+  KOKKOS_INLINE_FUNCTION real init_supercell_pressure_dry(real z, real z_0, real z_trop, real z_top,
                                                real T_0, real T_trop, real T_top,
                                                real p_0, real R_d, real grav) {
     if (z <= z_trop) {
@@ -116,7 +116,7 @@ namespace profiles {
 
   
   // Compute supercell relative humidity profile at a vertical location
-  YAKL_INLINE real init_supercell_relhum(real z, real z_0, real z_trop) {
+  KOKKOS_INLINE_FUNCTION real init_supercell_relhum(real z, real z_0, real z_trop) {
     if (z <= z_trop) {
       return 1._fp - 0.75_fp * pow(z / z_trop , 1.25_fp );
     } else {
@@ -126,7 +126,7 @@ namespace profiles {
 
 
   // Computes dry saturation mixing ratio
-  YAKL_INLINE real init_supercell_sat_mix_dry( real press , real T ) {
+  KOKKOS_INLINE_FUNCTION real init_supercell_sat_mix_dry( real press , real T ) {
     return 380/(press) * exp( 17.27_fp * (T-273)/(T-36) );
   }
 

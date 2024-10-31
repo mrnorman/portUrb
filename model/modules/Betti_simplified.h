@@ -4,15 +4,14 @@
 
 namespace modules {
 
-  // TODO: For some regimes, we can try blending in the Joint North Sea Wave Observation Project JONSWAP spectrum
   struct Floating_motions_betti {
-    int           static constexpr nfreq = 400; // Number of frequency intervals to sum over in PM spectrum
-    real          static constexpr dt_max         = 0.05;
-    size_t static constexpr rand_pool_size = 1024*10;
-    SArray<real,1,6>               state;      // Current state vector
-    real                           etime;      // Current elapsed time
-    std::vector<real>              rand_pool;
-    int                            rand_pool_counter;
+    int    static constexpr nfreq  = 400; // Number of frequency intervals to sum over in PM spectrum
+    real   static constexpr dt_max = 0.01;
+    size_t static constexpr rand_pool_size = 1024*100;
+    SArray<real,1,6>        state;      // Current state vector
+    real                    etime;      // Current elapsed time
+    std::vector<real>       rand_pool;
+    int                     rand_pool_counter;
 
 
     // Assume arr is ordered lowest to highest. Return index of arr(index) nearest to "val"
@@ -27,7 +26,6 @@ namespace modules {
     }
 
 
-    // TODO: Add some time steps for a spin-up phase in here
     void init() {
       this->state(0)  = -2;
       this->state(1)  = 0;
@@ -38,7 +36,7 @@ namespace modules {
       this->etime     = 0;
       rand_pool = std::vector<real>(rand_pool_size);
       std::random_device rd;
-      std::mt19937 generator(137); // TODO: Undo this????
+      std::mt19937 generator(rd());
       std::uniform_real_distribution<real> distribution(0.,2.*M_PI);
       for (int i=0; i < rand_pool_size; i++) { rand_pool.at(i) = distribution(generator); }
       rand_pool_counter = 0;

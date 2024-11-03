@@ -42,4 +42,5 @@ process_target(turbine_neutral_ensemble)
 process_target(turbine_stable_ensemble)
 process_target(turbine_convective_ensemble)
 process_target(windfarm_ensemble_3x3)
+process_target(cubes_periodic)
 

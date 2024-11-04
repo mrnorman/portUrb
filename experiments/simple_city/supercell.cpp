@@ -17,17 +17,17 @@ int main(int argc, char** argv) {
     yakl::timer_start("main");
 
     auto sim_time    = 3600*2+1;
-    auto nx_glob     = 1000;
-    auto ny_glob     = 1000;
-    auto nz          = 200;
+    auto nx_glob     = 25;
+    auto ny_glob     = 25;
+    auto nz          = 40;
     auto xlen        = 100000;
     auto ylen        = 100000;
     auto zlen        = 20000;
     auto dtphys_in   = 0;    // Use dycore time step
     auto dyn_cycle   = 1;
-    auto out_freq    = 900;
+    auto out_freq    = 120;
     auto inform_freq = 10;
-    auto out_prefix  = "supercell";
+    auto out_prefix  = "supercell_4000m";
     auto is_restart  = false;
 
     core::Coupler coupler;
@@ -85,14 +85,14 @@ int main(int argc, char** argv) {
         using core::Coupler;
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step             (c,dt);            };
         auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
-        auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
+        // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
         auto run_les       = [&] (Coupler &c) { les_closure.apply            (c,dt);            };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate     (c,dt);            };
         auto run_micro     = [&] (Coupler &c) { micro.time_step              (c,dt);            };
         coupler.run_module( run_micro     , "microphysics"   );
         coupler.run_module( run_dycore    , "dycore"         );
         coupler.run_module( run_sponge    , "sponge"         );
-        coupler.run_module( run_surf_flux , "surface_fluxes" );
+        // coupler.run_module( run_surf_flux , "surface_fluxes" );
         coupler.run_module( run_les       , "les_closure"    );
         coupler.run_module( run_tavg      , "time_averager"  );
       }

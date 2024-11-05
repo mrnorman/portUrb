@@ -212,11 +212,44 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "buildings_periodic") {
+
+      real constexpr p0     = 1.e5;
+      real constexpr theta0 = 300;
+      real constexpr u_g    = 10;
+      real constexpr h      = 10;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        real x = (i_beg+i+0.5_fp)*dx;
+        real y = (j_beg+j+0.5_fp)*dy;
+        real z = (      k+0.5_fp)*dz;
+        real p     = p0;
+        real rt    = std::pow( p/C0 , 1._fp/gamma );
+        real r     = rt / theta0;
+        real T     = p/R_d/r;
+        dm_rho_d(k,j,i) = r;
+        dm_uvel (k,j,i) = u_g;
+        dm_vvel (k,j,i) = 0;
+        dm_wvel (k,j,i) = 0;
+        dm_temp (k,j,i) = T;
+        dm_rho_v(k,j,i) = 0;
+        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
+        dm_uvel(k,j,i) += rand.genFP<real>(-0.5,0.5);
+        dm_vvel(k,j,i) += rand.genFP<real>(-0.5,0.5);
+        if ( (x >= 1*h/2 && x <= 3*h/2 && y >= 1*h/2 && y <= 3*h/2 && z <= h) ||  // Cube 1
+             (x >= 1*h/2 && x <= 3*h/2 && y >= 5*h/2 && y <= 7*h/2 && z <= h) ||  // Cube 2
+             (x >= 5*h/2 && x <= 7*h/2 && y >= 3*h/2 && y <= 5*h/2 && z <= h) ||  // Cube 3
+             (x >= 5*h/2 && x <= 7*h/2 && y >= 0*h/2 && y <= 1*h/2 && z <= h) ||  // Cube 4a
+             (x >= 5*h/2 && x <= 7*h/2 && y >= 7*h/2 && y <= 8*h/2 && z <= h) ) { // Cube 4b
+          dm_immersed_prop(k,j,i) = 1;
+          dm_uvel         (k,j,i) = 0;
+          dm_vvel         (k,j,i) = 0;
+          dm_wvel         (k,j,i) = 0;
+        }
+        if (k == 0) dm_surface_temp(j,i) = 300;
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "cubes_periodic") {
 
-      coupler.set_option<bool>("enable_gravity"     ,false   );
-      coupler.set_option<bool>("dns"                ,false   );
-      coupler.set_option<real>("kinematic_viscosity",1.576e-5);
       real constexpr p0     = 1.e5;
       real constexpr theta0 = 300;
       real constexpr u0     = 10;

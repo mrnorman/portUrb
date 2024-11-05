@@ -37,13 +37,16 @@ int main(int argc, char** argv) {
     int         dyn_cycle    = 1;
 
     // Things the coupler might need to know about
-    coupler.set_option<std::string>( "out_prefix"     , out_prefix   );
-    coupler.set_option<std::string>( "ensemble_stdout","ensemble_"   );
-    coupler.set_option<std::string>( "init_data"      , init_data    );
-    coupler.set_option<real       >( "out_freq"       , out_freq     );
-    coupler.set_option<bool       >( "is_restart"     , is_restart   );
-    coupler.set_option<std::string>( "restart_file"   , restart_file );
-    coupler.set_option<real       >( "latitude"       , latitude     );
+    coupler.set_option<std::string>( "out_prefix"          , out_prefix   );
+    coupler.set_option<std::string>( "ensemble_stdout"     , "ensemble_"  );
+    coupler.set_option<std::string>( "init_data"           , init_data    );
+    coupler.set_option<real       >( "out_freq"            , out_freq     );
+    coupler.set_option<bool       >( "is_restart"          , is_restart   );
+    coupler.set_option<std::string>( "restart_file"        , restart_file );
+    coupler.set_option<real       >( "latitude"            , latitude     );
+    coupler.set_option<bool       >( "dns"                 , false        );
+    coupler.set_option<real       >( "kinematic_viscosity" , 1.576e-5     );
+    coupler.set_option<bool       >( "enable_gravity"      , false        );
 
     core::Ensembler ensembler;
 
@@ -128,24 +131,15 @@ int main(int argc, char** argv) {
         {
           using core::Coupler;
           using modules::uniform_pg_wind_forcing_height;
-          real u = 10;
-          real v = 0;
-          // coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,9.5*h,u,v); } , "pg_forcing"     );
-          {
-            auto dm_r = coupler.get_data_manager_readwrite().get<real,3>("density_dry");
-            auto dm_u = coupler.get_data_manager_readwrite().get<real,3>("uvel");
-            auto nx = coupler.get_nx();
-            auto ny = coupler.get_ny();
-            auto nz = coupler.get_nz();
-            yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<3>(nz,ny,nx) ,
-                                                       KOKKOS_LAMBDA (int k, int j, int i) {
-              dm_u(k,j,i) += dt*3.875/dm_r(k,j,i);
-            });
-          }
-          coupler.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);           } , "dycore"         );
-          coupler.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);           } , "les_closure"    );
-          coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);           } , "surface_fluxes" );
-          coupler.run_module( [&] (Coupler &c) { time_averager.accumulate      (c,dt);           } , "time_averager"  );
+          real hr = 0.0431636373017616;
+          real ur = 5.83201679518752;
+          real vr = 0;
+          real tr = dt*100;
+          coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,hr,ur,vr,tr); } , "pg_forcing"     );
+          coupler.run_module( [&] (Coupler &c) { dycore.time_step              (c,dt);             } , "dycore"         );
+          coupler.run_module( [&] (Coupler &c) { les_closure.apply             (c,dt);             } , "les_closure"    );
+          coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes (c,dt);             } , "surface_fluxes" );
+          coupler.run_module( [&] (Coupler &c) { time_averager.accumulate      (c,dt);             } , "time_averager"  );
         }
 
         // Update time step

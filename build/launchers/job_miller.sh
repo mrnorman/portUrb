@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --cluster fawbush
+#SBATCH --cluster miller
 #SBATCH --partition ampere
 #SBATCH --cluster-constraint=blue
 #SBATCH --exclusive
@@ -7,7 +7,7 @@
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
 #SBATCH -t 24:00:00
-#SBATCH -N 28
+#SBATCH -N 27
 
 num_tasks=`echo "$SLURM_NNODES*4" | bc`
 cd /lustre/storm/nwp501/scratch/imn/portUrb/build

@@ -777,6 +777,7 @@ namespace modules {
 
       // z-direction BC's
       if (bc_z == "solid_wall") {
+        auto no_slip = coupler.get_option<bool>("no_slip",false);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(num_state+num_tracers+1,hs,ny,nx) ,
                                           KOKKOS_LAMBDA (int l, int kk, int j, int i) {
           if (l == idW || l == idT) {

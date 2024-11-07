@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     real constexpr h = 0.02;
     real constexpr dx = 0.001;
 
-    real        sim_time     = 5;
+    real        sim_time     = 50;
     real        xlen         = 4*h;
     real        ylen         = 4*h;
     real        zlen         = 10*h;
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     int         nz           = zlen/dx;
     real        dtphys_in    = 0;
     std::string init_data    = "cubes_periodic";
-    real        out_freq     = 1.e-1;
+    real        out_freq     = 0.1;
     real        inform_freq  = 1.e-3;
     std::string out_prefix   = "cubes_periodic";
     bool        is_restart   = false;
@@ -45,32 +45,44 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "restart_file"        , restart_file );
     coupler.set_option<real       >( "latitude"            , latitude     );
     coupler.set_option<bool       >( "dns"                 , false        );
-    coupler.set_option<real       >( "kinematic_viscosity" , 1.576e-5     );
+    coupler.set_option<real       >( "kinematic_viscosity" , 1.5e-5       );
     coupler.set_option<bool       >( "enable_gravity"      , false        );
 
     core::Ensembler ensembler;
 
-    // Add wind dimension
+    // Add roughness dimension (used for cubes)
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
         real roughness;
-        if (ind == 0) roughness = 1.0e-9;
-        if (ind == 1) roughness = 1.0e-8;
-        if (ind == 2) roughness = 1.0e-7;
-        if (ind == 3) roughness = 1.0e-6;
-        if (ind == 4) roughness = 1.0e-5;
-        if (ind == 5) roughness = 1.0e-4;
-        if (ind == 6) roughness = 1.0e-3;
+        if (ind == 0) roughness = 1.0e-7;
+        if (ind == 1) roughness = 1.0e-6;
+        if (ind == 2) roughness = 1.0e-5;
         coupler.set_option<real>("roughness",roughness);
         std::stringstream tag;
-        tag << "z0-" << std::scientific << std::setprecision(3) << roughness;
+        tag << "z0cube-" << std::scientific << std::setprecision(2) << roughness;
         ensembler.append_coupler_string(coupler,"ensemble_stdout",tag.str());
         ensembler.append_coupler_string(coupler,"out_prefix"     ,tag.str());
       };
-      ensembler.register_dimension( 7 , func_nranks , func_coupler );
+      ensembler.register_dimension( 3 , func_nranks , func_coupler );
     }
-    auto par_comm = ensembler.create_coupler_comm( coupler , 16 , MPI_COMM_WORLD );
+    // Add surface roughness dimension
+    {
+      auto func_nranks  = [=] (int ind) { return 1; };
+      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+        real roughness;
+        if (ind == 0) roughness = 1.0e-7;
+        if (ind == 1) roughness = 1.0e-6;
+        if (ind == 2) roughness = 1.0e-5;
+        coupler.set_option<real>("cubes_sfc_roughness",roughness);
+        std::stringstream tag;
+        tag << "z0sfc-" << std::scientific << std::setprecision(2) << roughness;
+        ensembler.append_coupler_string(coupler,"ensemble_stdout",tag.str());
+        ensembler.append_coupler_string(coupler,"out_prefix"     ,tag.str());
+      };
+      ensembler.register_dimension( 3 , func_nranks , func_coupler );
+    }
+    auto par_comm = ensembler.create_coupler_comm( coupler , 12 , MPI_COMM_WORLD );
     auto ostr = std::ofstream(coupler.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     auto orig_cout_buf = std::cout.rdbuf();
     auto orig_cerr_buf = std::cerr.rdbuf();

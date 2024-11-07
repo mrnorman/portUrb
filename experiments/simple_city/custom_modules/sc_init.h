@@ -250,6 +250,7 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "cubes_periodic") {
 
+      dm_surface_rough = coupler.get_option<real>("cubes_sfc_roughness");
       real constexpr p0     = 1.e5;
       real constexpr theta0 = 300;
       real constexpr u0     = 10;

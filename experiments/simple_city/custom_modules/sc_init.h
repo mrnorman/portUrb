@@ -357,6 +357,90 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = T;
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "bomex") {
+
+      auto compute_u = KOKKOS_LAMBDA (real z) -> real {
+        real constexpr z0 = 0;
+        real constexpr z1 = 700;
+        real constexpr z2 = 3000;
+        real constexpr v0 = -8.75;
+        real constexpr v1 = -8.75;
+        real constexpr v2 = -4.61;
+        if      (z >= z0 && z <= z1) { return v0+(v1-v0)/(z1-z0)*z; }
+        else if (z >  z1 && z <= z2) { return v1+(v2-v1)/(z2-z1)*z; }
+        return 0;
+      };
+      auto compute_qv = KOKKOS_LAMBDA (real z) -> real {
+        real constexpr z0 = 0;
+        real constexpr z1 = 520;
+        real constexpr z2 = 1480;
+        real constexpr z3 = 2000;
+        real constexpr z4 = 3000;
+        real constexpr v0 = 17.0e-3;
+        real constexpr v1 = 16.3e-3;
+        real constexpr v2 = 10.7e-3;
+        real constexpr v3 = 4.2e-3;
+        real constexpr v4 = 3.0e-3;
+        if      (z >= z0 && z <= z1) { return v0+(v1-v0)/(z1-z0)*z; }
+        else if (z >  z1 && z <= z2) { return v1+(v2-v1)/(z2-z1)*z; }
+        else if (z >  z2 && z <= z3) { return v2+(v3-v2)/(z3-z2)*z; }
+        else if (z >  z3 && z <= z4) { return v3+(v4-v3)/(z4-z3)*z; }
+        return 0;
+      };
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
+        real constexpr z0 = 0;
+        real constexpr z1 = 520;
+        real constexpr z2 = 1480;
+        real constexpr z3 = 2000;
+        real constexpr z4 = 3000;
+        real constexpr v0 = 298.7;
+        real constexpr v1 = 298.7;
+        real constexpr v2 = 302.4;
+        real constexpr v3 = 308.2;
+        real constexpr v4 = 311.85;
+        if      (z >= z0 && z <= z1) { return v0+(v1-v0)/(z1-z0)*z; }
+        else if (z >  z1 && z <= z2) { return v1+(v2-v1)/(z2-z1)*z; }
+        else if (z >  z2 && z <= z3) { return v2+(v3-v2)/(z3-z2)*z; }
+        else if (z >  z3 && z <= z4) { return v3+(v4-v3)/(z4-z3)*z; }
+        return 0;
+      };
+      auto p0 = 1.015e5;
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        dm_rho_d(k,j,i) = 0;
+        dm_uvel (k,j,i) = 0;
+        dm_vvel (k,j,i) = 0;
+        dm_wvel (k,j,i) = 0;
+        dm_temp (k,j,i) = 0;
+        dm_rho_v(k,j,i) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          real z         = (k+0.5)*dz + qpoints(kk)*dz;
+          real qv        = compute_qv(z)*(1+compute_qv(z));
+          for (int iter=0; iter < 10; iter++) { qv = compute_qv(z)*(1+qv); }
+          real theta     = compute_theta(z);
+          real p         = pressGLL(k,kk);
+          real rho_theta = std::pow( p/C0 , 1._fp/gamma );
+          real rho       = rho_theta / theta;
+          real rho_d     = rho / (1 + qv);
+          real rho_v     = rho - rho_d;
+          real u         = compute_u(z);
+          real v         = 0;
+          real w         = 0;
+          real T         = p/(rho_d*R_d+rho_v*R_v);
+          real wt = qweights(kk);
+          dm_rho_d(k,j,i) += rho   * wt;
+          dm_uvel (k,j,i) += u     * wt;
+          dm_vvel (k,j,i) += v     * wt;
+          dm_wvel (k,j,i) += w     * wt;
+          dm_temp (k,j,i) += T     * wt;
+          dm_rho_v(k,j,i) += rho_v * wt;
+        }
+        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
+        if ((k+0.5_fp)*dz <= 1600) dm_temp (k,j,i) += rand.genFP<real>(-0.1,0.1);
+        if ((k+0.5_fp)*dz <= 1600) dm_rho_v(k,j,i) += rand.genFP<real>(-2.5e-5,2.5e-5)*dm_rho_d(k,j,i);
+        if (k == 0) dm_surface_temp(j,i) = 300.4;
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral") {
 
       auto compute_theta = KOKKOS_LAMBDA (real z) -> real {

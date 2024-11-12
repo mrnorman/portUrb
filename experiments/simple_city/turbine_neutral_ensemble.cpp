@@ -58,11 +58,12 @@ int main(int argc, char** argv) {
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
     auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
+    coupler_main.set_parallel_comm( par_comm );
     // // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
-    auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     auto orig_cout_buf = std::cout.rdbuf();
     auto orig_cerr_buf = std::cerr.rdbuf();
+    std::ofstream ostr(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     std::cout.rdbuf(ostr.rdbuf());
     std::cerr.rdbuf(ostr.rdbuf());
 
@@ -106,15 +107,25 @@ int main(int argc, char** argv) {
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , true  );
       coupler_main.set_option<real             >( "turbine_upstream_dir"   , 0     );
       coupler_main.set_option<bool             >( "weno_all"               , true  );
-      coupler_main.set_option<bool             >( "turbine_floating_sine"  , false );
-      // coupler_main.set_option<real             >( "turbine_floating_sine_amp"  , 0.04*126 );
-      // coupler_main.set_option<real             >( "turbine_floating_sine_freq" , .32*2*M_PI*hub_wind/126 );
+      coupler_main.set_option<bool             >( "turbine_floating_sine"  , true  );
+      real z0       = coupler_main.get_option<real>("roughness");
+      real u19_5    = hub_wind*std::log(19.5/z0)/std::log(90/z0);
+      real omega_pm = 0.877*9.81/u19_5;
+      real h_1_3    = 0.21*u19_5*u19_5/9.81;
+      coupler_main.set_option<real             >( "turbine_floating_sine_amp"  , h_1_3    );
+      coupler_main.set_option<real             >( "turbine_floating_sine_freq" , omega_pm );
       coupler_main.set_option<std::vector<real>>("turbine_x_locs",{0.2_fp*xlen,
                                                                    0.2_fp*xlen+126*(2.5+10)});
       coupler_main.set_option<std::vector<real>>("turbine_y_locs",{0.5_fp*ylen,
                                                                    0.5_fp*ylen});
       coupler_main.set_option<std::vector<bool>>("turbine_apply_thrust",{true,
                                                                          false});
+
+      if (coupler_main.is_mainproc()) std::cout << "z0:       " << z0       << "\n"
+                                                << "uhub:     " << hub_wind << "\n"
+                                                << "u19_5:    " << u19_5    << "\n"
+                                                << "omega_pm: " << omega_pm << "\n"
+                                                << "h_1_3:    " << h_1_3    << std::endl;
 
       // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
       //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero

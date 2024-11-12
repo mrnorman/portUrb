@@ -127,6 +127,9 @@ namespace core {
     }
 
 
+    void set_parallel_comm(ParallelComm par_comm) { this->par_comm = par_comm; }
+
+
     void distribute_mpi_and_allocate_coupled_state(ParallelComm par_comm                     ,
                                                    int nz, size_t ny_glob, size_t nx_glob    ,
                                                    int nproc_x_in = -1 , int nproc_y_in = -1 ,

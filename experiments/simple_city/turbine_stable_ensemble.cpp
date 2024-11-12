@@ -58,6 +58,7 @@ int main(int argc, char** argv) {
     // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
     auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
+    coupler_main.set_parallel_comm( par_comm );
     // // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));

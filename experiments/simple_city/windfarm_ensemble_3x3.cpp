@@ -46,9 +46,12 @@ int main(int argc, char** argv) {
     }
 
     auto par_comm = ensembler.create_coupler_comm( coupler_main , 64 , MPI_COMM_WORLD );
+    coupler_main.set_parallel_comm( par_comm );
     // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 
     auto ostr = std::ofstream(coupler_main.get_option<std::string>("ensemble_stdout")+std::string(".out"));
+    auto orig_cout_buf = std::cout.rdbuf();
+    auto orig_cerr_buf = std::cerr.rdbuf();
     std::cout.rdbuf(ostr.rdbuf());
     std::cerr.rdbuf(ostr.rdbuf());
 
@@ -237,6 +240,9 @@ int main(int argc, char** argv) {
       } // End main simulation loop
       yakl::timer_stop("main");
     } // if (par_comm.valid()) 
+
+    std::cout.rdbuf(orig_cout_buf);
+    std::cerr.rdbuf(orig_cerr_buf);
   }
   yakl::finalize();
   Kokkos::finalize();

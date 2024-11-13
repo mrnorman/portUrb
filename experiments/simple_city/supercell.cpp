@@ -7,7 +7,7 @@
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
-#include "microphysics_kessler.h"
+#include "microphysics_p3.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -17,17 +17,17 @@ int main(int argc, char** argv) {
     yakl::timer_start("main");
 
     auto sim_time    = 3600*2+1;
-    auto nx_glob     = 25;
-    auto ny_glob     = 25;
-    auto nz          = 40;
+    auto nx_glob     = 500;
+    auto ny_glob     = 500;
+    auto nz          = 100;
     auto xlen        = 100000;
     auto ylen        = 100000;
     auto zlen        = 20000;
     auto dtphys_in   = 0;    // Use dycore time step
-    auto dyn_cycle   = 1;
+    auto dyn_cycle   = 10;
     auto out_freq    = 120;
     auto inform_freq = 10;
-    auto out_prefix  = "supercell_4000m";
+    auto out_prefix  = "supercell_200m";
     auto is_restart  = false;
 
     core::Coupler coupler;
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV     dycore;
     custom_modules::Time_Averager                 time_averager;
     modules::LES_Closure                          les_closure;
-    modules::Microphysics_Kessler                 micro;
+    modules::Microphysics_P3                      micro;
 
     micro        .init     ( coupler );
     custom_modules::sc_init( coupler );

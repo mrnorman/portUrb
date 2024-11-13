@@ -195,7 +195,7 @@ namespace modules {
 
       // Calculate the grid spacing
       real2d dz_arr("dz_arr",nz,ncol);
-      yakl::memset( dz_arr , dz );
+      dz_arr = dz;
 
       // Get everything from the DataManager that's not a tracer but is persistent across multiple micro calls
       auto qv_prev = dm.get_lev_col<real>("qv_prev");
@@ -267,13 +267,13 @@ namespace modules {
 
         // Compute quantities for P3
         qc       (k,i) = rho_c (k,i) / rho_dry(k,i);
-        nc       (k,i) = rho_nc(k,i) / rho_dry(k,i);
+        nc       (k,i) = rho_nc(k,i) / rho_dry(k,i) / rho_dry(k,i);
         qr       (k,i) = rho_r (k,i) / rho_dry(k,i);
-        nr       (k,i) = rho_nr(k,i) / rho_dry(k,i);
+        nr       (k,i) = rho_nr(k,i) / rho_dry(k,i) / rho_dry(k,i);
         qi       (k,i) = rho_i (k,i) / rho_dry(k,i);
-        ni       (k,i) = rho_ni(k,i) / rho_dry(k,i);
+        ni       (k,i) = rho_ni(k,i) / rho_dry(k,i) / rho_dry(k,i);
         qm       (k,i) = rho_m (k,i) / rho_dry(k,i);
-        bm       (k,i) = rho_bm(k,i) / rho_dry(k,i);
+        bm       (k,i) = rho_bm(k,i) / rho_dry(k,i) / rho_dry(k,i);
         qv       (k,i) = rho_v (k,i) / rho_dry(k,i);
         pressure (k,i) = R_d * rho_dry(k,i) * temp(k,i) + R_v * rho_v(k,i) * temp(k,i);
         exner    (k,i) = pow( pressure(k,i) / p0 , R_d / cp_d );
@@ -415,15 +415,15 @@ namespace modules {
       // Convert P3 outputs into dynamics coupler state and tracer masses
       ///////////////////////////////////////////////////////////////////////////////
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-        rho_c  (k,i) = std::max( qc(k,i)*rho_dry(k,i) , 0._fp );
-        rho_nc (k,i) = std::max( nc(k,i)*rho_dry(k,i) , 0._fp );
-        rho_r  (k,i) = std::max( qr(k,i)*rho_dry(k,i) , 0._fp );
-        rho_nr (k,i) = std::max( nr(k,i)*rho_dry(k,i) , 0._fp );
-        rho_i  (k,i) = std::max( qi(k,i)*rho_dry(k,i) , 0._fp );
-        rho_ni (k,i) = std::max( ni(k,i)*rho_dry(k,i) , 0._fp );
-        rho_m  (k,i) = std::max( qm(k,i)*rho_dry(k,i) , 0._fp );
-        rho_bm (k,i) = std::max( bm(k,i)*rho_dry(k,i) , 0._fp );
-        rho_v  (k,i) = std::max( qv(k,i)*rho_dry(k,i) , 0._fp );
+        rho_c  (k,i) = std::max( qc(k,i)*rho_dry(k,i)             , 0._fp );
+        rho_nc (k,i) = std::max( nc(k,i)*rho_dry(k,i)*rho_dry(k,i), 0._fp );
+        rho_r  (k,i) = std::max( qr(k,i)*rho_dry(k,i)             , 0._fp );
+        rho_nr (k,i) = std::max( nr(k,i)*rho_dry(k,i)*rho_dry(k,i), 0._fp );
+        rho_i  (k,i) = std::max( qi(k,i)*rho_dry(k,i)             , 0._fp );
+        rho_ni (k,i) = std::max( ni(k,i)*rho_dry(k,i)*rho_dry(k,i), 0._fp );
+        rho_m  (k,i) = std::max( qm(k,i)*rho_dry(k,i)             , 0._fp );
+        rho_bm (k,i) = std::max( bm(k,i)*rho_dry(k,i)*rho_dry(k,i), 0._fp );
+        rho_v  (k,i) = std::max( qv(k,i)*rho_dry(k,i)             , 0._fp );
         // While micro changes total pressure, thus changing exner, the definition
         // of theta depends on the old exner pressure, so we'll use old exner here
         temp   (k,i) = theta(k,i) * exner(k,i);

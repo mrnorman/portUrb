@@ -1356,6 +1356,7 @@ contains
 
     !==
     !-----------------------------------------------------------------------------------!
+    !$omp parallel do
     i_loop_main: do i = its,ite  ! main i-loop (around the entire scheme)
 
 !      if (debug_ON) call check_values(qv,T,i,it,debug_ABORT,100,col_location)

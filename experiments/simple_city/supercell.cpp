@@ -7,7 +7,7 @@
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
-#include "microphysics_p3.h"
+#include "microphysics_morr.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 200;
-    real        dz          = 200;
+    real        dx          = 500;
+    real        dz          = 500;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 120;
     real        inform_freq = 10;
-    std::string out_prefix  = "supercell_200m";
+    std::string out_prefix  = "supercell_500m";
     bool        is_restart  = false;
 
     core::Coupler coupler;
@@ -48,10 +48,10 @@ int main(int argc, char** argv) {
 
     coupler.set_grid( xlen , ylen , zlen );
 
-    modules::Dynamics_Euler_Stratified_WenoFV dycore;
-    custom_modules::Time_Averager             time_averager;
-    modules::LES_Closure                      les_closure;
-    modules::Microphysics_P3                  micro;
+    modules::Dynamics_Euler_Stratified_WenoFV  dycore;
+    custom_modules::Time_Averager              time_averager;
+    modules::LES_Closure                       les_closure;
+    modules::Microphysics_Morrison             micro;
 
     micro        .init     ( coupler );
     custom_modules::sc_init( coupler );

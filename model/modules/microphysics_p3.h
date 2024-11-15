@@ -75,7 +75,7 @@ namespace modules {
       kappa_d    = R_d  / cp_d;
       R_v        = 461.505;
       cp_v       = 1859;
-      cv_v       = R_v - cp_v;
+      cv_v       = cp_v - R_v;
       p0         = 1.e5;
       grav       = 9.80616;
       first_step = true;

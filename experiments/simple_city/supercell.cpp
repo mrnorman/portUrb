@@ -16,19 +16,21 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    auto sim_time    = 3600*2+1;
-    auto nx_glob     = 500;
-    auto ny_glob     = 500;
-    auto nz          = 100;
-    auto xlen        = 100000;
-    auto ylen        = 100000;
-    auto zlen        = 20000;
-    auto dtphys_in   = 0;    // Use dycore time step
-    auto dyn_cycle   = 10;
-    auto out_freq    = 120;
-    auto inform_freq = 10;
-    auto out_prefix  = "supercell_200m";
-    auto is_restart  = false;
+    real        sim_time    = 3600*2+1;
+    real        xlen        = 200000;
+    real        ylen        = 200000;
+    real        zlen        = 20000;
+    real        dx          = 200;
+    real        dz          = 200;
+    real        nx_glob     = xlen/dx;
+    real        ny_glob     = ylen/dx;
+    real        nz          = zlen/dz;
+    real        dtphys_in   = 0;    // Use dycore time step
+    int         dyn_cycle   = 10;
+    real        out_freq    = 120;
+    real        inform_freq = 10;
+    std::string out_prefix  = "supercell_200m";
+    bool        is_restart  = false;
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"     , out_prefix  );
@@ -46,10 +48,10 @@ int main(int argc, char** argv) {
 
     coupler.set_grid( xlen , ylen , zlen );
 
-    modules::Dynamics_Euler_Stratified_WenoFV     dycore;
-    custom_modules::Time_Averager                 time_averager;
-    modules::LES_Closure                          les_closure;
-    modules::Microphysics_P3                      micro;
+    modules::Dynamics_Euler_Stratified_WenoFV dycore;
+    custom_modules::Time_Averager             time_averager;
+    modules::LES_Closure                      les_closure;
+    modules::Microphysics_P3                  micro;
 
     micro        .init     ( coupler );
     custom_modules::sc_init( coupler );

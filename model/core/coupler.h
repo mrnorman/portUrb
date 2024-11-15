@@ -519,12 +519,14 @@ namespace core {
       parallel_for( YAKL_AUTO_LABEL() , mag.size() , KOKKOS_LAMBDA (int i) {
         mag(i) = std::sqrt( u(i)*u(i) + v(i)*v(i) + w(i)*w(i) );
       });
-      auto wind_mag = par_comm.reduce( yakl::intrinsics::maxval(mag) , MPI_MAX , 0 );
+      auto wind_mag = par_comm.reduce( yakl::intrinsics::maxval(mag ) , MPI_MAX , 0 );
+      auto w_mag    = par_comm.reduce( yakl::intrinsics::maxval(yakl::intrinsics::abs(w)) , MPI_MAX , 0 );
       if (is_mainproc()) {
-        std::cout << "Etime , Walltime_since_last_inform , max_wind_mag: "
-                  << std::scientific << std::setw(10) << get_option<real>("elapsed_time") << " , " 
-                  << std::scientific << std::setw(10) << dur_step.count()                 << " , "
-                  << std::scientific << std::setw(10) << wind_mag                         << std::endl;
+        std::cout << "Etime ["
+                  << std::scientific << std::setw(10) << get_option<real>("elapsed_time") << " s] , Walltime [" 
+                  << std::scientific << std::setw(10) << dur_step.count()                 << " s] , max wind ["
+                  << std::scientific << std::setw(10) << wind_mag                         << " m/s] , max(abs(w)) ["
+                  << std::scientific << std::setw(10) << w_mag                            << " m/s]" << std::endl;
       }
     }
 

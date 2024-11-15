@@ -662,7 +662,7 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = theta0;
       });
 
-    } else if (coupler.get_option<std::string>("init_data") == "supercell") {
+    } else if (coupler.get_option<std::string>("init_data") == "supercell2") {
 
       auto compute_temp = KOKKOS_LAMBDA (real z) -> real {
         if (z < 12000) { return 300.+(213.-300.)/12000.*z; }
@@ -681,15 +681,21 @@ namespace custom_modules {
         dm_temp (k,j,i) = 0;
         dm_rho_v(k,j,i) = 0;
         for (int kk=0; kk<nqpoints; kk++) {
-          real z         = (k+0.5)*dz + qpoints(kk)*dz;
-          real T         = compute_temp(z);
-          real qv        = compute_qv(z);
-          real p         = pressGLL(k,kk);
-          real rho_d     = p/((R_d+qv*R_v)*T);
-          real u         = z < 5000 ? -15+30*z/5000 : 15;
-          real v         = 0;
-          real w         = 0;
-          real rho_v     = qv*rho_d;
+          real z     = (k+0.5)*dz + qpoints(kk)*dz;
+          real T     = compute_temp(z);
+          real qv    = compute_qv(z);
+          real p     = pressGLL(k,kk);
+          real rho_d = p/((R_d+qv*R_v)*T);
+          real rho_v = qv*rho_d;
+          real w     = 0;
+          real hr = 7.25; // radius of hodograph
+          real u;
+          if      (z <= 2000) { u = hr*(1-std::cos(M_PI/2*z/2000)); }
+          else if (z <= 7000) { u = hr+(40-hr)*(z-2000)/5000;       }
+          else                { u = 40;                             }
+          real v;
+          if      (z <= 2000) { v = hr*std::sin(M_PI/2*z/2000);     }
+          else                { v = hr;                             }
           real wt = qweights(kk);
           dm_rho_d(k,j,i) += rho_d * wt;
           dm_uvel (k,j,i) += u     * wt;
@@ -709,12 +715,111 @@ namespace custom_modules {
         real radx = 10000;
         real rady = 10000;
         real radz = 1500;
-        real amp  = 5;
+        real amp  = 3;
         real xn = (xloc - x0) / radx;
         real yn = (yloc - y0) / rady;
         real zn = (zloc - z0) / radz;
         real rad = sqrt( xn*xn + yn*yn + zn*zn );
         if (rad < 1) dm_temp(k,j,i) += amp * pow( cos(M_PI*rad/2) , 2._fp );
+      });
+      using yakl::componentwise::operator-;
+      real sum_u = coupler.get_parallel_comm().all_reduce( yakl::intrinsics::sum(dm_uvel) , MPI_SUM , "" );
+      real sum_v = coupler.get_parallel_comm().all_reduce( yakl::intrinsics::sum(dm_vvel) , MPI_SUM , "" );
+      (dm_uvel - sum_u/(nx_glob*ny_glob*nz)).deep_copy_to(dm_uvel);
+      (dm_vvel - sum_v/(nx_glob*ny_glob*nz)).deep_copy_to(dm_vvel);
+
+    } else if (coupler.get_option<std::string>("init_data") == "supercell") {
+
+      YAML::Node config = YAML::LoadFile( "./inputs/wrf_supercell_sounding.yaml" );
+      if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
+      auto sounding = config["sounding"].as<std::vector<std::vector<real>>>();
+      int num_entries = sounding.size();
+      realHost1d shost_height("s_height",num_entries);
+      realHost1d shost_theta ("s_theta" ,num_entries);
+      realHost1d shost_qv    ("s_qv"    ,num_entries);
+      realHost1d shost_uvel  ("s_uvel"  ,num_entries);
+      realHost1d shost_vvel  ("s_vvel"  ,num_entries);
+      for (int i=0; i < num_entries; i++) {
+        shost_height(i) = sounding[i][0];
+        shost_theta (i) = sounding[i][1];
+        shost_qv    (i) = sounding[i][2]/1000;
+        shost_uvel  (i) = sounding[i][3];
+        shost_vvel  (i) = sounding[i][4];
+      }
+      auto s_height = shost_height.createDeviceCopy();
+      auto s_theta  = shost_theta .createDeviceCopy();
+      auto s_qv     = shost_qv    .createDeviceCopy();
+      auto s_uvel   = shost_uvel  .createDeviceCopy();
+      auto s_vvel   = shost_vvel  .createDeviceCopy();
+      // Linear interpolation in a reference variable based on u_infinity and reference u_infinity
+      auto interp = KOKKOS_LAMBDA ( real1d ref_z , real1d ref_var , real z ) -> real {
+        int imax = ref_z.size()-1; // Max index for the table
+        if ( z < ref_z(0   ) ) return ref_var(0   );
+        if ( z > ref_z(imax) ) return ref_var(imax);
+        int i = 0;
+        while (z > ref_z(i)) { i++; }
+        if (i > 0) i--;
+        real fac = (ref_z(i+1) - z) / (ref_z(i+1)-ref_z(i));
+        return fac*ref_var(i) + (1-fac)*ref_var(i+1);
+      };
+      auto interp_host = KOKKOS_LAMBDA ( realHost1d ref_z , realHost1d ref_var , real z ) -> real {
+        int imax = ref_z.size()-1; // Max index for the table
+        if ( z < ref_z(0   ) ) return ref_var(0   );
+        if ( z > ref_z(imax) ) return ref_var(imax);
+        int i = 0;
+        while (z > ref_z(i)) { i++; }
+        if (i > 0) i--;
+        real fac = (ref_z(i+1) - z) / (ref_z(i+1)-ref_z(i));
+        return fac*ref_var(i) + (1-fac)*ref_var(i+1);
+      };
+      real x0    = xlen / 2;
+      real y0    = ylen / 2;
+      real z0    = 1500;
+      real radx  = 10000;
+      real rady  = 10000;
+      real radz  = 1500;
+      real amp   = 3;
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real { return interp_host( shost_height , shost_theta , z ); };
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        dm_rho_d(k,j,i) = 0;
+        dm_uvel (k,j,i) = 0;
+        dm_vvel (k,j,i) = 0;
+        dm_wvel (k,j,i) = 0;
+        dm_temp (k,j,i) = 0;
+        dm_rho_v(k,j,i) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          for (int jj=0; jj<nqpoints; jj++) {
+            for (int ii=0; ii<nqpoints; ii++) {
+              real x     = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
+              real y     = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
+              real z     = (      k+0.5)*dz + qpoints(kk)*dz;
+              real theta = interp( s_height , s_theta , z );
+              real qv    = interp( s_height , s_qv    , z );
+              real u     = interp( s_height , s_uvel  , z );
+              real v     = interp( s_height , s_vvel  , z );
+              real p     = pressGLL(k,kk);
+              real xn    = (x-x0)/radx;
+              real yn    = (y-y0)/rady;
+              real zn    = (z-z0)/radz;
+              real rad   = sqrt( xn*xn + yn*yn + zn*zn );
+              if (rad <= 1) theta += amp * pow( cos(M_PI*rad/2) , 2._fp );
+              real T     = theta * std::pow( p/p0 , R_d/cp_d );
+              real rho_d = p/((R_d+qv*R_v)*T);
+              real rho_v = qv*rho_d;
+              real w     = 0;
+              real wt = qweights(kk)*qweights(jj)*qweights(ii);
+              dm_rho_d(k,j,i) += rho_d * wt;
+              dm_uvel (k,j,i) += u     * wt;
+              dm_vvel (k,j,i) += v     * wt;
+              dm_wvel (k,j,i) += w     * wt;
+              dm_temp (k,j,i) += T     * wt;
+              dm_rho_v(k,j,i) += rho_v * wt;
+            }
+          }
+        }
+        if (k == 0) dm_surface_temp(j,i) = 300;
+        if (k == 0) dm_surface_khf (j,i) = 0;
       });
 
     } // if (init_data == ...)

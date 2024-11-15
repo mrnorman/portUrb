@@ -262,8 +262,8 @@ namespace modules {
         // Compute total density
         real rho = rho_dry(k,i) + rho_c(k,i) + rho_r(k,i) + rho_i(k,i) + rho_v(k,i);
 
-        compute_adjusted_state( rho, rho_dry(k,i) , rho_v(k,i) , rho_c(k,i) , temp(k,i),
-                                R_v , cp_d , cp_v , cp_l );
+        // compute_adjusted_state( rho, rho_dry(k,i) , rho_v(k,i) , rho_c(k,i) , temp(k,i),
+        //                         R_v , cp_d , cp_v , cp_l );
 
         // Compute quantities for P3
         qc       (k,i) = rho_c (k,i) / rho_dry(k,i);
@@ -279,6 +279,9 @@ namespace modules {
         exner    (k,i) = pow( pressure(k,i) / p0 , R_d / cp_d );
         inv_exner(k,i) = 1. / exner(k,i);
         theta    (k,i) = temp(k,i) / exner(k,i);
+
+        kessler_sat_adj( theta(k,i) , qv(k,i) , qc(k,i) , exner(k,i) , R_d , cp_d , p0 );
+
         // P3 uses dpres to calculate density via the hydrostatic assumption.
         // So we just reverse this to compute dpres to give true density
         dpres(k,i) = rho_dry(k,i) * grav * dz;
@@ -540,6 +543,23 @@ namespace modules {
           }
         }
       }
+    }
+
+
+
+    KOKKOS_INLINE_FUNCTION static void kessler_sat_adj(real &theta, real &qv, real &qc,
+                                                       real pk, real Rd, real cp, real p0) {
+      real psl    = p0 / 100;  //  pressure at sea level (mb)
+      real lv     = 2.5e6_fp;  //  latent heat of vaporization (J/kg)
+      real pc   = 3.8_fp / ( pow( pk , cp/Rd ) * psl );
+      // Saturation vapor mixing ratio (gm/gm) following KW eq. 2.11
+      real tmp = pk*theta-36._fp;
+      real qvs = pc*exp( 17.27_fp * (pk*theta-273._fp) / tmp );
+      real prod = (qv-qvs) / (1._fp + qvs*(4093._fp * lv/cp)/(tmp*tmp));
+      // Saturation adjustment following KW eq. 3.10
+      theta= theta + lv / (cp*pk) * ( std::max( prod , -qc ) );
+      qv = std::max( qv - std::max( prod , -qc ) , 0._fp );
+      qc = qc + std::max( prod , -qc );
     }
 
 

@@ -4,110 +4,68 @@ module module_mp_morr_two_moment
   use module_mp_radar
   use module_model_constants, only: cp, g, r => r_d, rv => r_v, ep_2
   implicit none
-  real, private, parameter :: pi = 3.1415926535897932384626434
-  real, private, parameter :: xxx = 0.9189385332046727417803297
-  public  ::  mp_morr_two_moment
-  public  ::  polysvp
-  private :: gamma
-  private :: morr_two_moment_micro
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! switches for microphysics scheme
-  ! iact = 1, use power-law ccn spectra, nccn = cs^k
-  ! iact = 2, use lognormal aerosol size dist to derive ccn spectra
-  ! iact = 3, activation calculated in module_mixactivate
-  integer, private ::  iact
-  ! inum = 0, predict droplet concentration
-  ! inum = 1, assume constant droplet concentration   
-  integer, private ::  inum
-  ! for inum = 1, set constant droplet concentration (cm-3)
-  real, private ::      ndcnst
-  ! switch for liquid-only run
-  ! iliq = 0, include ice
-  ! iliq = 1, liquid only, no ice
-  integer, private ::  iliq
-  ! switch for ice nucleation
-  ! inuc = 0, use formula from rasmussen et al. 2002 (mid-latitude)
-  !      = 1, use mpace observations
-  integer, private ::  inuc
-  ! ibase = 1, neglect droplet activation at lateral cloud edges due to 
-  !             unresolved entrainment and mixing, activate
-  !             at cloud base or in region with little cloud water using 
-  !             non-equlibrium supersaturation, 
-  !             in cloud interior activate using equilibrium supersaturation
-  ! ibase = 2, assume droplet activation at lateral cloud edges due to 
-  !             unresolved entrainment and mixing dominates,
-  !             activate droplets everywhere in the cloud using non-equilibrium
-  !             supersaturation, based on the 
-  !             local sub-grid and/or grid-scale vertical velocity 
-  !             at the grid point
-  ! note: only used for predicted droplet concentration (inum = 0) in non-wrf-chem version of code
-  integer, private ::  ibase
-  ! include sub-grid vertical velocity in droplet activation
-  ! isub = 0, include sub-grid w (recommended for lower resolution)
-  ! isub = 1, exclude sub-grid w, only use grid-scale w
-  ! note: only used for predicted droplet concentration (inum = 0) in non-wrf-chem version of code
-  integer, private ::  isub      
-  ! switch for graupel/no graupel
-  ! igraup = 0, include graupel
-  ! igraup = 1, no graupel
-  integer, private ::  igraup
-  ! hm added new option for hail
-  ! switch for hail/graupel
-  ! ihail = 0, dense precipitating ice is graupel
-  ! ihail = 1, dense precipitating gice is hail
-  integer, private ::  ihail
-  ! cloud microphysics constants
-  real, private :: ai,ac,as,ar,ag    ! 'a' parameter in fallspeed-diam relationship
-  real, private :: bi,bc,bs,br,bg    ! 'b' parameter in fallspeed-diam relationship
-  real, private :: rhosu             ! standard air density at 850 mb
-  real, private :: rhow              ! density of liquid water
-  real, private :: rhoi              ! bulk density of cloud ice
-  real, private :: rhosn             ! bulk density of snow
-  real, private :: rhog              ! bulk density of graupel
-  real, private :: aimm              ! parameter in bigg immersion freezing
-  real, private :: bimm              ! parameter in bigg immersion freezing
-  real, private :: ecr               ! collection efficiency between droplets/rain and snow/rain
-  real, private :: dcs               ! threshold size for cloud ice autoconversion
-  real, private :: mi0               ! initial size of nucleated crystal
-  real, private :: mg0               ! mass of embryo graupel
-  real, private :: f1s               ! ventilation parameter for snow
-  real, private :: f2s               ! ventilation parameter for snow
-  real, private :: f1r               ! ventilation parameter for rain
-  real, private :: f2r               ! ventilation parameter for rain
-  real, private :: qsmall            ! smallest allowed hydrometeor mixing ratio
-  real, private :: ci,di,cs,ds,cg,dg ! size distribution parameters for cloud ice, snow, graupel
-  real, private :: eii               ! collection efficiency, ice-ice collisions
-  real, private :: eci               ! collection efficiency, ice-droplet collisions
-  real, private :: rin               ! radius of contact nuclei (m)
-  real, private :: cpw               ! specific heat of liquid water
-  real, private :: c1                ! 'c' in nccn = cs^k (cm-3)
-  real, private :: k1                ! 'k' in nccn = cs^k
-  real, private :: mw                ! molecular weight water (kg/mol)
-  real, private :: osm               ! osmotic coefficient
-  real, private :: vi                ! number of ion dissociated in solution
-  real, private :: epsm              ! aerosol soluble fraction
-  real, private :: rhoa              ! aerosol bulk density (kg/m3)
-  real, private :: map               ! molecular weight aerosol (kg/mol)
-  real, private :: ma                ! molecular weight of 'air' (kg/mol)
-  real, private :: rr                ! universal gas constant
-  real, private :: bact              ! activation parameter
-  real, private :: rm1               ! geometric mean radius, mode 1 (m)
-  real, private :: rm2               ! geometric mean radius, mode 2 (m)
-  real, private :: nanew1            ! total aerosol concentration, mode 1 (m^-3)
-  real, private :: nanew2            ! total aerosol concentration, mode 2 (m^-3)
-  real, private :: sig1              ! standard deviation of aerosol s.d., mode 1
-  real, private :: sig2              ! standard deviation of aerosol s.d., mode 2
-  real, private :: f11               ! correction factor for activation, mode 1
-  real, private :: f12               ! correction factor for activation, mode 1
-  real, private :: f21               ! correction factor for activation, mode 2
-  real, private :: f22               ! correction factor for activation, mode 2     
-  real, private :: mmult             ! mass of splintered ice particle
-  real, private :: lammaxi,lammini,lammaxr,lamminr,lammaxs,lammins,lammaxg,lamming
-  real, private :: cons1,cons2,cons3,cons4,cons5,cons6,cons7,cons8,cons9,cons10
-  real, private :: cons11,cons12,cons13,cons14,cons15,cons16,cons17,cons18,cons19,cons20
-  real, private :: cons21,cons22,cons23,cons24,cons25,cons26,cons27,cons28,cons29,cons30
-  real, private :: cons31,cons32,cons33,cons34,cons35,cons36,cons37,cons38,cons39,cons40
-  real, private :: cons41
+  real, parameter :: pi = 3.1415926535897932384626434
+  real, parameter :: xxx = 0.9189385332046727417803297
+  integer :: iact
+  integer :: inum
+  real    :: ndcnst
+  integer :: iliq
+  integer :: inuc
+  integer :: ibase
+  integer :: isub      
+  integer :: igraup
+  integer :: ihail
+  real    :: ai,ac,as,ar,ag    ! 'a' parameter in fallspeed-diam relationship
+  real    :: bi,bc,bs,br,bg    ! 'b' parameter in fallspeed-diam relationship
+  real    :: rhosu             ! standard air density at 850 mb
+  real    :: rhow              ! density of liquid water
+  real    :: rhoi              ! bulk density of cloud ice
+  real    :: rhosn             ! bulk density of snow
+  real    :: rhog              ! bulk density of graupel
+  real    :: aimm              ! parameter in bigg immersion freezing
+  real    :: bimm              ! parameter in bigg immersion freezing
+  real    :: ecr               ! collection efficiency between droplets/rain and snow/rain
+  real    :: dcs               ! threshold size for cloud ice autoconversion
+  real    :: mi0               ! initial size of nucleated crystal
+  real    :: mg0               ! mass of embryo graupel
+  real    :: f1s               ! ventilation parameter for snow
+  real    :: f2s               ! ventilation parameter for snow
+  real    :: f1r               ! ventilation parameter for rain
+  real    :: f2r               ! ventilation parameter for rain
+  real    :: qsmall            ! smallest allowed hydrometeor mixing ratio
+  real    :: ci,di,cs,ds,cg,dg ! size distribution parameters for cloud ice, snow, graupel
+  real    :: eii               ! collection efficiency, ice-ice collisions
+  real    :: eci               ! collection efficiency, ice-droplet collisions
+  real    :: rin               ! radius of contact nuclei (m)
+  real    :: cpw               ! specific heat of liquid water
+  real    :: c1                ! 'c' in nccn = cs^k (cm-3)
+  real    :: k1                ! 'k' in nccn = cs^k
+  real    :: mw                ! molecular weight water (kg/mol)
+  real    :: osm               ! osmotic coefficient
+  real    :: vi                ! number of ion dissociated in solution
+  real    :: epsm              ! aerosol soluble fraction
+  real    :: rhoa              ! aerosol bulk density (kg/m3)
+  real    :: map               ! molecular weight aerosol (kg/mol)
+  real    :: ma                ! molecular weight of 'air' (kg/mol)
+  real    :: rr                ! universal gas constant
+  real    :: bact              ! activation parameter
+  real    :: rm1               ! geometric mean radius, mode 1 (m)
+  real    :: rm2               ! geometric mean radius, mode 2 (m)
+  real    :: nanew1            ! total aerosol concentration, mode 1 (m^-3)
+  real    :: nanew2            ! total aerosol concentration, mode 2 (m^-3)
+  real    :: sig1              ! standard deviation of aerosol s.d., mode 1
+  real    :: sig2              ! standard deviation of aerosol s.d., mode 2
+  real    :: f11               ! correction factor for activation, mode 1
+  real    :: f12               ! correction factor for activation, mode 1
+  real    :: f21               ! correction factor for activation, mode 2
+  real    :: f22               ! correction factor for activation, mode 2     
+  real    :: mmult             ! mass of splintered ice particle
+  real    :: lammaxi,lammini,lammaxr,lamminr,lammaxs,lammins,lammaxg,lamming
+  real    :: cons1,cons2,cons3,cons4,cons5,cons6,cons7,cons8,cons9,cons10
+  real    :: cons11,cons12,cons13,cons14,cons15,cons16,cons17,cons18,cons19,cons20
+  real    :: cons21,cons22,cons23,cons24,cons25,cons26,cons27,cons28,cons29,cons30
+  real    :: cons31,cons32,cons33,cons34,cons35,cons36,cons37,cons38,cons39,cons40
+  real    :: cons41
   interface pow
     module procedure pow_rr
     module procedure pow_ri
@@ -116,122 +74,68 @@ module module_mp_morr_two_moment
 contains
 
   subroutine morr_two_moment_init(morr_rimed_ice) bind(c,name="morr_two_moment_init") ! ras  
-    ! this subroutine initializes all physical constants amnd parameters 
-    ! needed by the microphysics scheme.
-    ! needs to be called at first time step, prior to call to main microphysics interface
     implicit none
     integer, intent(in):: morr_rimed_ice ! ras  
     integer n,i
-    ! the following parameters are user-defined switches and need to be
-    ! set prior to code compilation
-    ! inum is automatically set to 0 for wrf-chem below,
-    ! allowing prediction of droplet concentration
-    ! thus, this parameter should not be changed here
-    ! and should be left to 1
-    inum = 1
-    ! set constant droplet concentration (units of cm-3)
-    ! if no coupling with wrf-chem
-    ndcnst = 250.
-    ! note, the following options related to droplet activation 
-    ! (iact, ibase, isub) are not available in current version
-    ! for wrf-chem, droplet activation is performed 
-    ! in 'mix_activate', not in microphysics scheme
-    ! iact = 1, use power-law ccn spectra, nccn = cs^k
-    ! iact = 2, use lognormal aerosol size dist to derive ccn spectra
-    iact = 2
-    ! ibase = 1, neglect droplet activation at lateral cloud edges due to 
-    !             unresolved entrainment and mixing, activate
-    !             at cloud base or in region with little cloud water using 
-    !             non-equlibrium supersaturation assuming no initial cloud water, 
-    !             in cloud interior activate using equilibrium supersaturation
-    ! ibase = 2, assume droplet activation at lateral cloud edges due to 
-    !             unresolved entrainment and mixing dominates,
-    !             activate droplets everywhere in the cloud using non-equilibrium
-    !             supersaturation assuming no initial cloud water, based on the 
-    !             local sub-grid and/or grid-scale vertical velocity 
-    !             at the grid point
-    ! note: only used for predicted droplet concentration (inum = 0)
-    ibase = 2
-    ! include sub-grid vertical velocity (standard deviation of w) in droplet activation
-    ! isub = 0, include sub-grid w (recommended for lower resolution)
-    ! currently, sub-grid w is constant of 0.5 m/s (not coupled with pbl/turbulence scheme)
-    ! isub = 1, exclude sub-grid w, only use grid-scale w
-    ! note: only used for predicted droplet concentration (inum = 0)
-    isub = 0      
-    ! switch for liquid-only run
-    ! iliq = 0, include ice
-    ! iliq = 1, liquid only, no ice
-    iliq = 0
-    ! switch for ice nucleation
-    ! inuc = 0, use formula from rasmussen et al. 2002 (mid-latitude)
-    !      = 1, use mpace observations (arctic only)
-    inuc = 0
-    ! switch for graupel/hail no graupel/hail
-    ! igraup = 0, include graupel/hail
-    ! igraup = 1, no graupel/hail
-    igraup = 0
-    ! switch for hail/graupel
-    ! ihail = 0, dense precipitating ice is graupel
-    ! ihail = 1, dense precipitating ice is hail
-    ! note ---> recommend ihail = 1 for continental deep convection
-    !ihail = 0 !changed to namelist option (morr_rimed_ice) by ras
-    ! check if namelist option is feasible, otherwise default to graupel - ras
+    inum    = 1
+    ndcnst  = 250.
+    iact    = 2
+    ibase   = 2
+    isub    = 0      
+    iliq    = 0
+    inuc    = 0
+    igraup  = 0
     if (morr_rimed_ice == 1) then
-       ihail = 1
+      ihail = 1
     else
-       ihail = 0
+      ihail = 0
     endif
-    ! fallspeed parameters (v=ad^b)
-    ai = 700.
-    ac = 3.e7
-    as = 11.72
-    ar = 841.99667
-    bi = 1.
-    bc = 2.
-    bs = 0.41
-    br = 0.8
+    ai      = 700.
+    ac      = 3.e7
+    as      = 11.72
+    ar      = 841.99667
+    bi      = 1.
+    bc      = 2.
+    bs      = 0.41
+    br      = 0.8
     if (ihail==0) then
-      ag = 19.3
-      bg = 0.37
-    else ! (matsun and huggins 1980)
-      ag = 114.5 
-      bg = 0.5
-    endif
-    ! constants and parameters
-    rhosu = 85000./(287.15*273.15)
-    rhow = 997.
-    rhoi = 500.
-    rhosn = 100.
-    if (ihail==0) then
-      rhog = 400.
+      ag    = 19.3
+      bg    = 0.37
     else
-      rhog = 900.
+      ag    = 114.5 
+      bg    = 0.5
     endif
-    aimm   = 0.66
-    bimm   = 100.
-    ecr    = 1.
-    dcs    = 125.e-6
-    mi0    = 4./3.*pi*rhoi*pow(10.e-6,3)
-    mg0    = 1.6e-10
-    f1s    = 0.86
-    f2s    = 0.28
-    f1r    = 0.78
-    f2r    = 0.308
-    qsmall = 1.e-14
-    eii    = 0.1
-    eci    = 0.7
-    cpw    = 4187.
-    ! size distribution parameters
-    ci = rhoi*pi/6.
-    di = 3.
-    cs = rhosn*pi/6.
-    ds = 3.
-    cg = rhog*pi/6.
-    dg = 3.
-    ! radius of contact nuclei
-    rin = 0.1e-6
-    mmult = 4./3.*pi*rhoi*pow(5.e-6,3)
-    ! size limits for lambda
+    rhosu   = 85000./(287.15*273.15)
+    rhow    = 997.
+    rhoi    = 500.
+    rhosn   = 100.
+    if (ihail==0) then
+      rhog  = 400.
+    else
+      rhog  = 900.
+    endif
+    aimm    = 0.66
+    bimm    = 100.
+    ecr     = 1.
+    dcs     = 125.e-6
+    mi0     = 4./3.*pi*rhoi*pow(10.e-6,3)
+    mg0     = 1.6e-10
+    f1s     = 0.86
+    f2s     = 0.28
+    f1r     = 0.78
+    f2r     = 0.308
+    qsmall  = 1.e-14
+    eii     = 0.1
+    eci     = 0.7
+    cpw     = 4187.
+    ci      = rhoi*pi/6.
+    di      = 3.
+    cs      = rhosn*pi/6.
+    ds      = 3.
+    cg      = rhog*pi/6.
+    dg      = 3.
+    rin     = 0.1e-6
+    mmult   = 4./3.*pi*rhoi*pow(5.e-6,3)
     lammaxi = 1./1.e-6
     lammini = 1./(2.*dcs+100.e-6)
     lammaxr = 1./20.e-6
@@ -240,162 +144,82 @@ contains
     lammins = 1./2000.e-6
     lammaxg = 1./20.e-6
     lamming = 1./2000.e-6
-    ! note: these parameters only used by the non-wrf-chem version of the 
-    !       scheme with predicted droplet number
-    ! ccn spectra for iact = 1
-    ! maritime
-    ! modified from rasmussen et al. 2002
-    ! nccn = c*s^k, nccn is in cm-3, s is supersaturation ratio in %
-    k1 = 0.4
-    c1 = 120. 
-    ! continental
-    ! aerosol activation parameters for iact = 2
-    ! parameters currently set for ammonium sulfate
-    mw = 0.018
-    osm = 1.
-    vi = 3.
-    epsm = 0.7
-    rhoa = 1777.
-    map = 0.132
-    ma = 0.0284
-    rr = 8.3145
-    bact = vi*osm*epsm*mw*rhoa/(map*rhow)
-    ! aerosol size distribution parameters currently set for mpace 
-    ! (see morrison et al. 2007, jgr)
-    ! mode 1
-    rm1 = 0.052e-6
-    sig1 = 2.04
-    nanew1 = 72.2e6
-    f11 = 0.5*exp(2.5*pow(log(sig1),2))
-    f21 = 1.+0.25*log(sig1)
-    ! mode 2
-    rm2 = 1.3e-6
-    sig2 = 2.5
-    nanew2 = 1.8e6
-    f12 = 0.5*exp(2.5*pow(log(sig2),2))
-    f22 = 1.+0.25*log(sig2)
-    ! constants for efficiency
-    cons1  = gamma(1.+ds)*cs
-    cons2  = gamma(1.+dg)*cg
-    cons3  = gamma(4.+bs)/6.
-    cons4  = gamma(4.+br)/6.
-    cons5  = gamma(1.+bs)
-    cons6  = gamma(1.+br)
-    cons7  = gamma(4.+bg)/6.
-    cons8  = gamma(1.+bg)
-    cons9  = gamma(5./2.+br/2.)
-    cons10 = gamma(5./2.+bs/2.)
-    cons11 = gamma(5./2.+bg/2.)
-    cons12 = gamma(1.+di)*ci
-    cons13 = gamma(bs+3.)*pi/4.*eci
-    cons14 = gamma(bg+3.)*pi/4.*eci
-    cons15 = -1108.*eii*pow(pi,(1.-bs)/3.)*pow(rhosn,(-2.-bs)/3.)/(4.*720.)
-    cons16 = gamma(bi+3.)*pi/4.*eci
-    cons17 = 4.*2.*3.*rhosu*pi*eci*eci*gamma(2.*bs+2.)/(8.*(rhog-rhosn))
-    cons18 = rhosn*rhosn
-    cons19 = rhow*rhow
-    cons20 = 20.*pi*pi*rhow*bimm
-    cons21 = 4./(dcs*rhoi)
-    cons22 = pi*rhoi*pow(dcs,3)/6.
-    cons23 = pi/4.*eii*gamma(bs+3.)
-    cons24 = pi/4.*ecr*gamma(br+3.)
-    cons25 = pi*pi/24.*rhow*ecr*gamma(br+6.)
-    cons26 = pi/6.*rhow
-    cons27 = gamma(1.+bi)
-    cons28 = gamma(4.+bi)/6.
-    cons29 = 4./3.*pi*rhow*pow(25.e-6,3)
-    cons30 = 4./3.*pi*rhow
-    cons31 = pi*pi*ecr*rhosn
-    cons32 = pi/2.*ecr
-    cons33 = pi*pi*ecr*rhog
-    cons34 = 5./2.+br/2.
-    cons35 = 5./2.+bs/2.
-    cons36 = 5./2.+bg/2.
-    cons37 = 4.*pi*1.38e-23/(6.*pi*rin)
-    cons38 = pi*pi/3.*rhow
-    cons39 = pi*pi/36.*rhow*bimm
-    cons40 = pi/6.*bimm
-    cons41 = pi*pi*ecr*rhow
-    !..set these variables needed for computing radar reflectivity.  these
-    !.. get used within radar_init to create other variables used in the
-    !.. radar module.
-    xam_r = pi*rhow/6.
-    xbm_r = 3.
-    xmu_r = 0.
-    xam_s = cs
-    xbm_s = ds
-    xmu_s = 0.
-    xam_g = cg
-    xbm_g = dg
-    xmu_g = 0.
+    k1      = 0.4
+    c1      = 120. 
+    mw      = 0.018
+    osm     = 1.
+    vi      = 3.
+    epsm    = 0.7
+    rhoa    = 1777.
+    map     = 0.132
+    ma      = 0.0284
+    rr      = 8.3145
+    bact    = vi*osm*epsm*mw*rhoa/(map*rhow)
+    rm1     = 0.052e-6
+    sig1    = 2.04
+    nanew1  = 72.2e6
+    f11     = 0.5*exp(2.5*pow(log(sig1),2))
+    f21     = 1.+0.25*log(sig1)
+    rm2     = 1.3e-6
+    sig2    = 2.5
+    nanew2  = 1.8e6
+    f12     = 0.5*exp(2.5*pow(log(sig2),2))
+    f22     = 1.+0.25*log(sig2)
+    cons1   = gamma(1.+ds)*cs
+    cons2   = gamma(1.+dg)*cg
+    cons3   = gamma(4.+bs)/6.
+    cons4   = gamma(4.+br)/6.
+    cons5   = gamma(1.+bs)
+    cons6   = gamma(1.+br)
+    cons7   = gamma(4.+bg)/6.
+    cons8   = gamma(1.+bg)
+    cons9   = gamma(5./2.+br/2.)
+    cons10  = gamma(5./2.+bs/2.)
+    cons11  = gamma(5./2.+bg/2.)
+    cons12  = gamma(1.+di)*ci
+    cons13  = gamma(bs+3.)*pi/4.*eci
+    cons14  = gamma(bg+3.)*pi/4.*eci
+    cons15  = -1108.*eii*pow(pi,(1.-bs)/3.)*pow(rhosn,(-2.-bs)/3.)/(4.*720.)
+    cons16  = gamma(bi+3.)*pi/4.*eci
+    cons17  = 4.*2.*3.*rhosu*pi*eci*eci*gamma(2.*bs+2.)/(8.*(rhog-rhosn))
+    cons18  = rhosn*rhosn
+    cons19  = rhow*rhow
+    cons20  = 20.*pi*pi*rhow*bimm
+    cons21  = 4./(dcs*rhoi)
+    cons22  = pi*rhoi*pow(dcs,3)/6.
+    cons23  = pi/4.*eii*gamma(bs+3.)
+    cons24  = pi/4.*ecr*gamma(br+3.)
+    cons25  = pi*pi/24.*rhow*ecr*gamma(br+6.)
+    cons26  = pi/6.*rhow
+    cons27  = gamma(1.+bi)
+    cons28  = gamma(4.+bi)/6.
+    cons29  = 4./3.*pi*rhow*pow(25.e-6,3)
+    cons30  = 4./3.*pi*rhow
+    cons31  = pi*pi*ecr*rhosn
+    cons32  = pi/2.*ecr
+    cons33  = pi*pi*ecr*rhog
+    cons34  = 5./2.+br/2.
+    cons35  = 5./2.+bs/2.
+    cons36  = 5./2.+bg/2.
+    cons37  = 4.*pi*1.38e-23/(6.*pi*rin)
+    cons38  = pi*pi/3.*rhow
+    cons39  = pi*pi/36.*rhow*bimm
+    cons40  = pi/6.*bimm
+    cons41  = pi*pi*ecr*rhow
+    xam_r   = pi*rhow/6.
+    xbm_r   = 3.
+    xmu_r   = 0.
+    xam_s   = cs
+    xbm_s   = ds
+    xmu_s   = 0.
+    xam_g   = cg
+    xbm_g   = dg
+    xmu_g   = 0.
     call radar_init()
   end subroutine morr_two_moment_init
 
 
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! this subroutine is main interface with the two-moment microphysics scheme
-  ! this interface takes in 3d variables from driver model, converts to 1d for
-  ! call to the main microphysics subroutine (subroutine morr_two_moment_micro) 
-  ! which operates on 1d vertical columns.
-  ! 1d variables from the main microphysics subroutine are then reassigned back to 3d for output
-  ! back to driver model using this interface.
-  ! microphysics tendencies are added to variables here before being passed back to driver model.
-  ! this code was written by hugh morrison (ncar) and slava tatarskii (georgia tech).
-  ! for questions, contact: hugh morrison, e-mail: morrison@ucar.edu, phone:303-497-8916
-  ! qv - water vapor mixing ratio (kg/kg)
-  ! qc - cloud water mixing ratio (kg/kg)
-  ! qr - rain water mixing ratio (kg/kg)
-  ! qi - cloud ice mixing ratio (kg/kg)
-  ! qs - snow mixing ratio (kg/kg)
-  ! qg - graupel mixing ratio (kg/kg)
-  ! ni - cloud ice number concentration (1/kg)
-  ! ns - snow number concentration (1/kg)
-  ! nr - rain number concentration (1/kg)
-  ! ng - graupel number concentration (1/kg)
-  ! note: rho and ht not used by this scheme and do not need to be passed into scheme!!!!
-  ! p - air pressure (pa)
-  ! w - vertical air velocity (m/s)
-  ! th - potential temperature (k)
-  ! pii - exner function - used to convert potential temp to temp
-  ! dz - difference in height over interface (m)
-  ! dt_in - model time step (sec)
-  ! itimestep - time step counter
-  ! rainnc - accumulated grid-scale precipitation (mm)
-  ! rainncv - one time step grid scale precipitation (mm/time step)
-  ! snownc - accumulated grid-scale snow plus cloud ice (mm)
-  ! snowncv - one time step grid scale snow plus cloud ice (mm/time step)
-  ! graupelnc - accumulated grid-scale graupel (mm)
-  ! graupelncv - one time step grid scale graupel (mm/time step)
-  ! sr - one time step mass ratio of snow to total precip
-  ! qrcuten, rain tendency from parameterized cumulus convection
-  ! qscuten, snow tendency from parameterized cumulus convection
-  ! qicuten, cloud ice tendency from parameterized cumulus convection
-  ! variables below currently not in use, not coupled to pbl or radiation codes
-  ! tke - turbulence kinetic energy (m^2 s-2), needed for droplet activation (see code below)
-  ! nctend - droplet concentration tendency from pbl (kg-1 s-1)
-  ! nctend - cloud ice concentration tendency from pbl (kg-1 s-1)
-  ! kzh - heat eddy diffusion coefficient from ysu scheme (m^2 s-1), needed for droplet activation (see code below)
-  ! effcs - cloud droplet effective radius output to radiation code (micron)
-  ! effis - cloud droplet effective radius output to radiation code (micron)
-  ! hm, added for wrf-chem coupling
-  ! qlsink - tendency of cloud water to rain, snow, graupel (kg/kg/s)
-  ! csed,ised,ssed,gsed,rsed - sedimentation fluxes (kg/m^2/s) for cloud water, ice, snow, graupel, rain
-  ! preci,precs,precg,precr - sedimentation fluxes (kg/m^2/s) for ice, snow, graupel, rain
-  ! rainprod - total tendency of conversion of cloud water/ice and graupel to rain (kg kg-1 s-1)
-  ! evapprod - tendency of evaporation of rain (kg kg-1 s-1)
-  ! reflectivity currently not included!!!!
-  ! refl_10cm - calculated radar reflectivity at 10 cm (dbz)
-  ! effc - droplet effective radius (micron)
-  ! effr - rain effective radius (micron)
-  ! effs - snow effective radius (micron)
-  ! effi - cloud ice effective radius (micron)
-  ! additional output from micro - sedimentation tendencies, needed for liquid-ice static energy
-  ! qgsten - graupel sedimentation tend (kg/kg/s)
-  ! qrsten - rain sedimentation tend (kg/kg/s)
-  ! qisten - cloud ice sedimentation tend (kg/kg/s)
-  ! qnisten - snow sedimentation tend (kg/kg/s)
-  ! qcsten - cloud water sedimentation tend (kg/kg/s)
   subroutine mp_morr_two_moment(itimestep,                                  &
                                 th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
                                 rho, pii, p, dt_in, dz, w,                  &
@@ -425,7 +249,6 @@ contains
     real   (c_float), dimension(ims:ime, kms:kme), intent(inout) :: refl_10cm
     integer(c_int  ), intent(in) :: wetscav_on
     integer(c_int  ), intent(in) :: f_qndrop
-    ! local variables
     real, dimension(its:ite, kts:kte) :: effi, effs, effr, effg
     real, dimension(its:ite, kts:kte) :: t,  effc
     real, dimension(kts:kte) :: qc_tend1d, qi_tend1d, qni_tend1d, qr_tend1d, &
@@ -453,9 +276,9 @@ contains
     has_wetscav = (wetscav_on == 1)
     dt = dt_in   
     do i=its,ite
-    do k=kts,kte
-        t(i,k)        = th(i,k)*pii(i,k)
-    enddo
+      do k=kts,kte
+        t(i,k) = th(i,k)*pii(i,k)
+      enddo
     enddo
 
     do i=its,ite
@@ -546,15 +369,6 @@ contains
 
 
 
-  ! this program is the main two-moment microphysics subroutine described by
-  ! morrison et al. 2005 jas and morrison et al. 2009 mwr
-  ! this scheme is a bulk double-moment scheme that predicts mixing
-  ! ratios and number concentrations of five hydrometeor species:
-  ! cloud droplets, cloud (small) ice, rain, snow, and graupel/hail.
-  ! code structure: main subroutine is 'morr_two_moment'. also included in this file is
-  ! 'function polysvp', 'function derf1', and
-  ! 'function gamma'.
-  ! note: this subroutine uses 1d array in vertical (column), even though variables are called '3d'......
   subroutine morr_two_moment_micro(qc3dten,qi3dten,qni3dten,qr3dten,                             &
                                    ni3dten,ns3dten,nr3dten,qc3d,qi3d,qni3d,qr3d,ni3d,ns3d,nr3d,  &
                                    t3dten,qv3dten,t3d,qv3d,pres,dzq,w3d,precrt,snowrt,           &
@@ -2155,11 +1969,6 @@ contains
 
 
 
-  ! compute saturation vapor pressure
-  ! polysvp returned in units of pa.
-  ! t is input in units of k.
-  ! type refers to saturation with respect to liquid (0) or ice (1)
-  ! replace goff-gratch with faster formulation from flatau et al. 1992, table 4 (right-hand column)
   real function polysvp (t,type)
     implicit none
     real    :: dum

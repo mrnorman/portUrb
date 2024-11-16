@@ -1,11 +1,13 @@
 
 module module_mp_morr_two_moment
-  use module_wrf_error
-  use module_mp_radar
-  use module_model_constants, only: cp, g, r => r_d, rv => r_v, ep_2
   implicit none
-  real, parameter :: pi = 3.1415926535897932384626434
-  real, parameter :: xxx = 0.9189385332046727417803297
+  real, parameter :: pi   = 3.1415926535897932384626434
+  real, parameter :: xxx  = 0.9189385332046727417803297
+  real, parameter :: r    = 287.
+  real, parameter :: rv   = 461.6
+  real, parameter :: g    = 9.81
+  real, parameter :: cp   = 1004.5
+  real, parameter :: ep_2 = 0.621750433
   integer :: iact
   integer :: inum
   real    :: ndcnst
@@ -206,1772 +208,1699 @@ contains
     cons39  = pi*pi/36.*rhow*bimm
     cons40  = pi/6.*bimm
     cons41  = pi*pi*ecr*rhow
-    xam_r   = pi*rhow/6.
-    xbm_r   = 3.
-    xmu_r   = 0.
-    xam_s   = cs
-    xbm_s   = ds
-    xmu_s   = 0.
-    xam_g   = cg
-    xbm_g   = dg
-    xmu_g   = 0.
-    call radar_init()
   end subroutine morr_two_moment_init
 
 
 
-  subroutine mp_morr_two_moment(itimestep,                                  &
-                                th, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, &
-                                rho, pii, p, dt_in, dz, w,                  &
-                                rainnc, rainncv, sr,                        &
-                                snownc,snowncv,graupelnc,graupelncv,        &
-                                refl_10cm, diagflag, do_radar_ref,          &
-                                qrcuten, qscuten, qicuten,                  &
-                                f_qndrop, qndrop,                           &
-                                ids,ide,kds,kde,                            &
-                                ims,ime,kms,kme,                            &
-                                its,ite,kts,kte,                            &
-                                wetscav_on, rainprod, evapprod,             &
-                                qlsink,precr,preci,precs,precg ) bind(c,name="mp_morr_two_moment")
-
+  subroutine mp_morr_two_moment(t, qv, qc, qr, qi, qs, qg, ni, ns, nr, ng, rho, p, dt_in, dz, rainnc, rainncv, &
+                                sr, snownc, snowncv, graupelnc, graupelncv, qrcuten, qscuten, qicuten,    &
+                                ncol, nz,       &
+                                qlsink, precr, preci, precs, precg) bind(c,name="mp_morr_two_moment")
     use iso_c_binding, only: c_int, c_float
     implicit none
-    integer(c_int  ), intent(in   ) :: ids, ide, kds, kde , &
-                                       ims, ime, kms, kme , &
-                                       its, ite, kts, kte
-    real   (c_float), dimension(ims:ime, kms:kme), intent(inout) :: qv, qc, qr, qi, qs, qg, ni, ns, nr, th, ng   
-    real   (c_float), dimension(ims:ime, kms:kme), intent(inout) :: qndrop
-    real   (c_float), dimension(ims:ime, kms:kme), intent(inout) :: qlsink, rainprod, evapprod, preci, precs, precg, precr
-    real   (c_float), dimension(ims:ime, kms:kme), intent(in   ) :: pii, p, dz, rho, w
+    integer(c_int  ), intent(in   ) :: ncol, nz
+    real   (c_float), dimension(ncol,nz), intent(inout) :: qv, qc, qr, qi, qs, qg, ni, ns, nr, t, ng   
+    real   (c_float), dimension(ncol,nz), intent(inout) :: qlsink, preci, precs, precg, precr
+    real   (c_float), dimension(ncol,nz), intent(in   ) :: p, dz, rho
+    real   (c_float), dimension(ncol   ), intent(inout) :: rainnc, rainncv, sr, snownc, snowncv, graupelnc, graupelncv
+    real   (c_float), dimension(ncol,nz), intent(in   ) :: qrcuten, qscuten, qicuten
     real   (c_float), intent(in) :: dt_in
-    integer(c_int  ), intent(in):: itimestep
-    real   (c_float), dimension(ims:ime), intent(inout) :: rainnc, rainncv, sr, snownc, snowncv, graupelnc, graupelncv
-    real   (c_float), dimension(ims:ime, kms:kme), intent(inout) :: refl_10cm
-    integer(c_int  ), intent(in) :: wetscav_on
-    integer(c_int  ), intent(in) :: f_qndrop
-    real, dimension(its:ite, kts:kte) :: effi, effs, effr, effg
-    real, dimension(its:ite, kts:kte) :: t,  effc
-    real, dimension(kts:kte) :: qc_tend1d, qi_tend1d, qni_tend1d, qr_tend1d, &
-                                ni_tend1d, ns_tend1d, nr_tend1d,             &
-                                qc1d, qi1d, qr1d,ni1d, ns1d, nr1d, qs1d,     &
-                                t_tend1d,qv_tend1d, t1d, qv1d, p1d, w1d,     &
-                                effc1d, effi1d, effs1d, effr1d,dz1d,         &
-                                qg_tend1d, ng_tend1d, qg1d, ng1d, effg1d,    &
-                                qgsten,qrsten, qisten, qnisten, qcsten,      &
-                                qrcu1d, qscu1d, qicu1d
-    real, dimension(ims:ime, kms:kme), intent(in):: qrcuten, qscuten, qicuten
-    logical :: flag_qndrop
-    integer :: iinum
-    real, dimension(kts:kte) :: nc1d, nc_tend1d,c2prec,csed,ised,ssed,gsed,rsed    
-    real, dimension(kts:kte) :: rainprod1d, evapprod1d
-    real, dimension(kts:kte) :: dbz
-    real precprt1d, snowrt1d, snowprt1d, grplprt1d ! hm added 7/13/13
-    integer i,k
-    real dt
-    integer(c_int), intent(in) :: diagflag
-    integer(c_int), intent(in) :: do_radar_ref
-    logical :: has_wetscav
-    flag_qndrop = .false.
-    flag_qndrop = (f_qndrop == 1)
-    has_wetscav = (wetscav_on == 1)
-    dt = dt_in   
-    do i=its,ite
-      do k=kts,kte
-        t(i,k) = th(i,k)*pii(i,k)
-      enddo
-    enddo
+    real, dimension(ncol,nz) :: c2prec
+    integer :: iinum, i, k
+    real    :: dt
+    dt    = dt_in   
+    iinum = 1
 
-    do i=its,ite
-      do k=kts,kte
-        qc_tend1d (k) = 0.
-        qi_tend1d (k) = 0.
-        qni_tend1d(k) = 0.
-        qr_tend1d (k) = 0.
-        ni_tend1d (k) = 0.
-        ns_tend1d (k) = 0.
-        nr_tend1d (k) = 0.
-        t_tend1d  (k) = 0.
-        qv_tend1d (k) = 0.
-        nc_tend1d (k) = 0. 
-        qg_tend1d (k) = 0.
-        ng_tend1d (k) = 0.
-        nc1d      (k) = 0.
-        qc1d      (k) = qc     (i,k)
-        qi1d      (k) = qi     (i,k)
-        qs1d      (k) = qs     (i,k)
-        qr1d      (k) = qr     (i,k)
-        ni1d      (k) = ni     (i,k)
-        ns1d      (k) = ns     (i,k)
-        nr1d      (k) = nr     (i,k)
-        qg1d      (k) = qg     (i,k)
-        ng1d      (k) = ng     (i,k)
-        t1d       (k) = t      (i,k)
-        qv1d      (k) = qv     (i,k)
-        p1d       (k) = p      (i,k)
-        dz1d      (k) = dz     (i,k)
-        w1d       (k) = w      (i,k)
-        qrcu1d    (k) = qrcuten(i,k)
-        qscu1d    (k) = qscuten(i,k)
-        qicu1d    (k) = qicuten(i,k)
-      enddo
-      iinum = 1
-      call morr_two_moment_micro(qc_tend1d, qi_tend1d, qni_tend1d, qr_tend1d,   &
-                                 ni_tend1d, ns_tend1d, nr_tend1d,               &
-                                 qc1d, qi1d, qs1d, qr1d,ni1d, ns1d, nr1d,       &
-                                 t_tend1d,qv_tend1d, t1d, qv1d, p1d, dz1d, w1d, &
-                                 precprt1d,snowrt1d,                            &
-                                 snowprt1d,grplprt1d,                           &
-                                 effc1d,effi1d,effs1d,effr1d,dt,                &
-                                 ims,ime,1,1,kms,kme,                           &
-                                 its,ite,1,1,kts,kte,                           &
-                                 qg_tend1d,ng_tend1d,qg1d,ng1d,effg1d,          &
-                                 qrcu1d, qscu1d, qicu1d,                        &
-                                 qgsten,qrsten,qisten,qnisten,qcsten,           &
-                                 nc1d, nc_tend1d, iinum, c2prec,csed,ised,ssed,gsed,rsed )
-      do k=kts,kte
-        qc  (i,k) = qc1d  (k)
-        qi  (i,k) = qi1d  (k)
-        qs  (i,k) = qs1d  (k)
-        qr  (i,k) = qr1d  (k)
-        ni  (i,k) = ni1d  (k)
-        ns  (i,k) = ns1d  (k)          
-        nr  (i,k) = nr1d  (k)
-        qg  (i,k) = qg1d  (k)
-        ng  (i,k) = ng1d  (k)
-        t   (i,k) = t1d   (k)
-        qv  (i,k) = qv1d  (k)
-        effc(i,k) = effc1d(k)
-        effi(i,k) = effi1d(k)
-        effs(i,k) = effs1d(k)
-        effr(i,k) = effr1d(k)
-        effg(i,k) = effg1d(k)
-        th  (i,k) = t(i,k)/pii(i,k)
-        if(qc(i,k)>1.e-10) then
-           qlsink(i,k) = c2prec(k)/qc(i,k)
+    call morr_two_moment_micro(qc, qi, qs, qr ,ni, ns, nr, t, qv, p, dz, rainncv, sr, snowncv, graupelncv,      &
+                               dt, ncol, nz, qg, ng, qrcuten, qscuten, qicuten, iinum, c2prec, preci, &
+                               precs, precg, precr)
+    do k = 1 , nz
+      do i = 1 , ncol
+        if (qc(i,k) > 1.e-10) then
+           qlsink(i,k) = c2prec(i,k)/qc(i,k)
         else
            qlsink(i,k) = 0.0
         endif
-        precr(i,k) = rsed(k)
-        preci(i,k) = ised(k)
-        precs(i,k) = ssed(k)
-        precg(i,k) = gsed(k)
+        if (k == 1) then
+          rainnc    (i) = rainnc(i)+rainncv(i)
+          snownc    (i) = snownc(i)+snowncv(i)
+          graupelnc (i) = graupelnc(i)+graupelncv(i)
+          sr        (i) = sr(i)/(rainncv(i)+1.e-12)
+        endif
       enddo
-      rainnc    (i) = rainnc(i)+precprt1d
-      rainncv   (i) = precprt1d
-      snownc    (i) = snownc(i)+snowprt1d
-      snowncv   (i) = snowprt1d
-      graupelnc (i) = graupelnc(i)+grplprt1d
-      graupelncv(i) = grplprt1d
-      sr        (i) = snowrt1d/(precprt1d+1.e-12)
     enddo   
 
   end subroutine mp_morr_two_moment
 
 
 
-  subroutine morr_two_moment_micro(qc3dten,qi3dten,qni3dten,qr3dten,                             &
-                                   ni3dten,ns3dten,nr3dten,qc3d,qi3d,qni3d,qr3d,ni3d,ns3d,nr3d,  &
-                                   t3dten,qv3dten,t3d,qv3d,pres,dzq,w3d,precrt,snowrt,           &
-                                   snowprt,grplprt,                                              &
-                                   effc,effi,effs,effr,dt,                                       &
-                                   ims,ime, jms,jme, kms,kme,                                    &
-                                   its,ite, jts,jte, kts,kte,                                    &
-                                   qg3dten,ng3dten,qg3d,ng3d,effg,qrcu1d,qscu1d, qicu1d,         &
-                                   qgsten,qrsten,qisten,qnisten,qcsten,                          &
-                                   nc3d,nc3dten,iinum,                                           &
-                                   c2prec,csed,ised,ssed,gsed,rsed )
+  subroutine morr_two_moment_micro(qc3d, qi3d, qni3d, qr3d, ni3d, ns3d, nr3d, t3d, qv3d, pres, dzq, precrt, snowrt, &
+                                   snowprt, grplprt, dt, ncol, nz, qg3d, ng3d, qrcu1d, qscu1d, qicu1d,    &
+                                   iinum, c2prec, ised, ssed, gsed, rsed)
     implicit none
-    integer, intent(in   ) :: ims,ime, jms,jme, kms,kme , its,ite, jts,jte, kts,kte
+    integer, intent(in   ) :: ncol, nz
     integer, intent(in   ) :: iinum
     real   , intent(in   ) :: dt                            ! model time step (sec)
-    real   , intent(inout) :: precrt                        ! total precip per time step (mm)
-    real   , intent(inout) :: snowrt                        ! snow per time step (mm)
-    real   , intent(inout) :: snowprt                       ! total cloud ice plus snow per time step (mm)
-    real   , intent(inout) :: grplprt                       ! total graupel per time step (mm)
-    real   , intent(inout), dimension(kts:kte) :: qc3dten   ! cloud water mixing ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qi3dten   ! cloud ice mixing ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qni3dten  ! snow mixing ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qr3dten   ! rain mixing ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: ni3dten   ! cloud ice number concentration (1/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: ns3dten   ! snow number concentration (1/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: nr3dten   ! rain number concentration (1/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qc3d      ! cloud water mixing ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: qi3d      ! cloud ice mixing ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: qni3d     ! snow mixing ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: qr3d      ! rain mixing ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: ni3d      ! cloud ice number concentration (1/kg)
-    real   , intent(inout), dimension(kts:kte) :: ns3d      ! snow number concentration (1/kg)
-    real   , intent(inout), dimension(kts:kte) :: nr3d      ! rain number concentration (1/kg)
-    real   , intent(inout), dimension(kts:kte) :: t3dten    ! temperature tendency (k/s)
-    real   , intent(inout), dimension(kts:kte) :: qv3dten   ! water vapor mixing ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: t3d       ! temperature (k)
-    real   , intent(inout), dimension(kts:kte) :: qv3d      ! water vapor mixing ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: pres      ! atmospheric pressure (pa)
-    real   , intent(inout), dimension(kts:kte) :: dzq       ! difference in height across level (m)
-    real   , intent(inout), dimension(kts:kte) :: w3d       ! grid-scale vertical velocity (m/s)
-    real   , intent(inout), dimension(kts:kte) :: nc3d
-    real   , intent(inout), dimension(kts:kte) :: nc3dten
-    real   , intent(inout), dimension(kts:kte) :: qg3dten   ! graupel mix ratio tendency (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: ng3dten   ! graupel numb conc tendency (1/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qg3d      ! graupel mix ratio (kg/kg)
-    real   , intent(inout), dimension(kts:kte) :: ng3d      ! graupel number conc (1/kg)
-    real   , intent(inout), dimension(kts:kte) :: qgsten    ! graupel sed tend (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qrsten    ! rain sed tend (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qisten    ! cloud ice sed tend (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qnisten   ! snow sed tend (kg/kg/s)
-    real   , intent(inout), dimension(kts:kte) :: qcsten    ! cloud wat sed tend (kg/kg/s)      
-    real   , intent(inout), dimension(kts:kte) :: qrcu1d
-    real   , intent(inout), dimension(kts:kte) :: qscu1d
-    real   , intent(inout), dimension(kts:kte) :: qicu1d
-    real   , intent(inout), dimension(kts:kte) :: effc      ! droplet effective radius (micron)
-    real   , intent(inout), dimension(kts:kte) :: effi      ! cloud ice effective radius (micron)
-    real   , intent(inout), dimension(kts:kte) :: effs      ! snow effective radius (micron)
-    real   , intent(inout), dimension(kts:kte) :: effr      ! rain effective radius (micron)
-    real   , intent(inout), dimension(kts:kte) :: effg      ! graupel effective radius (micron)
-    real, dimension(kts:kte) :: lamc      ! slope parameter for droplets (m-1)
-    real, dimension(kts:kte) :: lami      ! slope parameter for cloud ice (m-1)
-    real, dimension(kts:kte) :: lams      ! slope parameter for snow (m-1)
-    real, dimension(kts:kte) :: lamr      ! slope parameter for rain (m-1)
-    real, dimension(kts:kte) :: lamg      ! slope parameter for graupel (m-1)
-    real, dimension(kts:kte) :: cdist1    ! psd parameter for droplets
-    real, dimension(kts:kte) :: n0i       ! intercept parameter for cloud ice (kg-1 m-1)
-    real, dimension(kts:kte) :: n0s       ! intercept parameter for snow (kg-1 m-1)
-    real, dimension(kts:kte) :: n0rr      ! intercept parameter for rain (kg-1 m-1)
-    real, dimension(kts:kte) :: n0g       ! intercept parameter for graupel (kg-1 m-1)
-    real, dimension(kts:kte) :: pgam      ! spectral shape parameter for droplets
-    real, dimension(kts:kte) :: nsubc     ! loss of nc during evap
-    real, dimension(kts:kte) :: nsubi     ! loss of ni during sub.
-    real, dimension(kts:kte) :: nsubs     ! loss of ns during sub.
-    real, dimension(kts:kte) :: nsubr     ! loss of nr during evap
-    real, dimension(kts:kte) :: prd       ! dep cloud ice
-    real, dimension(kts:kte) :: pre       ! evap of rain
-    real, dimension(kts:kte) :: prds      ! dep snow
-    real, dimension(kts:kte) :: nnuccc    ! change n due to contact freez droplets
-    real, dimension(kts:kte) :: mnuccc    ! change q due to contact freez droplets
-    real, dimension(kts:kte) :: pra       ! accretion droplets by rain
-    real, dimension(kts:kte) :: prc       ! autoconversion droplets
-    real, dimension(kts:kte) :: pcc       ! cond/evap droplets
-    real, dimension(kts:kte) :: nnuccd    ! change n freezing aerosol (prim ice nucleation)
-    real, dimension(kts:kte) :: mnuccd    ! change q freezing aerosol (prim ice nucleation)
-    real, dimension(kts:kte) :: mnuccr    ! change q due to contact freez rain
-    real, dimension(kts:kte) :: nnuccr    ! change n due to contact freez rain
-    real, dimension(kts:kte) :: npra      ! change in n due to droplet acc by rain
-    real, dimension(kts:kte) :: nragg     ! self-collection/breakup of rain
-    real, dimension(kts:kte) :: nsagg     ! self-collection of snow
-    real, dimension(kts:kte) :: nprc      ! change nc autoconversion droplets
-    real, dimension(kts:kte) :: nprc1     ! change nr autoconversion droplets
-    real, dimension(kts:kte) :: prai      ! change q accretion cloud ice by snow
-    real, dimension(kts:kte) :: prci      ! change q autoconversin cloud ice to snow
-    real, dimension(kts:kte) :: psacws    ! change q droplet accretion by snow
-    real, dimension(kts:kte) :: npsacws   ! change n droplet accretion by snow
-    real, dimension(kts:kte) :: psacwi    ! change q droplet accretion by cloud ice
-    real, dimension(kts:kte) :: npsacwi   ! change n droplet accretion by cloud ice
-    real, dimension(kts:kte) :: nprci     ! change n autoconversion cloud ice by snow
-    real, dimension(kts:kte) :: nprai     ! change n accretion cloud ice
-    real, dimension(kts:kte) :: nmults    ! ice mult due to riming droplets by snow
-    real, dimension(kts:kte) :: nmultr    ! ice mult due to riming rain by snow
-    real, dimension(kts:kte) :: qmults    ! change q due to ice mult droplets/snow
-    real, dimension(kts:kte) :: qmultr    ! change q due to ice rain/snow
-    real, dimension(kts:kte) :: pracs     ! change q rain-snow collection
-    real, dimension(kts:kte) :: npracs    ! change n rain-snow collection
-    real, dimension(kts:kte) :: pccn      ! change q droplet activation
-    real, dimension(kts:kte) :: psmlt     ! change q melting snow to rain
-    real, dimension(kts:kte) :: evpms     ! chnage q melting snow evaporating
-    real, dimension(kts:kte) :: nsmlts    ! change n melting snow
-    real, dimension(kts:kte) :: nsmltr    ! change n melting snow to rain
-    real, dimension(kts:kte) :: piacr     ! change qr, ice-rain collection
-    real, dimension(kts:kte) :: niacr     ! change n, ice-rain collection
-    real, dimension(kts:kte) :: praci     ! change qi, ice-rain collection
-    real, dimension(kts:kte) :: piacrs    ! change qr, ice rain collision, added to snow
-    real, dimension(kts:kte) :: niacrs    ! change n, ice rain collision, added to snow
-    real, dimension(kts:kte) :: pracis    ! change qi, ice rain collision, added to snow
-    real, dimension(kts:kte) :: eprd      ! sublimation cloud ice
-    real, dimension(kts:kte) :: eprds     ! sublimation snow
-    real, dimension(kts:kte) :: pracg     ! change in q collection rain by graupel
-    real, dimension(kts:kte) :: psacwg    ! change in q collection droplets by graupel
-    real, dimension(kts:kte) :: pgsacw    ! conversion q to graupel due to collection droplets by snow
-    real, dimension(kts:kte) :: pgracs    ! conversion q to graupel due to collection rain by snow
-    real, dimension(kts:kte) :: prdg      ! dep of graupel
-    real, dimension(kts:kte) :: eprdg     ! sub of graupel
-    real, dimension(kts:kte) :: evpmg     ! change q melting of graupel and evaporation
-    real, dimension(kts:kte) :: pgmlt     ! change q melting of graupel
-    real, dimension(kts:kte) :: npracg    ! change n collection rain by graupel
-    real, dimension(kts:kte) :: npsacwg   ! change n collection droplets by graupel
-    real, dimension(kts:kte) :: nscng     ! change n conversion to graupel due to collection droplets by snow
-    real, dimension(kts:kte) :: ngracs    ! change n conversion to graupel due to collection rain by snow
-    real, dimension(kts:kte) :: ngmltg    ! change n melting graupel
-    real, dimension(kts:kte) :: ngmltr    ! change n melting graupel to rain
-    real, dimension(kts:kte) :: nsubg     ! change n sub/dep of graupel
-    real, dimension(kts:kte) :: psacr     ! conversion due to coll of snow by rain
-    real, dimension(kts:kte) :: nmultg    ! ice mult due to acc droplets by graupel
-    real, dimension(kts:kte) :: nmultrg   ! ice mult due to acc rain by graupel
-    real, dimension(kts:kte) :: qmultg    ! change q due to ice mult droplets/graupel
-    real, dimension(kts:kte) :: qmultrg   ! change q due to ice mult rain/graupel
-    real, dimension(kts:kte) :: kap       ! thermal conductivity of air
-    real, dimension(kts:kte) :: evs       ! saturation vapor pressure
-    real, dimension(kts:kte) :: eis       ! ice saturation vapor pressure
-    real, dimension(kts:kte) :: qvs       ! saturation mixing ratio
-    real, dimension(kts:kte) :: qvi       ! ice saturation mixing ratio
-    real, dimension(kts:kte) :: qvqvs     ! sautration ratio
-    real, dimension(kts:kte) :: qvqvsi    ! ice saturaion ratio
-    real, dimension(kts:kte) :: dv        ! diffusivity of water vapor in air
-    real, dimension(kts:kte) :: xxls      ! latent heat of sublimation
-    real, dimension(kts:kte) :: xxlv      ! latent heat of vaporization
-    real, dimension(kts:kte) :: cpm       ! specific heat at const pressure for moist air
-    real, dimension(kts:kte) :: mu        ! viscocity of air
-    real, dimension(kts:kte) :: sc        ! schmidt number
-    real, dimension(kts:kte) :: xlf       ! latent heat of freezing
-    real, dimension(kts:kte) :: rho       ! air density
-    real, dimension(kts:kte) :: ab        ! correction to condensation rate due to latent heating
-    real, dimension(kts:kte) :: abi       ! correction to deposition rate due to latent heating
-    real, dimension(kts:kte) :: dap       ! diffusivity of aerosol
-    real                     :: nacnt     ! number of contact in
-    real                     :: fmult     ! temp.-dep. parameter for rime-splintering
-    real                     :: coffi     ! ice autoconversion parameter
-    real                     :: uni, umi,umr
-    real                     :: rgvm
-    real                     :: faltndr,faltndi,faltndni,rho2
-    real                     :: ums,uns
-    real                     :: faltnds,faltndns,unr,faltndg,faltndng
-    real                     :: unc,umc,ung,umg
-    real                     :: faltndc,faltndnc
-    real                     :: faltndnr
-    real, dimension(kts:kte) :: dumi,dumr,dumfni,dumg,dumfng
-    real, dimension(kts:kte) :: fr, fi, fni,fg,fng
-    real, dimension(kts:kte) :: faloutr,falouti,faloutni
-    real, dimension(kts:kte) :: dumqs,dumfns
-    real, dimension(kts:kte) :: fs,fns, falouts,faloutns,faloutg,faloutng
-    real, dimension(kts:kte) :: dumc,dumfnc
-    real, dimension(kts:kte) :: fc,faloutc,faloutnc
-    real, dimension(kts:kte) :: fnc,dumfnr,faloutnr
-    real, dimension(kts:kte) :: fnr
-    real, dimension(kts:kte) ::    ain,arn,asn,acn,agn
-    real                     :: dum,dum1,dum2,dumt,dumqv,dumqss,dumqsi,dums
-    real                     :: dqsdt    ! change of sat. mix. rat. with temperature
-    real                     :: dqsidt   ! change in ice sat. mixing rat. with t
-    real                     :: epsi     ! 1/phase rel. time (see m2005), ice
-    real                     :: epss     ! 1/phase rel. time (see m2005), snow
-    real                     :: epsr     ! 1/phase rel. time (see m2005), rain
-    real                     :: epsg     ! 1/phase rel. time (see m2005), graupel
-    real                     :: tauc     ! phase rel. time (see m2005), droplets
-    real                     :: taur     ! phase rel. time (see m2005), rain
-    real                     :: taui     ! phase rel. time (see m2005), cloud ice
-    real                     :: taus     ! phase rel. time (see m2005), snow
-    real                     :: taug     ! phase rel. time (see m2005), graupel
-    real                     :: dumact, dum3
-    integer                  :: k,nstep,n
-    integer                  :: ltrue
-    real                     :: ct        ! droplet activation parameter
-    real                     :: temp1     ! dummy temperature
-    real                     :: sat1      ! dummy saturation
-    real                     :: sigvl     ! surface tension liq/vapor
-    real                     :: kel       ! kelvin parameter
-    real                     :: kc2       ! total ice nucleation rate
-    real                     :: cry,kry   ! aerosol activation parameters
-    real                     :: dumqi,dumni,dc0,ds0,dg0
-    real                     :: dumqc,dumqr,ratio,sum_dep,fudgef
-    real                     :: wef
-    real                     :: anuc,bnuc
-    real                     :: aact,gamm,gg,psi,eta1,eta2,sm1,sm2,smax,uu1,uu2,alpha
-    real                     :: dlams,dlamr,dlami,dlamc,dlamg,lammax,lammin
-    integer                  :: idrop
-    real, dimension(kts:kte) :: c2prec,csed,ised,ssed,gsed,rsed
-    real, dimension(kts:kte) :: tqimelt ! melting of cloud ice (tendency)
-    ltrue = 0
-    do k = kts,kte
-      nc3dten(k) = 0.
-      c2prec (k) = 0.
-      csed   (k) = 0.
-      ised   (k) = 0.
-      ssed   (k) = 0.
-      gsed   (k) = 0.
-      rsed   (k) = 0.
-      xxlv   (k) = 3.1484e6-2370.*t3d(k)
-      xxls   (k) = 3.15e6-2370.*t3d(k)+0.3337e6
-      cpm    (k) = cp*(1.+0.887*qv3d(k))
-      evs    (k) = min(0.99*pres(k),polysvp(t3d(k),0))   ! pa
-      eis    (k) = min(0.99*pres(k),polysvp(t3d(k),1))   ! pa
-      if (eis(k) > evs(k)) eis(k) = evs(k)
-      qvs    (k) = ep_2*evs(k)/(pres(k)-evs(k))
-      qvi    (k) = ep_2*eis(k)/(pres(k)-eis(k))
-      qvqvs  (k) = qv3d(k)/qvs(k)
-      qvqvsi (k) = qv3d(k)/qvi(k)
-      rho    (k) = pres(k)/(r*t3d(k))
-      if (qrcu1d(k) >= 1.e-10) then
-        dum = 1.8e5*pow(qrcu1d(k)*dt/(pi*rhow*pow(rho(k),3)),0.25)
-        nr3d(k) = nr3d(k)+dum
-      endif
-      if (qscu1d(k) >= 1.e-10) then
-        dum = 3.e5*pow(qscu1d(k)*dt/(cons1*pow(rho(k),3)),1./(ds+1.))
-        ns3d(k) = ns3d(k)+dum
-      endif
-      if (qicu1d(k) >= 1.e-10) then
-        dum = qicu1d(k)*dt/(ci*pow(80.e-6,di))
-        ni3d(k) = ni3d(k)+dum
-      endif
-      if (qvqvs(k) < 0.9) then
-        if (qr3d(k) < 1.e-8) then
-           qv3d(k)=qv3d(k)+qr3d(k)
-           t3d (k)=t3d(k)-qr3d(k)*xxlv(k)/cpm(k)
-           qr3d(k)=0.
+    real   , intent(  out), dimension(:) :: precrt            ! total precip per time step (mm)
+    real   , intent(  out), dimension(:) :: snowrt            ! snow per time step (mm)
+    real   , intent(  out), dimension(:) :: snowprt           ! total cloud ice plus snow per time step (mm)
+    real   , intent(  out), dimension(:) :: grplprt           ! total graupel per time step (mm)
+    real   , intent(inout), dimension(:,:) :: qc3d      ! cloud water mixing ratio (kg/kg)
+    real   , intent(inout), dimension(:,:) :: qi3d      ! cloud ice mixing ratio (kg/kg)
+    real   , intent(inout), dimension(:,:) :: qni3d     ! snow mixing ratio (kg/kg)
+    real   , intent(inout), dimension(:,:) :: qr3d      ! rain mixing ratio (kg/kg)
+    real   , intent(inout), dimension(:,:) :: ni3d      ! cloud ice number concentration (1/kg)
+    real   , intent(inout), dimension(:,:) :: ns3d      ! snow number concentration (1/kg)
+    real   , intent(inout), dimension(:,:) :: nr3d      ! rain number concentration (1/kg)
+    real   , intent(inout), dimension(:,:) :: t3d       ! temperature (k)
+    real   , intent(inout), dimension(:,:) :: qv3d      ! water vapor mixing ratio (kg/kg)
+    real   , intent(in   ), dimension(:,:) :: pres      ! atmospheric pressure (pa)
+    real   , intent(in   ), dimension(:,:) :: dzq       ! difference in height across level (m)
+    real   , intent(inout), dimension(:,:) :: qg3d      ! graupel mix ratio (kg/kg)
+    real   , intent(inout), dimension(:,:) :: ng3d      ! graupel number conc (1/kg)
+    real   , intent(in   ), dimension(:,:) :: qrcu1d
+    real   , intent(in   ), dimension(:,:) :: qscu1d
+    real   , intent(in   ), dimension(:,:) :: qicu1d
+    real   , intent(  out), dimension(:,:) :: c2prec
+    real   , intent(  out), dimension(:,:) :: ised
+    real   , intent(  out), dimension(:,:) :: ssed
+    real   , intent(  out), dimension(:,:) :: gsed
+    real   , intent(  out), dimension(:,:) :: rsed
+    real   , dimension(ncol,nz) :: ng3dten   ! graupel numb conc tendency (1/kg/s)
+    real   , dimension(ncol,nz) :: qg3dten   ! graupel mix ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: effc      ! droplet effective radius (micron)
+    real   , dimension(ncol,nz) :: effi      ! cloud ice effective radius (micron)
+    real   , dimension(ncol,nz) :: effs      ! snow effective radius (micron)
+    real   , dimension(ncol,nz) :: effr      ! rain effective radius (micron)
+    real   , dimension(ncol,nz) :: effg      ! graupel effective radius (micron)
+    real   , dimension(ncol,nz) :: t3dten    ! temperature tendency (k/s)
+    real   , dimension(ncol,nz) :: qv3dten   ! water vapor mixing ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: qc3dten   ! cloud water mixing ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: qi3dten   ! cloud ice mixing ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: qni3dten  ! snow mixing ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: qr3dten   ! rain mixing ratio tendency (kg/kg/s)
+    real   , dimension(ncol,nz) :: ni3dten   ! cloud ice number concentration (1/kg/s)
+    real   , dimension(ncol,nz) :: ns3dten   ! snow number concentration (1/kg/s)
+    real   , dimension(ncol,nz) :: nr3dten   ! rain number concentration (1/kg/s)
+    real   , dimension(ncol,nz) :: csed
+    real   , dimension(ncol,nz) :: qgsten    ! graupel sed tend (kg/kg/s)
+    real   , dimension(ncol,nz) :: qrsten    ! rain sed tend (kg/kg/s)
+    real   , dimension(ncol,nz) :: qisten    ! cloud ice sed tend (kg/kg/s)
+    real   , dimension(ncol,nz) :: qnisten   ! snow sed tend (kg/kg/s)
+    real   , dimension(ncol,nz) :: qcsten    ! cloud wat sed tend (kg/kg/s)      
+    real   , dimension(ncol,nz) :: nc3d
+    real   , dimension(ncol,nz) :: nc3dten
+    real   , dimension(ncol,nz) :: lamc      ! slope parameter for droplets (m-1)
+    real   , dimension(ncol,nz) :: lami      ! slope parameter for cloud ice (m-1)
+    real   , dimension(ncol,nz) :: lams      ! slope parameter for snow (m-1)
+    real   , dimension(ncol,nz) :: lamr      ! slope parameter for rain (m-1)
+    real   , dimension(ncol,nz) :: lamg      ! slope parameter for graupel (m-1)
+    real   , dimension(ncol,nz) :: cdist1    ! psd parameter for droplets
+    real   , dimension(ncol,nz) :: n0i       ! intercept parameter for cloud ice (kg-1 m-1)
+    real   , dimension(ncol,nz) :: n0s       ! intercept parameter for snow (kg-1 m-1)
+    real   , dimension(ncol,nz) :: n0rr      ! intercept parameter for rain (kg-1 m-1)
+    real   , dimension(ncol,nz) :: n0g       ! intercept parameter for graupel (kg-1 m-1)
+    real   , dimension(ncol,nz) :: pgam      ! spectral shape parameter for droplets
+    real   , dimension(ncol,nz) :: nsubc     ! loss of nc during evap
+    real   , dimension(ncol,nz) :: nsubi     ! loss of ni during sub.
+    real   , dimension(ncol,nz) :: nsubs     ! loss of ns during sub.
+    real   , dimension(ncol,nz) :: nsubr     ! loss of nr during evap
+    real   , dimension(ncol,nz) :: prd       ! dep cloud ice
+    real   , dimension(ncol,nz) :: pre       ! evap of rain
+    real   , dimension(ncol,nz) :: prds      ! dep snow
+    real   , dimension(ncol,nz) :: nnuccc    ! change n due to contact freez droplets
+    real   , dimension(ncol,nz) :: mnuccc    ! change q due to contact freez droplets
+    real   , dimension(ncol,nz) :: pra       ! accretion droplets by rain
+    real   , dimension(ncol,nz) :: prc       ! autoconversion droplets
+    real   , dimension(ncol,nz) :: pcc       ! cond/evap droplets
+    real   , dimension(ncol,nz) :: nnuccd    ! change n freezing aerosol (prim ice nucleation)
+    real   , dimension(ncol,nz) :: mnuccd    ! change q freezing aerosol (prim ice nucleation)
+    real   , dimension(ncol,nz) :: mnuccr    ! change q due to contact freez rain
+    real   , dimension(ncol,nz) :: nnuccr    ! change n due to contact freez rain
+    real   , dimension(ncol,nz) :: npra      ! change in n due to droplet acc by rain
+    real   , dimension(ncol,nz) :: nragg     ! self-collection/breakup of rain
+    real   , dimension(ncol,nz) :: nsagg     ! self-collection of snow
+    real   , dimension(ncol,nz) :: nprc      ! change nc autoconversion droplets
+    real   , dimension(ncol,nz) :: nprc1     ! change nr autoconversion droplets
+    real   , dimension(ncol,nz) :: prai      ! change q accretion cloud ice by snow
+    real   , dimension(ncol,nz) :: prci      ! change q autoconversin cloud ice to snow
+    real   , dimension(ncol,nz) :: psacws    ! change q droplet accretion by snow
+    real   , dimension(ncol,nz) :: npsacws   ! change n droplet accretion by snow
+    real   , dimension(ncol,nz) :: psacwi    ! change q droplet accretion by cloud ice
+    real   , dimension(ncol,nz) :: npsacwi   ! change n droplet accretion by cloud ice
+    real   , dimension(ncol,nz) :: nprci     ! change n autoconversion cloud ice by snow
+    real   , dimension(ncol,nz) :: nprai     ! change n accretion cloud ice
+    real   , dimension(ncol,nz) :: nmults    ! ice mult due to riming droplets by snow
+    real   , dimension(ncol,nz) :: nmultr    ! ice mult due to riming rain by snow
+    real   , dimension(ncol,nz) :: qmults    ! change q due to ice mult droplets/snow
+    real   , dimension(ncol,nz) :: qmultr    ! change q due to ice rain/snow
+    real   , dimension(ncol,nz) :: pracs     ! change q rain-snow collection
+    real   , dimension(ncol,nz) :: npracs    ! change n rain-snow collection
+    real   , dimension(ncol,nz) :: pccn      ! change q droplet activation
+    real   , dimension(ncol,nz) :: psmlt     ! change q melting snow to rain
+    real   , dimension(ncol,nz) :: evpms     ! chnage q melting snow evaporating
+    real   , dimension(ncol,nz) :: nsmlts    ! change n melting snow
+    real   , dimension(ncol,nz) :: nsmltr    ! change n melting snow to rain
+    real   , dimension(ncol,nz) :: piacr     ! change qr, ice-rain collection
+    real   , dimension(ncol,nz) :: niacr     ! change n, ice-rain collection
+    real   , dimension(ncol,nz) :: praci     ! change qi, ice-rain collection
+    real   , dimension(ncol,nz) :: piacrs    ! change qr, ice rain collision, added to snow
+    real   , dimension(ncol,nz) :: niacrs    ! change n, ice rain collision, added to snow
+    real   , dimension(ncol,nz) :: pracis    ! change qi, ice rain collision, added to snow
+    real   , dimension(ncol,nz) :: eprd      ! sublimation cloud ice
+    real   , dimension(ncol,nz) :: eprds     ! sublimation snow
+    real   , dimension(ncol,nz) :: pracg     ! change in q collection rain by graupel
+    real   , dimension(ncol,nz) :: psacwg    ! change in q collection droplets by graupel
+    real   , dimension(ncol,nz) :: pgsacw    ! conversion q to graupel due to collection droplets by snow
+    real   , dimension(ncol,nz) :: pgracs    ! conversion q to graupel due to collection rain by snow
+    real   , dimension(ncol,nz) :: prdg      ! dep of graupel
+    real   , dimension(ncol,nz) :: eprdg     ! sub of graupel
+    real   , dimension(ncol,nz) :: evpmg     ! change q melting of graupel and evaporation
+    real   , dimension(ncol,nz) :: pgmlt     ! change q melting of graupel
+    real   , dimension(ncol,nz) :: npracg    ! change n collection rain by graupel
+    real   , dimension(ncol,nz) :: npsacwg   ! change n collection droplets by graupel
+    real   , dimension(ncol,nz) :: nscng     ! change n conversion to graupel due to collection droplets by snow
+    real   , dimension(ncol,nz) :: ngracs    ! change n conversion to graupel due to collection rain by snow
+    real   , dimension(ncol,nz) :: ngmltg    ! change n melting graupel
+    real   , dimension(ncol,nz) :: ngmltr    ! change n melting graupel to rain
+    real   , dimension(ncol,nz) :: nsubg     ! change n sub/dep of graupel
+    real   , dimension(ncol,nz) :: psacr     ! conversion due to coll of snow by rain
+    real   , dimension(ncol,nz) :: nmultg    ! ice mult due to acc droplets by graupel
+    real   , dimension(ncol,nz) :: nmultrg   ! ice mult due to acc rain by graupel
+    real   , dimension(ncol,nz) :: qmultg    ! change q due to ice mult droplets/graupel
+    real   , dimension(ncol,nz) :: qmultrg   ! change q due to ice mult rain/graupel
+    real   , dimension(ncol,nz) :: kap       ! thermal conductivity of air
+    real   , dimension(ncol,nz) :: evs       ! saturation vapor pressure
+    real   , dimension(ncol,nz) :: eis       ! ice saturation vapor pressure
+    real   , dimension(ncol,nz) :: qvs       ! saturation mixing ratio
+    real   , dimension(ncol,nz) :: qvi       ! ice saturation mixing ratio
+    real   , dimension(ncol,nz) :: qvqvs     ! sautration ratio
+    real   , dimension(ncol,nz) :: qvqvsi    ! ice saturaion ratio
+    real   , dimension(ncol,nz) :: dv        ! diffusivity of water vapor in air
+    real   , dimension(ncol,nz) :: xxls      ! latent heat of sublimation
+    real   , dimension(ncol,nz) :: xxlv      ! latent heat of vaporization
+    real   , dimension(ncol,nz) :: cpm       ! specific heat at const pressure for moist air
+    real   , dimension(ncol,nz) :: mu        ! viscocity of air
+    real   , dimension(ncol,nz) :: sc        ! schmidt number
+    real   , dimension(ncol,nz) :: xlf       ! latent heat of freezing
+    real   , dimension(ncol,nz) :: rho       ! air density
+    real   , dimension(ncol,nz) :: ab        ! correction to condensation rate due to latent heating
+    real   , dimension(ncol,nz) :: abi       ! correction to deposition rate due to latent heating
+    real   , dimension(ncol,nz) :: dap       ! diffusivity of aerosol
+    real   , dimension(ncol,nz) :: dumi
+    real   , dimension(ncol,nz) :: dumr
+    real   , dimension(ncol,nz) :: dumfni
+    real   , dimension(ncol,nz) :: dumg
+    real   , dimension(ncol,nz) :: dumfng
+    real   , dimension(ncol,nz) :: fr
+    real   , dimension(ncol,nz) :: fi
+    real   , dimension(ncol,nz) :: fni
+    real   , dimension(ncol,nz) :: fg
+    real   , dimension(ncol,nz) :: fng
+    real   , dimension(ncol,nz) :: faloutr
+    real   , dimension(ncol,nz) :: falouti
+    real   , dimension(ncol,nz) :: faloutni
+    real   , dimension(ncol,nz) :: dumqs
+    real   , dimension(ncol,nz) :: dumfns
+    real   , dimension(ncol,nz) :: fs
+    real   , dimension(ncol,nz) :: fns
+    real   , dimension(ncol,nz) :: falouts
+    real   , dimension(ncol,nz) :: faloutns
+    real   , dimension(ncol,nz) :: faloutg
+    real   , dimension(ncol,nz) :: faloutng
+    real   , dimension(ncol,nz) :: dumc
+    real   , dimension(ncol,nz) :: dumfnc
+    real   , dimension(ncol,nz) :: fc
+    real   , dimension(ncol,nz) :: faloutc
+    real   , dimension(ncol,nz) :: faloutnc
+    real   , dimension(ncol,nz) :: fnc
+    real   , dimension(ncol,nz) :: dumfnr
+    real   , dimension(ncol,nz) :: faloutnr
+    real   , dimension(ncol,nz) :: fnr
+    real   , dimension(ncol,nz) :: ain
+    real   , dimension(ncol,nz) :: arn
+    real   , dimension(ncol,nz) :: asn
+    real   , dimension(ncol,nz) :: acn
+    real   , dimension(ncol,nz) :: agn
+    real   , dimension(ncol,nz) :: tqimelt        ! melting of cloud ice (tendency)
+    real   , dimension(ncol   ) :: nacnt     ! number of contact in
+    real   , dimension(ncol   ) :: fmult     ! temp.-dep. parameter for rime-splintering
+    real   , dimension(ncol   ) :: uni
+    real   , dimension(ncol   ) :: umi
+    real   , dimension(ncol   ) :: umr
+    real   , dimension(ncol   ) :: rgvm
+    real   , dimension(ncol   ) :: faltndr
+    real   , dimension(ncol   ) :: faltndi
+    real   , dimension(ncol   ) :: faltndni
+    real   , dimension(ncol   ) :: ums
+    real   , dimension(ncol   ) :: uns
+    real   , dimension(ncol   ) :: faltnds
+    real   , dimension(ncol   ) :: faltndns
+    real   , dimension(ncol   ) :: unr
+    real   , dimension(ncol   ) :: faltndg
+    real   , dimension(ncol   ) :: faltndng
+    real   , dimension(ncol   ) :: unc
+    real   , dimension(ncol   ) :: umc
+    real   , dimension(ncol   ) :: ung
+    real   , dimension(ncol   ) :: umg
+    real   , dimension(ncol   ) :: faltndc
+    real   , dimension(ncol   ) :: faltndnc
+    real   , dimension(ncol   ) :: faltndnr
+    real   , dimension(ncol   ) :: dum1
+    real   , dimension(ncol   ) :: dumt
+    real   , dimension(ncol   ) :: dumqv
+    real   , dimension(ncol   ) :: dumqss
+    real   , dimension(ncol   ) :: dums
+    real   , dimension(ncol   ) :: dqsdt    ! change of sat. mix. rat. with temperature
+    real   , dimension(ncol   ) :: dqsidt   ! change in ice sat. mixing rat. with t
+    real   , dimension(ncol   ) :: epsi     ! 1/phase rel. time (see m2005), ice
+    real   , dimension(ncol   ) :: epss     ! 1/phase rel. time (see m2005), snow
+    real   , dimension(ncol   ) :: epsr     ! 1/phase rel. time (see m2005), rain
+    real   , dimension(ncol   ) :: epsg     ! 1/phase rel. time (see m2005), graupel
+    real   , dimension(ncol   ) :: kc2       ! total ice nucleation rate
+    real   , dimension(ncol   ) :: dumqc
+    real   , dimension(ncol   ) :: ratio
+    real   , dimension(ncol   ) :: sum_dep
+    real   , dimension(ncol   ) :: fudgef
+    real   , dimension(ncol   ) :: dlams
+    real   , dimension(ncol   ) :: dlamr
+    real   , dimension(ncol   ) :: dlami
+    real   , dimension(ncol   ) :: dlamc
+    real   , dimension(ncol   ) :: dlamg
+    real   , dimension(ncol   ) :: lammax
+    real   , dimension(ncol   ) :: lammin
+    integer, dimension(ncol   ) :: ltrue
+    integer, dimension(ncol   ) :: nstep
+    real                        :: dum
+    integer                     :: i, k, n
+    do i = 1 , ncol
+      ltrue(i) = 0
+      do k = 1 , nz
+        nc3d    (i,k)   = 0.
+        ng3dten (i,k) = 0.
+        qg3dten (i,k) = 0.
+        t3dten  (i,k) = 0.
+        qv3dten (i,k) = 0.
+        qc3dten (i,k) = 0.
+        qi3dten (i,k) = 0.
+        qni3dten(i,k) = 0.
+        qr3dten (i,k) = 0.
+        ni3dten (i,k) = 0.
+        ns3dten (i,k) = 0.
+        nr3dten (i,k) = 0.
+        nc3dten(i,k) = 0.
+        c2prec (i,k) = 0.
+        csed   (i,k) = 0.
+        ised   (i,k) = 0.
+        ssed   (i,k) = 0.
+        gsed   (i,k) = 0.
+        rsed   (i,k) = 0.
+        xxlv(i,k) = 3.1484e6-2370.*t3d(i,k)
+        xxls(i,k) = 3.15e6-2370.*t3d(i,k)+0.3337e6
+        cpm(i,k) = cp*(1.+0.887*qv3d(i,k))
+        evs(i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),0))   ! pa
+        eis(i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),1))   ! pa
+        if (eis(i,k) > evs(i,k)) eis(i,k) = evs(i,k)
+        qvs(i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k))
+        qvi(i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k))
+        qvqvs(i,k) = qv3d(i,k)/qvs(i,k)
+        qvqvsi(i,k) = qv3d(i,k)/qvi(i,k)
+        rho(i,k) = pres(i,k)/(r*t3d(i,k))
+        if (qrcu1d(i,k) >= 1.e-10) then
+          nr3d(i,k) = nr3d(i,k)+1.8e5*pow(qrcu1d(i,k)*dt/(pi*rhow*pow(rho(i,k),3)),0.25)
         endif
-        if (qc3d(k) < 1.e-8) then
-           qv3d(k)=qv3d(k)+qc3d(k)
-           t3d (k)=t3d(k)-qc3d(k)*xxlv(k)/cpm(k)
-           qc3d(k)=0.
+        if (qscu1d(i,k) >= 1.e-10) then
+          ns3d(i,k) = ns3d(i,k)+3.e5*pow(qscu1d(i,k)*dt/(cons1*pow(rho(i,k),3)),1./(ds+1.))
         endif
-      endif
+        if (qicu1d(i,k) >= 1.e-10) then
+          ni3d(i,k) = ni3d(i,k)+qicu1d(i,k)*dt/(ci*pow(80.e-6,di))
+        endif
+        if (qvqvs(i,k) < 0.9) then
+          if (qr3d(i,k) < 1.e-8) then
+             qv3d(i,k)=qv3d(i,k)+qr3d(i,k)
+             t3d (i,k)=t3d(i,k)-qr3d(i,k)*xxlv(i,k)/cpm(i,k)
+             qr3d(i,k)=0.
+          endif
+          if (qc3d(i,k) < 1.e-8) then
+             qv3d(i,k)=qv3d(i,k)+qc3d(i,k)
+             t3d (i,k)=t3d(i,k)-qc3d(i,k)*xxlv(i,k)/cpm(i,k)
+             qc3d(i,k)=0.
+          endif
+        endif
 
-      if (qvqvsi(k) < 0.9) then
-        if (qi3d(k) < 1.e-8) then
-           qv3d(k)=qv3d(k)+qi3d(k)
-           t3d (k)=t3d(k)-qi3d(k)*xxls(k)/cpm(k)
-           qi3d(k)=0.
+        if (qvqvsi(i,k) < 0.9) then
+          if (qi3d(i,k) < 1.e-8) then
+             qv3d(i,k)=qv3d(i,k)+qi3d(i,k)
+             t3d (i,k)=t3d(i,k)-qi3d(i,k)*xxls(i,k)/cpm(i,k)
+             qi3d(i,k)=0.
+          endif
+          if (qni3d(i,k) < 1.e-8) then
+             qv3d (i,k)=qv3d(i,k)+qni3d(i,k)
+             t3d  (i,k)=t3d(i,k)-qni3d(i,k)*xxls(i,k)/cpm(i,k)
+             qni3d(i,k)=0.
+          endif
+          if (qg3d(i,k) < 1.e-8) then
+             qv3d(i,k)=qv3d(i,k)+qg3d(i,k)
+             t3d (i,k)=t3d(i,k)-qg3d(i,k)*xxls(i,k)/cpm(i,k)
+             qg3d(i,k)=0.
+          endif
         endif
-        if (qni3d(k) < 1.e-8) then
-           qv3d (k)=qv3d(k)+qni3d(k)
-           t3d  (k)=t3d(k)-qni3d(k)*xxls(k)/cpm(k)
-           qni3d(k)=0.
+        xlf(i,k) = xxls(i,k)-xxlv(i,k)
+        if (qc3d(i,k) < qsmall) then
+          qc3d(i,k) = 0.
+          nc3d(i,k) = 0.
+          effc(i,k) = 0.
         endif
-        if (qg3d(k) < 1.e-8) then
-           qv3d(k)=qv3d(k)+qg3d(k)
-           t3d (k)=t3d(k)-qg3d(k)*xxls(k)/cpm(k)
-           qg3d(k)=0.
+        if (qr3d(i,k) < qsmall) then
+          qr3d(i,k) = 0.
+          nr3d(i,k) = 0.
+          effr(i,k) = 0.
         endif
-      endif
-      xlf(k) = xxls(k)-xxlv(k)
-      if (qc3d(k) < qsmall) then
-        qc3d(k) = 0.
-        nc3d(k) = 0.
-        effc(k) = 0.
-      endif
-      if (qr3d(k) < qsmall) then
-        qr3d(k) = 0.
-        nr3d(k) = 0.
-        effr(k) = 0.
-      endif
-      if (qi3d(k) < qsmall) then
-        qi3d(k) = 0.
-        ni3d(k) = 0.
-        effi(k) = 0.
-      endif
-      if (qni3d(k) < qsmall) then
-        qni3d(k) = 0.
-        ns3d(k) = 0.
-        effs(k) = 0.
-      endif
-      if (qg3d(k) < qsmall) then
-        qg3d(k) = 0.
-        ng3d(k) = 0.
-        effg(k) = 0.
-      endif
-      qrsten (k) = 0.
-      qisten (k) = 0.
-      qnisten(k) = 0.
-      qcsten (k) = 0.
-      qgsten (k) = 0.
-      mu     (k) = 1.496e-6*pow(t3d(k),1.5)/(t3d(k)+120.)
-      dum        = pow(rhosu/rho(k),0.54)
-      ain    (k) = pow(rhosu/rho(k),0.35)*ai
-      arn    (k) = dum*ar
-      asn    (k) = dum*as
-      acn    (k) = g*rhow/(18.*mu(k))
-      agn    (k) = dum*ag
-      lami   (k) = 0.
-      if (qc3d(k) < qsmall.and.qi3d(k) < qsmall.and.qni3d(k) < qsmall .and.qr3d(k) < qsmall.and.qg3d(k) < qsmall) then
-        if (t3d(k) <  273.15.and.qvqvsi(k) < 0.999) cycle
-        if (t3d(k) >= 273.15.and.qvqvs (k) < 0.999) cycle
-      endif
-      kap   (k) = 1.414e3*mu(k)
-      dv    (k) = 8.794e-5*pow(t3d(k),1.81)/pres(k)
-      sc    (k) = mu(k)/(rho(k)*dv(k))
-      dum       = (rv*pow(t3d(k),2))
-      dqsdt     = xxlv(k)*qvs(k)/dum
-      dqsidt    = xxls(k)*qvi(k)/dum
-      abi   (k) = 1.+dqsidt*xxls(k)/cpm(k)
-      ab    (k) = 1.+dqsdt*xxlv(k)/cpm(k)
-      if (t3d(k) >= 273.15) then
-        if (iinum==1) then
-          nc3d(k) = ndcnst*1.e6/rho(k)
+        if (qi3d(i,k) < qsmall) then
+          qi3d(i,k) = 0.
+          ni3d(i,k) = 0.
+          effi(i,k) = 0.
         endif
-        if (qni3d(k) < 1.e-6) then
-          qr3d (k) = qr3d(k)+qni3d(k)
-          nr3d (k) = nr3d(k)+ns3d (k)
-          t3d  (k) = t3d (k)-qni3d(k)*xlf(k)/cpm(k)
-          qni3d(k) = 0.
-          ns3d (k) = 0.
+        if (qni3d(i,k) < qsmall) then
+          qni3d(i,k) = 0.
+          ns3d(i,k) = 0.
+          effs(i,k) = 0.
         endif
-        if (qg3d(k) < 1.e-6) then
-          qr3d(k) = qr3d(k)+qg3d(k)
-          nr3d(k) = nr3d(k)+ng3d(k)
-          t3d (k) = t3d (k)-qg3d(k)*xlf(k)/cpm(k)
-          qg3d(k) = 0.
-          ng3d(k) = 0.
+        if (qg3d(i,k) < qsmall) then
+          qg3d(i,k) = 0.
+          ng3d(i,k) = 0.
+          effg(i,k) = 0.
         endif
-        if (.not. (qc3d(k) < qsmall.and.qni3d(k) < 1.e-8.and.qr3d(k) < qsmall.and.qg3d(k) < 1.e-8)) then
-          ns3d(k) = max(0.,ns3d(k))
-          nc3d(k) = max(0.,nc3d(k))
-          nr3d(k) = max(0.,nr3d(k))
-          ng3d(k) = max(0.,ng3d(k))
-          if (qr3d(k) >= qsmall) then
-            lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
-            n0rr(k) = nr3d(k)*lamr(k)
-            if (lamr(k) < lamminr) then
-              lamr(k) = lamminr
-              n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-              nr3d(k) = n0rr(k)/lamr(k)
-            else if (lamr(k) > lammaxr) then
-              lamr(k) = lammaxr
-              n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-              nr3d(k) = n0rr(k)/lamr(k)
+        qrsten (i,k) = 0.
+        qisten (i,k) = 0.
+        qnisten(i,k) = 0.
+        qcsten (i,k) = 0.
+        qgsten (i,k) = 0.
+        mu (i,k) = 1.496e-6*pow(t3d(i,k),1.5)/(t3d(i,k)+120.)
+        dum      = pow(rhosu/rho(i,k),0.54)
+        ain(i,k) = pow(rhosu/rho(i,k),0.35)*ai
+        arn(i,k) = dum*ar
+        asn(i,k) = dum*as
+        acn(i,k) = g*rhow/(18.*mu(i,k))
+        agn(i,k) = dum*ag
+        lami   (i,k) = 0.
+        if (qc3d(i,k) < qsmall.and.qi3d(i,k) < qsmall.and.qni3d(i,k) < qsmall .and.qr3d(i,k) < qsmall.and.qg3d(i,k) < qsmall) then
+          if (t3d(i,k) <  273.15.and.qvqvsi(i,k) < 0.999) cycle
+          if (t3d(i,k) >= 273.15.and.qvqvs(i,k) < 0.999) cycle
+        endif
+        kap   (i,k) = 1.414e3*mu(i,k)
+        dv    (i,k) = 8.794e-5*pow(t3d(i,k),1.81)/pres(i,k)
+        sc    (i,k) = mu(i,k)/(rho(i,k)*dv(i,k))
+        dum         = (rv*pow(t3d(i,k),2))
+        dqsdt (i)   = xxlv(i,k)*qvs(i,k)/dum
+        dqsidt(i)   = xxls(i,k)*qvi(i,k)/dum
+        abi   (i,k) = 1.+dqsidt(i)*xxls(i,k)/cpm(i,k)
+        ab    (i,k) = 1.+dqsdt(i)*xxlv(i,k)/cpm(i,k)
+        if (t3d(i,k) >= 273.15) then
+          if (iinum==1) then
+            nc3d(i,k) = ndcnst*1.e6/rho(i,k)
+          endif
+          if (qni3d(i,k) < 1.e-6) then
+            qr3d (i,k) = qr3d(i,k)+qni3d(i,k)
+            nr3d (i,k) = nr3d(i,k)+ns3d (i,k)
+            t3d  (i,k) = t3d (i,k)-qni3d(i,k)*xlf(i,k)/cpm(i,k)
+            qni3d(i,k) = 0.
+            ns3d (i,k) = 0.
+          endif
+          if (qg3d(i,k) < 1.e-6) then
+            qr3d(i,k) = qr3d(i,k)+qg3d(i,k)
+            nr3d(i,k) = nr3d(i,k)+ng3d(i,k)
+            t3d (i,k) = t3d (i,k)-qg3d(i,k)*xlf(i,k)/cpm(i,k)
+            qg3d(i,k) = 0.
+            ng3d(i,k) = 0.
+          endif
+          if (.not. (qc3d(i,k) < qsmall.and.qni3d(i,k) < 1.e-8.and.qr3d(i,k) < qsmall.and.qg3d(i,k) < 1.e-8)) then
+            ns3d(i,k) = max(0.,ns3d(i,k))
+            nc3d(i,k) = max(0.,nc3d(i,k))
+            nr3d(i,k) = max(0.,nr3d(i,k))
+            ng3d(i,k) = max(0.,ng3d(i,k))
+            if (qr3d(i,k) >= qsmall) then
+              lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.)
+              n0rr(i,k) = nr3d(i,k)*lamr(i,k)
+              if (lamr(i,k) < lamminr) then
+                lamr(i,k) = lamminr
+                n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+                nr3d(i,k) = n0rr(i,k)/lamr(i,k)
+              else if (lamr(i,k) > lammaxr) then
+                lamr(i,k) = lammaxr
+                n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+                nr3d(i,k) = n0rr(i,k)/lamr(i,k)
+              endif
+            endif
+            if (qc3d(i,k) >= qsmall) then
+              dum     =  pres(i,k)/(287.15*t3d(i,k))
+              pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714
+              pgam(i,k) = 1./(pow(pgam(i,k),2))-1.
+              pgam(i,k) = max(pgam(i,k),2.)
+              pgam(i,k) = min(pgam(i,k),10.)
+              lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.)
+              lammin(i)  = (pgam(i,k)+1.)/60.e-6
+              lammax(i)  = (pgam(i,k)+1.)/1.e-6
+              if (lamc(i,k) < lammin(i)) then
+                lamc(i,k) = lammin(i)
+                nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+              else if (lamc(i,k) > lammax(i)) then
+                lamc(i,k) = lammax(i)
+                nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+              endif
+            endif
+            if (qni3d(i,k) >= qsmall) then
+              lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds)
+              n0s(i,k) = ns3d(i,k)*lams(i,k)
+              if (lams(i,k) < lammins) then
+                lams(i,k) = lammins
+                n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+                ns3d(i,k) = n0s(i,k)/lams(i,k)
+              else if (lams(i,k) > lammaxs) then
+                lams(i,k) = lammaxs
+                n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+                ns3d(i,k) = n0s(i,k)/lams(i,k)
+              endif
+            endif
+            if (qg3d(i,k) >= qsmall) then
+              lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg)
+              n0g(i,k) = ng3d(i,k)*lamg(i,k)
+              if (lamg(i,k) < lamming) then
+                lamg(i,k) = lamming
+                n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+                ng3d(i,k) = n0g(i,k)/lamg(i,k)
+              else if (lamg(i,k) > lammaxg) then
+                lamg(i,k) = lammaxg
+                n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+                ng3d(i,k) = n0g(i,k)/lamg(i,k)
+              endif
+            endif
+            prc(i,k) = 0.
+            nprc(i,k) = 0.
+            nprc1(i,k) = 0.
+            pra(i,k) = 0.
+            npra(i,k) = 0.
+            nragg(i,k) = 0.
+            nsmlts(i,k) = 0.
+            nsmltr(i,k) = 0.
+            evpms(i,k) = 0.
+            pcc(i,k) = 0.
+            pre(i,k) = 0.
+            nsubc(i,k) = 0.
+            nsubr(i,k) = 0.
+            pracg(i,k) = 0.
+            npracg(i,k) = 0.
+            psmlt(i,k) = 0.
+            pgmlt(i,k) = 0.
+            evpmg(i,k) = 0.
+            pracs(i,k) = 0.
+            npracs(i,k) = 0.
+            ngmltg(i,k) = 0.
+            ngmltr(i,k) = 0.
+            if (qc3d(i,k) >= 1.e-6) then
+              prc(i,k)=1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79)
+              nprc1(i,k) = prc(i,k)/cons29
+              nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k))
+              nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt )
+              nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    )
+            endif
+            if (qr3d(i,k) >= 1.e-8.and.qni3d(i,k) >= 1.e-8) then
+              ums(i) = asn(i,k)*cons3/pow(lams(i,k),bs)
+              umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br)
+              uns(i) = asn(i,k)*cons5/pow(lams(i,k),bs)
+              unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br)
+              dum = pow(rhosu/rho(i,k),0.54)
+              ums(i) = min( ums(i) , 1.2*dum )
+              uns(i) = min( uns(i) , 1.2*dum )
+              umr(i) = min( umr(i) , 9.1*dum )
+              unr(i) = min( unr(i) , 9.1*dum )
+              pracs(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)* &
+                          (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))))
+            endif
+            if (qr3d(i,k) >= 1.e-8.and.qg3d(i,k) >= 1.e-8) then
+              umg(i) = agn(i,k)*cons7/pow(lamg(i,k),bg)
+              umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br)
+              ung(i) = agn(i,k)*cons8/pow(lamg(i,k),bg)
+              unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br)
+              dum = pow(rhosu/rho(i,k),0.54)
+              umg(i) = min( umg(i) , 20.*dum )
+              ung(i) = min( ung(i) , 20.*dum )
+              umr(i) = min( umr(i) , 9.1*dum )
+              unr(i) = min( unr(i) , 9.1*dum )
+              pracg(i,k)  = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)* &
+                          (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))))
+              dum       = pracg(i,k)/5.2e-7
+              npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)* &
+                          (1./(pow(lamr(i,k),3)*lamg(i,k))+1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)))
+              npracg(i,k) = npracg(i,k)-dum
+            endif
+            if (qr3d(i,k) >= 1.e-8 .and. qc3d(i,k) >= 1.e-8) then
+              dum     = (qc3d(i,k)*qr3d(i,k))
+              pra(i,k) = 67.*pow(dum,1.15)
+              npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k))
+            endif
+            if (qr3d(i,k) >= 1.e-8) then
+              dum1(i)=300.e-6
+              if (1./lamr(i,k) < dum1(i)) then
+                dum=1.
+              else if (1./lamr(i,k) >= dum1(i)) then
+                dum=2.-exp(2300.*(1./lamr(i,k)-dum1(i)))
+              endif
+              nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k)
+            endif
+            if (qr3d(i,k) >= qsmall) then
+              epsr(i) = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)))
+            else
+              epsr(i) = 0.
+            endif
+            if (qv3d(i,k) < qvs(i,k)) then
+              pre(i,k) = epsr(i)*(qv3d(i,k)-qvs(i,k))/ab(i,k)
+              pre(i,k) = min(pre(i,k),0.)
+            else
+              pre(i,k) = 0.
+            endif
+            if (qni3d(i,k) >= 1.e-8) then
+              dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k)
+              psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))+dum
+              if (qvqvs(i,k) < 1.) then
+                epss(i)     = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))
+                evpms(i,k) = (qv3d(i,k)-qvs(i,k))*epss(i)/ab(i,k)    
+                evpms(i,k) = max(evpms(i,k),psmlt(i,k))
+                psmlt(i,k) = psmlt(i,k)-evpms(i,k)
+              endif
+            endif
+            if (qg3d(i,k) >= 1.e-8) then
+              dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k)
+              pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))+dum
+              if (qvqvs(i,k) < 1.) then
+                epsg(i)     = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))
+                evpmg(i,k) = (qv3d(i,k)-qvs(i,k))*epsg(i)/ab(i,k)
+                evpmg(i,k) = max(evpmg(i,k),pgmlt(i,k))
+                pgmlt(i,k) = pgmlt(i,k)-evpmg(i,k)
+              endif
+            endif
+            pracg(i,k) = 0.
+            pracs(i,k) = 0.
+            dum = (prc(i,k)+pra(i,k))*dt
+            if (dum > qc3d(i,k).and.qc3d(i,k) >= qsmall) then
+              ratio(i) = qc3d(i,k)/dum
+              prc(i,k) = prc(i,k)*ratio(i)
+              pra(i,k) = pra(i,k)*ratio(i)
+            endif
+            dum = (-psmlt(i,k)-evpms(i,k)+pracs(i,k))*dt
+            if (dum > qni3d(i,k).and.qni3d(i,k) >= qsmall) then
+              ratio(i)    = qni3d(i,k)/dum
+              psmlt(i,k) = psmlt(i,k)*ratio(i)
+              evpms(i,k) = evpms(i,k)*ratio(i)
+              pracs(i,k) = pracs(i,k)*ratio(i)
+            endif
+            dum = (-pgmlt(i,k)-evpmg(i,k)+pracg(i,k))*dt
+            if (dum > qg3d(i,k).and.qg3d(i,k) >= qsmall) then
+              ratio(i)    = qg3d (i,k)/dum
+              pgmlt(i,k) = pgmlt(i,k)*ratio(i)
+              evpmg(i,k) = evpmg(i,k)*ratio(i)
+              pracg(i,k) = pracg(i,k)*ratio(i)
+            endif
+            dum = (-pracs(i,k)-pracg(i,k)-pre(i,k)-pra(i,k)-prc(i,k)+psmlt(i,k)+pgmlt(i,k))*dt
+            if (dum > qr3d(i,k).and.qr3d(i,k) >= qsmall) then
+              ratio(i)  = (qr3d(i,k)/dt+pracs(i,k)+pracg(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k))/(-pre(i,k))
+              pre(i,k) = pre(i,k)*ratio(i)
+            endif
+            qv3dten (i,k) = qv3dten (i,k) + (-pre(i,k)-evpms(i,k)-evpmg(i,k))
+            t3dten  (i,k) = t3dten  (i,k) + (pre(i,k)*xxlv(i,k)+(evpms(i,k)+evpmg(i,k))*xxls(i,k)+(psmlt(i,k)+pgmlt(i,k)-pracs(i,k)-pracg(i,k))*xlf(i,k))/cpm(i,k)
+            qc3dten (i,k) = qc3dten (i,k) + (-pra(i,k)-prc(i,k))
+            qr3dten (i,k) = qr3dten (i,k) + (pre(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k)+pracs(i,k)+pracg(i,k))
+            qni3dten(i,k) = qni3dten(i,k) + (psmlt(i,k)+evpms(i,k)-pracs(i,k))
+            qg3dten (i,k) = qg3dten (i,k) + (pgmlt(i,k)+evpmg(i,k)-pracg(i,k))
+            nc3dten (i,k) = nc3dten (i,k) + (-npra(i,k)-nprc(i,k))
+            nr3dten (i,k) = nr3dten (i,k) + (nprc1(i,k)+nragg(i,k)-npracg(i,k))
+            c2prec  (i,k) = pra(i,k)+prc(i,k)
+            if (pre(i,k) < 0.) then
+              dum      = pre(i,k)*dt/qr3d(i,k)
+              dum      = max(-1.,dum)
+              nsubr(i,k) = dum*nr3d(i,k)/dt
+            endif
+            if (evpms(i,k)+psmlt(i,k) < 0.) then
+              dum       = (evpms(i,k)+psmlt(i,k))*dt/qni3d(i,k)
+              dum       = max(-1.,dum)
+              nsmlts(i,k) = dum*ns3d(i,k)/dt
+            endif
+            if (psmlt(i,k) < 0.) then
+              dum       = psmlt(i,k)*dt/qni3d(i,k)
+              dum       = max(-1.0,dum)
+              nsmltr(i,k) = dum*ns3d(i,k)/dt
+            endif
+            if (evpmg(i,k)+pgmlt(i,k) < 0.) then
+              dum       = (evpmg(i,k)+pgmlt(i,k))*dt/qg3d(i,k)
+              dum       = max(-1.,dum)
+              ngmltg(i,k) = dum*ng3d(i,k)/dt
+            endif
+            if (pgmlt(i,k) < 0.) then
+              dum       = pgmlt(i,k)*dt/qg3d(i,k)
+              dum       = max(-1.0,dum)
+              ngmltr(i,k) = dum*ng3d(i,k)/dt
+            endif
+            ns3dten(i,k) = ns3dten(i,k)+(nsmlts(i,k))
+            ng3dten(i,k) = ng3dten(i,k)+(ngmltg(i,k))
+            nr3dten(i,k) = nr3dten(i,k)+(nsubr(i,k)-nsmltr(i,k)-ngmltr(i,k))
+          endif
+
+          dumt(i) = t3d(i,k)+dt*t3dten(i,k)
+          dumqv(i) = qv3d(i,k)+dt*qv3dten(i,k)
+          dum=min(0.99*pres(i,k),polysvp(dumt(i),0))
+          dumqss(i) = ep_2*dum/(pres(i,k)-dum)
+          dumqc(i) = qc3d(i,k)+dt*qc3dten(i,k)
+          dumqc(i) = max(dumqc(i),0.)
+          dums(i) = dumqv(i)-dumqss(i)
+          pcc(i,k) = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt
+          if (pcc(i,k)*dt+dumqc(i) < 0.) then
+            pcc(i,k) = -dumqc(i)/dt
+          endif
+          qv3dten(i,k) = qv3dten(i,k)-pcc(i,k)
+          t3dten(i,k) = t3dten(i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k)
+          qc3dten(i,k) = qc3dten(i,k)+pcc(i,k)
+        else  ! temperature < 273.15
+          if (iinum==1) then
+            nc3d(i,k)=ndcnst*1.e6/rho(i,k)
+          endif
+          ni3d(i,k) = max(0.,ni3d(i,k))
+          ns3d(i,k) = max(0.,ns3d(i,k))
+          nc3d(i,k) = max(0.,nc3d(i,k))
+          nr3d(i,k) = max(0.,nr3d(i,k))
+          ng3d(i,k) = max(0.,ng3d(i,k))
+          if (qi3d(i,k) >= qsmall) then
+            lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di)
+            n0i(i,k) = ni3d(i,k)*lami(i,k)
+            if (lami(i,k) < lammini) then
+              lami(i,k) = lammini
+              n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12
+              ni3d(i,k) = n0i(i,k)/lami(i,k)
+            else if (lami(i,k) > lammaxi) then
+              lami(i,k) = lammaxi
+              n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12
+              ni3d(i,k) = n0i(i,k)/lami(i,k)
             endif
           endif
-          if (qc3d(k) >= qsmall) then
-            dum     =  pres(k)/(287.15*t3d(k))
-            pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-            pgam(k) = 1./(pow(pgam(k),2))-1.
-            pgam(k) = max(pgam(k),2.)
-            pgam(k) = min(pgam(k),10.)
-            lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
-            lammin  = (pgam(k)+1.)/60.e-6
-            lammax  = (pgam(k)+1.)/1.e-6
-            if (lamc(k) < lammin) then
-              lamc(k) = lammin
-              nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
-            else if (lamc(k) > lammax) then
-              lamc(k) = lammax
-              nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
+          if (qr3d(i,k) >= qsmall) then
+            lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.)
+            n0rr(i,k) = nr3d(i,k)*lamr(i,k)
+            if (lamr(i,k) < lamminr) then
+              lamr(i,k) = lamminr
+              n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+              nr3d(i,k) = n0rr(i,k)/lamr(i,k)
+            else if (lamr(i,k) > lammaxr) then
+              lamr(i,k) = lammaxr
+              n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+              nr3d(i,k) = n0rr(i,k)/lamr(i,k)
             endif
           endif
-          if (qni3d(k) >= qsmall) then
-            lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
-            n0s (k) = ns3d(k)*lams(k)
-            if (lams(k) < lammins) then
-              lams(k) = lammins
-              n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-              ns3d(k) = n0s(k)/lams(k)
-            else if (lams(k) > lammaxs) then
-              lams(k) = lammaxs
-              n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-              ns3d(k) = n0s(k)/lams(k)
+          if (qc3d(i,k) >= qsmall) then
+            dum     = pres(i,k)/(287.15*t3d(i,k))
+            pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714
+            pgam(i,k) = 1./(pow(pgam(i,k),2))-1.
+            pgam(i,k) = max(pgam(i,k),2.)
+            pgam(i,k) = min(pgam(i,k),10.)
+            lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.)
+            lammin(i)  = (pgam(i,k)+1.)/60.e-6
+            lammax(i)  = (pgam(i,k)+1.)/1.e-6
+            if (lamc(i,k) < lammin(i)) then
+              lamc(i,k) = lammin(i)
+              nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+            else if (lamc(i,k) > lammax(i)) then
+              lamc(i,k) = lammax(i)
+              nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+            endif
+            cdist1(i,k) = nc3d(i,k)/gamma(pgam(i,k)+1.)
+          endif
+          if (qni3d(i,k) >= qsmall) then
+            lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds)
+            n0s(i,k) = ns3d(i,k)*lams(i,k)
+            if (lams(i,k) < lammins) then
+              lams(i,k) = lammins
+              n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+              ns3d(i,k) = n0s(i,k)/lams(i,k)
+            else if (lams(i,k) > lammaxs) then
+              lams(i,k) = lammaxs
+              n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+              ns3d(i,k) = n0s(i,k)/lams(i,k)
             endif
           endif
-          if (qg3d(k) >= qsmall) then
-            lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
-            n0g (k) = ng3d(k)*lamg(k)
-            if (lamg(k) < lamming) then
-              lamg(k) = lamming
-              n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-              ng3d(k) = n0g(k)/lamg(k)
-            else if (lamg(k) > lammaxg) then
-              lamg(k) = lammaxg
-              n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-              ng3d(k) = n0g(k)/lamg(k)
+          if (qg3d(i,k) >= qsmall) then
+            lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg)
+            n0g(i,k) = ng3d(i,k)*lamg(i,k)
+            if (lamg(i,k) < lamming) then
+              lamg(i,k) = lamming
+              n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+              ng3d(i,k) = n0g(i,k)/lamg(i,k)
+            else if (lamg(i,k) > lammaxg) then
+              lamg(i,k) = lammaxg
+              n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+              ng3d(i,k) = n0g(i,k)/lamg(i,k)
             endif
           endif
-          prc   (k) = 0.
-          nprc  (k) = 0.
-          nprc1 (k) = 0.
-          pra   (k) = 0.
-          npra  (k) = 0.
-          nragg (k) = 0.
-          nsmlts(k) = 0.
-          nsmltr(k) = 0.
-          evpms (k) = 0.
-          pcc   (k) = 0.
-          pre   (k) = 0.
-          nsubc (k) = 0.
-          nsubr (k) = 0.
-          pracg (k) = 0.
-          npracg(k) = 0.
-          psmlt (k) = 0.
-          pgmlt (k) = 0.
-          evpmg (k) = 0.
-          pracs (k) = 0.
-          npracs(k) = 0.
-          ngmltg(k) = 0.
-          ngmltr(k) = 0.
-          if (qc3d(k) >= 1.e-6) then
-            prc  (k)=1350.*pow(qc3d(k),2.47)*pow(nc3d(k)/1.e6*rho(k),-1.79)
-            nprc1(k) = prc(k)/cons29
-            nprc (k) = prc(k)/(qc3d(k)/nc3d(k))
-            nprc (k) = min( nprc (k) , nc3d(k)/dt )
-            nprc1(k) = min( nprc1(k) , nprc(k)    )
+          mnuccc(i,k) = 0.
+          nnuccc(i,k) = 0.
+          prc(i,k) = 0.
+          nprc(i,k) = 0.
+          nprc1(i,k) = 0.
+          nsagg(i,k) = 0.
+          psacws(i,k) = 0.
+          npsacws(i,k) = 0.
+          psacwi(i,k) = 0.
+          npsacwi(i,k) = 0.
+          pracs(i,k) = 0.
+          npracs(i,k) = 0.
+          nmults(i,k) = 0.
+          qmults(i,k) = 0.
+          nmultr(i,k) = 0.
+          qmultr(i,k) = 0.
+          nmultg(i,k) = 0.
+          qmultg(i,k) = 0.
+          nmultrg(i,k) = 0.
+          qmultrg(i,k) = 0.
+          mnuccr(i,k) = 0.
+          nnuccr(i,k) = 0.
+          pra(i,k) = 0.
+          npra(i,k) = 0.
+          nragg(i,k) = 0.
+          prci(i,k) = 0.
+          nprci(i,k) = 0.
+          prai(i,k) = 0.
+          nprai(i,k) = 0.
+          nnuccd(i,k) = 0.
+          mnuccd(i,k) = 0.
+          pcc(i,k) = 0.
+          pre(i,k) = 0.
+          prd(i,k) = 0.
+          prds(i,k) = 0.
+          eprd(i,k) = 0.
+          eprds(i,k) = 0.
+          nsubc(i,k) = 0.
+          nsubi(i,k) = 0.
+          nsubs(i,k) = 0.
+          nsubr(i,k) = 0.
+          piacr(i,k) = 0.
+          niacr(i,k) = 0.
+          praci(i,k) = 0.
+          piacrs(i,k) = 0.
+          niacrs(i,k) = 0.
+          pracis(i,k) = 0.
+          pracg(i,k) = 0.
+          psacr(i,k) = 0.
+          psacwg(i,k) = 0.
+          pgsacw(i,k) = 0.
+          pgracs(i,k) = 0.
+          prdg(i,k) = 0.
+          eprdg(i,k) = 0.
+          npracg(i,k) = 0.
+          npsacwg(i,k) = 0.
+          nscng(i,k) = 0.
+          ngracs(i,k) = 0.
+          nsubg(i,k) = 0.
+          if (qc3d(i,k) >= qsmall .and. t3d(i,k) < 269.15) then
+            nacnt(i)     = exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.
+            dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.
+            dap(i,k) = cons37*t3d(i,k)*(1.+dum/rin)/mu(i,k)
+            mnuccc(i,k) = cons38*dap(i,k)*nacnt(i)*exp(log(cdist1(i,k))+log(gamma(pgam(i,k)+5.))-4.*log(lamc(i,k)))
+            nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt(i)*cdist1(i,k)*gamma(pgam(i,k)+2.)/lamc(i,k)
+            mnuccc(i,k) = mnuccc(i,k)+cons39*exp(log(cdist1(i,k))+log(gamma(7.+pgam(i,k)))-6.*log(lamc(i,k)))*(exp(aimm*(273.15-t3d(i,k)))-1.)
+            nnuccc(i,k) = nnuccc(i,k)+cons40*exp(log(cdist1(i,k))+log(gamma(pgam(i,k)+4.))-3.*log(lamc(i,k)))*(exp(aimm*(273.15-t3d(i,k)))-1.)
+            nnuccc(i,k) = min(nnuccc(i,k),nc3d(i,k)/dt)
           endif
-          if (qr3d(k) >= 1.e-8.and.qni3d(k) >= 1.e-8) then
-            ums = asn(k)*cons3/pow(lams(k),bs)
-            umr = arn(k)*cons4/pow(lamr(k),br)
-            uns = asn(k)*cons5/pow(lams(k),bs)
-            unr = arn(k)*cons6/pow(lamr(k),br)
-            dum = pow(rhosu/rho(k),0.54)
-            ums = min( ums , 1.2*dum )
-            uns = min( uns , 1.2*dum )
-            umr = min( umr , 9.1*dum )
-            unr = min( unr , 9.1*dum )
-            pracs(k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lamr(k),3)* &
-                        (5./(pow(lamr(k),3)*lams(k))+2./(pow(lamr(k),2)*pow(lams(k),2))+0.5/(lamr(k)*pow(lams(k),3))))
+          if (qc3d(i,k) >= 1.e-6) then
+            prc(i,k) = 1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79)
+            nprc1(i,k) = prc(i,k)/cons29
+            nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k))
+            nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt )
+            nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    )
           endif
-          if (qr3d(k) >= 1.e-8.and.qg3d(k) >= 1.e-8) then
-            umg = agn(k)*cons7/pow(lamg(k),bg)
-            umr = arn(k)*cons4/pow(lamr(k),br)
-            ung = agn(k)*cons8/pow(lamg(k),bg)
-            unr = arn(k)*cons6/pow(lamr(k),br)
-            dum = pow(rhosu/rho(k),0.54)
-            umg = min( umg , 20.*dum )
-            ung = min( ung , 20.*dum )
-            umr = min( umr , 9.1*dum )
-            unr = min( unr , 9.1*dum )
-            pracg(k)  = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(k)*n0rr(k)*n0g(k)/pow(lamr(k),3)* &
-                        (5./(pow(lamr(k),3)*lamg(k))+2./(pow(lamr(k),2)*pow(lamg(k),2))+0.5/(lamr(k)*pow(lamg(k),3))))
-            dum       = pracg(k)/5.2e-7
-            npracg(k) = cons32*rho(k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(k)*n0g(k)* &
-                        (1./(pow(lamr(k),3)*lamg(k))+1./(pow(lamr(k),2)*pow(lamg(k),2))+1./(lamr(k)*pow(lamg(k),3)))
-            npracg(k) = npracg(k)-dum
+          if (qni3d(i,k) >= 1.e-8) then
+            nsagg(i,k) = cons15*asn(i,k)*pow(rho(i,k),(2.+bs)/3.)*pow(qni3d(i,k),(2.+bs)/3.)*pow(ns3d(i,k)*rho(i,k),(4.-bs)/3.)/(rho(i,k))
           endif
-          if (qr3d(k) >= 1.e-8 .and. qc3d(k) >= 1.e-8) then
-            dum     = (qc3d(k)*qr3d(k))
-            pra (k) = 67.*pow(dum,1.15)
-            npra(k) = pra(k)/(qc3d(k)/nc3d(k))
+          if (qni3d(i,k) >= 1.e-8 .and. qc3d(i,k) >= qsmall) then
+            psacws(i,k) = cons13*asn(i,k)*qc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.)
+            npsacws(i,k) = cons13*asn(i,k)*nc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.)
           endif
-          if (qr3d(k) >= 1.e-8) then
-            dum1=300.e-6
-            if (1./lamr(k) < dum1) then
+          if (qg3d(i,k) >= 1.e-8 .and. qc3d(i,k) >= qsmall) then
+            psacwg(i,k) = cons14*agn(i,k)*qc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.)
+            npsacwg(i,k) = cons14*agn(i,k)*nc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.)
+          endif
+          if (qi3d(i,k) >= 1.e-8 .and. qc3d(i,k) >= qsmall) then
+            if (1./lami(i,k) >= 100.e-6) then
+              psacwi(i,k) = cons16*ain(i,k)*qc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.)
+              npsacwi(i,k) = cons16*ain(i,k)*nc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.)
+            endif
+          endif
+          if (qr3d(i,k) >= 1.e-8.and.qni3d(i,k) >= 1.e-8) then
+            ums(i) = asn(i,k)*cons3/pow(lams(i,k),bs)
+            umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br)
+            uns(i) = asn(i,k)*cons5/pow(lams(i,k),bs)
+            unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br)
+            dum = pow(rhosu/rho(i,k),0.54)
+            ums(i) = min( ums(i) , 1.2*dum )
+            uns(i) = min( uns(i) , 1.2*dum )
+            umr(i) = min( umr(i) , 9.1*dum )
+            unr(i) = min( unr(i) , 9.1*dum )
+            pracs(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)* &
+                       (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))))
+            npracs(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-uns(i),2)+0.3*unr(i)*uns(i),0.5)*n0rr(i,k)*n0s(i,k)*(1./(pow(lamr(i,k),3)*lams(i,k))+ &
+                        1./(pow(lamr(i,k),2)*pow(lams(i,k),2))+1./(lamr(i,k)*pow(lams(i,k),3)))
+            pracs(i,k) = min(pracs(i,k),qr3d(i,k)/dt)
+            if (qni3d(i,k) >= 0.1e-3.and.qr3d(i,k) >= 0.1e-3) then
+              psacr(i,k) = cons31*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lams(i,k),3)* &
+                         (5./(pow(lams(i,k),3)*lamr(i,k))+2./(pow(lams(i,k),2)*pow(lamr(i,k),2))+0.5/(lams(i,k)*pow(lamr(i,k),3))))            
+            endif
+          endif
+          if (qr3d(i,k) >= 1.e-8.and.qg3d(i,k) >= 1.e-8) then
+            umg(i) = agn(i,k)*cons7/pow(lamg(i,k),bg)
+            umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br)
+            ung(i) = agn(i,k)*cons8/pow(lamg(i,k),bg)
+            unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br)
+            dum = pow(rhosu/rho(i,k),0.54)
+            umg(i) = min( umg(i) , 20.*dum )
+            ung(i) = min( ung(i) , 20.*dum )
+            umr(i) = min( umr(i) , 9.1*dum )
+            unr(i) = min( unr(i) , 9.1*dum )
+            pracg(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)* &
+                        (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))))
+            npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)*(1./(pow(lamr(i,k),3)*lamg(i,k))+ &
+                        1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)))
+            pracg(i,k) = min(pracg(i,k),qr3d(i,k)/dt)
+          endif
+          if (qni3d(i,k) >= 0.1e-3) then
+            if (qc3d(i,k) >= 0.5e-3.or.qr3d(i,k) >= 0.1e-3) then
+              if (psacws(i,k) > 0..or.pracs(i,k) > 0.) then
+                if (t3d(i,k) < 270.16 .and. t3d(i,k) > 265.16) then
+                  if (t3d(i,k) > 270.16) then
+                    fmult(i) = 0.
+                  else if (t3d(i,k) <= 270.16.and.t3d(i,k) > 268.16)  then
+                    fmult(i) = (270.16-t3d(i,k))/2.
+                  else if (t3d(i,k) >= 265.16.and.t3d(i,k) <= 268.16)   then
+                    fmult(i) = (t3d(i,k)-265.16)/3.
+                  else if (t3d(i,k) < 265.16) then
+                    fmult(i) = 0.
+                  endif
+                  if (psacws(i,k) > 0.) then
+                    nmults(i,k) = 35.e4*psacws(i,k)*fmult(i)*1000.
+                    qmults(i,k) = nmults(i,k)*mmult
+                    qmults(i,k) = min(qmults(i,k),psacws(i,k))
+                    psacws(i,k) = psacws(i,k)-qmults(i,k)
+                  endif
+                  if (pracs(i,k) > 0.) then
+                    nmultr(i,k) = 35.e4*pracs(i,k)*fmult(i)*1000.
+                    qmultr(i,k) = nmultr(i,k)*mmult
+                    qmultr(i,k) = min(qmultr(i,k),pracs(i,k))
+                    pracs(i,k) = pracs(i,k)-qmultr(i,k)
+                  endif
+                endif
+              endif
+            endif
+          endif
+          if (qg3d(i,k) >= 0.1e-3) then
+            if (qc3d(i,k) >= 0.5e-3.or.qr3d(i,k) >= 0.1e-3) then
+              if (psacwg(i,k) > 0..or.pracg(i,k) > 0.) then
+                if (t3d(i,k) < 270.16 .and. t3d(i,k) > 265.16) then
+                  if (t3d(i,k) > 270.16) then
+                    fmult(i) = 0.
+                  else if (t3d(i,k) <= 270.16.and.t3d(i,k) > 268.16)  then
+                    fmult(i) = (270.16-t3d(i,k))/2.
+                  else if (t3d(i,k) >= 265.16.and.t3d(i,k) <= 268.16)   then
+                    fmult(i) = (t3d(i,k)-265.16)/3.
+                  else if (t3d(i,k) < 265.16) then
+                    fmult(i) = 0.
+                  endif
+                  if (psacwg(i,k) > 0.) then
+                    nmultg(i,k) = 35.e4*psacwg(i,k)*fmult(i)*1000.
+                    qmultg(i,k) = nmultg(i,k)*mmult
+                    qmultg(i,k) = min(qmultg(i,k),psacwg(i,k))
+                    psacwg(i,k) = psacwg(i,k)-qmultg(i,k)
+                  endif
+                  if (pracg(i,k) > 0.) then
+                    nmultrg(i,k) = 35.e4*pracg(i,k)*fmult(i)*1000.
+                    qmultrg(i,k) = nmultrg(i,k)*mmult
+                    qmultrg(i,k) = min(qmultrg(i,k),pracg(i,k))
+                    pracg(i,k) = pracg(i,k)-qmultrg(i,k)
+                  endif
+                endif
+              endif
+            endif
+          endif
+          if (psacws(i,k) > 0.) then
+            if (qni3d(i,k) >= 0.1e-3.and.qc3d(i,k) >= 0.5e-3) then
+              pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)))
+              dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) 
+              nscng(i,k) = dum/mg0*rho(i,k)
+              nscng(i,k) = min(nscng(i,k),ns3d(i,k)/dt)
+              psacws(i,k) = psacws(i,k) - pgsacw(i,k)
+            endif
+          endif
+          if (pracs(i,k) > 0.) then
+            if (qni3d(i,k) >= 0.1e-3.and.qr3d(i,k) >= 0.1e-3) then
+              dum       = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+ &  
+                          cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3))
+              dum       = min( dum , 1. )
+              dum       = max( dum , 0. )
+              pgracs(i,k) = (1.-dum)*pracs(i,k)
+              ngracs(i,k) = (1.-dum)*npracs(i,k)
+              ngracs(i,k) = min(ngracs(i,k),nr3d(i,k)/dt)
+              ngracs(i,k) = min(ngracs(i,k),ns3d(i,k)/dt)
+              pracs(i,k) = pracs(i,k) - pgracs(i,k)
+              npracs(i,k) = npracs(i,k) - ngracs(i,k)
+              psacr(i,k) = psacr(i,k)*(1.-dum)
+            endif
+          endif
+          if (t3d(i,k) < 269.15.and.qr3d(i,k) >= qsmall) then
+            mnuccr(i,k) = cons20*nr3d(i,k)*(exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)/pow(lamr(i,k),3)
+            nnuccr(i,k) = pi*nr3d(i,k)*bimm*(exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)
+            nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt)
+          endif
+          if (qr3d(i,k) >= 1.e-8 .and. qc3d(i,k) >= 1.e-8) then
+            dum     = (qc3d(i,k)*qr3d(i,k))
+            pra(i,k) = 67.*pow(dum,1.15)
+            npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k))
+          endif
+          if (qr3d(i,k) >= 1.e-8) then
+            dum1(i)=300.e-6
+            if (1./lamr(i,k) < dum1(i)) then
               dum=1.
-            else if (1./lamr(k) >= dum1) then
-              dum=2.-exp(2300.*(1./lamr(k)-dum1))
+            else if (1./lamr(i,k) >= dum1(i)) then
+              dum=2.-exp(2300.*(1./lamr(i,k)-dum1(i)))
             endif
-            nragg(k) = -5.78*dum*nr3d(k)*qr3d(k)*rho(k)
+            nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k)
           endif
-          if (qr3d(k) >= qsmall) then
-            epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*pow(arn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons9/(pow(lamr(k),cons34)))
+          if (qi3d(i,k) >= 1.e-8 .and.qvqvsi(i,k) >= 1.) then
+            nprci(i,k) = cons21*(qv3d(i,k)-qvi(i,k))*rho(i,k)*n0i(i,k)*exp(-lami(i,k)*dcs)*dv(i,k)/abi(i,k)
+            prci(i,k) = cons22*nprci(i,k)
+            nprci(i,k) = min(nprci(i,k),ni3d(i,k)/dt)
+          endif
+          if (qni3d(i,k) >= 1.e-8 .and. qi3d(i,k) >= qsmall) then
+            prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.)
+            nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.)
+            nprai(i,k) = min( nprai(i,k) , ni3d(i,k)/dt )
+          endif
+          if (qr3d(i,k) >= 1.e-8 .and. qi3d(i,k) >= 1.e-8 .and. t3d(i,k) <= 273.15) then
+            if (qr3d(i,k) >= 0.1e-3) then
+              niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k)
+              piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k)
+              praci(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k)
+              niacr(i,k)=min(niacr(i,k),nr3d(i,k)/dt)
+              niacr(i,k)=min(niacr(i,k),ni3d(i,k)/dt)
+            else 
+              niacrs(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k)
+              piacrs(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k)
+              pracis(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k)
+              niacrs(i,k)=min(niacrs(i,k),nr3d(i,k)/dt)
+              niacrs(i,k)=min(niacrs(i,k),ni3d(i,k)/dt)
+            endif
+          endif
+          if (inuc==0) then
+            if ((qvqvs(i,k) >= 0.999 .and. t3d(i,k) <= 265.15) .or. qvqvsi(i,k) >= 1.08) then
+              kc2(i) = 0.005*exp(0.304*(273.15-t3d(i,k)))*1000. ! convert from l-1 to m-3
+              kc2(i) = min( kc2(i) ,500.e3 )
+              kc2(i) = max( kc2(i)/rho(i,k) , 0. )  ! convert to kg-1
+              if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) then
+                nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt
+                mnuccd(i,k) = nnuccd(i,k)*mi0
+              endif
+            endif
+          else if (inuc==1) then
+            if (t3d(i,k) < 273.15.and.qvqvsi(i,k) > 1.) then
+              kc2(i) = 0.16*1000./rho(i,k)  ! convert from l-1 to kg-1
+              if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) then
+                nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt
+                mnuccd(i,k) = nnuccd(i,k)*mi0
+              endif
+            endif
+          endif
+
+          if (qi3d(i,k) >= qsmall) then
+             epsi(i) = 2.*pi*n0i(i,k)*rho(i,k)*dv(i,k)/(lami(i,k)*lami(i,k))
           else
-            epsr = 0.
+             epsi(i) = 0.
           endif
-          if (qv3d(k) < qvs(k)) then
-            pre(k) = epsr*(qv3d(k)-qvs(k))/ab(k)
-            pre(k) = min(pre(k),0.)
+          if (qni3d(i,k) >= qsmall) then
+            epss(i) = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))
           else
-            pre(k) = 0.
+            epss(i) = 0.
           endif
-          if (qni3d(k) >= 1.e-8) then
-            dum      = -cpw/xlf(k)*(t3d(k)-273.15)*pracs(k)
-            psmlt(k) = 2.*pi*n0s(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))+dum
-            if (qvqvs(k) < 1.) then
-              epss     = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))
-              evpms(k) = (qv3d(k)-qvs(k))*epss/ab(k)    
-              evpms(k) = max(evpms(k),psmlt(k))
-              psmlt(k) = psmlt(k)-evpms(k)
+          if (qg3d(i,k) >= qsmall) then
+            epsg(i) = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))
+          else
+            epsg(i) = 0.
+          endif
+          if (qr3d(i,k) >= qsmall) then
+            epsr(i) = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)))
+          else
+            epsr(i) = 0.
+          endif
+          if (qi3d(i,k) >= qsmall) then              
+            dum    = (1.-exp(-lami(i,k)*dcs)*(1.+lami(i,k)*dcs))
+            prd(i,k) = epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*dum
+          else
+            dum=0.
+          endif
+          if (qni3d(i,k) >= qsmall) then
+            prds(i,k) = epss(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum)
+          else
+            prd(i,k) = prd(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum)
+          endif
+          prdg(i,k) = epsg(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)
+          if (qv3d(i,k) < qvs(i,k)) then
+            pre(i,k) = epsr(i)*(qv3d(i,k)-qvs(i,k))/ab(i,k)
+            pre(i,k) = min( pre(i,k) , 0. )
+          else
+            pre(i,k) = 0.
+          endif
+          dum = (qv3d(i,k)-qvi(i,k))/dt
+          fudgef(i) = 0.9999
+          sum_dep(i) = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k)
+          if( (dum > 0. .and. sum_dep(i) > dum*fudgef(i)) .or. (dum < 0. .and. sum_dep(i) < dum*fudgef(i)) ) then
+            mnuccd(i,k) = fudgef(i)*mnuccd(i,k)*dum/sum_dep(i)
+            prd(i,k) = fudgef(i)*prd(i,k)*dum/sum_dep(i)
+            prds(i,k) = fudgef(i)*prds(i,k)*dum/sum_dep(i)
+            prdg(i,k) = fudgef(i)*prdg(i,k)*dum/sum_dep(i)
+          endif
+          if (prd(i,k) < 0.) then
+            eprd(i,k)=prd(i,k)
+            prd(i,k)=0.
+          endif
+          if (prds(i,k) < 0.) then
+            eprds(i,k)=prds(i,k)
+            prds(i,k)=0.
+          endif
+          if (prdg(i,k) < 0.) then
+            eprdg(i,k)=prdg(i,k)
+            prdg(i,k)=0.
+          endif
+          if (iliq==1) then
+            mnuccc(i,k)=0.
+            nnuccc(i,k)=0.
+            mnuccr(i,k)=0.
+            nnuccr(i,k)=0.
+            mnuccd(i,k)=0.
+            nnuccd(i,k)=0.
+          endif
+          if (igraup==1) then
+            pracg(i,k) = 0.
+            psacr(i,k) = 0.
+            psacwg(i,k) = 0.
+            prdg(i,k) = 0.
+            eprdg(i,k) = 0.
+            evpmg(i,k) = 0.
+            pgmlt(i,k) = 0.
+            npracg(i,k) = 0.
+            npsacwg(i,k) = 0.
+            nscng(i,k) = 0.
+            ngracs(i,k) = 0.
+            nsubg(i,k) = 0.
+            ngmltg(i,k) = 0.
+            ngmltr(i,k) = 0.
+            piacrs(i,k) = piacrs(i,k)+piacr(i,k)
+            piacr(i,k) = 0.
+            pracis(i,k) = pracis(i,k)+praci(i,k)
+            praci(i,k) = 0.
+            psacws(i,k) = psacws(i,k)+pgsacw(i,k)
+            pgsacw(i,k) = 0.
+            pracs(i,k) = pracs(i,k)+pgracs(i,k)
+            pgracs(i,k) = 0.
+          endif
+          dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+pgsacw(i,k)+qmultg(i,k))*dt
+          if (dum > qc3d(i,k) .and. qc3d(i,k) >= qsmall) then
+            ratio(i) = qc3d(i,k)/dum
+            prc(i,k) = prc(i,k)*ratio(i)
+            pra(i,k) = pra(i,k)*ratio(i)
+            mnuccc(i,k) = mnuccc(i,k)*ratio(i)
+            psacws(i,k) = psacws(i,k)*ratio(i)
+            psacwi(i,k) = psacwi(i,k)*ratio(i)
+            qmults(i,k) = qmults(i,k)*ratio(i)
+            qmultg(i,k) = qmultg(i,k)*ratio(i)
+            psacwg(i,k) = psacwg(i,k)*ratio(i)
+            pgsacw(i,k) = pgsacw(i,k)*ratio(i)
+          endif
+          dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt
+          if (dum > qi3d(i,k) .and. qi3d(i,k) >= qsmall) then
+            ratio(i) = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k))
+            prci(i,k) = prci(i,k)*ratio(i)
+            prai(i,k) = prai(i,k)*ratio(i)
+            praci(i,k) = praci(i,k)*ratio(i)
+            pracis(i,k) = pracis(i,k)*ratio(i)
+            eprd(i,k) = eprd(i,k)*ratio(i)
+          endif
+          dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt
+          if (dum > qr3d(i,k).and.qr3d(i,k) >= qsmall) then
+            ratio(i) = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))
+            pre(i,k) = pre(i,k)*ratio(i)
+            pracs(i,k) = pracs(i,k)*ratio(i)
+            qmultr(i,k) = qmultr(i,k)*ratio(i)
+            qmultrg(i,k) = qmultrg(i,k)*ratio(i)
+            mnuccr(i,k) = mnuccr(i,k)*ratio(i)
+            piacr(i,k) = piacr(i,k)*ratio(i)
+            piacrs(i,k) = piacrs(i,k)*ratio(i)
+            pgracs(i,k) = pgracs(i,k)*ratio(i)
+            pracg(i,k) = pracg(i,k)*ratio(i)
+          endif
+          if (igraup==0) then
+            dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k))*dt
+            if (dum > qni3d(i,k).and.qni3d(i,k) >= qsmall) then
+              ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k))/(-eprds(i,k)+psacr(i,k))
+              eprds(i,k) = eprds(i,k)*ratio(i)
+              psacr(i,k) = psacr(i,k)*ratio(i)
+            endif
+          else if (igraup==1) then
+            dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k)-mnuccr(i,k))*dt
+            if (dum > qni3d(i,k).and.qni3d(i,k) >= qsmall) then
+              ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k))
+              eprds(i,k) = eprds(i,k)*ratio(i)
+              psacr(i,k) = psacr(i,k)*ratio(i)
             endif
           endif
-          if (qg3d(k) >= 1.e-8) then
-            dum      = -cpw/xlf(k)*(t3d(k)-273.15)*pracg(k)
-            pgmlt(k) = 2.*pi*n0g(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))+dum
-            if (qvqvs(k) < 1.) then
-              epsg     = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))
-              evpmg(k) = (qv3d(k)-qvs(k))*epsg/ab(k)
-              evpmg(k) = max(evpmg(k),pgmlt(k))
-              pgmlt(k) = pgmlt(k)-evpmg(k)
-            endif
+          dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-praci(i,k)-psacr(i,k))*dt
+          if (dum > qg3d(i,k).and.qg3d(i,k) >= qsmall) then
+            ratio(i) = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k))
+            eprdg(i,k) = eprdg(i,k)*ratio(i)
           endif
-          pracg(k) = 0.
-          pracs(k) = 0.
-          dum = (prc(k)+pra(k))*dt
-          if (dum > qc3d(k).and.qc3d(k) >= qsmall) then
-            ratio = qc3d(k)/dum
-            prc(k) = prc(k)*ratio
-            pra(k) = pra(k)*ratio
+          qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-prdg(i,k)-eprdg(i,k))
+          t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+prdg(i,k)+eprdg(i,k))*xxls(i,k)+ &
+                      (psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k) &
+                       +psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k)
+          qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k))
+          qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)- &
+                       prai(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)-praci(i,k)-pracis(i,k))
+          qr3dten(i,k) = qr3dten(i,k)+(pre(i,k)+pra(i,k)+prc(i,k)-pracs(i,k)-mnuccr(i,k)-qmultr(i,k)-qmultrg(i,k) &
+                       -piacr(i,k)-piacrs(i,k)-pracg(i,k)-pgracs(i,k))
+          if (igraup==0) then
+            qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k))
+            ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k))
+            qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k))
+            ng3dten(i,k) = ng3dten(i,k)+(nscng(i,k)+ngracs(i,k)+nnuccr(i,k)+niacr(i,k))
+          else if (igraup==1) then
+            qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k))
+            ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k))
           endif
-          dum = (-psmlt(k)-evpms(k)+pracs(k))*dt
-          if (dum > qni3d(k).and.qni3d(k) >= qsmall) then
-            ratio    = qni3d(k)/dum
-            psmlt(k) = psmlt(k)*ratio
-            evpms(k) = evpms(k)*ratio
-            pracs(k) = pracs(k)*ratio
-          endif
-          dum = (-pgmlt(k)-evpmg(k)+pracg(k))*dt
-          if (dum > qg3d(k).and.qg3d(k) >= qsmall) then
-            ratio    = qg3d (k)/dum
-            pgmlt(k) = pgmlt(k)*ratio
-            evpmg(k) = evpmg(k)*ratio
-            pracg(k) = pracg(k)*ratio
-          endif
-          dum = (-pracs(k)-pracg(k)-pre(k)-pra(k)-prc(k)+psmlt(k)+pgmlt(k))*dt
-          if (dum > qr3d(k).and.qr3d(k) >= qsmall) then
-            ratio  = (qr3d(k)/dt+pracs(k)+pracg(k)+pra(k)+prc(k)-psmlt(k)-pgmlt(k))/(-pre(k))
-            pre(k) = pre(k)*ratio
-          endif
-          qv3dten (k) = qv3dten (k) + (-pre(k)-evpms(k)-evpmg(k))
-          t3dten  (k) = t3dten  (k) + (pre(k)*xxlv(k)+(evpms(k)+evpmg(k))*xxls(k)+(psmlt(k)+pgmlt(k)-pracs(k)-pracg(k))*xlf(k))/cpm(k)
-          qc3dten (k) = qc3dten (k) + (-pra(k)-prc(k))
-          qr3dten (k) = qr3dten (k) + (pre(k)+pra(k)+prc(k)-psmlt(k)-pgmlt(k)+pracs(k)+pracg(k))
-          qni3dten(k) = qni3dten(k) + (psmlt(k)+evpms(k)-pracs(k))
-          qg3dten (k) = qg3dten (k) + (pgmlt(k)+evpmg(k)-pracg(k))
-          nc3dten (k) = nc3dten (k) + (-npra(k)-nprc(k))
-          nr3dten (k) = nr3dten (k) + (nprc1(k)+nragg(k)-npracg(k))
-          c2prec  (k) = pra(k)+prc(k)
-          if (pre(k) < 0.) then
-            dum      = pre(k)*dt/qr3d(k)
+          nc3dten(i,k) = nc3dten(i,k)+(-nnuccc(i,k)-npsacws(i,k)-npra(i,k)-nprc(i,k)-npsacwi(i,k)-npsacwg(i,k))
+          ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k))
+          nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-npracg(i,k)-ngracs(i,k))
+          c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+mnuccc(i,k)+psacwi(i,k)
+          dumt(i)       = t3d(i,k)+dt*t3dten(i,k)
+          dumqv(i)      = qv3d(i,k)+dt*qv3dten(i,k)
+          dum        = min( 0.99*pres(i,k) , polysvp(dumt(i),0) )
+          dumqss(i)     = ep_2*dum/(pres(i,k)-dum)
+          dumqc(i)      = qc3d(i,k)+dt*qc3dten(i,k)
+          dumqc(i)      = max( dumqc(i) , 0. )
+          dums(i)       = dumqv(i)-dumqss(i)
+          pcc(i,k)     = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt
+          if (pcc(i,k)*dt+dumqc(i) < 0.) pcc(i,k) = -dumqc(i)/dt
+          qv3dten(i,k) = qv3dten(i,k)-pcc(i,k)
+          t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k)
+          qc3dten(i,k) = qc3dten(i,k)+pcc(i,k)
+          if (eprd(i,k) < 0.) then
+            dum      = eprd(i,k)*dt/qi3d(i,k)
             dum      = max(-1.,dum)
-            nsubr(k) = dum*nr3d(k)/dt
+            nsubi(i,k) = dum*ni3d(i,k)/dt
           endif
-          if (evpms(k)+psmlt(k) < 0.) then
-            dum       = (evpms(k)+psmlt(k))*dt/qni3d(k)
-            dum       = max(-1.,dum)
-            nsmlts(k) = dum*ns3d(k)/dt
+          if (eprds(i,k) < 0.) then
+            dum      = eprds(i,k)*dt/qni3d(i,k)
+            dum      = max(-1.,dum)
+            nsubs(i,k) = dum*ns3d(i,k)/dt
           endif
-          if (psmlt(k) < 0.) then
-            dum       = psmlt(k)*dt/qni3d(k)
-            dum       = max(-1.0,dum)
-            nsmltr(k) = dum*ns3d(k)/dt
+          if (pre(i,k) < 0.) then
+            dum      = pre(i,k)*dt/qr3d(i,k)
+            dum      = max(-1.,dum)
+            nsubr(i,k) = dum*nr3d(i,k)/dt
           endif
-          if (evpmg(k)+pgmlt(k) < 0.) then
-            dum       = (evpmg(k)+pgmlt(k))*dt/qg3d(k)
-            dum       = max(-1.,dum)
-            ngmltg(k) = dum*ng3d(k)/dt
+          if (eprdg(i,k) < 0.) then
+            dum      = eprdg(i,k)*dt/qg3d(i,k)
+            dum      = max(-1.,dum)
+            nsubg(i,k) = dum*ng3d(i,k)/dt
           endif
-          if (pgmlt(k) < 0.) then
-            dum       = pgmlt(k)*dt/qg3d(k)
-            dum       = max(-1.0,dum)
-            ngmltr(k) = dum*ng3d(k)/dt
-          endif
-          ns3dten(k) = ns3dten(k)+(nsmlts(k))
-          ng3dten(k) = ng3dten(k)+(ngmltg(k))
-          nr3dten(k) = nr3dten(k)+(nsubr(k)-nsmltr(k)-ngmltr(k))
-        endif
+          ni3dten(i,k) = ni3dten(i,k)+nsubi(i,k)
+          ns3dten(i,k) = ns3dten(i,k)+nsubs(i,k)
+          ng3dten(i,k) = ng3dten(i,k)+nsubg(i,k)
+          nr3dten(i,k) = nr3dten(i,k)+nsubr(i,k)
+        endif !!!!!! temperature
+        ltrue(i) = 1
+      enddo  !!! k
+    enddo !!! i
 
-        dumt = t3d(k)+dt*t3dten(k)
-        dumqv = qv3d(k)+dt*qv3dten(k)
-        dum=min(0.99*pres(k),polysvp(dumt,0))
-        dumqss = ep_2*dum/(pres(k)-dum)
-        dumqc = qc3d(k)+dt*qc3dten(k)
-        dumqc = max(dumqc,0.)
-        dums = dumqv-dumqss
-        pcc(k) = dums/(1.+pow(xxlv(k),2)*dumqss/(cpm(k)*rv*pow(dumt,2)))/dt
-        if (pcc(k)*dt+dumqc < 0.) then
-          pcc(k) = -dumqc/dt
-        endif
-        qv3dten(k) = qv3dten(k)-pcc(k)
-        t3dten(k) = t3dten(k)+pcc(k)*xxlv(k)/cpm(k)
-        qc3dten(k) = qc3dten(k)+pcc(k)
-      else  ! temperature < 273.15
-        if (iinum==1) then
-          nc3d(k)=ndcnst*1.e6/rho(k)
-        endif
-        ni3d(k) = max(0.,ni3d(k))
-        ns3d(k) = max(0.,ns3d(k))
-        nc3d(k) = max(0.,nc3d(k))
-        nr3d(k) = max(0.,nr3d(k))
-        ng3d(k) = max(0.,ng3d(k))
-        if (qi3d(k) >= qsmall) then
-          lami(k) = pow(cons12*ni3d(k)/qi3d(k),1./di)
-          n0i(k) = ni3d(k)*lami(k)
-          if (lami(k) < lammini) then
-            lami(k) = lammini
-            n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
-            ni3d(k) = n0i(k)/lami(k)
-          else if (lami(k) > lammaxi) then
-            lami(k) = lammaxi
-            n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
-            ni3d(k) = n0i(k)/lami(k)
-          endif
-        endif
-        if (qr3d(k) >= qsmall) then
-          lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
-          n0rr(k) = nr3d(k)*lamr(k)
-          if (lamr(k) < lamminr) then
-            lamr(k) = lamminr
-            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-            nr3d(k) = n0rr(k)/lamr(k)
-          else if (lamr(k) > lammaxr) then
-            lamr(k) = lammaxr
-            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-            nr3d(k) = n0rr(k)/lamr(k)
-          endif
-        endif
-        if (qc3d(k) >= qsmall) then
-          dum     = pres(k)/(287.15*t3d(k))
-          pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k) = 1./(pow(pgam(k),2))-1.
-          pgam(k) = max(pgam(k),2.)
-          pgam(k) = min(pgam(k),10.)
-          lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
-          lammin  = (pgam(k)+1.)/60.e-6
-          lammax  = (pgam(k)+1.)/1.e-6
-          if (lamc(k) < lammin) then
-            lamc(k) = lammin
-            nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
-          else if (lamc(k) > lammax) then
-            lamc(k) = lammax
-            nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
-          endif
-          cdist1(k) = nc3d(k)/gamma(pgam(k)+1.)
-        endif
-        if (qni3d(k) >= qsmall) then
-          lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
-          n0s (k) = ns3d(k)*lams(k)
-          if (lams(k) < lammins) then
-            lams(k) = lammins
-            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-            ns3d(k) = n0s(k)/lams(k)
-          else if (lams(k) > lammaxs) then
-            lams(k) = lammaxs
-            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-            ns3d(k) = n0s(k)/lams(k)
-          endif
-        endif
-        if (qg3d(k) >= qsmall) then
-          lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
-          n0g (k) = ng3d(k)*lamg(k)
-          if (lamg(k) < lamming) then
-            lamg(k) = lamming
-            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-            ng3d(k) = n0g(k)/lamg(k)
-          else if (lamg(k) > lammaxg) then
-            lamg(k) = lammaxg
-            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-            ng3d(k) = n0g(k)/lamg(k)
-          endif
-        endif
-        mnuccc (k) = 0.
-        nnuccc (k) = 0.
-        prc    (k) = 0.
-        nprc   (k) = 0.
-        nprc1  (k) = 0.
-        nsagg  (k) = 0.
-        psacws (k) = 0.
-        npsacws(k) = 0.
-        psacwi (k) = 0.
-        npsacwi(k) = 0.
-        pracs  (k) = 0.
-        npracs (k) = 0.
-        nmults (k) = 0.
-        qmults (k) = 0.
-        nmultr (k) = 0.
-        qmultr (k) = 0.
-        nmultg (k) = 0.
-        qmultg (k) = 0.
-        nmultrg(k) = 0.
-        qmultrg(k) = 0.
-        mnuccr (k) = 0.
-        nnuccr (k) = 0.
-        pra    (k) = 0.
-        npra   (k) = 0.
-        nragg  (k) = 0.
-        prci   (k) = 0.
-        nprci  (k) = 0.
-        prai   (k) = 0.
-        nprai  (k) = 0.
-        nnuccd (k) = 0.
-        mnuccd (k) = 0.
-        pcc    (k) = 0.
-        pre    (k) = 0.
-        prd    (k) = 0.
-        prds   (k) = 0.
-        eprd   (k) = 0.
-        eprds  (k) = 0.
-        nsubc  (k) = 0.
-        nsubi  (k) = 0.
-        nsubs  (k) = 0.
-        nsubr  (k) = 0.
-        piacr  (k) = 0.
-        niacr  (k) = 0.
-        praci  (k) = 0.
-        piacrs (k) = 0.
-        niacrs (k) = 0.
-        pracis (k) = 0.
-        pracg  (k) = 0.
-        psacr  (k) = 0.
-        psacwg (k) = 0.
-        pgsacw (k) = 0.
-        pgracs (k) = 0.
-        prdg   (k) = 0.
-        eprdg  (k) = 0.
-        npracg (k) = 0.
-        npsacwg(k) = 0.
-        nscng  (k) = 0.
-        ngracs (k) = 0.
-        nsubg  (k) = 0.
-        if (qc3d(k) >= qsmall .and. t3d(k) < 269.15) then
-          nacnt     = exp(-2.80+0.262*(273.15-t3d(k)))*1000.
-          dum       = 7.37*t3d(k)/(288.*10.*pres(k))/100.
-          dap   (k) = cons37*t3d(k)*(1.+dum/rin)/mu(k)
-          mnuccc(k) = cons38*dap(k)*nacnt*exp(log(cdist1(k))+log(gamma(pgam(k)+5.))-4.*log(lamc(k)))
-          nnuccc(k) = 2.*pi*dap(k)*nacnt*cdist1(k)*gamma(pgam(k)+2.)/lamc(k)
-          mnuccc(k) = mnuccc(k)+cons39*exp(log(cdist1(k))+log(gamma(7.+pgam(k)))-6.*log(lamc(k)))*(exp(aimm*(273.15-t3d(k)))-1.)
-          nnuccc(k) = nnuccc(k)+cons40*exp(log(cdist1(k))+log(gamma(pgam(k)+4.))-3.*log(lamc(k)))*(exp(aimm*(273.15-t3d(k)))-1.)
-          nnuccc(k) = min(nnuccc(k),nc3d(k)/dt)
-        endif
-        if (qc3d(k) >= 1.e-6) then
-          prc  (k) = 1350.*pow(qc3d(k),2.47)*pow(nc3d(k)/1.e6*rho(k),-1.79)
-          nprc1(k) = prc(k)/cons29
-          nprc (k) = prc(k)/(qc3d(k)/nc3d(k))
-          nprc (k) = min( nprc (k) , nc3d(k)/dt )
-          nprc1(k) = min( nprc1(k) , nprc(k)    )
-        endif
-        if (qni3d(k) >= 1.e-8) then
-          nsagg(k) = cons15*asn(k)*pow(rho(k),(2.+bs)/3.)*pow(qni3d(k),(2.+bs)/3.)*pow(ns3d(k)*rho(k),(4.-bs)/3.)/(rho(k))
-        endif
-        if (qni3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
-          psacws (k) = cons13*asn(k)*qc3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
-          npsacws(k) = cons13*asn(k)*nc3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
-        endif
-        if (qg3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
-          psacwg (k) = cons14*agn(k)*qc3d(k)*rho(k)*n0g(k)/pow(lamg(k),bg+3.)
-          npsacwg(k) = cons14*agn(k)*nc3d(k)*rho(k)*n0g(k)/pow(lamg(k),bg+3.)
-        endif
-        if (qi3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
-          if (1./lami(k) >= 100.e-6) then
-            psacwi (k) = cons16*ain(k)*qc3d(k)*rho(k)*n0i(k)/pow(lami(k),bi+3.)
-            npsacwi(k) = cons16*ain(k)*nc3d(k)*rho(k)*n0i(k)/pow(lami(k),bi+3.)
-          endif
-        endif
-        if (qr3d(k) >= 1.e-8.and.qni3d(k) >= 1.e-8) then
-          ums = asn(k)*cons3/pow(lams(k),bs)
-          umr = arn(k)*cons4/pow(lamr(k),br)
-          uns = asn(k)*cons5/pow(lams(k),bs)
-          unr = arn(k)*cons6/pow(lamr(k),br)
-          dum = pow(rhosu/rho(k),0.54)
-          ums = min( ums , 1.2*dum )
-          uns = min( uns , 1.2*dum )
-          umr = min( umr , 9.1*dum )
-          unr = min( unr , 9.1*dum )
-          pracs(k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lamr(k),3)* &
-                     (5./(pow(lamr(k),3)*lams(k))+2./(pow(lamr(k),2)*pow(lams(k),2))+0.5/(lamr(k)*pow(lams(k),3))))
-          npracs(k) = cons32*rho(k)*pow(1.7*pow(unr-uns,2)+0.3*unr*uns,0.5)*n0rr(k)*n0s(k)*(1./(pow(lamr(k),3)*lams(k))+ &
-                      1./(pow(lamr(k),2)*pow(lams(k),2))+1./(lamr(k)*pow(lams(k),3)))
-          pracs(k) = min(pracs(k),qr3d(k)/dt)
-          if (qni3d(k) >= 0.1e-3.and.qr3d(k) >= 0.1e-3) then
-            psacr(k) = cons31*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lams(k),3)* &
-                       (5./(pow(lams(k),3)*lamr(k))+2./(pow(lams(k),2)*pow(lamr(k),2))+0.5/(lams(k)*pow(lamr(k),3))))            
-          endif
-        endif
-        if (qr3d(k) >= 1.e-8.and.qg3d(k) >= 1.e-8) then
-          umg = agn(k)*cons7/pow(lamg(k),bg)
-          umr = arn(k)*cons4/pow(lamr(k),br)
-          ung = agn(k)*cons8/pow(lamg(k),bg)
-          unr = arn(k)*cons6/pow(lamr(k),br)
-          dum = pow(rhosu/rho(k),0.54)
-          umg = min( umg , 20.*dum )
-          ung = min( ung , 20.*dum )
-          umr = min( umr , 9.1*dum )
-          unr = min( unr , 9.1*dum )
-          pracg (k) = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(k)*n0rr(k)*n0g(k)/pow(lamr(k),3)* &
-                      (5./(pow(lamr(k),3)*lamg(k))+2./(pow(lamr(k),2)*pow(lamg(k),2))+0.5/(lamr(k)*pow(lamg(k),3))))
-          npracg(k) = cons32*rho(k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(k)*n0g(k)*(1./(pow(lamr(k),3)*lamg(k))+ &
-                      1./(pow(lamr(k),2)*pow(lamg(k),2))+1./(lamr(k)*pow(lamg(k),3)))
-          pracg (k) = min(pracg(k),qr3d(k)/dt)
-        endif
-        if (qni3d(k) >= 0.1e-3) then
-          if (qc3d(k) >= 0.5e-3.or.qr3d(k) >= 0.1e-3) then
-            if (psacws(k) > 0..or.pracs(k) > 0.) then
-              if (t3d(k) < 270.16 .and. t3d(k) > 265.16) then
-                if (t3d(k) > 270.16) then
-                  fmult = 0.
-                else if (t3d(k) <= 270.16.and.t3d(k) > 268.16)  then
-                  fmult = (270.16-t3d(k))/2.
-                else if (t3d(k) >= 265.16.and.t3d(k) <= 268.16)   then
-                  fmult = (t3d(k)-265.16)/3.
-                else if (t3d(k) < 265.16) then
-                  fmult = 0.
-                endif
-                if (psacws(k) > 0.) then
-                  nmults(k) = 35.e4*psacws(k)*fmult*1000.
-                  qmults(k) = nmults(k)*mmult
-                  qmults(k) = min(qmults(k),psacws(k))
-                  psacws(k) = psacws(k)-qmults(k)
-                endif
-                if (pracs(k) > 0.) then
-                  nmultr(k) = 35.e4*pracs(k)*fmult*1000.
-                  qmultr(k) = nmultr(k)*mmult
-                  qmultr(k) = min(qmultr(k),pracs(k))
-                  pracs(k) = pracs(k)-qmultr(k)
-                endif
-              endif
-            endif
-          endif
-        endif
-        if (qg3d(k) >= 0.1e-3) then
-          if (qc3d(k) >= 0.5e-3.or.qr3d(k) >= 0.1e-3) then
-            if (psacwg(k) > 0..or.pracg(k) > 0.) then
-              if (t3d(k) < 270.16 .and. t3d(k) > 265.16) then
-                if (t3d(k) > 270.16) then
-                  fmult = 0.
-                else if (t3d(k) <= 270.16.and.t3d(k) > 268.16)  then
-                  fmult = (270.16-t3d(k))/2.
-                else if (t3d(k) >= 265.16.and.t3d(k) <= 268.16)   then
-                  fmult = (t3d(k)-265.16)/3.
-                else if (t3d(k) < 265.16) then
-                  fmult = 0.
-                endif
-                if (psacwg(k) > 0.) then
-                  nmultg(k) = 35.e4*psacwg(k)*fmult*1000.
-                  qmultg(k) = nmultg(k)*mmult
-                  qmultg(k) = min(qmultg(k),psacwg(k))
-                  psacwg(k) = psacwg(k)-qmultg(k)
-                endif
-                if (pracg(k) > 0.) then
-                  nmultrg(k) = 35.e4*pracg(k)*fmult*1000.
-                  qmultrg(k) = nmultrg(k)*mmult
-                  qmultrg(k) = min(qmultrg(k),pracg(k))
-                  pracg(k) = pracg(k)-qmultrg(k)
-                endif
-              endif
-            endif
-          endif
-        endif
-        if (psacws(k) > 0.) then
-          if (qni3d(k) >= 0.1e-3.and.qc3d(k) >= 0.5e-3) then
-            pgsacw(k) = min(psacws(k),cons17*dt*n0s(k)*qc3d(k)*qc3d(k)*asn(k)*asn(k)/(rho(k)*pow(lams(k),2.*bs+2.)))
-            dum       = max(rhosn/(rhog-rhosn)*pgsacw(k),0.) 
-            nscng (k) = dum/mg0*rho(k)
-            nscng (k) = min(nscng(k),ns3d(k)/dt)
-            psacws(k) = psacws(k) - pgsacw(k)
-          endif
-        endif
-        if (pracs(k) > 0.) then
-          if (qni3d(k) >= 0.1e-3.and.qr3d(k) >= 0.1e-3) then
-            dum       = cons18*pow(4./lams(k),3)*pow(4./lams(k),3)/(cons18*pow(4./lams(k),3)*pow(4./lams(k),3)+ &  
-                        cons19*pow(4./lamr(k),3)*pow(4./lamr(k),3))
-            dum       = min( dum , 1. )
-            dum       = max( dum , 0. )
-            pgracs(k) = (1.-dum)*pracs(k)
-            ngracs(k) = (1.-dum)*npracs(k)
-            ngracs(k) = min(ngracs(k),nr3d(k)/dt)
-            ngracs(k) = min(ngracs(k),ns3d(k)/dt)
-            pracs (k) = pracs (k) - pgracs(k)
-            npracs(k) = npracs(k) - ngracs(k)
-            psacr (k) = psacr(k)*(1.-dum)
-          endif
-        endif
-        if (t3d(k) < 269.15.and.qr3d(k) >= qsmall) then
-          mnuccr(k) = cons20*nr3d(k)*(exp(aimm*(273.15-t3d(k)))-1.)/pow(lamr(k),3)/pow(lamr(k),3)
-          nnuccr(k) = pi*nr3d(k)*bimm*(exp(aimm*(273.15-t3d(k)))-1.)/pow(lamr(k),3)
-          nnuccr(k) = min(nnuccr(k),nr3d(k)/dt)
-        endif
-        if (qr3d(k) >= 1.e-8 .and. qc3d(k) >= 1.e-8) then
-          dum     = (qc3d(k)*qr3d(k))
-          pra (k) = 67.*pow(dum,1.15)
-          npra(k) = pra(k)/(qc3d(k)/nc3d(k))
-        endif
-        if (qr3d(k) >= 1.e-8) then
-          dum1=300.e-6
-          if (1./lamr(k) < dum1) then
-            dum=1.
-          else if (1./lamr(k) >= dum1) then
-            dum=2.-exp(2300.*(1./lamr(k)-dum1))
-          endif
-          nragg(k) = -5.78*dum*nr3d(k)*qr3d(k)*rho(k)
-        endif
-        if (qi3d(k) >= 1.e-8 .and.qvqvsi(k) >= 1.) then
-          nprci(k) = cons21*(qv3d(k)-qvi(k))*rho(k)*n0i(k)*exp(-lami(k)*dcs)*dv(k)/abi(k)
-          prci(k) = cons22*nprci(k)
-          nprci(k) = min(nprci(k),ni3d(k)/dt)
-        endif
-        if (qni3d(k) >= 1.e-8 .and. qi3d(k) >= qsmall) then
-          prai (k) = cons23*asn(k)*qi3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
-          nprai(k) = cons23*asn(k)*ni3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
-          nprai(k) = min( nprai(k) , ni3d(k)/dt )
-        endif
-        if (qr3d(k) >= 1.e-8 .and. qi3d(k) >= 1.e-8 .and. t3d(k) <= 273.15) then
-          if (qr3d(k) >= 0.1e-3) then
-            niacr(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
-            piacr(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)/pow(lamr(k),3)*rho(k)
-            praci(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
-            niacr(k)=min(niacr(k),nr3d(k)/dt)
-            niacr(k)=min(niacr(k),ni3d(k)/dt)
-          else 
-            niacrs(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
-            piacrs(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)/pow(lamr(k),3)*rho(k)
-            pracis(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
-            niacrs(k)=min(niacrs(k),nr3d(k)/dt)
-            niacrs(k)=min(niacrs(k),ni3d(k)/dt)
-          endif
-        endif
-        if (inuc==0) then
-          if ((qvqvs(k) >= 0.999 .and. t3d(k) <= 265.15) .or. qvqvsi(k) >= 1.08) then
-            kc2 = 0.005*exp(0.304*(273.15-t3d(k)))*1000. ! convert from l-1 to m-3
-            kc2 = min( kc2 ,500.e3 )
-            kc2 = max( kc2/rho(k) , 0. )  ! convert to kg-1
-            if (kc2 > ni3d(k)+ns3d(k)+ng3d(k)) then
-              nnuccd(k) = (kc2-ni3d(k)-ns3d(k)-ng3d(k))/dt
-              mnuccd(k) = nnuccd(k)*mi0
-            endif
-          endif
-        else if (inuc==1) then
-          if (t3d(k) < 273.15.and.qvqvsi(k) > 1.) then
-            kc2 = 0.16*1000./rho(k)  ! convert from l-1 to kg-1
-            if (kc2 > ni3d(k)+ns3d(k)+ng3d(k)) then
-              nnuccd(k) = (kc2-ni3d(k)-ns3d(k)-ng3d(k))/dt
-              mnuccd(k) = nnuccd(k)*mi0
-            endif
-          endif
-        endif
+    do i = 1 , ncol
+      precrt (i) = 0.
+      snowrt (i) = 0.
+      snowprt(i) = 0.
+      grplprt(i) = 0.
 
-        if (qi3d(k) >= qsmall) then
-           epsi = 2.*pi*n0i(k)*rho(k)*dv(k)/(lami(k)*lami(k))
-        else
-           epsi = 0.
-        endif
-        if (qni3d(k) >= qsmall) then
-          epss = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))
-        else
-          epss = 0.
-        endif
-        if (qg3d(k) >= qsmall) then
-          epsg = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))
-        else
-          epsg = 0.
-        endif
-        if (qr3d(k) >= qsmall) then
-          epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*pow(arn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons9/(pow(lamr(k),cons34)))
-        else
-          epsr = 0.
-        endif
-        if (qi3d(k) >= qsmall) then              
-          dum    = (1.-exp(-lami(k)*dcs)*(1.+lami(k)*dcs))
-          prd(k) = epsi*(qv3d(k)-qvi(k))/abi(k)*dum
-        else
-          dum=0.
-        endif
-        if (qni3d(k) >= qsmall) then
-          prds(k) = epss*(qv3d(k)-qvi(k))/abi(k)+epsi*(qv3d(k)-qvi(k))/abi(k)*(1.-dum)
-        else
-          prd(k) = prd(k)+epsi*(qv3d(k)-qvi(k))/abi(k)*(1.-dum)
-        endif
-        prdg(k) = epsg*(qv3d(k)-qvi(k))/abi(k)
-        if (qv3d(k) < qvs(k)) then
-          pre(k) = epsr*(qv3d(k)-qvs(k))/ab(k)
-          pre(k) = min( pre(k) , 0. )
-        else
-          pre(k) = 0.
-        endif
-        dum = (qv3d(k)-qvi(k))/dt
-        fudgef = 0.9999
-        sum_dep = prd(k)+prds(k)+mnuccd(k)+prdg(k)
-        if( (dum > 0. .and. sum_dep > dum*fudgef) .or. (dum < 0. .and. sum_dep < dum*fudgef) ) then
-          mnuccd(k) = fudgef*mnuccd(k)*dum/sum_dep
-          prd(k) = fudgef*prd(k)*dum/sum_dep
-          prds(k) = fudgef*prds(k)*dum/sum_dep
-          prdg(k) = fudgef*prdg(k)*dum/sum_dep
-        endif
-        if (prd(k) < 0.) then
-          eprd(k)=prd(k)
-          prd (k)=0.
-        endif
-        if (prds(k) < 0.) then
-          eprds(k)=prds(k)
-          prds (k)=0.
-        endif
-        if (prdg(k) < 0.) then
-          eprdg(k)=prdg(k)
-          prdg (k)=0.
-        endif
-        if (iliq==1) then
-          mnuccc(k)=0.
-          nnuccc(k)=0.
-          mnuccr(k)=0.
-          nnuccr(k)=0.
-          mnuccd(k)=0.
-          nnuccd(k)=0.
-        endif
-        if (igraup==1) then
-          pracg  (k) = 0.
-          psacr  (k) = 0.
-          psacwg (k) = 0.
-          prdg   (k) = 0.
-          eprdg  (k) = 0.
-          evpmg  (k) = 0.
-          pgmlt  (k) = 0.
-          npracg (k) = 0.
-          npsacwg(k) = 0.
-          nscng  (k) = 0.
-          ngracs (k) = 0.
-          nsubg  (k) = 0.
-          ngmltg (k) = 0.
-          ngmltr (k) = 0.
-          piacrs (k) = piacrs(k)+piacr (k)
-          piacr  (k) = 0.
-          pracis (k) = pracis(k)+praci (k)
-          praci  (k) = 0.
-          psacws (k) = psacws(k)+pgsacw(k)
-          pgsacw (k) = 0.
-          pracs  (k) = pracs (k)+pgracs(k)
-          pgracs (k) = 0.
-        endif
-        dum = (prc(k)+pra(k)+mnuccc(k)+psacws(k)+psacwi(k)+qmults(k)+psacwg(k)+pgsacw(k)+qmultg(k))*dt
-        if (dum > qc3d(k) .and. qc3d(k) >= qsmall) then
-          ratio = qc3d(k)/dum
-          prc(k) = prc(k)*ratio
-          pra(k) = pra(k)*ratio
-          mnuccc(k) = mnuccc(k)*ratio
-          psacws(k) = psacws(k)*ratio
-          psacwi(k) = psacwi(k)*ratio
-          qmults(k) = qmults(k)*ratio
-          qmultg(k) = qmultg(k)*ratio
-          psacwg(k) = psacwg(k)*ratio
-          pgsacw(k) = pgsacw(k)*ratio
-        endif
-        dum = (-prd(k)-mnuccc(k)+prci(k)+prai(k)-qmults(k)-qmultg(k)-qmultr(k)-qmultrg(k)-mnuccd(k)+praci(k)+pracis(k)-eprd(k)-psacwi(k))*dt
-        if (dum > qi3d(k) .and. qi3d(k) >= qsmall) then
-          ratio = (qi3d(k)/dt+prd(k)+mnuccc(k)+qmults(k)+qmultg(k)+qmultr(k)+qmultrg(k)+mnuccd(k)+psacwi(k))/(prci(k)+prai(k)+praci(k)+pracis(k)-eprd(k))
-          prci(k) = prci(k)*ratio
-          prai(k) = prai(k)*ratio
-          praci(k) = praci(k)*ratio
-          pracis(k) = pracis(k)*ratio
-          eprd(k) = eprd(k)*ratio
-        endif
-        dum = ((pracs(k)-pre(k))+(qmultr(k)+qmultrg(k)-prc(k))+(mnuccr(k)-pra(k))+piacr(k)+piacrs(k)+pgracs(k)+pracg(k))*dt
-        if (dum > qr3d(k).and.qr3d(k) >= qsmall) then
-          ratio = (qr3d(k)/dt+prc(k)+pra(k))/(-pre(k)+qmultr(k)+qmultrg(k)+pracs(k)+mnuccr(k)+piacr(k)+piacrs(k)+pgracs(k)+pracg(k))
-          pre(k) = pre(k)*ratio
-          pracs(k) = pracs(k)*ratio
-          qmultr(k) = qmultr(k)*ratio
-          qmultrg(k) = qmultrg(k)*ratio
-          mnuccr(k) = mnuccr(k)*ratio
-          piacr(k) = piacr(k)*ratio
-          piacrs(k) = piacrs(k)*ratio
-          pgracs(k) = pgracs(k)*ratio
-          pracg(k) = pracg(k)*ratio
-        endif
-        if (igraup==0) then
-          dum = (-prds(k)-psacws(k)-prai(k)-prci(k)-pracs(k)-eprds(k)+psacr(k)-piacrs(k)-pracis(k))*dt
-          if (dum > qni3d(k).and.qni3d(k) >= qsmall) then
-            ratio = (qni3d(k)/dt+prds(k)+psacws(k)+prai(k)+prci(k)+pracs(k)+piacrs(k)+pracis(k))/(-eprds(k)+psacr(k))
-            eprds(k) = eprds(k)*ratio
-            psacr(k) = psacr(k)*ratio
-          endif
-        else if (igraup==1) then
-          dum = (-prds(k)-psacws(k)-prai(k)-prci(k)-pracs(k)-eprds(k)+psacr(k)-piacrs(k)-pracis(k)-mnuccr(k))*dt
-          if (dum > qni3d(k).and.qni3d(k) >= qsmall) then
-            ratio = (qni3d(k)/dt+prds(k)+psacws(k)+prai(k)+prci(k)+pracs(k)+piacrs(k)+pracis(k)+mnuccr(k))/(-eprds(k)+psacr(k))
-            eprds(k) = eprds(k)*ratio
-            psacr(k) = psacr(k)*ratio
-          endif
-        endif
-        dum = (-psacwg(k)-pracg(k)-pgsacw(k)-pgracs(k)-prdg(k)-mnuccr(k)-eprdg(k)-piacr(k)-praci(k)-psacr(k))*dt
-        if (dum > qg3d(k).and.qg3d(k) >= qsmall) then
-          ratio = (qg3d(k)/dt+psacwg(k)+pracg(k)+pgsacw(k)+pgracs(k)+prdg(k)+mnuccr(k)+psacr(k)+piacr(k)+praci(k))/(-eprdg(k))
-          eprdg(k) = eprdg(k)*ratio
-        endif
-        qv3dten(k) = qv3dten(k)+(-pre(k)-prd(k)-prds(k)-mnuccd(k)-eprd(k)-eprds(k)-prdg(k)-eprdg(k))
-        t3dten(k) = t3dten(k)+(pre(k)*xxlv(k)+(prd(k)+prds(k)+mnuccd(k)+eprd(k)+eprds(k)+prdg(k)+eprdg(k))*xxls(k)+ &
-                    (psacws(k)+psacwi(k)+mnuccc(k)+mnuccr(k)+qmults(k)+qmultg(k)+qmultr(k)+qmultrg(k)+pracs(k) &
-                     +psacwg(k)+pracg(k)+pgsacw(k)+pgracs(k)+piacr(k)+piacrs(k))*xlf(k))/cpm(k)
-        qc3dten(k) = qc3dten(k)+(-pra(k)-prc(k)-mnuccc(k)+pcc(k)-psacws(k)-psacwi(k)-qmults(k)-qmultg(k)-psacwg(k)-pgsacw(k))
-        qi3dten(k) = qi3dten(k)+(prd(k)+eprd(k)+psacwi(k)+mnuccc(k)-prci(k)- &
-                     prai(k)+qmults(k)+qmultg(k)+qmultr(k)+qmultrg(k)+mnuccd(k)-praci(k)-pracis(k))
-        qr3dten(k) = qr3dten(k)+(pre(k)+pra(k)+prc(k)-pracs(k)-mnuccr(k)-qmultr(k)-qmultrg(k) &
-                     -piacr(k)-piacrs(k)-pracg(k)-pgracs(k))
-        if (igraup==0) then
-          qni3dten(k) = qni3dten(k)+(prai(k)+psacws(k)+prds(k)+pracs(k)+prci(k)+eprds(k)-psacr(k)+piacrs(k)+pracis(k))
-          ns3dten(k) = ns3dten(k)+(nsagg(k)+nprci(k)-nscng(k)-ngracs(k)+niacrs(k))
-          qg3dten(k) = qg3dten(k)+(pracg(k)+psacwg(k)+pgsacw(k)+pgracs(k)+prdg(k)+eprdg(k)+mnuccr(k)+piacr(k)+praci(k)+psacr(k))
-          ng3dten(k) = ng3dten(k)+(nscng(k)+ngracs(k)+nnuccr(k)+niacr(k))
-        else if (igraup==1) then
-          qni3dten(k) = qni3dten(k)+(prai(k)+psacws(k)+prds(k)+pracs(k)+prci(k)+eprds(k)-psacr(k)+piacrs(k)+pracis(k)+mnuccr(k))
-          ns3dten(k) = ns3dten(k)+(nsagg(k)+nprci(k)-nscng(k)-ngracs(k)+niacrs(k)+nnuccr(k))
-        endif
-        nc3dten(k) = nc3dten(k)+(-nnuccc(k)-npsacws(k)-npra(k)-nprc(k)-npsacwi(k)-npsacwg(k))
-        ni3dten(k) = ni3dten(k)+(nnuccc(k)-nprci(k)-nprai(k)+nmults(k)+nmultg(k)+nmultr(k)+nmultrg(k)+nnuccd(k)-niacr(k)-niacrs(k))
-        nr3dten(k) = nr3dten(k)+(nprc1(k)-npracs(k)-nnuccr(k)+nragg(k)-niacr(k)-niacrs(k)-npracg(k)-ngracs(k))
-        c2prec (k) = pra(k)+prc(k)+psacws(k)+qmults(k)+qmultg(k)+psacwg(k)+pgsacw(k)+mnuccc(k)+psacwi(k)
-        dumt       = t3d(k)+dt*t3dten(k)
-        dumqv      = qv3d(k)+dt*qv3dten(k)
-        dum        = min( 0.99*pres(k) , polysvp(dumt,0) )
-        dumqss     = ep_2*dum/(pres(k)-dum)
-        dumqc      = qc3d(k)+dt*qc3dten(k)
-        dumqc      = max( dumqc , 0. )
-        dums       = dumqv-dumqss
-        pcc(k)     = dums/(1.+pow(xxlv(k),2)*dumqss/(cpm(k)*rv*pow(dumt,2)))/dt
-        if (pcc(k)*dt+dumqc < 0.) pcc(k) = -dumqc/dt
-        qv3dten(k) = qv3dten(k)-pcc(k)
-        t3dten (k) = t3dten (k)+pcc(k)*xxlv(k)/cpm(k)
-        qc3dten(k) = qc3dten(k)+pcc(k)
-        if (eprd(k) < 0.) then
-          dum      = eprd(k)*dt/qi3d(k)
-          dum      = max(-1.,dum)
-          nsubi(k) = dum*ni3d(k)/dt
-        endif
-        if (eprds(k) < 0.) then
-          dum      = eprds(k)*dt/qni3d(k)
-          dum      = max(-1.,dum)
-          nsubs(k) = dum*ns3d(k)/dt
-        endif
-        if (pre(k) < 0.) then
-          dum      = pre(k)*dt/qr3d(k)
-          dum      = max(-1.,dum)
-          nsubr(k) = dum*nr3d(k)/dt
-        endif
-        if (eprdg(k) < 0.) then
-          dum      = eprdg(k)*dt/qg3d(k)
-          dum      = max(-1.,dum)
-          nsubg(k) = dum*ng3d(k)/dt
-        endif
-        ni3dten(k) = ni3dten(k)+nsubi(k)
-        ns3dten(k) = ns3dten(k)+nsubs(k)
-        ng3dten(k) = ng3dten(k)+nsubg(k)
-        nr3dten(k) = nr3dten(k)+nsubr(k)
-      endif !!!!!! temperature
-      ltrue = 1
-    enddo
+      if (ltrue(i)==0) cycle
 
-    precrt  = 0.
-    snowrt  = 0.
-    snowprt = 0.
-    grplprt = 0.
-
-    if (ltrue==0) return
-      nstep = 1
-      do k = kte,kts,-1
-        dumi  (k) = qi3d (k)+qi3dten (k)*dt
-        dumqs (k) = qni3d(k)+qni3dten(k)*dt
-        dumr  (k) = qr3d (k)+qr3dten (k)*dt
-        dumfni(k) = ni3d (k)+ni3dten (k)*dt
-        dumfns(k) = ns3d (k)+ns3dten (k)*dt
-        dumfnr(k) = nr3d (k)+nr3dten (k)*dt
-        dumc  (k) = qc3d (k)+qc3dten (k)*dt
-        dumfnc(k) = nc3d (k)+nc3dten (k)*dt
-        dumg  (k) = qg3d (k)+qg3dten (k)*dt
-        dumfng(k) = ng3d (k)+ng3dten (k)*dt
-        if (iinum==1) dumfnc(k) = nc3d(k)
-        dumfni(k) = max( 0. , dumfni(k) )
-        dumfns(k) = max( 0. , dumfns(k) )
-        dumfnc(k) = max( 0. , dumfnc(k) )
-        dumfnr(k) = max( 0. , dumfnr(k) )
-        dumfng(k) = max( 0. , dumfng(k) )
-        if (dumi(k) >= qsmall) then
-          dlami = pow(cons12*dumfni(k)/dumi(k),1./di)
-          dlami = max( dlami , lammini )
-          dlami = min( dlami , lammaxi )
+      nstep(i) = 1
+      do k = nz,1,-1
+        dumi(i,k) = qi3d (i,k)+qi3dten (i,k)*dt
+        dumqs(i,k) = qni3d(i,k)+qni3dten(i,k)*dt
+        dumr(i,k) = qr3d (i,k)+qr3dten (i,k)*dt
+        dumfni(i,k) = ni3d (i,k)+ni3dten (i,k)*dt
+        dumfns(i,k) = ns3d (i,k)+ns3dten (i,k)*dt
+        dumfnr(i,k) = nr3d (i,k)+nr3dten (i,k)*dt
+        dumc(i,k) = qc3d (i,k)+qc3dten (i,k)*dt
+        dumfnc(i,k) = nc3d (i,k)+nc3dten (i,k)*dt
+        dumg(i,k) = qg3d (i,k)+qg3dten (i,k)*dt
+        dumfng(i,k) = ng3d (i,k)+ng3dten (i,k)*dt
+        if (iinum==1) dumfnc(i,k) = nc3d(i,k)
+        dumfni(i,k) = max( 0. , dumfni(i,k) )
+        dumfns(i,k) = max( 0. , dumfns(i,k) )
+        dumfnc(i,k) = max( 0. , dumfnc(i,k) )
+        dumfnr(i,k) = max( 0. , dumfnr(i,k) )
+        dumfng(i,k) = max( 0. , dumfng(i,k) )
+        if (dumi(i,k) >= qsmall) then
+          dlami(i) = pow(cons12*dumfni(i,k)/dumi(i,k),1./di)
+          dlami(i) = max( dlami(i) , lammini )
+          dlami(i) = min( dlami(i) , lammaxi )
         endif
-        if (dumr(k) >= qsmall) then
-          dlamr = pow(pi*rhow*dumfnr(k)/dumr(k),1./3.)
-          dlamr = max( dlamr , lamminr )
-          dlamr = min( dlamr , lammaxr )
+        if (dumr(i,k) >= qsmall) then
+          dlamr(i) = pow(pi*rhow*dumfnr(i,k)/dumr(i,k),1./3.)
+          dlamr(i) = max( dlamr(i) , lamminr )
+          dlamr(i) = min( dlamr(i) , lammaxr )
         endif
-        if (dumc(k) >= qsmall) then
-          dum     = pres(k)/(287.15*t3d(k))
-          pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k) = 1./(pow(pgam(k),2))-1.
-          pgam(k) = max(pgam(k),2.)
-          pgam(k) = min(pgam(k),10.)
-          dlamc   = pow(cons26*dumfnc(k)*gamma(pgam(k)+4.)/(dumc(k)*gamma(pgam(k)+1.)),1./3.)
-          lammin  = (pgam(k)+1.)/60.e-6
-          lammax  = (pgam(k)+1.)/1.e-6
-          dlamc   = max(dlamc,lammin)
-          dlamc   = min(dlamc,lammax)
+        if (dumc(i,k) >= qsmall) then
+          dum     = pres(i,k)/(287.15*t3d(i,k))
+          pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714
+          pgam(i,k) = 1./(pow(pgam(i,k),2))-1.
+          pgam(i,k) = max(pgam(i,k),2.)
+          pgam(i,k) = min(pgam(i,k),10.)
+          dlamc(i)   = pow(cons26*dumfnc(i,k)*gamma(pgam(i,k)+4.)/(dumc(i,k)*gamma(pgam(i,k)+1.)),1./3.)
+          lammin(i)  = (pgam(i,k)+1.)/60.e-6
+          lammax(i)  = (pgam(i,k)+1.)/1.e-6
+          dlamc(i)   = max(dlamc(i),lammin(i))
+          dlamc(i)   = min(dlamc(i),lammax(i))
         endif
-        if (dumqs(k) >= qsmall) then
-          dlams = pow(cons1*dumfns(k)/ dumqs(k),1./ds)
-          dlams=max(dlams,lammins)
-          dlams=min(dlams,lammaxs)
+        if (dumqs(i,k) >= qsmall) then
+          dlams(i) = pow(cons1*dumfns(i,k)/ dumqs(i,k),1./ds)
+          dlams(i)=max(dlams(i),lammins)
+          dlams(i)=min(dlams(i),lammaxs)
         endif
-        if (dumg(k) >= qsmall) then
-          dlamg = pow(cons2*dumfng(k)/ dumg(k),1./dg)
-          dlamg=max(dlamg,lamming)
-          dlamg=min(dlamg,lammaxg)
+        if (dumg(i,k) >= qsmall) then
+          dlamg(i) = pow(cons2*dumfng(i,k)/ dumg(i,k),1./dg)
+          dlamg(i)=max(dlamg(i),lamming)
+          dlamg(i)=min(dlamg(i),lammaxg)
         endif
-        if (dumc(k) >= qsmall) then
-          unc =  acn(k)*gamma(1.+bc+pgam(k))/ (pow(dlamc,bc)*gamma(pgam(k)+1.))
-          umc = acn(k)*gamma(4.+bc+pgam(k))/  (pow(dlamc,bc)*gamma(pgam(k)+4.))
+        if (dumc(i,k) >= qsmall) then
+          unc(i) =  acn(i,k)*gamma(1.+bc+pgam(i,k))/ (pow(dlamc(i),bc)*gamma(pgam(i,k)+1.))
+          umc(i) = acn(i,k)*gamma(4.+bc+pgam(i,k))/  (pow(dlamc(i),bc)*gamma(pgam(i,k)+4.))
         else
-          umc = 0.
-          unc = 0.
+          umc(i) = 0.
+          unc(i) = 0.
         endif
-        if (dumi(k) >= qsmall) then
-          uni = ain(k)*cons27/pow(dlami,bi)
-          umi = ain(k)*cons28/pow(dlami,bi)
+        if (dumi(i,k) >= qsmall) then
+          uni(i) = ain(i,k)*cons27/pow(dlami(i),bi)
+          umi(i) = ain(i,k)*cons28/pow(dlami(i),bi)
         else
-          umi = 0.
-          uni = 0.
+          umi(i) = 0.
+          uni(i) = 0.
         endif
-        if (dumr(k) >= qsmall) then
-          unr = arn(k)*cons6/pow(dlamr,br)
-          umr = arn(k)*cons4/pow(dlamr,br)
+        if (dumr(i,k) >= qsmall) then
+          unr(i) = arn(i,k)*cons6/pow(dlamr(i),br)
+          umr(i) = arn(i,k)*cons4/pow(dlamr(i),br)
         else
-          umr = 0.
-          unr = 0.
+          umr(i) = 0.
+          unr(i) = 0.
         endif
-        if (dumqs(k) >= qsmall) then
-          ums = asn(k)*cons3/pow(dlams,bs)
-          uns = asn(k)*cons5/pow(dlams,bs)
+        if (dumqs(i,k) >= qsmall) then
+          ums(i) = asn(i,k)*cons3/pow(dlams(i),bs)
+          uns(i) = asn(i,k)*cons5/pow(dlams(i),bs)
         else
-          ums = 0.
-          uns = 0.
+          ums(i) = 0.
+          uns(i) = 0.
         endif
-        if (dumg(k) >= qsmall) then
-          umg = agn(k)*cons7/pow(dlamg,bg)
-          ung = agn(k)*cons8/pow(dlamg,bg)
+        if (dumg(i,k) >= qsmall) then
+          umg(i) = agn(i,k)*cons7/pow(dlamg(i),bg)
+          ung(i) = agn(i,k)*cons8/pow(dlamg(i),bg)
         else
-          umg = 0.
-          ung = 0.
+          umg(i) = 0.
+          ung(i) = 0.
         endif
-        dum    = pow(rhosu/rho(k),0.54)
-        ums    = min(ums,1.2*dum)
-        uns    = min(uns,1.2*dum)
-        umi    = min(umi,1.2*pow(rhosu/rho(k),0.35))
-        uni    = min(uni,1.2*pow(rhosu/rho(k),0.35))
-        umr    = min(umr,9.1*dum)
-        unr    = min(unr,9.1*dum)
-        umg    = min(umg,20.*dum)
-        ung    = min(ung,20.*dum)
-        fr (k) = umr
-        fi (k) = umi
-        fni(k) = uni
-        fs (k) = ums
-        fns(k) = uns
-        fnr(k) = unr
-        fc (k) = umc
-        fnc(k) = unc
-        fg (k) = umg
-        fng(k) = ung
-        if (k <= kte-1) then
-          if (fr (k) < 1.e-10) fr (k) = fr (k+1)
-          if (fi (k) < 1.e-10) fi (k) = fi (k+1)
-          if (fni(k) < 1.e-10) fni(k) = fni(k+1)
-          if (fs (k) < 1.e-10) fs (k) = fs (k+1)
-          if (fns(k) < 1.e-10) fns(k) = fns(k+1)
-          if (fnr(k) < 1.e-10) fnr(k) = fnr(k+1)
-          if (fc (k) < 1.e-10) fc (k) = fc (k+1)
-          if (fnc(k) < 1.e-10) fnc(k) = fnc(k+1)
-          if (fg (k) < 1.e-10) fg (k) = fg (k+1)
-          if (fng(k) < 1.e-10) fng(k) = fng(k+1)
-        endif ! k le kte-1
-        rgvm = max(fr(k),fi(k),fs(k),fc(k),fni(k),fnr(k),fns(k),fnc(k),fg(k),fng(k))
-        nstep = max(int(rgvm*dt/dzq(k)+1.),nstep)
-        dumr  (k) = dumr  (k)*rho(k)
-        dumi  (k) = dumi  (k)*rho(k)
-        dumfni(k) = dumfni(k)*rho(k)
-        dumqs (k) = dumqs (k)*rho(k)
-        dumfns(k) = dumfns(k)*rho(k)
-        dumfnr(k) = dumfnr(k)*rho(k)
-        dumc  (k) = dumc  (k)*rho(k)
-        dumfnc(k) = dumfnc(k)*rho(k)
-        dumg  (k) = dumg  (k)*rho(k)
-        dumfng(k) = dumfng(k)*rho(k)
+        dum    = pow(rhosu/rho(i,k),0.54)
+        ums(i)    = min(ums(i),1.2*dum)
+        uns(i)    = min(uns(i),1.2*dum)
+        umi(i)    = min(umi(i),1.2*pow(rhosu/rho(i,k),0.35))
+        uni(i)    = min(uni(i),1.2*pow(rhosu/rho(i,k),0.35))
+        umr(i)    = min(umr(i),9.1*dum)
+        unr(i)    = min(unr(i),9.1*dum)
+        umg(i)    = min(umg(i),20.*dum)
+        ung(i)    = min(ung(i),20.*dum)
+        fr(i,k) = umr(i)
+        fi(i,k) = umi(i)
+        fni(i,k) = uni(i)
+        fs(i,k) = ums(i)
+        fns(i,k) = uns(i)
+        fnr(i,k) = unr(i)
+        fc(i,k) = umc(i)
+        fnc(i,k) = unc(i)
+        fg(i,k) = umg(i)
+        fng(i,k) = ung(i)
+        if (k <= nz-1) then
+          if (fr(i,k) < 1.e-10) fr(i,k) = fr (i,k+1)
+          if (fi(i,k) < 1.e-10) fi(i,k) = fi (i,k+1)
+          if (fni(i,k) < 1.e-10) fni(i,k) = fni(i,k+1)
+          if (fs(i,k) < 1.e-10) fs(i,k) = fs (i,k+1)
+          if (fns(i,k) < 1.e-10) fns(i,k) = fns(i,k+1)
+          if (fnr(i,k) < 1.e-10) fnr(i,k) = fnr(i,k+1)
+          if (fc(i,k) < 1.e-10) fc(i,k) = fc (i,k+1)
+          if (fnc(i,k) < 1.e-10) fnc(i,k) = fnc(i,k+1)
+          if (fg(i,k) < 1.e-10) fg(i,k) = fg (i,k+1)
+          if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1)
+        endif ! k le nz-1
+        rgvm(i) = max(fr(i,k),fi(i,k),fs(i,k),fc(i,k),fni(i,k),fnr(i,k),fns(i,k),fnc(i,k),fg(i,k),fng(i,k))
+        nstep(i) = max(int(rgvm(i)*dt/dzq(i,k)+1.),nstep(i))
+        dumr(i,k) = dumr(i,k)*rho(i,k)
+        dumi(i,k) = dumi(i,k)*rho(i,k)
+        dumfni(i,k) = dumfni(i,k)*rho(i,k)
+        dumqs(i,k) = dumqs(i,k)*rho(i,k)
+        dumfns(i,k) = dumfns(i,k)*rho(i,k)
+        dumfnr(i,k) = dumfnr(i,k)*rho(i,k)
+        dumc(i,k) = dumc(i,k)*rho(i,k)
+        dumfnc(i,k) = dumfnc(i,k)*rho(i,k)
+        dumg(i,k) = dumg(i,k)*rho(i,k)
+        dumfng(i,k) = dumfng(i,k)*rho(i,k)
       enddo
 
-      do n = 1,nstep
-        do k = kts,kte
-          faloutr (k) = fr (k)*dumr  (k)
-          falouti (k) = fi (k)*dumi  (k)
-          faloutni(k) = fni(k)*dumfni(k)
-          falouts (k) = fs (k)*dumqs (k)
-          faloutns(k) = fns(k)*dumfns(k)
-          faloutnr(k) = fnr(k)*dumfnr(k)
-          faloutc (k) = fc (k)*dumc  (k)
-          faloutnc(k) = fnc(k)*dumfnc(k)
-          faloutg (k) = fg (k)*dumg  (k)
-          faloutng(k) = fng(k)*dumfng(k)
+      do n = 1,nstep(i)
+        do k = 1,nz
+          faloutr(i,k) = fr(i,k)*dumr(i,k)
+          falouti(i,k) = fi(i,k)*dumi(i,k)
+          faloutni(i,k) = fni(i,k)*dumfni(i,k)
+          falouts(i,k) = fs(i,k)*dumqs(i,k)
+          faloutns(i,k) = fns(i,k)*dumfns(i,k)
+          faloutnr(i,k) = fnr(i,k)*dumfnr(i,k)
+          faloutc(i,k) = fc(i,k)*dumc(i,k)
+          faloutnc(i,k) = fnc(i,k)*dumfnc(i,k)
+          faloutg(i,k) = fg(i,k)*dumg(i,k)
+          faloutng(i,k) = fng(i,k)*dumfng(i,k)
         enddo
-        k        = kte
-        faltndr  = faloutr (k)/dzq(k)
-        faltndi  = falouti (k)/dzq(k)
-        faltndni = faloutni(k)/dzq(k)
-        faltnds  = falouts (k)/dzq(k)
-        faltndns = faloutns(k)/dzq(k)
-        faltndnr = faloutnr(k)/dzq(k)
-        faltndc  = faloutc (k)/dzq(k)
-        faltndnc = faloutnc(k)/dzq(k)
-        faltndg  = faloutg (k)/dzq(k)
-        faltndng = faloutng(k)/dzq(k)
-        qrsten (k) = qrsten (k)-faltndr /nstep/rho(k)
-        qisten (k) = qisten (k)-faltndi /nstep/rho(k)
-        ni3dten(k) = ni3dten(k)-faltndni/nstep/rho(k)
-        qnisten(k) = qnisten(k)-faltnds /nstep/rho(k)
-        ns3dten(k) = ns3dten(k)-faltndns/nstep/rho(k)
-        nr3dten(k) = nr3dten(k)-faltndnr/nstep/rho(k)
-        qcsten (k) = qcsten (k)-faltndc /nstep/rho(k)
-        nc3dten(k) = nc3dten(k)-faltndnc/nstep/rho(k)
-        qgsten (k) = qgsten (k)-faltndg /nstep/rho(k)
-        ng3dten(k) = ng3dten(k)-faltndng/nstep/rho(k)
-        dumr  (k) = dumr  (k)-faltndr *dt/nstep
-        dumi  (k) = dumi  (k)-faltndi *dt/nstep
-        dumfni(k) = dumfni(k)-faltndni*dt/nstep
-        dumqs (k) = dumqs (k)-faltnds *dt/nstep
-        dumfns(k) = dumfns(k)-faltndns*dt/nstep
-        dumfnr(k) = dumfnr(k)-faltndnr*dt/nstep
-        dumc  (k) = dumc  (k)-faltndc *dt/nstep
-        dumfnc(k) = dumfnc(k)-faltndnc*dt/nstep
-        dumg  (k) = dumg  (k)-faltndg *dt/nstep
-        dumfng(k) = dumfng(k)-faltndng*dt/nstep
-        do k = kte-1,kts,-1
-          faltndr  = (faloutr (k+1)-faloutr (k))/dzq(k)
-          faltndi  = (falouti (k+1)-falouti (k))/dzq(k)
-          faltndni = (faloutni(k+1)-faloutni(k))/dzq(k)
-          faltnds  = (falouts (k+1)-falouts (k))/dzq(k)
-          faltndns = (faloutns(k+1)-faloutns(k))/dzq(k)
-          faltndnr = (faloutnr(k+1)-faloutnr(k))/dzq(k)
-          faltndc  = (faloutc (k+1)-faloutc (k))/dzq(k)
-          faltndnc = (faloutnc(k+1)-faloutnc(k))/dzq(k)
-          faltndg  = (faloutg (k+1)-faloutg (k))/dzq(k)
-          faltndng = (faloutng(k+1)-faloutng(k))/dzq(k)
-          qrsten (k) = qrsten (k)+faltndr /nstep/rho(k)
-          qisten (k) = qisten (k)+faltndi /nstep/rho(k)
-          ni3dten(k) = ni3dten(k)+faltndni/nstep/rho(k)
-          qnisten(k) = qnisten(k)+faltnds /nstep/rho(k)
-          ns3dten(k) = ns3dten(k)+faltndns/nstep/rho(k)
-          nr3dten(k) = nr3dten(k)+faltndnr/nstep/rho(k)
-          qcsten (k) = qcsten (k)+faltndc /nstep/rho(k)
-          nc3dten(k) = nc3dten(k)+faltndnc/nstep/rho(k)
-          qgsten (k) = qgsten (k)+faltndg /nstep/rho(k)
-          ng3dten(k) = ng3dten(k)+faltndng/nstep/rho(k)
-          dumr  (k) = dumr  (k)+faltndr *dt/nstep
-          dumi  (k) = dumi  (k)+faltndi *dt/nstep
-          dumfni(k) = dumfni(k)+faltndni*dt/nstep
-          dumqs (k) = dumqs (k)+faltnds *dt/nstep
-          dumfns(k) = dumfns(k)+faltndns*dt/nstep
-          dumfnr(k) = dumfnr(k)+faltndnr*dt/nstep
-          dumc  (k) = dumc  (k)+faltndc *dt/nstep
-          dumfnc(k) = dumfnc(k)+faltndnc*dt/nstep
-          dumg  (k) = dumg  (k)+faltndg *dt/nstep
-          dumfng(k) = dumfng(k)+faltndng*dt/nstep
-          csed(k)=csed(k)+faloutc(k)/nstep
-          ised(k)=ised(k)+falouti(k)/nstep
-          ssed(k)=ssed(k)+falouts(k)/nstep
-          gsed(k)=gsed(k)+faloutg(k)/nstep
-          rsed(k)=rsed(k)+faloutr(k)/nstep
+        k        = nz
+        faltndr(i)  = faloutr(i,k)/dzq(i,k)
+        faltndi(i)  = falouti(i,k)/dzq(i,k)
+        faltndni(i) = faloutni(i,k)/dzq(i,k)
+        faltnds(i)  = falouts(i,k)/dzq(i,k)
+        faltndns(i) = faloutns(i,k)/dzq(i,k)
+        faltndnr(i) = faloutnr(i,k)/dzq(i,k)
+        faltndc(i)  = faloutc(i,k)/dzq(i,k)
+        faltndnc(i) = faloutnc(i,k)/dzq(i,k)
+        faltndg(i)  = faloutg(i,k)/dzq(i,k)
+        faltndng(i) = faloutng(i,k)/dzq(i,k)
+        qrsten (i,k) = qrsten (i,k)-faltndr(i) /nstep(i)/rho(i,k)
+        qisten (i,k) = qisten (i,k)-faltndi(i) /nstep(i)/rho(i,k)
+        ni3dten(i,k) = ni3dten(i,k)-faltndni(i)/nstep(i)/rho(i,k)
+        qnisten(i,k) = qnisten(i,k)-faltnds(i) /nstep(i)/rho(i,k)
+        ns3dten(i,k) = ns3dten(i,k)-faltndns(i)/nstep(i)/rho(i,k)
+        nr3dten(i,k) = nr3dten(i,k)-faltndnr(i)/nstep(i)/rho(i,k)
+        qcsten (i,k) = qcsten (i,k)-faltndc(i) /nstep(i)/rho(i,k)
+        nc3dten(i,k) = nc3dten(i,k)-faltndnc(i)/nstep(i)/rho(i,k)
+        qgsten (i,k) = qgsten (i,k)-faltndg(i) /nstep(i)/rho(i,k)
+        ng3dten(i,k) = ng3dten(i,k)-faltndng(i)/nstep(i)/rho(i,k)
+        dumr(i,k) = dumr(i,k)-faltndr(i) *dt/nstep(i)
+        dumi(i,k) = dumi(i,k)-faltndi(i) *dt/nstep(i)
+        dumfni(i,k) = dumfni(i,k)-faltndni(i)*dt/nstep(i)
+        dumqs(i,k) = dumqs(i,k)-faltnds(i) *dt/nstep(i)
+        dumfns(i,k) = dumfns(i,k)-faltndns(i)*dt/nstep(i)
+        dumfnr(i,k) = dumfnr(i,k)-faltndnr(i)*dt/nstep(i)
+        dumc(i,k) = dumc(i,k)-faltndc(i) *dt/nstep(i)
+        dumfnc(i,k) = dumfnc(i,k)-faltndnc(i)*dt/nstep(i)
+        dumg(i,k) = dumg(i,k)-faltndg(i) *dt/nstep(i)
+        dumfng(i,k) = dumfng(i,k)-faltndng(i)*dt/nstep(i)
+        do k = nz-1,1,-1
+          faltndr(i)  = (faloutr (i,k+1)-faloutr(i,k))/dzq(i,k)
+          faltndi(i)  = (falouti (i,k+1)-falouti(i,k))/dzq(i,k)
+          faltndni(i) = (faloutni(i,k+1)-faloutni(i,k))/dzq(i,k)
+          faltnds(i)  = (falouts (i,k+1)-falouts(i,k))/dzq(i,k)
+          faltndns(i) = (faloutns(i,k+1)-faloutns(i,k))/dzq(i,k)
+          faltndnr(i) = (faloutnr(i,k+1)-faloutnr(i,k))/dzq(i,k)
+          faltndc(i)  = (faloutc (i,k+1)-faloutc(i,k))/dzq(i,k)
+          faltndnc(i) = (faloutnc(i,k+1)-faloutnc(i,k))/dzq(i,k)
+          faltndg(i)  = (faloutg (i,k+1)-faloutg(i,k))/dzq(i,k)
+          faltndng(i) = (faloutng(i,k+1)-faloutng(i,k))/dzq(i,k)
+          qrsten (i,k) = qrsten (i,k)+faltndr(i) /nstep(i)/rho(i,k)
+          qisten (i,k) = qisten (i,k)+faltndi(i) /nstep(i)/rho(i,k)
+          ni3dten(i,k) = ni3dten(i,k)+faltndni(i)/nstep(i)/rho(i,k)
+          qnisten(i,k) = qnisten(i,k)+faltnds(i) /nstep(i)/rho(i,k)
+          ns3dten(i,k) = ns3dten(i,k)+faltndns(i)/nstep(i)/rho(i,k)
+          nr3dten(i,k) = nr3dten(i,k)+faltndnr(i)/nstep(i)/rho(i,k)
+          qcsten (i,k) = qcsten (i,k)+faltndc(i) /nstep(i)/rho(i,k)
+          nc3dten(i,k) = nc3dten(i,k)+faltndnc(i)/nstep(i)/rho(i,k)
+          qgsten (i,k) = qgsten (i,k)+faltndg(i) /nstep(i)/rho(i,k)
+          ng3dten(i,k) = ng3dten(i,k)+faltndng(i)/nstep(i)/rho(i,k)
+          dumr(i,k) = dumr(i,k)+faltndr(i) *dt/nstep(i)
+          dumi(i,k) = dumi(i,k)+faltndi(i) *dt/nstep(i)
+          dumfni(i,k) = dumfni(i,k)+faltndni(i)*dt/nstep(i)
+          dumqs(i,k) = dumqs(i,k)+faltnds(i) *dt/nstep(i)
+          dumfns(i,k) = dumfns(i,k)+faltndns(i)*dt/nstep(i)
+          dumfnr(i,k) = dumfnr(i,k)+faltndnr(i)*dt/nstep(i)
+          dumc(i,k) = dumc(i,k)+faltndc(i) *dt/nstep(i)
+          dumfnc(i,k) = dumfnc(i,k)+faltndnc(i)*dt/nstep(i)
+          dumg(i,k) = dumg(i,k)+faltndg(i) *dt/nstep(i)
+          dumfng(i,k) = dumfng(i,k)+faltndng(i)*dt/nstep(i)
+          csed(i,k)=csed(i,k)+faloutc(i,k)/nstep(i)
+          ised(i,k)=ised(i,k)+falouti(i,k)/nstep(i)
+          ssed(i,k)=ssed(i,k)+falouts(i,k)/nstep(i)
+          gsed(i,k)=gsed(i,k)+faloutg(i,k)/nstep(i)
+          rsed(i,k)=rsed(i,k)+faloutr(i,k)/nstep(i)
         enddo
-        precrt  = precrt +(faloutr(kts)+faloutc(kts)+falouts(kts)+falouti(kts)+faloutg(kts))*dt/nstep
-        snowrt  = snowrt +(falouts(kts)+falouti(kts)+faloutg(kts))*dt/nstep
-        snowprt = snowprt+(falouti(kts)+falouts(kts))*dt/nstep
-        grplprt = grplprt+(faloutg(kts))*dt/nstep
-      enddo ! nstep
+        precrt (i) = precrt (i)+(faloutr(i,1)+faloutc(i,1)+falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i)
+        snowrt (i) = snowrt (i)+(falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i)
+        snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i)
+        grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i)
+      enddo ! nstep(i)
 
-      do k=kts,kte
-        qr3dten (k) = qr3dten (k) + qrsten (k)
-        qi3dten (k) = qi3dten (k) + qisten (k)
-        qc3dten (k) = qc3dten (k) + qcsten (k)
-        qg3dten (k) = qg3dten (k) + qgsten (k)
-        qni3dten(k) = qni3dten(k) + qnisten(k)
-        if (qi3d(k) >= qsmall.and.t3d(k) < 273.15.and.lami(k) >= 1.e-10) then
-          if (1./lami(k) >= 2.*dcs) then
-            qni3dten(k) = qni3dten(k)+qi3d(k)/dt+ qi3dten(k)
-            ns3dten(k) = ns3dten(k)+ni3d(k)/dt+   ni3dten(k)
-            qi3dten(k) = -qi3d(k)/dt
-            ni3dten(k) = -ni3d(k)/dt
+      do k=1,nz
+        qr3dten (i,k) = qr3dten (i,k) + qrsten (i,k)
+        qi3dten (i,k) = qi3dten (i,k) + qisten (i,k)
+        qc3dten (i,k) = qc3dten (i,k) + qcsten (i,k)
+        qg3dten (i,k) = qg3dten (i,k) + qgsten (i,k)
+        qni3dten(i,k) = qni3dten(i,k) + qnisten(i,k)
+        if (qi3d(i,k) >= qsmall.and.t3d(i,k) < 273.15.and.lami(i,k) >= 1.e-10) then
+          if (1./lami(i,k) >= 2.*dcs) then
+            qni3dten(i,k) = qni3dten(i,k)+qi3d(i,k)/dt+ qi3dten(i,k)
+            ns3dten(i,k) = ns3dten(i,k)+ni3d(i,k)/dt+   ni3dten(i,k)
+            qi3dten(i,k) = -qi3d(i,k)/dt
+            ni3dten(i,k) = -ni3d(i,k)/dt
           endif
         endif
-        qc3d (k) = qc3d (k)+qc3dten (k)*dt
-        qi3d (k) = qi3d (k)+qi3dten (k)*dt
-        qni3d(k) = qni3d(k)+qni3dten(k)*dt
-        qr3d (k) = qr3d (k)+qr3dten (k)*dt
-        nc3d (k) = nc3d (k)+nc3dten (k)*dt
-        ni3d (k) = ni3d (k)+ni3dten (k)*dt
-        ns3d (k) = ns3d (k)+ns3dten (k)*dt
-        nr3d (k) = nr3d (k)+nr3dten (k)*dt
+        qc3d (i,k) = qc3d (i,k)+qc3dten (i,k)*dt
+        qi3d (i,k) = qi3d (i,k)+qi3dten (i,k)*dt
+        qni3d(i,k) = qni3d(i,k)+qni3dten(i,k)*dt
+        qr3d (i,k) = qr3d (i,k)+qr3dten (i,k)*dt
+        nc3d (i,k) = nc3d (i,k)+nc3dten (i,k)*dt
+        ni3d (i,k) = ni3d (i,k)+ni3dten (i,k)*dt
+        ns3d (i,k) = ns3d (i,k)+ns3dten (i,k)*dt
+        nr3d (i,k) = nr3d (i,k)+nr3dten (i,k)*dt
         if (igraup==0) then
-          qg3d(k) = qg3d(k)+qg3dten(k)*dt
-          ng3d(k) = ng3d(k)+ng3dten(k)*dt
+          qg3d(i,k) = qg3d(i,k)+qg3dten(i,k)*dt
+          ng3d(i,k) = ng3d(i,k)+ng3dten(i,k)*dt
         endif
-        t3d (k) = t3d (k)+t3dten (k)*dt
-        qv3d(k) = qv3d(k)+qv3dten(k)*dt
-        evs (k) = min( 0.99*pres(k) , polysvp(t3d(k),0) )   ! pa
-        eis (k) = min( 0.99*pres(k) , polysvp(t3d(k),1) )   ! pa
-        if (eis(k) > evs(k)) eis(k) = evs(k)
-        qvs   (k) = ep_2*evs(k)/(pres(k)-evs(k))
-        qvi   (k) = ep_2*eis(k)/(pres(k)-eis(k))
-        qvqvs (k) = qv3d(k)/qvs(k)
-        qvqvsi(k) = qv3d(k)/qvi(k)
-        if (qvqvs(k) < 0.9) then
-          if (qr3d(k) < 1.e-8) then
-            qv3d(k)=qv3d(k)+qr3d(k)
-            t3d (k)=t3d (k)-qr3d(k)*xxlv(k)/cpm(k)
-            qr3d(k)=0.
+        t3d (i,k) = t3d (i,k)+t3dten (i,k)*dt
+        qv3d(i,k) = qv3d(i,k)+qv3dten(i,k)*dt
+        evs(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),0) )   ! pa
+        eis(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),1) )   ! pa
+        if (eis(i,k) > evs(i,k)) eis(i,k) = evs(i,k)
+        qvs(i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k))
+        qvi(i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k))
+        qvqvs(i,k) = qv3d(i,k)/qvs(i,k)
+        qvqvsi(i,k) = qv3d(i,k)/qvi(i,k)
+        if (qvqvs(i,k) < 0.9) then
+          if (qr3d(i,k) < 1.e-8) then
+            qv3d(i,k)=qv3d(i,k)+qr3d(i,k)
+            t3d (i,k)=t3d (i,k)-qr3d(i,k)*xxlv(i,k)/cpm(i,k)
+            qr3d(i,k)=0.
           endif
-          if (qc3d(k) < 1.e-8) then
-            qv3d(k)=qv3d(k)+qc3d(k)
-            t3d (k)=t3d (k)-qc3d(k)*xxlv(k)/cpm(k)
-            qc3d(k)=0.
-          endif
-        endif
-        if (qvqvsi(k) < 0.9) then
-          if (qi3d(k) < 1.e-8) then
-            qv3d(k)=qv3d(k)+qi3d(k)
-            t3d (k)=t3d (k)-qi3d(k)*xxls(k)/cpm(k)
-            qi3d(k)=0.
-          endif
-          if (qni3d(k) < 1.e-8) then
-            qv3d (k)=qv3d(k)+qni3d(k)
-            t3d  (k)=t3d (k)-qni3d(k)*xxls(k)/cpm(k)
-            qni3d(k)=0.
-          endif
-          if (qg3d(k) < 1.e-8) then
-            qv3d(k)=qv3d(k)+qg3d(k)
-            t3d (k)=t3d (k)-qg3d(k)*xxls(k)/cpm(k)
-            qg3d(k)=0.
+          if (qc3d(i,k) < 1.e-8) then
+            qv3d(i,k)=qv3d(i,k)+qc3d(i,k)
+            t3d (i,k)=t3d (i,k)-qc3d(i,k)*xxlv(i,k)/cpm(i,k)
+            qc3d(i,k)=0.
           endif
         endif
-        if (qc3d(k) < qsmall) then
-          qc3d(k) = 0.
-          nc3d(k) = 0.
-          effc(k) = 0.
+        if (qvqvsi(i,k) < 0.9) then
+          if (qi3d(i,k) < 1.e-8) then
+            qv3d(i,k)=qv3d(i,k)+qi3d(i,k)
+            t3d (i,k)=t3d (i,k)-qi3d(i,k)*xxls(i,k)/cpm(i,k)
+            qi3d(i,k)=0.
+          endif
+          if (qni3d(i,k) < 1.e-8) then
+            qv3d (i,k)=qv3d(i,k)+qni3d(i,k)
+            t3d  (i,k)=t3d (i,k)-qni3d(i,k)*xxls(i,k)/cpm(i,k)
+            qni3d(i,k)=0.
+          endif
+          if (qg3d(i,k) < 1.e-8) then
+            qv3d(i,k)=qv3d(i,k)+qg3d(i,k)
+            t3d (i,k)=t3d (i,k)-qg3d(i,k)*xxls(i,k)/cpm(i,k)
+            qg3d(i,k)=0.
+          endif
         endif
-        if (qr3d(k) < qsmall) then
-          qr3d(k) = 0.
-          nr3d(k) = 0.
-          effr(k) = 0.
+        if (qc3d(i,k) < qsmall) then
+          qc3d(i,k) = 0.
+          nc3d(i,k) = 0.
+          effc(i,k) = 0.
         endif
-        if (qi3d(k) < qsmall) then
-          qi3d(k) = 0.
-          ni3d(k) = 0.
-          effi(k) = 0.
+        if (qr3d(i,k) < qsmall) then
+          qr3d(i,k) = 0.
+          nr3d(i,k) = 0.
+          effr(i,k) = 0.
         endif
-        if (qni3d(k) < qsmall) then
-          qni3d(k) = 0.
-          ns3d (k) = 0.
-          effs (k) = 0.
+        if (qi3d(i,k) < qsmall) then
+          qi3d(i,k) = 0.
+          ni3d(i,k) = 0.
+          effi(i,k) = 0.
         endif
-        if (qg3d(k) < qsmall) then
-          qg3d(k) = 0.
-          ng3d(k) = 0.
-          effg(k) = 0.
+        if (qni3d(i,k) < qsmall) then
+          qni3d(i,k) = 0.
+          ns3d (i,k) = 0.
+          effs (i,k) = 0.
         endif
-        if (.not. (qc3d(k) < qsmall.and.qi3d(k) < qsmall.and.qni3d(k) < qsmall .and.qr3d(k) < qsmall.and.qg3d(k) < qsmall)) then
-          if (qi3d(k) >= qsmall.and.t3d(k) >= 273.15) then
-            qr3d(k) = qr3d(k)+qi3d(k)
-            t3d(k) = t3d(k)-qi3d(k)*xlf(k)/cpm(k)
-            qi3d(k) = 0.
-            nr3d(k) = nr3d(k)+ni3d(k)
-            ni3d(k) = 0.
+        if (qg3d(i,k) < qsmall) then
+          qg3d(i,k) = 0.
+          ng3d(i,k) = 0.
+          effg(i,k) = 0.
+        endif
+        if (.not. (qc3d(i,k) < qsmall.and.qi3d(i,k) < qsmall.and.qni3d(i,k) < qsmall .and.qr3d(i,k) < qsmall.and.qg3d(i,k) < qsmall)) then
+          if (qi3d(i,k) >= qsmall.and.t3d(i,k) >= 273.15) then
+            qr3d(i,k) = qr3d(i,k)+qi3d(i,k)
+            t3d(i,k) = t3d(i,k)-qi3d(i,k)*xlf(i,k)/cpm(i,k)
+            qi3d(i,k) = 0.
+            nr3d(i,k) = nr3d(i,k)+ni3d(i,k)
+            ni3d(i,k) = 0.
           endif
           if (iliq /= 1) then
-            if (t3d(k) <= 233.15.and.qc3d(k) >= qsmall) then
-              qi3d(k)=qi3d(k)+qc3d(k)
-              t3d (k)=t3d (k)+qc3d(k)*xlf(k)/cpm(k)
-              qc3d(k)=0.
-              ni3d(k)=ni3d(k)+nc3d(k)
-              nc3d(k)=0.
+            if (t3d(i,k) <= 233.15.and.qc3d(i,k) >= qsmall) then
+              qi3d(i,k)=qi3d(i,k)+qc3d(i,k)
+              t3d (i,k)=t3d (i,k)+qc3d(i,k)*xlf(i,k)/cpm(i,k)
+              qc3d(i,k)=0.
+              ni3d(i,k)=ni3d(i,k)+nc3d(i,k)
+              nc3d(i,k)=0.
             endif
             if (igraup==0) then
-              if (t3d(k) <= 233.15.and.qr3d(k) >= qsmall) then
-                 qg3d(k) = qg3d(k)+qr3d(k)
-                 t3d (k) = t3d (k)+qr3d(k)*xlf(k)/cpm(k)
-                 qr3d(k) = 0.
-                 ng3d(k) = ng3d(k)+ nr3d(k)
-                 nr3d(k) = 0.
+              if (t3d(i,k) <= 233.15.and.qr3d(i,k) >= qsmall) then
+                 qg3d(i,k) = qg3d(i,k)+qr3d(i,k)
+                 t3d (i,k) = t3d (i,k)+qr3d(i,k)*xlf(i,k)/cpm(i,k)
+                 qr3d(i,k) = 0.
+                 ng3d(i,k) = ng3d(i,k)+ nr3d(i,k)
+                 nr3d(i,k) = 0.
               endif
             else if (igraup==1) then
-              if (t3d(k) <= 233.15.and.qr3d(k) >= qsmall) then
-                qni3d(k) = qni3d(k)+qr3d(k)
-                t3d  (k) = t3d  (k)+qr3d(k)*xlf(k)/cpm(k)
-                qr3d (k) = 0.
-                ns3d (k) = ns3d (k)+nr3d(k)
-                nr3d (k) = 0.
+              if (t3d(i,k) <= 233.15.and.qr3d(i,k) >= qsmall) then
+                qni3d(i,k) = qni3d(i,k)+qr3d(i,k)
+                t3d  (i,k) = t3d  (i,k)+qr3d(i,k)*xlf(i,k)/cpm(i,k)
+                qr3d (i,k) = 0.
+                ns3d (i,k) = ns3d (i,k)+nr3d(i,k)
+                nr3d (i,k) = 0.
               endif
             endif
           endif
-          ni3d(k) = max( 0. , ni3d(k) )
-          ns3d(k) = max( 0. , ns3d(k) )
-          nc3d(k) = max( 0. , nc3d(k) )
-          nr3d(k) = max( 0. , nr3d(k) )
-          ng3d(k) = max( 0. , ng3d(k) )
-          if (qi3d(k) >= qsmall) then
-            lami(k) = pow(cons12*ni3d(k)/qi3d(k),1./di)
-            if (lami(k) < lammini) then
-              lami(k) = lammini
-              n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
-              ni3d(k) = n0i (k)/lami(k)
-            else if (lami(k) > lammaxi) then
-              lami(k) = lammaxi
-              n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
-              ni3d(k) = n0i (k)/lami(k)
+          ni3d(i,k) = max( 0. , ni3d(i,k) )
+          ns3d(i,k) = max( 0. , ns3d(i,k) )
+          nc3d(i,k) = max( 0. , nc3d(i,k) )
+          nr3d(i,k) = max( 0. , nr3d(i,k) )
+          ng3d(i,k) = max( 0. , ng3d(i,k) )
+          if (qi3d(i,k) >= qsmall) then
+            lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di)
+            if (lami(i,k) < lammini) then
+              lami(i,k) = lammini
+              n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12
+              ni3d(i,k) = n0i(i,k)/lami(i,k)
+            else if (lami(i,k) > lammaxi) then
+              lami(i,k) = lammaxi
+              n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12
+              ni3d(i,k) = n0i(i,k)/lami(i,k)
             endif
           endif
-        if (qr3d(k) >= qsmall) then
-          lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
-          if (lamr(k) < lamminr) then
-            lamr(k) = lamminr
-            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-            nr3d(k) = n0rr(k)/lamr(k)
-          else if (lamr(k) > lammaxr) then
-            lamr(k) = lammaxr
-            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
-            nr3d(k) = n0rr(k)/lamr(k)
+          if (qr3d(i,k) >= qsmall) then
+            lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.)
+            if (lamr(i,k) < lamminr) then
+              lamr(i,k) = lamminr
+              n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+              nr3d(i,k) = n0rr(i,k)/lamr(i,k)
+            else if (lamr(i,k) > lammaxr) then
+              lamr(i,k) = lammaxr
+              n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow)
+              nr3d(i,k) = n0rr(i,k)/lamr(i,k)
+            endif
+          endif
+          if (qc3d(i,k) >= qsmall) then
+            dum = pres(i,k)/(287.15*t3d(i,k))
+            pgam(i,k)=0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714
+            pgam(i,k)=1./(pow(pgam(i,k),2))-1.
+            pgam(i,k)=max(pgam(i,k),2.)
+            pgam(i,k)=min(pgam(i,k),10.)
+            lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.)
+            lammin(i) = (pgam(i,k)+1.)/60.e-6
+            lammax(i) = (pgam(i,k)+1.)/1.e-6
+            if (lamc(i,k) < lammin(i)) then
+              lamc(i,k) = lammin(i)
+              nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+            else if (lamc(i,k) > lammax(i)) then
+              lamc(i,k) = lammax(i)
+              nc3d(i,k) = exp(3.*log(lamc(i,k))+log(qc3d(i,k))+log(gamma(pgam(i,k)+1.))-log(gamma(pgam(i,k)+4.)))/cons26
+            endif
+          endif
+          if (qni3d(i,k) >= qsmall) then
+            lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds)
+            if (lams(i,k) < lammins) then
+              lams(i,k) = lammins
+              n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+              ns3d(i,k) = n0s(i,k)/lams(i,k)
+            else if (lams(i,k) > lammaxs) then
+              lams(i,k) = lammaxs
+              n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1
+              ns3d(i,k) = n0s(i,k)/lams(i,k)
+            endif
+          endif
+          if (qg3d(i,k) >= qsmall) then
+            lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg)
+            if (lamg(i,k) < lamming) then
+              lamg(i,k) = lamming
+              n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+              ng3d(i,k) = n0g(i,k)/lamg(i,k)
+            else if (lamg(i,k) > lammaxg) then
+              lamg(i,k) = lammaxg
+              n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2
+              ng3d(i,k) = n0g(i,k)/lamg(i,k)
+            endif
           endif
         endif
-        if (qc3d(k) >= qsmall) then
-          dum = pres(k)/(287.15*t3d(k))
-          pgam(k)=0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k)=1./(pow(pgam(k),2))-1.
-          pgam(k)=max(pgam(k),2.)
-          pgam(k)=min(pgam(k),10.)
-          lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
-          lammin = (pgam(k)+1.)/60.e-6
-          lammax = (pgam(k)+1.)/1.e-6
-          if (lamc(k) < lammin) then
-            lamc(k) = lammin
-            nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
-          else if (lamc(k) > lammax) then
-            lamc(k) = lammax
-            nc3d(k) = exp(3.*log(lamc(k))+log(qc3d(k))+log(gamma(pgam(k)+1.))-log(gamma(pgam(k)+4.)))/cons26
-          endif
+        if (qi3d(i,k) >= qsmall) then
+          effi(i,k) = 3./lami(i,k)/2.*1.e6
+        else
+          effi(i,k) = 25.
         endif
-        if (qni3d(k) >= qsmall) then
-          lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
-          if (lams(k) < lammins) then
-            lams(k) = lammins
-            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-            ns3d(k) = n0s (k)/lams(k)
-          else if (lams(k) > lammaxs) then
-            lams(k) = lammaxs
-            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
-            ns3d(k) = n0s (k)/lams(k)
-          endif
+        if (qni3d(i,k) >= qsmall) then
+          effs(i,k) = 3./lams(i,k)/2.*1.e6
+        else
+          effs(i,k) = 25.
         endif
-        if (qg3d(k) >= qsmall) then
-          lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
-          if (lamg(k) < lamming) then
-            lamg(k) = lamming
-            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-            ng3d(k) = n0g (k)/lamg(k)
-          else if (lamg(k) > lammaxg) then
-            lamg(k) = lammaxg
-            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
-            ng3d(k) = n0g (k)/lamg(k)
-          endif
+        if (qr3d(i,k) >= qsmall) then
+          effr(i,k) = 3./lamr(i,k)/2.*1.e6
+        else
+          effr(i,k) = 25.
         endif
-      endif
-      if (qi3d(k) >= qsmall) then
-        effi(k) = 3./lami(k)/2.*1.e6
-      else
-        effi(k) = 25.
-      endif
-      if (qni3d(k) >= qsmall) then
-        effs(k) = 3./lams(k)/2.*1.e6
-      else
-        effs(k) = 25.
-      endif
-      if (qr3d(k) >= qsmall) then
-        effr(k) = 3./lamr(k)/2.*1.e6
-      else
-        effr(k) = 25.
-      endif
-      if (qc3d(k) >= qsmall) then
-        effc(k) = gamma(pgam(k)+4.)/gamma(pgam(k)+3.)/lamc(k)/2.*1.e6
-      else
-        effc(k) = 25.
-      endif
-      if (qg3d(k) >= qsmall) then
-        effg(k) = 3./lamg(k)/2.*1.e6
-      else
-        effg(k) = 25.
-      endif
-      ni3d(k) = min( ni3d(k) , 0.3e6/rho(k) )
-      if (iinum==0.and.iact.eq.2) then
-        nc3d(k) = min( nc3d(k) , (nanew1+nanew2)/rho(k) )
-      endif
-      if (iinum==1) then 
-        nc3d(k) = ndcnst*1.e6/rho(k)
-      endif
-    enddo !!! k loop
+        if (qc3d(i,k) >= qsmall) then
+          effc(i,k) = gamma(pgam(i,k)+4.)/gamma(pgam(i,k)+3.)/lamc(i,k)/2.*1.e6
+        else
+          effc(i,k) = 25.
+        endif
+        if (qg3d(i,k) >= qsmall) then
+          effg(i,k) = 3./lamg(i,k)/2.*1.e6
+        else
+          effg(i,k) = 25.
+        endif
+        ni3d(i,k) = min( ni3d(i,k) , 0.3e6/rho(i,k) )
+        if (iinum==0.and.iact.eq.2) then
+          nc3d(i,k) = min( nc3d(i,k) , (nanew1+nanew2)/rho(i,k) )
+        endif
+        if (iinum==1) then 
+          nc3d(i,k) = ndcnst*1.e6/rho(i,k)
+        endif
+      enddo !!! k loop
+    enddo !!! i loop
   end subroutine morr_two_moment_micro
 
 
 
   real function polysvp (t,type)
     implicit none
-    real    :: dum
     real    :: t
     integer :: type
     ! ice

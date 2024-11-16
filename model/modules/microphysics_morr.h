@@ -5,15 +5,13 @@
 
 
 extern "C"
-void mp_morr_two_moment(int *itimestep, float *th, float *qv, float *qc, float *qr, float *qi, float *qs,
-                        float *qg, float *ni, float *ns, float *nr, float *ng, float *rho, float *pii,
-                        float *p, float *dt_in, float *dz, float *w, float *rainnc, float *rainncv,
+void mp_morr_two_moment(float *t, float *qv, float *qc, float *qr, float *qi, float *qs,
+                        float *qg, float *ni, float *ns, float *nr, float *ng, float *rho,
+                        float *p, float *dt_in, float *dz, float *rainnc, float *rainncv,
                         float *sr, float *snownc, float *snowncv, float *graupelnc, float *graupelncv,
-                        float *refl_10cm, int *diagflag, int *do_radar_ref, float *qrcuten, float *qscuten,
-                        float *qicuten, int *f_qndrop, float *qndrop, int *ids, int *ide,
-                        int *kds, int *kde, int *ims, int *ime, int *kms, int *kme, int *its,
-                        int *ite, int *kts, int *kte, int *wetscav_on, float *rainprod,
-                        float *evapprod, float *qlsink, float *precr, float *preci, float *precs, float *precg);
+                        float *qrcuten, float *qscuten,
+                        float *qicuten, int *ncol, int *nz,
+                        float *qlsink, float *precr, float *preci, float *precs, float *precg);
 
 
 extern "C"
@@ -125,7 +123,6 @@ namespace modules {
       auto dm_rho_gn    = dm.get_lev_col  <real>("graupel_num"    );
       auto dm_rho_dry   = dm.get_lev_col  <real>("density_dry"    );
       auto dm_temp      = dm.get_lev_col  <real>("temp"           );
-      auto dm_wvel      = dm.get_lev_col  <real>("wvel"           );
       auto dm_rainnc    = dm.get_collapsed<real>("micro_rainnc"   );
       auto dm_snownc    = dm.get_collapsed<real>("micro_snownc"   );
       auto dm_graupelnc = dm.get_collapsed<real>("micro_graupelnc");
@@ -134,10 +131,6 @@ namespace modules {
       dz_arr = dz;
 
       // Allocates inputs and outputs
-      int ids=1,ide=ncol , kds=1,kde=nz;
-      int ims=1,ime=ncol , kms=1,kme=nz;
-      int its=1,ite=ncol , kts=1,kte=nz;
-      int itimestep=1 , wetscav_on=0 , f_qndrop=0 , diagflag=0 , do_radar_ref=0;
       float dt_in=dt;
       float2d qv        ("qv        ",nz,ncol);
       float2d qc        ("qc        ",nz,ncol);
@@ -148,21 +141,15 @@ namespace modules {
       float2d ni        ("ni        ",nz,ncol);
       float2d ns        ("ns        ",nz,ncol);
       float2d nr        ("nr        ",nz,ncol);
-      float2d th        ("th        ",nz,ncol);
+      float2d t         ("t         ",nz,ncol);
       float2d ng        ("ng        ",nz,ncol);
-      float2d qndrop    ("qndrop    ",nz,ncol);
       float2d qlsink    ("qlsink    ",nz,ncol);
-      float2d rainprod  ("rainprod  ",nz,ncol);
-      float2d evapprod  ("evapprod  ",nz,ncol);
       float2d preci     ("preci     ",nz,ncol);
       float2d precs     ("precs     ",nz,ncol);
       float2d precg     ("precg     ",nz,ncol);
       float2d precr     ("precr     ",nz,ncol);
-      float2d pii       ("pii       ",nz,ncol);
       float2d p         ("p         ",nz,ncol);
-      float2d w         ("w         ",nz,ncol);
       float2d rho       ("rho       ",nz,ncol);
-      float2d refl_10cm ("refl_10cm ",nz,ncol);
       float2d qrcuten   ("qrcuten   ",nz,ncol);
       float2d qscuten   ("qscuten   ",nz,ncol);
       float2d qicuten   ("qicuten   ",nz,ncol);
@@ -195,20 +182,16 @@ namespace modules {
         nr     (k,i) = dm_rho_rn(k,i)/dm_rho_dry(k,i)/dm_rho_dry(k,i);
         ng     (k,i) = dm_rho_gn(k,i)/dm_rho_dry(k,i)/dm_rho_dry(k,i);
         p      (k,i) = R_d*dm_rho_dry(k,i)*dm_temp(k,i) + R_v*dm_rho_v(k,i)*dm_temp(k,i);
-        pii    (k,i) = pow( p(k,i) / p0 , R_d / cp_d );
-        th     (k,i) = dm_temp(k,i) / pii(k,i);
-        w      (k,i) = dm_wvel(k,i);
+        t      (k,i) = dm_temp(k,i);
         qrcuten(k,i) = 0;
         qscuten(k,i) = 0;
         qicuten(k,i) = 0;
-        qndrop (k,i) = 0;
         if (k == 0) {
           rainnc   (i) = dm_rainnc   (i);
           snownc   (i) = dm_snownc   (i);
           graupelnc(i) = dm_graupelnc(i);
         }
       });
-      auto host_w          = w         .createHostObject();
       auto host_rainnc     = rainnc    .createHostObject();
       auto host_snownc     = snownc    .createHostObject();
       auto host_graupelnc  = graupelnc .createHostObject();
@@ -221,20 +204,15 @@ namespace modules {
       auto host_ni         = ni        .createHostObject();
       auto host_ns         = ns        .createHostObject();
       auto host_nr         = nr        .createHostObject();
-      auto host_th         = th        .createHostObject();
+      auto host_t          = t         .createHostObject();
       auto host_ng         = ng        .createHostObject();
-      auto host_qndrop     = qndrop    .createHostObject();
       auto host_qlsink     = qlsink    .createHostObject();
-      auto host_rainprod   = rainprod  .createHostObject();
-      auto host_evapprod   = evapprod  .createHostObject();
       auto host_preci      = preci     .createHostObject();
       auto host_precs      = precs     .createHostObject();
       auto host_precg      = precg     .createHostObject();
       auto host_precr      = precr     .createHostObject();
-      auto host_pii        = pii       .createHostObject();
       auto host_p          = p         .createHostObject();
       auto host_rho        = rho       .createHostObject();
-      auto host_refl_10cm  = refl_10cm .createHostObject();
       auto host_qrcuten    = qrcuten   .createHostObject();
       auto host_qscuten    = qscuten   .createHostObject();
       auto host_qicuten    = qicuten   .createHostObject();
@@ -243,7 +221,6 @@ namespace modules {
       auto host_snowncv    = snowncv   .createHostObject();
       auto host_graupelncv = graupelncv.createHostObject();
       auto host_dz         = dz_arr    .createHostObject();
-      w         .deep_copy_to(host_w         );
       rainnc    .deep_copy_to(host_rainnc    );
       snownc    .deep_copy_to(host_snownc    );
       graupelnc .deep_copy_to(host_graupelnc );
@@ -256,9 +233,8 @@ namespace modules {
       ni        .deep_copy_to(host_ni        );
       ns        .deep_copy_to(host_ns        );
       nr        .deep_copy_to(host_nr        );
-      th        .deep_copy_to(host_th        );
+      t         .deep_copy_to(host_t         );
       ng        .deep_copy_to(host_ng        );
-      pii       .deep_copy_to(host_pii       );
       p         .deep_copy_to(host_p         );
       rho       .deep_copy_to(host_rho       );
       qrcuten   .deep_copy_to(host_qrcuten   );
@@ -267,15 +243,13 @@ namespace modules {
       dz_arr    .deep_copy_to(host_dz        );
       Kokkos::fence();
 
-      mp_morr_two_moment(&itimestep, host_th.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(), host_qs.data(),
-                         host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(), host_ng.data(), host_rho.data(), host_pii.data(),
-                         host_p.data(), &dt_in, host_dz.data(), host_w.data(), host_rainnc.data(), host_rainncv.data(),
+      mp_morr_two_moment(host_t.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(), host_qs.data(),
+                         host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(), host_ng.data(), host_rho.data(),
+                         host_p.data(), &dt_in, host_dz.data(), host_rainnc.data(), host_rainncv.data(),
                          host_sr.data(), host_snownc.data(), host_snowncv.data(), host_graupelnc.data(), host_graupelncv.data(),
-                         host_refl_10cm.data(), &diagflag, &do_radar_ref, host_qrcuten.data(), host_qscuten.data(),
-                         host_qicuten.data(), &f_qndrop, host_qndrop.data(), &ids, &ide,
-                         &kds, &kde, &ims, &ime, &kms, &kme, &its,
-                         &ite, &kts, &kte, &wetscav_on, host_rainprod.data(),
-                         host_evapprod.data(), host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(), host_precg.data());
+                         host_qrcuten.data(), host_qscuten.data(),
+                         host_qicuten.data(), &ncol, &nz,
+                         host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(), host_precg.data());
 
       host_rainnc    .deep_copy_to(rainnc    );
       host_snownc    .deep_copy_to(snownc    );
@@ -289,7 +263,7 @@ namespace modules {
       host_ni        .deep_copy_to(ni        );
       host_ns        .deep_copy_to(ns        );
       host_nr        .deep_copy_to(nr        );
-      host_th        .deep_copy_to(th        );
+      host_t         .deep_copy_to(t         );
       host_ng        .deep_copy_to(ng        );
       
       ///////////////////////////////////////////////////////////////////////////////
@@ -306,7 +280,7 @@ namespace modules {
         dm_rho_sn(k,i) = ns(k,i)*dm_rho_dry(k,i)*dm_rho_dry(k,i);
         dm_rho_rn(k,i) = nr(k,i)*dm_rho_dry(k,i)*dm_rho_dry(k,i);
         dm_rho_gn(k,i) = ng(k,i)*dm_rho_dry(k,i)*dm_rho_dry(k,i);
-        dm_temp  (k,i) = th(k,i)*pii(k,i);
+        dm_temp  (k,i) = t(k,i);
         if (k == 0) {
           dm_rainnc   (i) = rainnc   (i);
           dm_snownc   (i) = snownc   (i);

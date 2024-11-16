@@ -108,6 +108,10 @@ module module_mp_morr_two_moment
   real, private :: cons21,cons22,cons23,cons24,cons25,cons26,cons27,cons28,cons29,cons30
   real, private :: cons31,cons32,cons33,cons34,cons35,cons36,cons37,cons38,cons39,cons40
   real, private :: cons41
+  interface pow
+    module procedure pow_rr
+    module procedure pow_ri
+  end interface
 
 contains
 
@@ -207,7 +211,7 @@ contains
     bimm   = 100.
     ecr    = 1.
     dcs    = 125.e-6
-    mi0    = 4./3.*pi*rhoi*(10.e-6)**3
+    mi0    = 4./3.*pi*rhoi*pow(10.e-6,3)
     mg0    = 1.6e-10
     f1s    = 0.86
     f2s    = 0.28
@@ -226,7 +230,7 @@ contains
     dg = 3.
     ! radius of contact nuclei
     rin = 0.1e-6
-    mmult = 4./3.*pi*rhoi*(5.e-6)**3
+    mmult = 4./3.*pi*rhoi*pow(5.e-6,3)
     ! size limits for lambda
     lammaxi = 1./1.e-6
     lammini = 1./(2.*dcs+100.e-6)
@@ -262,13 +266,13 @@ contains
     rm1 = 0.052e-6
     sig1 = 2.04
     nanew1 = 72.2e6
-    f11 = 0.5*exp(2.5*(log(sig1))**2)
+    f11 = 0.5*exp(2.5*pow(log(sig1),2))
     f21 = 1.+0.25*log(sig1)
     ! mode 2
     rm2 = 1.3e-6
     sig2 = 2.5
     nanew2 = 1.8e6
-    f12 = 0.5*exp(2.5*(log(sig2))**2)
+    f12 = 0.5*exp(2.5*pow(log(sig2),2))
     f22 = 1.+0.25*log(sig2)
     ! constants for efficiency
     cons1  = gamma(1.+ds)*cs
@@ -285,21 +289,21 @@ contains
     cons12 = gamma(1.+di)*ci
     cons13 = gamma(bs+3.)*pi/4.*eci
     cons14 = gamma(bg+3.)*pi/4.*eci
-    cons15 = -1108.*eii*pi**((1.-bs)/3.)*rhosn**((-2.-bs)/3.)/(4.*720.)
+    cons15 = -1108.*eii*pow(pi,(1.-bs)/3.)*pow(rhosn,(-2.-bs)/3.)/(4.*720.)
     cons16 = gamma(bi+3.)*pi/4.*eci
     cons17 = 4.*2.*3.*rhosu*pi*eci*eci*gamma(2.*bs+2.)/(8.*(rhog-rhosn))
     cons18 = rhosn*rhosn
     cons19 = rhow*rhow
     cons20 = 20.*pi*pi*rhow*bimm
     cons21 = 4./(dcs*rhoi)
-    cons22 = pi*rhoi*dcs**3/6.
+    cons22 = pi*rhoi*pow(dcs,3)/6.
     cons23 = pi/4.*eii*gamma(bs+3.)
     cons24 = pi/4.*ecr*gamma(br+3.)
     cons25 = pi*pi/24.*rhow*ecr*gamma(br+6.)
     cons26 = pi/6.*rhow
     cons27 = gamma(1.+bi)
     cons28 = gamma(4.+bi)/6.
-    cons29 = 4./3.*pi*rhow*(25.e-6)**3
+    cons29 = 4./3.*pi*rhow*pow(25.e-6,3)
     cons30 = 4./3.*pi*rhow
     cons31 = pi*pi*ecr*rhosn
     cons32 = pi/2.*ecr
@@ -780,15 +784,15 @@ contains
       qvqvsi (k) = qv3d(k)/qvi(k)
       rho    (k) = pres(k)/(r*t3d(k))
       if (qrcu1d(k) >= 1.e-10) then
-        dum = 1.8e5*(qrcu1d(k)*dt/(pi*rhow*rho(k)**3))**0.25
+        dum = 1.8e5*pow(qrcu1d(k)*dt/(pi*rhow*pow(rho(k),3)),0.25)
         nr3d(k) = nr3d(k)+dum
       endif
       if (qscu1d(k) >= 1.e-10) then
-        dum = 3.e5*(qscu1d(k)*dt/(cons1*rho(k)**3))**(1./(ds+1.))
+        dum = 3.e5*pow(qscu1d(k)*dt/(cons1*pow(rho(k),3)),1./(ds+1.))
         ns3d(k) = ns3d(k)+dum
       endif
       if (qicu1d(k) >= 1.e-10) then
-        dum = qicu1d(k)*dt/(ci*(80.e-6)**di)
+        dum = qicu1d(k)*dt/(ci*pow(80.e-6,di))
         ni3d(k) = ni3d(k)+dum
       endif
       if (qvqvs(k) < 0.9) then
@@ -852,9 +856,9 @@ contains
       qnisten(k) = 0.
       qcsten (k) = 0.
       qgsten (k) = 0.
-      mu     (k) = 1.496e-6*t3d(k)**1.5/(t3d(k)+120.)
-      dum        = (rhosu/rho(k))**0.54
-      ain    (k) = (rhosu/rho(k))**0.35*ai
+      mu     (k) = 1.496e-6*pow(t3d(k),1.5)/(t3d(k)+120.)
+      dum        = pow(rhosu/rho(k),0.54)
+      ain    (k) = pow(rhosu/rho(k),0.35)*ai
       arn    (k) = dum*ar
       asn    (k) = dum*as
       acn    (k) = g*rhow/(18.*mu(k))
@@ -865,9 +869,9 @@ contains
         if (t3d(k) >= 273.15.and.qvqvs (k) < 0.999) cycle
       endif
       kap   (k) = 1.414e3*mu(k)
-      dv    (k) = 8.794e-5*t3d(k)**1.81/pres(k)
+      dv    (k) = 8.794e-5*pow(t3d(k),1.81)/pres(k)
       sc    (k) = mu(k)/(rho(k)*dv(k))
-      dum       = (rv*t3d(k)**2)
+      dum       = (rv*pow(t3d(k),2))
       dqsdt     = xxlv(k)*qvs(k)/dum
       dqsidt    = xxls(k)*qvi(k)/dum
       abi   (k) = 1.+dqsidt*xxls(k)/cpm(k)
@@ -896,25 +900,25 @@ contains
           nr3d(k) = max(0.,nr3d(k))
           ng3d(k) = max(0.,ng3d(k))
           if (qr3d(k) >= qsmall) then
-            lamr(k) = (pi*rhow*nr3d(k)/qr3d(k))**(1./3.)
+            lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
             n0rr(k) = nr3d(k)*lamr(k)
             if (lamr(k) < lamminr) then
               lamr(k) = lamminr
-              n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+              n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
               nr3d(k) = n0rr(k)/lamr(k)
             else if (lamr(k) > lammaxr) then
               lamr(k) = lammaxr
-              n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+              n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
               nr3d(k) = n0rr(k)/lamr(k)
             endif
           endif
           if (qc3d(k) >= qsmall) then
             dum     =  pres(k)/(287.15*t3d(k))
             pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-            pgam(k) = 1./(pgam(k)**2)-1.
+            pgam(k) = 1./(pow(pgam(k),2))-1.
             pgam(k) = max(pgam(k),2.)
             pgam(k) = min(pgam(k),10.)
-            lamc(k) = (cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)))**(1./3.)
+            lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
             lammin  = (pgam(k)+1.)/60.e-6
             lammax  = (pgam(k)+1.)/1.e-6
             if (lamc(k) < lammin) then
@@ -926,28 +930,28 @@ contains
             endif
           endif
           if (qni3d(k) >= qsmall) then
-            lams(k) = (cons1*ns3d(k)/qni3d(k))**(1./ds)
+            lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
             n0s (k) = ns3d(k)*lams(k)
             if (lams(k) < lammins) then
               lams(k) = lammins
-              n0s (k) = lams(k)**4*qni3d(k)/cons1
+              n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
               ns3d(k) = n0s(k)/lams(k)
             else if (lams(k) > lammaxs) then
               lams(k) = lammaxs
-              n0s (k) = lams(k)**4*qni3d(k)/cons1
+              n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
               ns3d(k) = n0s(k)/lams(k)
             endif
           endif
           if (qg3d(k) >= qsmall) then
-            lamg(k) = (cons2*ng3d(k)/qg3d(k))**(1./dg)
+            lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
             n0g (k) = ng3d(k)*lamg(k)
             if (lamg(k) < lamming) then
               lamg(k) = lamming
-              n0g (k) = lamg(k)**4*qg3d(k)/cons2
+              n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
               ng3d(k) = n0g(k)/lamg(k)
             else if (lamg(k) > lammaxg) then
               lamg(k) = lammaxg
-              n0g (k) = lamg(k)**4*qg3d(k)/cons2
+              n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
               ng3d(k) = n0g(k)/lamg(k)
             endif
           endif
@@ -974,45 +978,45 @@ contains
           ngmltg(k) = 0.
           ngmltr(k) = 0.
           if (qc3d(k) >= 1.e-6) then
-            prc  (k)=1350.*qc3d(k)**2.47*(nc3d(k)/1.e6*rho(k))**(-1.79)
+            prc  (k)=1350.*pow(qc3d(k),2.47)*pow(nc3d(k)/1.e6*rho(k),-1.79)
             nprc1(k) = prc(k)/cons29
             nprc (k) = prc(k)/(qc3d(k)/nc3d(k))
             nprc (k) = min( nprc (k) , nc3d(k)/dt )
             nprc1(k) = min( nprc1(k) , nprc(k)    )
           endif
           if (qr3d(k) >= 1.e-8.and.qni3d(k) >= 1.e-8) then
-            ums = asn(k)*cons3/(lams(k)**bs)
-            umr = arn(k)*cons4/(lamr(k)**br)
-            uns = asn(k)*cons5/lams(k)**bs
-            unr = arn(k)*cons6/lamr(k)**br
-            dum = (rhosu/rho(k))**0.54
+            ums = asn(k)*cons3/pow(lams(k),bs)
+            umr = arn(k)*cons4/pow(lamr(k),br)
+            uns = asn(k)*cons5/pow(lams(k),bs)
+            unr = arn(k)*cons6/pow(lamr(k),br)
+            dum = pow(rhosu/rho(k),0.54)
             ums = min( ums , 1.2*dum )
             uns = min( uns , 1.2*dum )
             umr = min( umr , 9.1*dum )
             unr = min( unr , 9.1*dum )
-            pracs(k) = cons41*(((1.2*umr-0.95*ums)**2+0.08*ums*umr)**0.5*rho(k)*n0rr(k)*n0s(k)/lamr(k)**3* &
-                        (5./(lamr(k)**3*lams(k))+2./(lamr(k)**2*lams(k)**2)+0.5/(lamr(k)*lams(k)**3)))
+            pracs(k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lamr(k),3)* &
+                        (5./(pow(lamr(k),3)*lams(k))+2./(pow(lamr(k),2)*pow(lams(k),2))+0.5/(lamr(k)*pow(lams(k),3))))
           endif
           if (qr3d(k) >= 1.e-8.and.qg3d(k) >= 1.e-8) then
-            umg = agn(k)*cons7/(lamg(k)**bg)
-            umr = arn(k)*cons4/(lamr(k)**br)
-            ung = agn(k)*cons8/lamg(k)**bg
-            unr = arn(k)*cons6/lamr(k)**br
-            dum = (rhosu/rho(k))**0.54
+            umg = agn(k)*cons7/pow(lamg(k),bg)
+            umr = arn(k)*cons4/pow(lamr(k),br)
+            ung = agn(k)*cons8/pow(lamg(k),bg)
+            unr = arn(k)*cons6/pow(lamr(k),br)
+            dum = pow(rhosu/rho(k),0.54)
             umg = min( umg , 20.*dum )
             ung = min( ung , 20.*dum )
             umr = min( umr , 9.1*dum )
             unr = min( unr , 9.1*dum )
-            pracg(k)  = cons41*(((1.2*umr-0.95*umg)**2+0.08*umg*umr)**0.5*rho(k)*n0rr(k)*n0g(k)/lamr(k)**3* &
-                        (5./(lamr(k)**3*lamg(k))+2./(lamr(k)**2*lamg(k)**2)+0.5/(lamr(k)*lamg(k)**3)))
+            pracg(k)  = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(k)*n0rr(k)*n0g(k)/pow(lamr(k),3)* &
+                        (5./(pow(lamr(k),3)*lamg(k))+2./(pow(lamr(k),2)*pow(lamg(k),2))+0.5/(lamr(k)*pow(lamg(k),3))))
             dum       = pracg(k)/5.2e-7
-            npracg(k) = cons32*rho(k)*(1.7*(unr-ung)**2+0.3*unr*ung)**0.5*n0rr(k)*n0g(k)* &
-                        (1./(lamr(k)**3*lamg(k))+1./(lamr(k)**2*lamg(k)**2)+1./(lamr(k)*lamg(k)**3))
+            npracg(k) = cons32*rho(k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(k)*n0g(k)* &
+                        (1./(pow(lamr(k),3)*lamg(k))+1./(pow(lamr(k),2)*pow(lamg(k),2))+1./(lamr(k)*pow(lamg(k),3)))
             npracg(k) = npracg(k)-dum
           endif
           if (qr3d(k) >= 1.e-8 .and. qc3d(k) >= 1.e-8) then
             dum     = (qc3d(k)*qr3d(k))
-            pra (k) = 67.*(dum)**1.15
+            pra (k) = 67.*pow(dum,1.15)
             npra(k) = pra(k)/(qc3d(k)/nc3d(k))
           endif
           if (qr3d(k) >= 1.e-8) then
@@ -1025,7 +1029,7 @@ contains
             nragg(k) = -5.78*dum*nr3d(k)*qr3d(k)*rho(k)
           endif
           if (qr3d(k) >= qsmall) then
-            epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*(arn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons9/(lamr(k)**cons34))
+            epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*pow(arn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons9/(pow(lamr(k),cons34)))
           else
             epsr = 0.
           endif
@@ -1037,9 +1041,9 @@ contains
           endif
           if (qni3d(k) >= 1.e-8) then
             dum      = -cpw/xlf(k)*(t3d(k)-273.15)*pracs(k)
-            psmlt(k) = 2.*pi*n0s(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lams(k)*lams(k))+f2s*(asn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons10/(lams(k)**cons35))+dum
+            psmlt(k) = 2.*pi*n0s(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))+dum
             if (qvqvs(k) < 1.) then
-              epss     = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*(asn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons10/(lams(k)**cons35))
+              epss     = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))
               evpms(k) = (qv3d(k)-qvs(k))*epss/ab(k)    
               evpms(k) = max(evpms(k),psmlt(k))
               psmlt(k) = psmlt(k)-evpms(k)
@@ -1047,9 +1051,9 @@ contains
           endif
           if (qg3d(k) >= 1.e-8) then
             dum      = -cpw/xlf(k)*(t3d(k)-273.15)*pracg(k)
-            pgmlt(k) = 2.*pi*n0g(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lamg(k)*lamg(k))+f2s*(agn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons11/(lamg(k)**cons36))+dum
+            pgmlt(k) = 2.*pi*n0g(k)*kap(k)*(273.15-t3d(k))/xlf(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))+dum
             if (qvqvs(k) < 1.) then
-              epsg     = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*(agn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons11/(lamg(k)**cons36))
+              epsg     = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))
               evpmg(k) = (qv3d(k)-qvs(k))*epsg/ab(k)
               evpmg(k) = max(evpmg(k),pgmlt(k))
               pgmlt(k) = pgmlt(k)-evpmg(k)
@@ -1128,7 +1132,7 @@ contains
         dumqc = qc3d(k)+dt*qc3dten(k)
         dumqc = max(dumqc,0.)
         dums = dumqv-dumqss
-        pcc(k) = dums/(1.+xxlv(k)**2*dumqss/(cpm(k)*rv*dumt**2))/dt
+        pcc(k) = dums/(1.+pow(xxlv(k),2)*dumqss/(cpm(k)*rv*pow(dumt,2)))/dt
         if (pcc(k)*dt+dumqc < 0.) then
           pcc(k) = -dumqc/dt
         endif
@@ -1145,38 +1149,38 @@ contains
         nr3d(k) = max(0.,nr3d(k))
         ng3d(k) = max(0.,ng3d(k))
         if (qi3d(k) >= qsmall) then
-          lami(k) = (cons12*ni3d(k)/qi3d(k))**(1./di)
+          lami(k) = pow(cons12*ni3d(k)/qi3d(k),1./di)
           n0i(k) = ni3d(k)*lami(k)
           if (lami(k) < lammini) then
             lami(k) = lammini
-            n0i (k) = lami(k)**4*qi3d(k)/cons12
+            n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
             ni3d(k) = n0i(k)/lami(k)
           else if (lami(k) > lammaxi) then
             lami(k) = lammaxi
-            n0i (k) = lami(k)**4*qi3d(k)/cons12
+            n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
             ni3d(k) = n0i(k)/lami(k)
           endif
         endif
         if (qr3d(k) >= qsmall) then
-          lamr(k) = (pi*rhow*nr3d(k)/qr3d(k))**(1./3.)
+          lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
           n0rr(k) = nr3d(k)*lamr(k)
           if (lamr(k) < lamminr) then
             lamr(k) = lamminr
-            n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
             nr3d(k) = n0rr(k)/lamr(k)
           else if (lamr(k) > lammaxr) then
             lamr(k) = lammaxr
-            n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
             nr3d(k) = n0rr(k)/lamr(k)
           endif
         endif
         if (qc3d(k) >= qsmall) then
           dum     = pres(k)/(287.15*t3d(k))
           pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k) = 1./(pgam(k)**2)-1.
+          pgam(k) = 1./(pow(pgam(k),2))-1.
           pgam(k) = max(pgam(k),2.)
           pgam(k) = min(pgam(k),10.)
-          lamc(k) = (cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)))**(1./3.)
+          lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
           lammin  = (pgam(k)+1.)/60.e-6
           lammax  = (pgam(k)+1.)/1.e-6
           if (lamc(k) < lammin) then
@@ -1189,28 +1193,28 @@ contains
           cdist1(k) = nc3d(k)/gamma(pgam(k)+1.)
         endif
         if (qni3d(k) >= qsmall) then
-          lams(k) = (cons1*ns3d(k)/qni3d(k))**(1./ds)
+          lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
           n0s (k) = ns3d(k)*lams(k)
           if (lams(k) < lammins) then
             lams(k) = lammins
-            n0s (k) = lams(k)**4*qni3d(k)/cons1
+            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
             ns3d(k) = n0s(k)/lams(k)
           else if (lams(k) > lammaxs) then
             lams(k) = lammaxs
-            n0s (k) = lams(k)**4*qni3d(k)/cons1
+            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
             ns3d(k) = n0s(k)/lams(k)
           endif
         endif
         if (qg3d(k) >= qsmall) then
-          lamg(k) = (cons2*ng3d(k)/qg3d(k))**(1./dg)
+          lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
           n0g (k) = ng3d(k)*lamg(k)
           if (lamg(k) < lamming) then
             lamg(k) = lamming
-            n0g (k) = lamg(k)**4*qg3d(k)/cons2
+            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
             ng3d(k) = n0g(k)/lamg(k)
           else if (lamg(k) > lammaxg) then
             lamg(k) = lammaxg
-            n0g (k) = lamg(k)**4*qg3d(k)/cons2
+            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
             ng3d(k) = n0g(k)/lamg(k)
           endif
         endif
@@ -1284,63 +1288,63 @@ contains
           nnuccc(k) = min(nnuccc(k),nc3d(k)/dt)
         endif
         if (qc3d(k) >= 1.e-6) then
-          prc  (k) = 1350.*qc3d(k)**2.47*(nc3d(k)/1.e6*rho(k))**(-1.79)
+          prc  (k) = 1350.*pow(qc3d(k),2.47)*pow(nc3d(k)/1.e6*rho(k),-1.79)
           nprc1(k) = prc(k)/cons29
           nprc (k) = prc(k)/(qc3d(k)/nc3d(k))
           nprc (k) = min( nprc (k) , nc3d(k)/dt )
           nprc1(k) = min( nprc1(k) , nprc(k)    )
         endif
         if (qni3d(k) >= 1.e-8) then
-          nsagg(k) = cons15*asn(k)*rho(k)**((2.+bs)/3.)*qni3d(k)**((2.+bs)/3.)*(ns3d(k)*rho(k))**((4.-bs)/3.)/(rho(k))
+          nsagg(k) = cons15*asn(k)*pow(rho(k),(2.+bs)/3.)*pow(qni3d(k),(2.+bs)/3.)*pow(ns3d(k)*rho(k),(4.-bs)/3.)/(rho(k))
         endif
         if (qni3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
-          psacws (k) = cons13*asn(k)*qc3d(k)*rho(k)*n0s(k)/lams(k)**(bs+3.)
-          npsacws(k) = cons13*asn(k)*nc3d(k)*rho(k)*n0s(k)/lams(k)**(bs+3.)
+          psacws (k) = cons13*asn(k)*qc3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
+          npsacws(k) = cons13*asn(k)*nc3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
         endif
         if (qg3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
-          psacwg (k) = cons14*agn(k)*qc3d(k)*rho(k)*n0g(k)/lamg(k)**(bg+3.)
-          npsacwg(k) = cons14*agn(k)*nc3d(k)*rho(k)*n0g(k)/lamg(k)**(bg+3.)
+          psacwg (k) = cons14*agn(k)*qc3d(k)*rho(k)*n0g(k)/pow(lamg(k),bg+3.)
+          npsacwg(k) = cons14*agn(k)*nc3d(k)*rho(k)*n0g(k)/pow(lamg(k),bg+3.)
         endif
         if (qi3d(k) >= 1.e-8 .and. qc3d(k) >= qsmall) then
           if (1./lami(k) >= 100.e-6) then
-            psacwi (k) = cons16*ain(k)*qc3d(k)*rho(k)*n0i(k)/lami(k)**(bi+3.)
-            npsacwi(k) = cons16*ain(k)*nc3d(k)*rho(k)*n0i(k)/lami(k)**(bi+3.)
+            psacwi (k) = cons16*ain(k)*qc3d(k)*rho(k)*n0i(k)/pow(lami(k),bi+3.)
+            npsacwi(k) = cons16*ain(k)*nc3d(k)*rho(k)*n0i(k)/pow(lami(k),bi+3.)
           endif
         endif
         if (qr3d(k) >= 1.e-8.and.qni3d(k) >= 1.e-8) then
-          ums = asn(k)*cons3/(lams(k)**bs)
-          umr = arn(k)*cons4/(lamr(k)**br)
-          uns = asn(k)*cons5/lams(k)**bs
-          unr = arn(k)*cons6/lamr(k)**br
-          dum = (rhosu/rho(k))**0.54
+          ums = asn(k)*cons3/pow(lams(k),bs)
+          umr = arn(k)*cons4/pow(lamr(k),br)
+          uns = asn(k)*cons5/pow(lams(k),bs)
+          unr = arn(k)*cons6/pow(lamr(k),br)
+          dum = pow(rhosu/rho(k),0.54)
           ums = min( ums , 1.2*dum )
           uns = min( uns , 1.2*dum )
           umr = min( umr , 9.1*dum )
           unr = min( unr , 9.1*dum )
-          pracs(k) = cons41*(((1.2*umr-0.95*ums)**2+0.08*ums*umr)**0.5*rho(k)*n0rr(k)*n0s(k)/lamr(k)**3* &
-                     (5./(lamr(k)**3*lams(k))+2./(lamr(k)**2*lams(k)**2)+0.5/(lamr(k)*lams(k)**3)))
-          npracs(k) = cons32*rho(k)*(1.7*(unr-uns)**2+0.3*unr*uns)**0.5*n0rr(k)*n0s(k)*(1./(lamr(k)**3*lams(k))+ &
-                      1./(lamr(k)**2*lams(k)**2)+1./(lamr(k)*lams(k)**3))
+          pracs(k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lamr(k),3)* &
+                     (5./(pow(lamr(k),3)*lams(k))+2./(pow(lamr(k),2)*pow(lams(k),2))+0.5/(lamr(k)*pow(lams(k),3))))
+          npracs(k) = cons32*rho(k)*pow(1.7*pow(unr-uns,2)+0.3*unr*uns,0.5)*n0rr(k)*n0s(k)*(1./(pow(lamr(k),3)*lams(k))+ &
+                      1./(pow(lamr(k),2)*pow(lams(k),2))+1./(lamr(k)*pow(lams(k),3)))
           pracs(k) = min(pracs(k),qr3d(k)/dt)
           if (qni3d(k) >= 0.1e-3.and.qr3d(k) >= 0.1e-3) then
-            psacr(k) = cons31*(((1.2*umr-0.95*ums)**2+0.08*ums*umr)**0.5*rho(k)*n0rr(k)*n0s(k)/lams(k)**3* &
-                       (5./(lams(k)**3*lamr(k))+2./(lams(k)**2*lamr(k)**2)+0.5/(lams(k)*lamr(k)**3)))            
+            psacr(k) = cons31*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(k)*n0rr(k)*n0s(k)/pow(lams(k),3)* &
+                       (5./(pow(lams(k),3)*lamr(k))+2./(pow(lams(k),2)*pow(lamr(k),2))+0.5/(lams(k)*pow(lamr(k),3))))            
           endif
         endif
         if (qr3d(k) >= 1.e-8.and.qg3d(k) >= 1.e-8) then
-          umg = agn(k)*cons7/(lamg(k)**bg)
-          umr = arn(k)*cons4/(lamr(k)**br)
-          ung = agn(k)*cons8/lamg(k)**bg
-          unr = arn(k)*cons6/lamr(k)**br
-          dum = (rhosu/rho(k))**0.54
+          umg = agn(k)*cons7/pow(lamg(k),bg)
+          umr = arn(k)*cons4/pow(lamr(k),br)
+          ung = agn(k)*cons8/pow(lamg(k),bg)
+          unr = arn(k)*cons6/pow(lamr(k),br)
+          dum = pow(rhosu/rho(k),0.54)
           umg = min( umg , 20.*dum )
           ung = min( ung , 20.*dum )
           umr = min( umr , 9.1*dum )
           unr = min( unr , 9.1*dum )
-          pracg (k) = cons41*(((1.2*umr-0.95*umg)**2+0.08*umg*umr)**0.5*rho(k)*n0rr(k)*n0g(k)/lamr(k)**3* &
-                      (5./(lamr(k)**3*lamg(k))+2./(lamr(k)**2*lamg(k)**2)+0.5/(lamr(k)*lamg(k)**3)))
-          npracg(k) = cons32*rho(k)*(1.7*(unr-ung)**2+0.3*unr*ung)**0.5*n0rr(k)*n0g(k)*(1./(lamr(k)**3*lamg(k))+ &
-                      1./(lamr(k)**2*lamg(k)**2)+1./(lamr(k)*lamg(k)**3))
+          pracg (k) = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(k)*n0rr(k)*n0g(k)/pow(lamr(k),3)* &
+                      (5./(pow(lamr(k),3)*lamg(k))+2./(pow(lamr(k),2)*pow(lamg(k),2))+0.5/(lamr(k)*pow(lamg(k),3))))
+          npracg(k) = cons32*rho(k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(k)*n0g(k)*(1./(pow(lamr(k),3)*lamg(k))+ &
+                      1./(pow(lamr(k),2)*pow(lamg(k),2))+1./(lamr(k)*pow(lamg(k),3)))
           pracg (k) = min(pracg(k),qr3d(k)/dt)
         endif
         if (qni3d(k) >= 0.1e-3) then
@@ -1403,7 +1407,7 @@ contains
         endif
         if (psacws(k) > 0.) then
           if (qni3d(k) >= 0.1e-3.and.qc3d(k) >= 0.5e-3) then
-            pgsacw(k) = min(psacws(k),cons17*dt*n0s(k)*qc3d(k)*qc3d(k)*asn(k)*asn(k)/(rho(k)*lams(k)**(2.*bs+2.)))
+            pgsacw(k) = min(psacws(k),cons17*dt*n0s(k)*qc3d(k)*qc3d(k)*asn(k)*asn(k)/(rho(k)*pow(lams(k),2.*bs+2.)))
             dum       = max(rhosn/(rhog-rhosn)*pgsacw(k),0.) 
             nscng (k) = dum/mg0*rho(k)
             nscng (k) = min(nscng(k),ns3d(k)/dt)
@@ -1412,8 +1416,8 @@ contains
         endif
         if (pracs(k) > 0.) then
           if (qni3d(k) >= 0.1e-3.and.qr3d(k) >= 0.1e-3) then
-            dum       = cons18*(4./lams(k))**3*(4./lams(k))**3/(cons18*(4./lams(k))**3*(4./lams(k))**3+ &  
-                        cons19*(4./lamr(k))**3*(4./lamr(k))**3)
+            dum       = cons18*pow(4./lams(k),3)*pow(4./lams(k),3)/(cons18*pow(4./lams(k),3)*pow(4./lams(k),3)+ &  
+                        cons19*pow(4./lamr(k),3)*pow(4./lamr(k),3))
             dum       = min( dum , 1. )
             dum       = max( dum , 0. )
             pgracs(k) = (1.-dum)*pracs(k)
@@ -1426,13 +1430,13 @@ contains
           endif
         endif
         if (t3d(k) < 269.15.and.qr3d(k) >= qsmall) then
-          mnuccr(k) = cons20*nr3d(k)*(exp(aimm*(273.15-t3d(k)))-1.)/lamr(k)**3/lamr(k)**3
-          nnuccr(k) = pi*nr3d(k)*bimm*(exp(aimm*(273.15-t3d(k)))-1.)/lamr(k)**3
+          mnuccr(k) = cons20*nr3d(k)*(exp(aimm*(273.15-t3d(k)))-1.)/pow(lamr(k),3)/pow(lamr(k),3)
+          nnuccr(k) = pi*nr3d(k)*bimm*(exp(aimm*(273.15-t3d(k)))-1.)/pow(lamr(k),3)
           nnuccr(k) = min(nnuccr(k),nr3d(k)/dt)
         endif
         if (qr3d(k) >= 1.e-8 .and. qc3d(k) >= 1.e-8) then
           dum     = (qc3d(k)*qr3d(k))
-          pra (k) = 67.*(dum)**1.15
+          pra (k) = 67.*pow(dum,1.15)
           npra(k) = pra(k)/(qc3d(k)/nc3d(k))
         endif
         if (qr3d(k) >= 1.e-8) then
@@ -1450,21 +1454,21 @@ contains
           nprci(k) = min(nprci(k),ni3d(k)/dt)
         endif
         if (qni3d(k) >= 1.e-8 .and. qi3d(k) >= qsmall) then
-          prai (k) = cons23*asn(k)*qi3d(k)*rho(k)*n0s(k)/lams(k)**(bs+3.)
-          nprai(k) = cons23*asn(k)*ni3d(k)*rho(k)*n0s(k)/lams(k)**(bs+3.)
+          prai (k) = cons23*asn(k)*qi3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
+          nprai(k) = cons23*asn(k)*ni3d(k)*rho(k)*n0s(k)/pow(lams(k),bs+3.)
           nprai(k) = min( nprai(k) , ni3d(k)/dt )
         endif
         if (qr3d(k) >= 1.e-8 .and. qi3d(k) >= 1.e-8 .and. t3d(k) <= 273.15) then
           if (qr3d(k) >= 0.1e-3) then
-            niacr(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)*rho(k)
-            piacr(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)/lamr(k)**3*rho(k)
-            praci(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)*rho(k)
+            niacr(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
+            piacr(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)/pow(lamr(k),3)*rho(k)
+            praci(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
             niacr(k)=min(niacr(k),nr3d(k)/dt)
             niacr(k)=min(niacr(k),ni3d(k)/dt)
           else 
-            niacrs(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)*rho(k)
-            piacrs(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)/lamr(k)**3*rho(k)
-            pracis(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/lamr(k)**(br+3.)*rho(k)
+            niacrs(k)=cons24*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
+            piacrs(k)=cons25*ni3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)/pow(lamr(k),3)*rho(k)
+            pracis(k)=cons24*qi3d(k)*n0rr(k)*arn(k)/pow(lamr(k),br+3.)*rho(k)
             niacrs(k)=min(niacrs(k),nr3d(k)/dt)
             niacrs(k)=min(niacrs(k),ni3d(k)/dt)
           endif
@@ -1489,25 +1493,23 @@ contains
           endif
         endif
 
- 101      continue
-
         if (qi3d(k) >= qsmall) then
            epsi = 2.*pi*n0i(k)*rho(k)*dv(k)/(lami(k)*lami(k))
         else
            epsi = 0.
         endif
         if (qni3d(k) >= qsmall) then
-          epss = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*(asn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons10/(lams(k)**cons35))
+          epss = 2.*pi*n0s(k)*rho(k)*dv(k)*(f1s/(lams(k)*lams(k))+f2s*pow(asn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons10/(pow(lams(k),cons35)))
         else
           epss = 0.
         endif
         if (qg3d(k) >= qsmall) then
-          epsg = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*(agn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons11/(lamg(k)**cons36))
+          epsg = 2.*pi*n0g(k)*rho(k)*dv(k)*(f1s/(lamg(k)*lamg(k))+f2s*pow(agn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons11/(pow(lamg(k),cons36)))
         else
           epsg = 0.
         endif
         if (qr3d(k) >= qsmall) then
-          epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*(arn(k)*rho(k)/mu(k))**0.5*sc(k)**(1./3.)*cons9/(lamr(k)**cons34))
+          epsr = 2.*pi*n0rr(k)*rho(k)*dv(k)*(f1r/(lamr(k)*lamr(k))+f2r*pow(arn(k)*rho(k)/mu(k),0.5)*pow(sc(k),1./3.)*cons9/(pow(lamr(k),cons34)))
         else
           epsr = 0.
         endif
@@ -1666,7 +1668,7 @@ contains
         dumqc      = qc3d(k)+dt*qc3dten(k)
         dumqc      = max( dumqc , 0. )
         dums       = dumqv-dumqss
-        pcc(k)     = dums/(1.+xxlv(k)**2*dumqss/(cpm(k)*rv*dumt**2))/dt
+        pcc(k)     = dums/(1.+pow(xxlv(k),2)*dumqss/(cpm(k)*rv*pow(dumt,2)))/dt
         if (pcc(k)*dt+dumqc < 0.) pcc(k) = -dumqc/dt
         qv3dten(k) = qv3dten(k)-pcc(k)
         t3dten (k) = t3dten (k)+pcc(k)*xxlv(k)/cpm(k)
@@ -1724,77 +1726,77 @@ contains
         dumfnr(k) = max( 0. , dumfnr(k) )
         dumfng(k) = max( 0. , dumfng(k) )
         if (dumi(k) >= qsmall) then
-          dlami = (cons12*dumfni(k)/dumi(k))**(1./di)
+          dlami = pow(cons12*dumfni(k)/dumi(k),1./di)
           dlami = max( dlami , lammini )
           dlami = min( dlami , lammaxi )
         endif
         if (dumr(k) >= qsmall) then
-          dlamr = (pi*rhow*dumfnr(k)/dumr(k))**(1./3.)
+          dlamr = pow(pi*rhow*dumfnr(k)/dumr(k),1./3.)
           dlamr = max( dlamr , lamminr )
           dlamr = min( dlamr , lammaxr )
         endif
         if (dumc(k) >= qsmall) then
           dum     = pres(k)/(287.15*t3d(k))
           pgam(k) = 0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k) = 1./(pgam(k)**2)-1.
+          pgam(k) = 1./(pow(pgam(k),2))-1.
           pgam(k) = max(pgam(k),2.)
           pgam(k) = min(pgam(k),10.)
-          dlamc   = (cons26*dumfnc(k)*gamma(pgam(k)+4.)/(dumc(k)*gamma(pgam(k)+1.)))**(1./3.)
+          dlamc   = pow(cons26*dumfnc(k)*gamma(pgam(k)+4.)/(dumc(k)*gamma(pgam(k)+1.)),1./3.)
           lammin  = (pgam(k)+1.)/60.e-6
           lammax  = (pgam(k)+1.)/1.e-6
           dlamc   = max(dlamc,lammin)
           dlamc   = min(dlamc,lammax)
         endif
         if (dumqs(k) >= qsmall) then
-          dlams = (cons1*dumfns(k)/ dumqs(k))**(1./ds)
+          dlams = pow(cons1*dumfns(k)/ dumqs(k),1./ds)
           dlams=max(dlams,lammins)
           dlams=min(dlams,lammaxs)
         endif
         if (dumg(k) >= qsmall) then
-          dlamg = (cons2*dumfng(k)/ dumg(k))**(1./dg)
+          dlamg = pow(cons2*dumfng(k)/ dumg(k),1./dg)
           dlamg=max(dlamg,lamming)
           dlamg=min(dlamg,lammaxg)
         endif
         if (dumc(k) >= qsmall) then
-          unc =  acn(k)*gamma(1.+bc+pgam(k))/ (dlamc**bc*gamma(pgam(k)+1.))
-          umc = acn(k)*gamma(4.+bc+pgam(k))/  (dlamc**bc*gamma(pgam(k)+4.))
+          unc =  acn(k)*gamma(1.+bc+pgam(k))/ (pow(dlamc,bc)*gamma(pgam(k)+1.))
+          umc = acn(k)*gamma(4.+bc+pgam(k))/  (pow(dlamc,bc)*gamma(pgam(k)+4.))
         else
           umc = 0.
           unc = 0.
         endif
         if (dumi(k) >= qsmall) then
-          uni = ain(k)*cons27/dlami**bi
-          umi = ain(k)*cons28/(dlami**bi)
+          uni = ain(k)*cons27/pow(dlami,bi)
+          umi = ain(k)*cons28/pow(dlami,bi)
         else
           umi = 0.
           uni = 0.
         endif
         if (dumr(k) >= qsmall) then
-          unr = arn(k)*cons6/dlamr**br
-          umr = arn(k)*cons4/(dlamr**br)
+          unr = arn(k)*cons6/pow(dlamr,br)
+          umr = arn(k)*cons4/pow(dlamr,br)
         else
           umr = 0.
           unr = 0.
         endif
         if (dumqs(k) >= qsmall) then
-          ums = asn(k)*cons3/(dlams**bs)
-          uns = asn(k)*cons5/dlams**bs
+          ums = asn(k)*cons3/pow(dlams,bs)
+          uns = asn(k)*cons5/pow(dlams,bs)
         else
           ums = 0.
           uns = 0.
         endif
         if (dumg(k) >= qsmall) then
-          umg = agn(k)*cons7/(dlamg**bg)
-          ung = agn(k)*cons8/dlamg**bg
+          umg = agn(k)*cons7/pow(dlamg,bg)
+          ung = agn(k)*cons8/pow(dlamg,bg)
         else
           umg = 0.
           ung = 0.
         endif
-        dum    = (rhosu/rho(k))**0.54
+        dum    = pow(rhosu/rho(k),0.54)
         ums    = min(ums,1.2*dum)
         uns    = min(uns,1.2*dum)
-        umi    = min(umi,1.2*(rhosu/rho(k))**0.35)
-        uni    = min(uni,1.2*(rhosu/rho(k))**0.35)
+        umi    = min(umi,1.2*pow(rhosu/rho(k),0.35))
+        uni    = min(uni,1.2*pow(rhosu/rho(k),0.35))
         umr    = min(umr,9.1*dum)
         unr    = min(unr,9.1*dum)
         umg    = min(umg,20.*dum)
@@ -2051,36 +2053,36 @@ contains
           nr3d(k) = max( 0. , nr3d(k) )
           ng3d(k) = max( 0. , ng3d(k) )
           if (qi3d(k) >= qsmall) then
-            lami(k) = (cons12*ni3d(k)/qi3d(k))**(1./di)
+            lami(k) = pow(cons12*ni3d(k)/qi3d(k),1./di)
             if (lami(k) < lammini) then
               lami(k) = lammini
-              n0i (k) = lami(k)**4*qi3d(k)/cons12
+              n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
               ni3d(k) = n0i (k)/lami(k)
             else if (lami(k) > lammaxi) then
               lami(k) = lammaxi
-              n0i (k) = lami(k)**4*qi3d(k)/cons12
+              n0i (k) = pow(lami(k),4)*qi3d(k)/cons12
               ni3d(k) = n0i (k)/lami(k)
             endif
           endif
         if (qr3d(k) >= qsmall) then
-          lamr(k) = (pi*rhow*nr3d(k)/qr3d(k))**(1./3.)
+          lamr(k) = pow(pi*rhow*nr3d(k)/qr3d(k),1./3.)
           if (lamr(k) < lamminr) then
             lamr(k) = lamminr
-            n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
             nr3d(k) = n0rr(k)/lamr(k)
           else if (lamr(k) > lammaxr) then
             lamr(k) = lammaxr
-            n0rr(k) = lamr(k)**4*qr3d(k)/(pi*rhow)
+            n0rr(k) = pow(lamr(k),4)*qr3d(k)/(pi*rhow)
             nr3d(k) = n0rr(k)/lamr(k)
           endif
         endif
         if (qc3d(k) >= qsmall) then
           dum = pres(k)/(287.15*t3d(k))
           pgam(k)=0.0005714*(nc3d(k)/1.e6*dum)+0.2714
-          pgam(k)=1./(pgam(k)**2)-1.
+          pgam(k)=1./(pow(pgam(k),2))-1.
           pgam(k)=max(pgam(k),2.)
           pgam(k)=min(pgam(k),10.)
-          lamc(k) = (cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)))**(1./3.)
+          lamc(k) = pow(cons26*nc3d(k)*gamma(pgam(k)+4.)/(qc3d(k)*gamma(pgam(k)+1.)),1./3.)
           lammin = (pgam(k)+1.)/60.e-6
           lammax = (pgam(k)+1.)/1.e-6
           if (lamc(k) < lammin) then
@@ -2092,26 +2094,26 @@ contains
           endif
         endif
         if (qni3d(k) >= qsmall) then
-          lams(k) = (cons1*ns3d(k)/qni3d(k))**(1./ds)
+          lams(k) = pow(cons1*ns3d(k)/qni3d(k),1./ds)
           if (lams(k) < lammins) then
             lams(k) = lammins
-            n0s (k) = lams(k)**4*qni3d(k)/cons1
+            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
             ns3d(k) = n0s (k)/lams(k)
           else if (lams(k) > lammaxs) then
             lams(k) = lammaxs
-            n0s (k) = lams(k)**4*qni3d(k)/cons1
+            n0s (k) = pow(lams(k),4)*qni3d(k)/cons1
             ns3d(k) = n0s (k)/lams(k)
           endif
         endif
         if (qg3d(k) >= qsmall) then
-          lamg(k) = (cons2*ng3d(k)/qg3d(k))**(1./dg)
+          lamg(k) = pow(cons2*ng3d(k)/qg3d(k),1./dg)
           if (lamg(k) < lamming) then
             lamg(k) = lamming
-            n0g (k) = lamg(k)**4*qg3d(k)/cons2
+            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
             ng3d(k) = n0g (k)/lamg(k)
           else if (lamg(k) > lammaxg) then
             lamg(k) = lammaxg
-            n0g (k) = lamg(k)**4*qg3d(k)/cons2
+            n0g (k) = pow(lamg(k),4)*qg3d(k)/cons2
             ng3d(k) = n0g (k)/lamg(k)
           endif
         endif
@@ -2192,7 +2194,7 @@ contains
         polysvp = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) 
         polysvp = polysvp*100.
       else
-        polysvp = 10.**(-9.09718*(273.16/t-1.)-3.56654*alog10(273.16/t)+0.876793*(1.-t/273.16)+alog10(6.1071))*100.
+        polysvp = pow(10.,-9.09718*(273.16/t-1.)-3.56654*alog10(273.16/t)+0.876793*(1.-t/273.16)+alog10(6.1071))*100.
       endif
     endif
     ! liquid
@@ -2202,8 +2204,8 @@ contains
         polysvp = a0 + dt*(a1+dt*(a2+dt*(a3+dt*(a4+dt*(a5+dt*(a6+dt*(a7+a8*dt)))))))
         polysvp = polysvp*100.
       else
-        polysvp = 10.**(-7.90298*(373.16/t-1.)+5.02808*alog10(373.16/t)-1.3816e-7*(10**(11.344*(1.-t/373.16))-1.)+ &
-                  8.1328e-3*(10**(-3.49149*(373.16/t-1.))-1.)+alog10(1013.246))*100.                      
+        polysvp = pow(10.,-7.90298*(373.16/t-1.)+5.02808*alog10(373.16/t)-1.3816e-7*(pow(10.,11.344*(1.-t/373.16))-1.)+ &
+                  8.1328e-3*(pow(10.,-3.49149*(373.16/t-1.))-1.)+alog10(1013.246))*100.                      
       endif
     endif
   end function polysvp
@@ -2316,6 +2318,18 @@ contains
     if (fact /= 1.) res=fact/res
     gamma = res
   end function gamma
+
+
+
+  real function pow_rr(a,b)
+    real, intent(in) :: a, b
+    pow_rr = a**b
+  end function pow_rr
+  real function pow_ri(a,b)
+    real   , intent(in) :: a
+    integer, intent(in) :: b
+    pow_ri = a**b
+  end function pow_ri
 
 
 end module module_mp_morr_two_moment

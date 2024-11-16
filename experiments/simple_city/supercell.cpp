@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 500;
-    real        dz          = 500;
+    real        dx          = 2000;
+    real        dz          = 2000;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
@@ -86,14 +86,14 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step             (c,dt);            };
-        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
+        // auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
         // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
         auto run_les       = [&] (Coupler &c) { les_closure.apply            (c,dt);            };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate     (c,dt);            };
         auto run_micro     = [&] (Coupler &c) { micro.time_step              (c,dt);            };
         coupler.run_module( run_micro     , "microphysics"   );
         coupler.run_module( run_dycore    , "dycore"         );
-        coupler.run_module( run_sponge    , "sponge"         );
+        // coupler.run_module( run_sponge    , "sponge"         );
         // coupler.run_module( run_surf_flux , "surface_fluxes" );
         coupler.run_module( run_les       , "les_closure"    );
         coupler.run_module( run_tavg      , "time_averager"  );

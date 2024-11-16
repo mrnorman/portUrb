@@ -10,9 +10,9 @@ void mp_morr_two_moment(int *itimestep, float *th, float *qv, float *qc, float *
                         float *p, float *dt_in, float *dz, float *w, float *rainnc, float *rainncv,
                         float *sr, float *snownc, float *snowncv, float *graupelnc, float *graupelncv,
                         float *refl_10cm, int *diagflag, int *do_radar_ref, float *qrcuten, float *qscuten,
-                        float *qicuten, int *f_qndrop, float *qndrop, int *ids, int *ide, int *jds, int *jde,
-                        int *kds, int *kde, int *ims, int *ime, int *jms, int *jme, int *kms, int *kme, int *its,
-                        int *ite, int *jts, int *jte, int *kts, int *kte, int *wetscav_on, float *rainprod,
+                        float *qicuten, int *f_qndrop, float *qndrop, int *ids, int *ide,
+                        int *kds, int *kde, int *ims, int *ime, int *kms, int *kme, int *its,
+                        int *ite, int *kts, int *kte, int *wetscav_on, float *rainprod,
                         float *evapprod, float *qlsink, float *precr, float *preci, float *precs, float *precg);
 
 
@@ -134,9 +134,9 @@ namespace modules {
       dz_arr = dz;
 
       // Allocates inputs and outputs
-      int ids=1,ide=ncol , jds=1,jde=1 , kds=1,kde=nz;
-      int ims=1,ime=ncol , jms=1,jme=1 , kms=1,kme=nz;
-      int its=1,ite=ncol , jts=1,jte=1 , kts=1,kte=nz;
+      int ids=1,ide=ncol , kds=1,kde=nz;
+      int ims=1,ime=ncol , kms=1,kme=nz;
+      int its=1,ite=ncol , kts=1,kte=nz;
       int itimestep=1 , wetscav_on=0 , f_qndrop=0 , diagflag=0 , do_radar_ref=0;
       float dt_in=dt;
       float2d qv        ("qv        ",nz,ncol);
@@ -272,9 +272,9 @@ namespace modules {
                          host_p.data(), &dt_in, host_dz.data(), host_w.data(), host_rainnc.data(), host_rainncv.data(),
                          host_sr.data(), host_snownc.data(), host_snowncv.data(), host_graupelnc.data(), host_graupelncv.data(),
                          host_refl_10cm.data(), &diagflag, &do_radar_ref, host_qrcuten.data(), host_qscuten.data(),
-                         host_qicuten.data(), &f_qndrop, host_qndrop.data(), &ids, &ide, &jds, &jde,
-                         &kds, &kde, &ims, &ime, &jms, &jme, &kms, &kme, &its,
-                         &ite, &jts, &jte, &kts, &kte, &wetscav_on, host_rainprod.data(),
+                         host_qicuten.data(), &f_qndrop, host_qndrop.data(), &ids, &ide,
+                         &kds, &kde, &ims, &ime, &kms, &kme, &its,
+                         &ite, &kts, &kte, &wetscav_on, host_rainprod.data(),
                          host_evapprod.data(), host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(), host_precg.data());
 
       host_rainnc    .deep_copy_to(rainnc    );

@@ -1103,7 +1103,7 @@ namespace modules {
                 ns3dten(i,k) = ns3dten(i,k)+(nsmlts(i,k));
                 ng3dten(i,k) = ng3dten(i,k)+(ngmltg(i,k));
                 nr3dten(i,k) = nr3dten(i,k)+(nsubr(i,k)-nsmltr(i,k)-ngmltr(i,k));
-              } // if ( ! no_cirg(i,k)) {  // If there's cloud or ice or rain or graupel
+              } // if ( ! no_cirg(i,k)) 
               float dumt   = t3d(i,k)+dt*t3dten(i,k);
               float dumqv  = qv3d(i,k)+dt*qv3dten(i,k);
               float dum=min(0.99*pres(i,k),polysvp(dumt,0));

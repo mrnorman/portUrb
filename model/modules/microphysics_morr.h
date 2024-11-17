@@ -23,20 +23,28 @@ namespace modules {
   struct Microphysics_Morrison {
     typedef yakl::Array<float      ,1,yakl::memDevice,yakl::styleFortran> float1d_F;
     typedef yakl::Array<float      ,2,yakl::memDevice,yakl::styleFortran> float2d_F;
-    typedef yakl::Array<int        ,1,yakl::memDevice,yakl::styleFortran> int1d_F;
-    typedef yakl::Array<int        ,2,yakl::memDevice,yakl::styleFortran> int2d_F;
     typedef yakl::Array<float const,1,yakl::memDevice,yakl::styleFortran> floatConst1d_F;
     typedef yakl::Array<float const,2,yakl::memDevice,yakl::styleFortran> floatConst2d_F;
-    typedef yakl::Array<int   const,1,yakl::memDevice,yakl::styleFortran> intConst1d_F;
-    typedef yakl::Array<int   const,2,yakl::memDevice,yakl::styleFortran> intConst2d_F;
     typedef yakl::Array<float      ,1,yakl::memHost  ,yakl::styleFortran> floatHost1d_F;
     typedef yakl::Array<float      ,2,yakl::memHost  ,yakl::styleFortran> floatHost2d_F;
-    typedef yakl::Array<int        ,1,yakl::memHost  ,yakl::styleFortran> intHost1d_F;
-    typedef yakl::Array<int        ,2,yakl::memHost  ,yakl::styleFortran> intHost2d_F;
     typedef yakl::Array<float const,1,yakl::memHost  ,yakl::styleFortran> floatHostConst1d_F;
     typedef yakl::Array<float const,2,yakl::memHost  ,yakl::styleFortran> floatHostConst2d_F;
+    typedef yakl::Array<int        ,1,yakl::memDevice,yakl::styleFortran> int1d_F;
+    typedef yakl::Array<int        ,2,yakl::memDevice,yakl::styleFortran> int2d_F;
+    typedef yakl::Array<int   const,1,yakl::memDevice,yakl::styleFortran> intConst1d_F;
+    typedef yakl::Array<int   const,2,yakl::memDevice,yakl::styleFortran> intConst2d_F;
+    typedef yakl::Array<int        ,1,yakl::memHost  ,yakl::styleFortran> intHost1d_F;
+    typedef yakl::Array<int        ,2,yakl::memHost  ,yakl::styleFortran> intHost2d_F;
     typedef yakl::Array<int   const,1,yakl::memHost  ,yakl::styleFortran> intHostConst1d_F;
     typedef yakl::Array<int   const,2,yakl::memHost  ,yakl::styleFortran> intHostConst2d_F;
+    typedef yakl::Array<bool       ,1,yakl::memDevice,yakl::styleFortran> bool1d_F;
+    typedef yakl::Array<bool       ,2,yakl::memDevice,yakl::styleFortran> bool2d_F;
+    typedef yakl::Array<bool  const,1,yakl::memDevice,yakl::styleFortran> boolConst1d_F;
+    typedef yakl::Array<bool  const,2,yakl::memDevice,yakl::styleFortran> boolConst2d_F;
+    typedef yakl::Array<bool       ,1,yakl::memHost  ,yakl::styleFortran> boolHost1d_F;
+    typedef yakl::Array<bool       ,2,yakl::memHost  ,yakl::styleFortran> boolHost2d_F;
+    typedef yakl::Array<bool  const,1,yakl::memHost  ,yakl::styleFortran> boolHostConst1d_F;
+    typedef yakl::Array<bool  const,2,yakl::memHost  ,yakl::styleFortran> boolHostConst2d_F;
     // Doesn't actually have to be static or constexpr. Could be assigned in the constructor
     int static constexpr num_tracers = 10;
 
@@ -487,6 +495,8 @@ namespace modules {
                      int nz, floatHost2d_F const &qg3d, floatHost2d_F const &ng3d, floatHostConst2d_F qrcu1d,
                      floatHostConst2d_F qscu1d, floatHostConst2d_F qicu1d, int iinum, floatHost2d_F const &c2prec,
                      floatHost2d_F const &ised, floatHost2d_F const &ssed, floatHost2d_F const &gsed, floatHost2d_F const &rsed) {
+      using yakl::fortran::parallel_for;
+      using yakl::fortran::SimpleBounds;
       YAKL_SCOPE( ag      , this->ag      );     
       YAKL_SCOPE( bg      , this->bg      );     
       YAKL_SCOPE( rhog    , this->rhog    );       
@@ -748,9 +758,13 @@ namespace modules {
       intHost1d_F   ltrue     ("ltrue     ",ncol);     //
       intHost1d_F   nstep     ("nstep     ",ncol);     //
       float dum;
-      for (int i = 1; i <= ncol; i++) {
+      Kokkos::fence();
+      parallel_for( YAKL_AUTO_LABEL() , ncol , KOKKOS_LAMBDA (int i) {
         ltrue(i) = 0;
-        for (int k = 1; k <= nz; k++) {
+      });
+
+      boolHost2d_F proceed("proceed",ncol,nz);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           nc3d    (i,k) = 0.;
           ng3dten (i,k) = 0.;
           qg3dten (i,k) = 0.;
@@ -845,48 +859,316 @@ namespace modules {
           qcsten (i,k) = 0.;
           qgsten (i,k) = 0.;
           mu (i,k) = 1.496e-6*pow(t3d(i,k),1.5)/(t3d(i,k)+120.);
-          dum      = pow(rhosu/rho(i,k),0.54);
+          real dum      = pow(rhosu/rho(i,k),0.54);
           ain(i,k) = pow(rhosu/rho(i,k),0.35)*ai;
           arn(i,k) = dum*ar;
           asn(i,k) = dum*as;
           acn(i,k) = g*rhow/(18.*mu(i,k));
           agn(i,k) = dum*ag;
           lami   (i,k) = 0.;
+          proceed(i,k) = true;
           if (qc3d(i,k) < qsmall && qi3d(i,k) < qsmall && qni3d(i,k) < qsmall && qr3d(i,k) < qsmall && qg3d(i,k) < qsmall) {
-            if (t3d(i,k) <  273.15 && qvqvsi(i,k) < 0.999) continue;
-            if (t3d(i,k) >= 273.15 && qvqvs(i,k) < 0.999) continue;
+            if (t3d(i,k) <  273.15 && qvqvsi(i,k) < 0.999) proceed(i,k) = false;
+            if (t3d(i,k) >= 273.15 && qvqvs(i,k) < 0.999) proceed(i,k) = false;
           }
-          kap   (i,k) = 1.414e3*mu(i,k);
-          dv    (i,k) = 8.794e-5*pow(t3d(i,k),1.81)/pres(i,k);
-          sc    (i,k) = mu(i,k)/(rho(i,k)*dv(i,k));
-          dum         = (rv*pow(t3d(i,k),2));
-          dqsdt (i)   = xxlv(i,k)*qvs(i,k)/dum;
-          dqsidt(i)   = xxls(i,k)*qvi(i,k)/dum;
-          abi   (i,k) = 1.+dqsidt(i)*xxls(i,k)/cpm(i,k);
-          ab    (i,k) = 1.+dqsdt(i)*xxlv(i,k)/cpm(i,k);
-          if (t3d(i,k) >= 273.15) {
-            if (iinum==1) {
-              nc3d(i,k) = ndcnst*1.e6/rho(i,k);
-            }
-            if (qni3d(i,k) < 1.e-6) {
-              qr3d (i,k) = qr3d(i,k)+qni3d(i,k);
-              nr3d (i,k) = nr3d(i,k)+ns3d (i,k);
-              t3d  (i,k) = t3d (i,k)-qni3d(i,k)*xlf(i,k)/cpm(i,k);
-              qni3d(i,k) = 0.;
-              ns3d (i,k) = 0.;
-            }
-            if (qg3d(i,k) < 1.e-6) {
-              qr3d(i,k) = qr3d(i,k)+qg3d(i,k);
-              nr3d(i,k) = nr3d(i,k)+ng3d(i,k);
-              t3d (i,k) = t3d (i,k)-qg3d(i,k)*xlf(i,k)/cpm(i,k);
-              qg3d(i,k) = 0.;
-              ng3d(i,k) = 0.;
-            }
-            if ( !  (qc3d(i,k) < qsmall && qni3d(i,k) < 1.e-8 && qr3d(i,k) < qsmall && qg3d(i,k) < 1.e-8)) {
+      });
+      Kokkos::fence();
+      for (int i = 1; i <= ncol; i++) {
+        for (int k = 1; k <= nz; k++) {
+          if (proceed(i,k)) {
+            kap   (i,k) = 1.414e3*mu(i,k);
+            dv    (i,k) = 8.794e-5*pow(t3d(i,k),1.81)/pres(i,k);
+            sc    (i,k) = mu(i,k)/(rho(i,k)*dv(i,k));
+            dum         = (rv*pow(t3d(i,k),2));
+            dqsdt (i)   = xxlv(i,k)*qvs(i,k)/dum;
+            dqsidt(i)   = xxls(i,k)*qvi(i,k)/dum;
+            abi   (i,k) = 1.+dqsidt(i)*xxls(i,k)/cpm(i,k);
+            ab    (i,k) = 1.+dqsdt(i)*xxlv(i,k)/cpm(i,k);
+            if (t3d(i,k) >= 273.15) {
+              if (iinum==1) {
+                nc3d(i,k) = ndcnst*1.e6/rho(i,k);
+              }
+              if (qni3d(i,k) < 1.e-6) {
+                qr3d (i,k) = qr3d(i,k)+qni3d(i,k);
+                nr3d (i,k) = nr3d(i,k)+ns3d (i,k);
+                t3d  (i,k) = t3d (i,k)-qni3d(i,k)*xlf(i,k)/cpm(i,k);
+                qni3d(i,k) = 0.;
+                ns3d (i,k) = 0.;
+              }
+              if (qg3d(i,k) < 1.e-6) {
+                qr3d(i,k) = qr3d(i,k)+qg3d(i,k);
+                nr3d(i,k) = nr3d(i,k)+ng3d(i,k);
+                t3d (i,k) = t3d (i,k)-qg3d(i,k)*xlf(i,k)/cpm(i,k);
+                qg3d(i,k) = 0.;
+                ng3d(i,k) = 0.;
+              }
+              if ( !  (qc3d(i,k) < qsmall && qni3d(i,k) < 1.e-8 && qr3d(i,k) < qsmall && qg3d(i,k) < 1.e-8)) {
+                ns3d(i,k) = max(0.,ns3d(i,k));
+                nc3d(i,k) = max(0.,nc3d(i,k));
+                nr3d(i,k) = max(0.,nr3d(i,k));
+                ng3d(i,k) = max(0.,ng3d(i,k));
+                if (qr3d(i,k) >= qsmall) {
+                  lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
+                  n0rr(i,k) = nr3d(i,k)*lamr(i,k);
+                  if (lamr(i,k) < lamminr) {
+                    lamr(i,k) = lamminr;
+                    n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                    nr3d(i,k) = n0rr(i,k)/lamr(i,k);
+                  } else if (lamr(i,k) > lammaxr) {
+                    lamr(i,k) = lammaxr;
+                    n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                    nr3d(i,k) = n0rr(i,k)/lamr(i,k);
+                  }
+                }
+                if (qc3d(i,k) >= qsmall) {
+                  dum     =  pres(i,k)/(287.15*t3d(i,k));
+                  pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
+                  pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
+                  pgam(i,k) = max(pgam(i,k),2.);
+                  pgam(i,k) = min(pgam(i,k),10.);
+                  lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
+                  lammin(i)  = (pgam(i,k)+1.)/60.e-6;
+                  lammax(i)  = (pgam(i,k)+1.)/1.e-6;
+                  if (lamc(i,k) < lammin(i)) {
+                    lamc(i,k) = lammin(i);
+                    nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  } else if (lamc(i,k) > lammax(i)) {
+                    lamc(i,k) = lammax(i);
+                    nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  }
+                }
+                if (qni3d(i,k) >= qsmall) {
+                  lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
+                  n0s(i,k) = ns3d(i,k)*lams(i,k);
+                  if (lams(i,k) < lammins) {
+                    lams(i,k) = lammins;
+                    n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                    ns3d(i,k) = n0s(i,k)/lams(i,k);
+                  } else if (lams(i,k) > lammaxs) {
+                    lams(i,k) = lammaxs;
+                    n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                    ns3d(i,k) = n0s(i,k)/lams(i,k);
+                  }
+                }
+                if (qg3d(i,k) >= qsmall) {
+                  lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
+                  n0g(i,k) = ng3d(i,k)*lamg(i,k);
+                  if (lamg(i,k) < lamming) {
+                    lamg(i,k) = lamming;
+                    n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                    ng3d(i,k) = n0g(i,k)/lamg(i,k);
+                  } else if (lamg(i,k) > lammaxg) {
+                    lamg(i,k) = lammaxg;
+                    n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                    ng3d(i,k) = n0g(i,k)/lamg(i,k);
+                  }
+                }
+                prc(i,k) = 0.;
+                nprc(i,k) = 0.;
+                nprc1(i,k) = 0.;
+                pra(i,k) = 0.;
+                npra(i,k) = 0.;
+                nragg(i,k) = 0.;
+                nsmlts(i,k) = 0.;
+                nsmltr(i,k) = 0.;
+                evpms(i,k) = 0.;
+                pcc(i,k) = 0.;
+                pre(i,k) = 0.;
+                nsubc(i,k) = 0.;
+                nsubr(i,k) = 0.;
+                pracg(i,k) = 0.;
+                npracg(i,k) = 0.;
+                psmlt(i,k) = 0.;
+                pgmlt(i,k) = 0.;
+                evpmg(i,k) = 0.;
+                pracs(i,k) = 0.;
+                npracs(i,k) = 0.;
+                ngmltg(i,k) = 0.;
+                ngmltr(i,k) = 0.;
+                if (qc3d(i,k) >= 1.e-6) {
+                  prc(i,k)=1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
+                  nprc1(i,k) = prc(i,k)/cons29;
+                  nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
+                  nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt );
+                  nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
+                }
+                if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
+                  ums(i) = asn(i,k)*cons3/pow(lams(i,k),bs);
+                  umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br);
+                  uns(i) = asn(i,k)*cons5/pow(lams(i,k),bs);
+                  unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br);
+                  dum = pow(rhosu/rho(i,k),0.54);
+                  ums(i) = min( ums(i) , 1.2*dum );
+                  uns(i) = min( uns(i) , 1.2*dum );
+                  umr(i) = min( umr(i) , 9.1*dum );
+                  unr(i) = min( unr(i) , 9.1*dum );
+                  pracs(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)*
+                              (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
+                }
+                if (qr3d(i,k) >= 1.e-8 && qg3d(i,k) >= 1.e-8) {
+                  umg(i) = agn(i,k)*cons7/pow(lamg(i,k),bg);
+                  umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br);
+                  ung(i) = agn(i,k)*cons8/pow(lamg(i,k),bg);
+                  unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br);
+                  dum = pow(rhosu/rho(i,k),0.54);
+                  umg(i) = min( umg(i) , 20.*dum );
+                  ung(i) = min( ung(i) , 20.*dum );
+                  umr(i) = min( umr(i) , 9.1*dum );
+                  unr(i) = min( unr(i) , 9.1*dum );
+                  pracg(i,k)  = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)*
+                              (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))));
+                  dum       = pracg(i,k)/5.2e-7;
+                  npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)*
+                              (1./(pow(lamr(i,k),3)*lamg(i,k))+1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
+                  npracg(i,k) = npracg(i,k)-dum;
+                }
+                if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
+                  dum     = (qc3d(i,k)*qr3d(i,k));
+                  pra(i,k) = 67.*pow(dum,1.15);
+                  npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
+                }
+                if (qr3d(i,k) >= 1.e-8) {
+                  dum1(i)=300.e-6;
+                  if (1./lamr(i,k) < dum1(i)) {
+                    dum=1.;
+                  } else if (1./lamr(i,k) >= dum1(i)) {
+                    dum=2.-std::exp(2300.*(1./lamr(i,k)-dum1(i)));
+                  }
+                  nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k);
+                }
+                if (qr3d(i,k) >= qsmall) {
+                  epsr(i) = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)));
+                } else {
+                  epsr(i) = 0.;
+                }
+                if (qv3d(i,k) < qvs(i,k)) {
+                  pre(i,k) = epsr(i)*(qv3d(i,k)-qvs(i,k))/ab(i,k);
+                  pre(i,k) = min(pre(i,k),0.);
+                } else {
+                  pre(i,k) = 0.;
+                }
+                if (qni3d(i,k) >= 1.e-8) {
+                  dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k);
+                  psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))+dum;
+                  if (qvqvs(i,k) < 1.) {
+                    epss(i)     = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
+                    evpms(i,k) = (qv3d(i,k)-qvs(i,k))*epss(i)/ab(i,k)    ;
+                    evpms(i,k) = max(evpms(i,k),psmlt(i,k));
+                    psmlt(i,k) = psmlt(i,k)-evpms(i,k);
+                  }
+                }
+                if (qg3d(i,k) >= 1.e-8) {
+                  dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k);
+                  pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))+dum;
+                  if (qvqvs(i,k) < 1.) {
+                    epsg(i)     = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
+                    evpmg(i,k) = (qv3d(i,k)-qvs(i,k))*epsg(i)/ab(i,k);
+                    evpmg(i,k) = max(evpmg(i,k),pgmlt(i,k));
+                    pgmlt(i,k) = pgmlt(i,k)-evpmg(i,k);
+                  }
+                }
+                pracg(i,k) = 0.;
+                pracs(i,k) = 0.;
+                dum = (prc(i,k)+pra(i,k))*dt;
+                if (dum > qc3d(i,k) && qc3d(i,k) >= qsmall) {
+                  ratio(i) = qc3d(i,k)/dum;
+                  prc(i,k) = prc(i,k)*ratio(i);
+                  pra(i,k) = pra(i,k)*ratio(i);
+                }
+                dum = (-psmlt(i,k)-evpms(i,k)+pracs(i,k))*dt;
+                if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
+                  ratio(i)    = qni3d(i,k)/dum;
+                  psmlt(i,k) = psmlt(i,k)*ratio(i);
+                  evpms(i,k) = evpms(i,k)*ratio(i);
+                  pracs(i,k) = pracs(i,k)*ratio(i);
+                }
+                dum = (-pgmlt(i,k)-evpmg(i,k)+pracg(i,k))*dt;
+                if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
+                  ratio(i)    = qg3d (i,k)/dum;
+                  pgmlt(i,k) = pgmlt(i,k)*ratio(i);
+                  evpmg(i,k) = evpmg(i,k)*ratio(i);
+                  pracg(i,k) = pracg(i,k)*ratio(i);
+                }
+                dum = (-pracs(i,k)-pracg(i,k)-pre(i,k)-pra(i,k)-prc(i,k)+psmlt(i,k)+pgmlt(i,k))*dt;
+                if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
+                  ratio(i)  = (qr3d(i,k)/dt+pracs(i,k)+pracg(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k))/(-pre(i,k));
+                  pre(i,k) = pre(i,k)*ratio(i);
+                }
+                qv3dten (i,k) = qv3dten (i,k) + (-pre(i,k)-evpms(i,k)-evpmg(i,k));
+                t3dten  (i,k) = t3dten  (i,k) + (pre(i,k)*xxlv(i,k)+(evpms(i,k)+evpmg(i,k))*xxls(i,k)+(psmlt(i,k)+pgmlt(i,k)-pracs(i,k)-pracg(i,k))*xlf(i,k))/cpm(i,k);
+                qc3dten (i,k) = qc3dten (i,k) + (-pra(i,k)-prc(i,k));;
+                qr3dten (i,k) = qr3dten (i,k) + (pre(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k)+pracs(i,k)+pracg(i,k));
+                qni3dten(i,k) = qni3dten(i,k) + (psmlt(i,k)+evpms(i,k)-pracs(i,k));
+                qg3dten (i,k) = qg3dten (i,k) + (pgmlt(i,k)+evpmg(i,k)-pracg(i,k));
+                nc3dten (i,k) = nc3dten (i,k) + (-npra(i,k)-nprc(i,k));
+                nr3dten (i,k) = nr3dten (i,k) + (nprc1(i,k)+nragg(i,k)-npracg(i,k));
+                c2prec  (i,k) = pra(i,k)+prc(i,k);
+                if (pre(i,k) < 0.) {
+                  dum      = pre(i,k)*dt/qr3d(i,k);
+                  dum      = max(-1.,dum);
+                  nsubr(i,k) = dum*nr3d(i,k)/dt;
+                }
+                if (evpms(i,k)+psmlt(i,k) < 0.) {
+                  dum       = (evpms(i,k)+psmlt(i,k))*dt/qni3d(i,k);
+                  dum       = max(-1.,dum);
+                  nsmlts(i,k) = dum*ns3d(i,k)/dt;
+                }
+                if (psmlt(i,k) < 0.) {
+                  dum       = psmlt(i,k)*dt/qni3d(i,k);
+                  dum       = max(-1.0,dum);
+                  nsmltr(i,k) = dum*ns3d(i,k)/dt;
+                }
+                if (evpmg(i,k)+pgmlt(i,k) < 0.) {
+                  dum       = (evpmg(i,k)+pgmlt(i,k))*dt/qg3d(i,k);
+                  dum       = max(-1.,dum);
+                  ngmltg(i,k) = dum*ng3d(i,k)/dt;
+                }
+                if (pgmlt(i,k) < 0.) {
+                  dum       = pgmlt(i,k)*dt/qg3d(i,k);
+                  dum       = max(-1.0,dum);
+                  ngmltr(i,k) = dum*ng3d(i,k)/dt;
+                }
+                ns3dten(i,k) = ns3dten(i,k)+(nsmlts(i,k));
+                ng3dten(i,k) = ng3dten(i,k)+(ngmltg(i,k));
+                nr3dten(i,k) = nr3dten(i,k)+(nsubr(i,k)-nsmltr(i,k)-ngmltr(i,k));
+              }
+
+              dumt(i) = t3d(i,k)+dt*t3dten(i,k);
+              dumqv(i) = qv3d(i,k)+dt*qv3dten(i,k);
+              dum=min(0.99*pres(i,k),polysvp(dumt(i),0));
+              dumqss(i) = ep_2*dum/(pres(i,k)-dum);
+              dumqc(i) = qc3d(i,k)+dt*qc3dten(i,k);
+              dumqc(i) = max(dumqc(i),0.);
+              dums(i) = dumqv(i)-dumqss(i);
+              pcc(i,k) = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt;
+              if (pcc(i,k)*dt+dumqc(i) < 0.) {
+                pcc(i,k) = -dumqc(i)/dt;
+              }
+              qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
+              t3dten(i,k) = t3dten(i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
+              qc3dten(i,k) = qc3dten(i,k)+pcc(i,k);
+            } else {  // temperature < 273.15
+              if (iinum==1) {
+                nc3d(i,k)=ndcnst*1.e6/rho(i,k);
+              }
+              ni3d(i,k) = max(0.,ni3d(i,k));
               ns3d(i,k) = max(0.,ns3d(i,k));
               nc3d(i,k) = max(0.,nc3d(i,k));
               nr3d(i,k) = max(0.,nr3d(i,k));
               ng3d(i,k) = max(0.,ng3d(i,k));
+              if (qi3d(i,k) >= qsmall) {
+                lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
+                n0i(i,k) = ni3d(i,k)*lami(i,k);
+                if (lami(i,k) < lammini) {
+                  lami(i,k) = lammini;
+                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  ni3d(i,k) = n0i(i,k)/lami(i,k);
+                } else if (lami(i,k) > lammaxi) {
+                  lami(i,k) = lammaxi;
+                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  ni3d(i,k) = n0i(i,k)/lami(i,k);
+                }
+              }
               if (qr3d(i,k) >= qsmall) {
                 lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
                 n0rr(i,k) = nr3d(i,k)*lamr(i,k);
@@ -901,7 +1183,7 @@ namespace modules {
                 }
               }
               if (qc3d(i,k) >= qsmall) {
-                dum     =  pres(i,k)/(287.15*t3d(i,k));
+                dum     = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
                 pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
                 pgam(i,k) = max(pgam(i,k),2.);
@@ -916,6 +1198,7 @@ namespace modules {
                   lamc(i,k) = lammax(i);
                   nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
                 }
+                cdist1(i,k) = nc3d(i,k)/gamma(pgam(i,k)+1.);
               }
               if (qni3d(i,k) >= qsmall) {
                 lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
@@ -943,34 +1226,98 @@ namespace modules {
                   ng3d(i,k) = n0g(i,k)/lamg(i,k);
                 }
               }
+              mnuccc(i,k) = 0.;
+              nnuccc(i,k) = 0.;
               prc(i,k) = 0.;
               nprc(i,k) = 0.;
               nprc1(i,k) = 0.;
+              nsagg(i,k) = 0.;
+              psacws(i,k) = 0.;
+              npsacws(i,k) = 0.;
+              psacwi(i,k) = 0.;
+              npsacwi(i,k) = 0.;
+              pracs(i,k) = 0.;
+              npracs(i,k) = 0.;
+              nmults(i,k) = 0.;
+              qmults(i,k) = 0.;
+              nmultr(i,k) = 0.;
+              qmultr(i,k) = 0.;
+              nmultg(i,k) = 0.;
+              qmultg(i,k) = 0.;
+              nmultrg(i,k) = 0.;
+              qmultrg(i,k) = 0.;
+              mnuccr(i,k) = 0.;
+              nnuccr(i,k) = 0.;
               pra(i,k) = 0.;
               npra(i,k) = 0.;
               nragg(i,k) = 0.;
-              nsmlts(i,k) = 0.;
-              nsmltr(i,k) = 0.;
-              evpms(i,k) = 0.;
+              prci(i,k) = 0.;
+              nprci(i,k) = 0.;
+              prai(i,k) = 0.;
+              nprai(i,k) = 0.;
+              nnuccd(i,k) = 0.;
+              mnuccd(i,k) = 0.;
               pcc(i,k) = 0.;
               pre(i,k) = 0.;
+              prd(i,k) = 0.;
+              prds(i,k) = 0.;
+              eprd(i,k) = 0.;
+              eprds(i,k) = 0.;
               nsubc(i,k) = 0.;
+              nsubi(i,k) = 0.;
+              nsubs(i,k) = 0.;
               nsubr(i,k) = 0.;
+              piacr(i,k) = 0.;
+              niacr(i,k) = 0.;
+              praci(i,k) = 0.;
+              piacrs(i,k) = 0.;
+              niacrs(i,k) = 0.;
+              pracis(i,k) = 0.;
               pracg(i,k) = 0.;
+              psacr(i,k) = 0.;
+              psacwg(i,k) = 0.;
+              pgsacw(i,k) = 0.;
+              pgracs(i,k) = 0.;
+              prdg(i,k) = 0.;
+              eprdg(i,k) = 0.;
               npracg(i,k) = 0.;
-              psmlt(i,k) = 0.;
-              pgmlt(i,k) = 0.;
-              evpmg(i,k) = 0.;
-              pracs(i,k) = 0.;
-              npracs(i,k) = 0.;
-              ngmltg(i,k) = 0.;
-              ngmltr(i,k) = 0.;
+              npsacwg(i,k) = 0.;
+              nscng(i,k) = 0.;
+              ngracs(i,k) = 0.;
+              nsubg(i,k) = 0.;
+              if (qc3d(i,k) >= qsmall  &&  t3d(i,k) < 269.15) {
+                nacnt(i)     = std::exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.;
+                dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
+                dap(i,k) = cons37*t3d(i,k)*(1.+dum/rin)/mu(i,k);
+                mnuccc(i,k) = cons38*dap(i,k)*nacnt(i)*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
+                nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt(i)*cdist1(i,k)*gamma(pgam(i,k)+2.)/lamc(i,k);
+                mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(gamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                nnuccc(i,k) = min(nnuccc(i,k),nc3d(i,k)/dt);
+              }
               if (qc3d(i,k) >= 1.e-6) {
-                prc(i,k)=1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
+                prc(i,k) = 1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
                 nprc1(i,k) = prc(i,k)/cons29;
                 nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
                 nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt );
                 nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
+              }
+              if (qni3d(i,k) >= 1.e-8) {
+                nsagg(i,k) = cons15*asn(i,k)*pow(rho(i,k),(2.+bs)/3.)*pow(qni3d(i,k),(2.+bs)/3.)*pow(ns3d(i,k)*rho(i,k),(4.-bs)/3.)/(rho(i,k));
+              }
+              if (qni3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
+                psacws(i,k) = cons13*asn(i,k)*qc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+                npsacws(i,k) = cons13*asn(i,k)*nc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+              }
+              if (qg3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
+                psacwg(i,k) = cons14*agn(i,k)*qc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
+                npsacwg(i,k) = cons14*agn(i,k)*nc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
+              }
+              if (qi3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
+                if (1./lami(i,k) >= 100.e-6) {
+                  psacwi(i,k) = cons16*ain(i,k)*qc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
+                  npsacwi(i,k) = cons16*ain(i,k)*nc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
+                }
               }
               if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
                 ums(i) = asn(i,k)*cons3/pow(lams(i,k),bs);
@@ -983,7 +1330,14 @@ namespace modules {
                 umr(i) = min( umr(i) , 9.1*dum );
                 unr(i) = min( unr(i) , 9.1*dum );
                 pracs(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)*
-                            (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
+                           (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
+                npracs(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-uns(i),2)+0.3*unr(i)*uns(i),0.5)*n0rr(i,k)*n0s(i,k)*(1./(pow(lamr(i,k),3)*lams(i,k))+
+                            1./(pow(lamr(i,k),2)*pow(lams(i,k),2))+1./(lamr(i,k)*pow(lams(i,k),3)));
+                pracs(i,k) = min(pracs(i,k),qr3d(i,k)/dt);
+                if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
+                  psacr(i,k) = cons31*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lams(i,k),3)* 
+                             (5./(pow(lams(i,k),3)*lamr(i,k))+2./(pow(lams(i,k),2)*pow(lamr(i,k),2))+0.5/(lams(i,k)*pow(lamr(i,k),3))))            ;
+                }
               }
               if (qr3d(i,k) >= 1.e-8 && qg3d(i,k) >= 1.e-8) {
                 umg(i) = agn(i,k)*cons7/pow(lamg(i,k),bg);
@@ -995,12 +1349,98 @@ namespace modules {
                 ung(i) = min( ung(i) , 20.*dum );
                 umr(i) = min( umr(i) , 9.1*dum );
                 unr(i) = min( unr(i) , 9.1*dum );
-                pracg(i,k)  = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)*
+                pracg(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)* 
                             (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))));
-                dum       = pracg(i,k)/5.2e-7;
-                npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)*
-                            (1./(pow(lamr(i,k),3)*lamg(i,k))+1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
-                npracg(i,k) = npracg(i,k)-dum;
+                npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)*(1./(pow(lamr(i,k),3)*lamg(i,k))+
+                            1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
+                pracg(i,k) = min(pracg(i,k),qr3d(i,k)/dt);
+              }
+              if (qni3d(i,k) >= 0.1e-3) {
+                if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
+                  if (psacws(i,k) > 0. || pracs(i,k) > 0.) {
+                    if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
+                      if (t3d(i,k) > 270.16) {
+                        fmult(i) = 0.;
+                      } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
+                        fmult(i) = (270.16-t3d(i,k))/2.;
+                      } else if (t3d(i,k) >= 265.16 && t3d(i,k) <= 268.16)   {
+                        fmult(i) = (t3d(i,k)-265.16)/3.;
+                      } else if (t3d(i,k) < 265.16) {
+                        fmult(i) = 0.;
+                      }
+                      if (psacws(i,k) > 0.) {
+                        nmults(i,k) = 35.e4*psacws(i,k)*fmult(i)*1000.;
+                        qmults(i,k) = nmults(i,k)*mmult;
+                        qmults(i,k) = min(qmults(i,k),psacws(i,k));
+                        psacws(i,k) = psacws(i,k)-qmults(i,k);
+                      }
+                      if (pracs(i,k) > 0.) {
+                        nmultr(i,k) = 35.e4*pracs(i,k)*fmult(i)*1000.;
+                        qmultr(i,k) = nmultr(i,k)*mmult;
+                        qmultr(i,k) = min(qmultr(i,k),pracs(i,k));
+                        pracs(i,k) = pracs(i,k)-qmultr(i,k);
+                      }
+                    }
+                  }
+                }
+              }
+              if (qg3d(i,k) >= 0.1e-3) {
+                if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
+                  if (psacwg(i,k) > 0. || pracg(i,k) > 0.) {
+                    if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
+                      if (t3d(i,k) > 270.16) {
+                        fmult(i) = 0.;
+                      } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
+                        fmult(i) = (270.16-t3d(i,k))/2.;
+                      } else if (t3d(i,k) >= 265.16 && t3d(i,k) <= 268.16)   {
+                        fmult(i) = (t3d(i,k)-265.16)/3.;
+                      } else if (t3d(i,k) < 265.16) {
+                        fmult(i) = 0.;
+                      }
+                      if (psacwg(i,k) > 0.) {
+                        nmultg(i,k) = 35.e4*psacwg(i,k)*fmult(i)*1000.;
+                        qmultg(i,k) = nmultg(i,k)*mmult;
+                        qmultg(i,k) = min(qmultg(i,k),psacwg(i,k));
+                        psacwg(i,k) = psacwg(i,k)-qmultg(i,k);
+                      }
+                      if (pracg(i,k) > 0.) {
+                        nmultrg(i,k) = 35.e4*pracg(i,k)*fmult(i)*1000.;
+                        qmultrg(i,k) = nmultrg(i,k)*mmult;
+                        qmultrg(i,k) = min(qmultrg(i,k),pracg(i,k));
+                        pracg(i,k) = pracg(i,k)-qmultrg(i,k);
+                      }
+                    }
+                  }
+                }
+              }
+              if (psacws(i,k) > 0.) {
+                if (qni3d(i,k) >= 0.1e-3 && qc3d(i,k) >= 0.5e-3) {
+                  pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)));
+                  dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
+                  nscng(i,k) = dum/mg0*rho(i,k);
+                  nscng(i,k) = min(nscng(i,k),ns3d(i,k)/dt);
+                  psacws(i,k) = psacws(i,k) - pgsacw(i,k);
+                }
+              }
+              if (pracs(i,k) > 0.) {
+                if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
+                  dum       = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
+                              cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3));
+                  dum       = min( dum , 1. );
+                  dum       = max( dum , 0. );
+                  pgracs(i,k) = (1.-dum)*pracs(i,k);
+                  ngracs(i,k) = (1.-dum)*npracs(i,k);
+                  ngracs(i,k) = min(ngracs(i,k),nr3d(i,k)/dt);
+                  ngracs(i,k) = min(ngracs(i,k),ns3d(i,k)/dt);
+                  pracs(i,k) = pracs(i,k) - pgracs(i,k);
+                  npracs(i,k) = npracs(i,k) - ngracs(i,k);
+                  psacr(i,k) = psacr(i,k)*(1.-dum);
+                }
+              }
+              if (t3d(i,k) < 269.15 && qr3d(i,k) >= qsmall) {
+                mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)/pow(lamr(i,k),3);
+                nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3);
+                nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
               }
               if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
                 dum     = (qc3d(i,k)*qr3d(i,k));
@@ -1016,673 +1456,254 @@ namespace modules {
                 }
                 nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k);
               }
+              if (qi3d(i,k) >= 1.e-8  && qvqvsi(i,k) >= 1.) {
+                nprci(i,k) = cons21*(qv3d(i,k)-qvi(i,k))*rho(i,k)*n0i(i,k)*std::exp(-lami(i,k)*dcs)*dv(i,k)/abi(i,k);
+                prci(i,k) = cons22*nprci(i,k);
+                nprci(i,k) = min(nprci(i,k),ni3d(i,k)/dt);
+              }
+              if (qni3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= qsmall) {
+                prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+                nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+                nprai(i,k) = min( nprai(i,k) , ni3d(i,k)/dt );
+              }
+              if (qr3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= 1.e-8  &&  t3d(i,k) <= 273.15) {
+                if (qr3d(i,k) >= 0.1e-3) {
+                  niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
+                  praci(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  niacr(i,k)=min(niacr(i,k),nr3d(i,k)/dt);
+                  niacr(i,k)=min(niacr(i,k),ni3d(i,k)/dt);
+                } else {
+                  niacrs(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  piacrs(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
+                  pracis(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  niacrs(i,k)=min(niacrs(i,k),nr3d(i,k)/dt);
+                  niacrs(i,k)=min(niacrs(i,k),ni3d(i,k)/dt);
+                }
+              }
+              if (inuc==0) {
+                if ((qvqvs(i,k) >= 0.999  &&  t3d(i,k) <= 265.15)  ||  qvqvsi(i,k) >= 1.08) {
+                  kc2(i) = 0.005*std::exp(0.304*(273.15-t3d(i,k)))*1000.;
+                  kc2(i) = min( kc2(i) ,500.e3 );
+                  kc2(i) = max( kc2(i)/rho(i,k) , 0. );
+                  if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
+                    nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt;
+                    mnuccd(i,k) = nnuccd(i,k)*mi0;
+                  }
+                }
+              } else if (inuc==1) {
+                if (t3d(i,k) < 273.15 && qvqvsi(i,k) > 1.) {
+                  kc2(i) = 0.16*1000./rho(i,k);
+                  if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
+                    nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt;
+                    mnuccd(i,k) = nnuccd(i,k)*mi0;
+                  }
+                }
+              }
+
+              if (qi3d(i,k) >= qsmall) {
+                 epsi(i) = 2.*pi*n0i(i,k)*rho(i,k)*dv(i,k)/(lami(i,k)*lami(i,k));
+              } else {
+                 epsi(i) = 0.;
+              }
+              if (qni3d(i,k) >= qsmall) {
+                epss(i) = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
+              } else {
+                epss(i) = 0.;
+              }
+              if (qg3d(i,k) >= qsmall) {
+                epsg(i) = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
+              } else {
+                epsg(i) = 0.;
+              }
               if (qr3d(i,k) >= qsmall) {
                 epsr(i) = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)));
               } else {
                 epsr(i) = 0.;
               }
+              if (qi3d(i,k) >= qsmall) {              
+                dum    = (1.-std::exp(-lami(i,k)*dcs)*(1.+lami(i,k)*dcs));
+                prd(i,k) = epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*dum;
+              } else {
+                dum=0.;
+              }
+              if (qni3d(i,k) >= qsmall) {
+                prds(i,k) = epss(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
+              } else {
+                prd(i,k) = prd(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
+              }
+              prdg(i,k) = epsg(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k);
               if (qv3d(i,k) < qvs(i,k)) {
                 pre(i,k) = epsr(i)*(qv3d(i,k)-qvs(i,k))/ab(i,k);
-                pre(i,k) = min(pre(i,k),0.);
+                pre(i,k) = min( pre(i,k) , 0. );
               } else {
                 pre(i,k) = 0.;
               }
-              if (qni3d(i,k) >= 1.e-8) {
-                dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k);
-                psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))+dum;
-                if (qvqvs(i,k) < 1.) {
-                  epss(i)     = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
-                  evpms(i,k) = (qv3d(i,k)-qvs(i,k))*epss(i)/ab(i,k)    ;
-                  evpms(i,k) = max(evpms(i,k),psmlt(i,k));
-                  psmlt(i,k) = psmlt(i,k)-evpms(i,k);
-                }
+              dum = (qv3d(i,k)-qvi(i,k))/dt;
+              fudgef(i) = 0.9999;
+              sum_dep(i) = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k);
+              if( (dum > 0.  &&  sum_dep(i) > dum*fudgef(i))  ||  (dum < 0.  &&  sum_dep(i) < dum*fudgef(i)) ) {
+                mnuccd(i,k) = fudgef(i)*mnuccd(i,k)*dum/sum_dep(i);
+                prd(i,k) = fudgef(i)*prd(i,k)*dum/sum_dep(i);
+                prds(i,k) = fudgef(i)*prds(i,k)*dum/sum_dep(i);
+                prdg(i,k) = fudgef(i)*prdg(i,k)*dum/sum_dep(i);
               }
-              if (qg3d(i,k) >= 1.e-8) {
-                dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k);
-                pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))+dum;
-                if (qvqvs(i,k) < 1.) {
-                  epsg(i)     = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
-                  evpmg(i,k) = (qv3d(i,k)-qvs(i,k))*epsg(i)/ab(i,k);
-                  evpmg(i,k) = max(evpmg(i,k),pgmlt(i,k));
-                  pgmlt(i,k) = pgmlt(i,k)-evpmg(i,k);
-                }
+              if (prd(i,k) < 0.) {
+                eprd(i,k)=prd(i,k);
+                prd(i,k)=0.;
               }
-              pracg(i,k) = 0.;
-              pracs(i,k) = 0.;
-              dum = (prc(i,k)+pra(i,k))*dt;
-              if (dum > qc3d(i,k) && qc3d(i,k) >= qsmall) {
+              if (prds(i,k) < 0.) {
+                eprds(i,k)=prds(i,k);
+                prds(i,k)=0.;
+              }
+              if (prdg(i,k) < 0.) {
+                eprdg(i,k)=prdg(i,k);
+                prdg(i,k)=0.;
+              }
+              if (iliq==1) {
+                mnuccc(i,k)=0.;
+                nnuccc(i,k)=0.;
+                mnuccr(i,k)=0.;
+                nnuccr(i,k)=0.;
+                mnuccd(i,k)=0.;
+                nnuccd(i,k)=0.;
+              }
+              if (igraup==1) {
+                pracg(i,k) = 0.;
+                psacr(i,k) = 0.;
+                psacwg(i,k) = 0.;
+                prdg(i,k) = 0.;
+                eprdg(i,k) = 0.;
+                evpmg(i,k) = 0.;
+                pgmlt(i,k) = 0.;
+                npracg(i,k) = 0.;
+                npsacwg(i,k) = 0.;
+                nscng(i,k) = 0.;
+                ngracs(i,k) = 0.;
+                nsubg(i,k) = 0.;
+                ngmltg(i,k) = 0.;
+                ngmltr(i,k) = 0.;
+                piacrs(i,k) = piacrs(i,k)+piacr(i,k);
+                piacr(i,k) = 0.;
+                pracis(i,k) = pracis(i,k)+praci(i,k);
+                praci(i,k) = 0.;
+                psacws(i,k) = psacws(i,k)+pgsacw(i,k);
+                pgsacw(i,k) = 0.;
+                pracs(i,k) = pracs(i,k)+pgracs(i,k);
+                pgracs(i,k) = 0.;
+              }
+              dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+pgsacw(i,k)+qmultg(i,k))*dt;
+              if (dum > qc3d(i,k)  &&  qc3d(i,k) >= qsmall) {
                 ratio(i) = qc3d(i,k)/dum;
                 prc(i,k) = prc(i,k)*ratio(i);
                 pra(i,k) = pra(i,k)*ratio(i);
+                mnuccc(i,k) = mnuccc(i,k)*ratio(i);
+                psacws(i,k) = psacws(i,k)*ratio(i);
+                psacwi(i,k) = psacwi(i,k)*ratio(i);
+                qmults(i,k) = qmults(i,k)*ratio(i);
+                qmultg(i,k) = qmultg(i,k)*ratio(i);
+                psacwg(i,k) = psacwg(i,k)*ratio(i);
+                pgsacw(i,k) = pgsacw(i,k)*ratio(i);
               }
-              dum = (-psmlt(i,k)-evpms(i,k)+pracs(i,k))*dt;
-              if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                ratio(i)    = qni3d(i,k)/dum;
-                psmlt(i,k) = psmlt(i,k)*ratio(i);
-                evpms(i,k) = evpms(i,k)*ratio(i);
+              dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
+              if (dum > qi3d(i,k)  &&  qi3d(i,k) >= qsmall) {
+                ratio(i) = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
+                prci(i,k) = prci(i,k)*ratio(i);
+                prai(i,k) = prai(i,k)*ratio(i);
+                praci(i,k) = praci(i,k)*ratio(i);
+                pracis(i,k) = pracis(i,k)*ratio(i);
+                eprd(i,k) = eprd(i,k)*ratio(i);
+              }
+              dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
+              if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
+                ratio(i) = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
+                pre(i,k) = pre(i,k)*ratio(i);
                 pracs(i,k) = pracs(i,k)*ratio(i);
-              }
-              dum = (-pgmlt(i,k)-evpmg(i,k)+pracg(i,k))*dt;
-              if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
-                ratio(i)    = qg3d (i,k)/dum;
-                pgmlt(i,k) = pgmlt(i,k)*ratio(i);
-                evpmg(i,k) = evpmg(i,k)*ratio(i);
+                qmultr(i,k) = qmultr(i,k)*ratio(i);
+                qmultrg(i,k) = qmultrg(i,k)*ratio(i);
+                mnuccr(i,k) = mnuccr(i,k)*ratio(i);
+                piacr(i,k) = piacr(i,k)*ratio(i);
+                piacrs(i,k) = piacrs(i,k)*ratio(i);
+                pgracs(i,k) = pgracs(i,k)*ratio(i);
                 pracg(i,k) = pracg(i,k)*ratio(i);
               }
-              dum = (-pracs(i,k)-pracg(i,k)-pre(i,k)-pra(i,k)-prc(i,k)+psmlt(i,k)+pgmlt(i,k))*dt;
-              if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
-                ratio(i)  = (qr3d(i,k)/dt+pracs(i,k)+pracg(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k))/(-pre(i,k));
-                pre(i,k) = pre(i,k)*ratio(i);
+              if (igraup==0) {
+                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k))*dt;
+                if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
+                  ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k))/(-eprds(i,k)+psacr(i,k));
+                  eprds(i,k) = eprds(i,k)*ratio(i);
+                  psacr(i,k) = psacr(i,k)*ratio(i);
+                }
+              } else if (igraup==1) {
+                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k)-mnuccr(i,k))*dt;
+                if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
+                  ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k));
+                  eprds(i,k) = eprds(i,k)*ratio(i);
+                  psacr(i,k) = psacr(i,k)*ratio(i);
+                }
               }
-              qv3dten (i,k) = qv3dten (i,k) + (-pre(i,k)-evpms(i,k)-evpmg(i,k));
-              t3dten  (i,k) = t3dten  (i,k) + (pre(i,k)*xxlv(i,k)+(evpms(i,k)+evpmg(i,k))*xxls(i,k)+(psmlt(i,k)+pgmlt(i,k)-pracs(i,k)-pracg(i,k))*xlf(i,k))/cpm(i,k);
-              qc3dten (i,k) = qc3dten (i,k) + (-pra(i,k)-prc(i,k));;
-              qr3dten (i,k) = qr3dten (i,k) + (pre(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k)+pracs(i,k)+pracg(i,k));
-              qni3dten(i,k) = qni3dten(i,k) + (psmlt(i,k)+evpms(i,k)-pracs(i,k));
-              qg3dten (i,k) = qg3dten (i,k) + (pgmlt(i,k)+evpmg(i,k)-pracg(i,k));
-              nc3dten (i,k) = nc3dten (i,k) + (-npra(i,k)-nprc(i,k));
-              nr3dten (i,k) = nr3dten (i,k) + (nprc1(i,k)+nragg(i,k)-npracg(i,k));
-              c2prec  (i,k) = pra(i,k)+prc(i,k);
+              dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-praci(i,k)-psacr(i,k))*dt;
+              if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
+                ratio(i) = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
+                eprdg(i,k) = eprdg(i,k)*ratio(i);
+              }
+              qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-prdg(i,k)-eprdg(i,k));
+              t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
+              qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k));
+              qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)-prai(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)-praci(i,k)-pracis(i,k));
+              qr3dten(i,k) = qr3dten(i,k)+(pre(i,k)+pra(i,k)+prc(i,k)-pracs(i,k)-mnuccr(i,k)-qmultr(i,k)-qmultrg(i,k)-piacr(i,k)-piacrs(i,k)-pracg(i,k)-pgracs(i,k));
+              if (igraup==0) {
+                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k));
+                ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k));
+                qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k));
+                ng3dten(i,k) = ng3dten(i,k)+(nscng(i,k)+ngracs(i,k)+nnuccr(i,k)+niacr(i,k));
+              } else if (igraup==1) {
+                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
+                ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k));
+              }
+              nc3dten(i,k) = nc3dten(i,k)+(-nnuccc(i,k)-npsacws(i,k)-npra(i,k)-nprc(i,k)-npsacwi(i,k)-npsacwg(i,k));
+              ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
+              nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-npracg(i,k)-ngracs(i,k));
+              c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+mnuccc(i,k)+psacwi(i,k);
+              dumt(i)       = t3d(i,k)+dt*t3dten(i,k);
+              dumqv(i)      = qv3d(i,k)+dt*qv3dten(i,k);
+              dum        = min( 0.99*pres(i,k) , polysvp(dumt(i),0) );
+              dumqss(i)     = ep_2*dum/(pres(i,k)-dum);
+              dumqc(i)      = qc3d(i,k)+dt*qc3dten(i,k);
+              dumqc(i)      = max( dumqc(i) , 0. );
+              dums(i)       = dumqv(i)-dumqss(i);
+              pcc(i,k)     = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt;
+              if (pcc(i,k)*dt+dumqc(i) < 0.) pcc(i,k) = -dumqc(i)/dt;
+              qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
+              t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
+              qc3dten(i,k) = qc3dten(i,k)+pcc(i,k);
+              if (eprd(i,k) < 0.) {
+                dum      = eprd(i,k)*dt/qi3d(i,k);
+                dum      = max(-1.,dum);
+                nsubi(i,k) = dum*ni3d(i,k)/dt;
+              }
+              if (eprds(i,k) < 0.) {
+                dum      = eprds(i,k)*dt/qni3d(i,k);
+                dum      = max(-1.,dum);
+                nsubs(i,k) = dum*ns3d(i,k)/dt;
+              }
               if (pre(i,k) < 0.) {
                 dum      = pre(i,k)*dt/qr3d(i,k);
                 dum      = max(-1.,dum);
                 nsubr(i,k) = dum*nr3d(i,k)/dt;
               }
-              if (evpms(i,k)+psmlt(i,k) < 0.) {
-                dum       = (evpms(i,k)+psmlt(i,k))*dt/qni3d(i,k);
-                dum       = max(-1.,dum);
-                nsmlts(i,k) = dum*ns3d(i,k)/dt;
+              if (eprdg(i,k) < 0.) {
+                dum      = eprdg(i,k)*dt/qg3d(i,k);
+                dum      = max(-1.,dum);
+                nsubg(i,k) = dum*ng3d(i,k)/dt;
               }
-              if (psmlt(i,k) < 0.) {
-                dum       = psmlt(i,k)*dt/qni3d(i,k);
-                dum       = max(-1.0,dum);
-                nsmltr(i,k) = dum*ns3d(i,k)/dt;
-              }
-              if (evpmg(i,k)+pgmlt(i,k) < 0.) {
-                dum       = (evpmg(i,k)+pgmlt(i,k))*dt/qg3d(i,k);
-                dum       = max(-1.,dum);
-                ngmltg(i,k) = dum*ng3d(i,k)/dt;
-              }
-              if (pgmlt(i,k) < 0.) {
-                dum       = pgmlt(i,k)*dt/qg3d(i,k);
-                dum       = max(-1.0,dum);
-                ngmltr(i,k) = dum*ng3d(i,k)/dt;
-              }
-              ns3dten(i,k) = ns3dten(i,k)+(nsmlts(i,k));
-              ng3dten(i,k) = ng3dten(i,k)+(ngmltg(i,k));
-              nr3dten(i,k) = nr3dten(i,k)+(nsubr(i,k)-nsmltr(i,k)-ngmltr(i,k));
-            }
-
-            dumt(i) = t3d(i,k)+dt*t3dten(i,k);
-            dumqv(i) = qv3d(i,k)+dt*qv3dten(i,k);
-            dum=min(0.99*pres(i,k),polysvp(dumt(i),0));
-            dumqss(i) = ep_2*dum/(pres(i,k)-dum);
-            dumqc(i) = qc3d(i,k)+dt*qc3dten(i,k);
-            dumqc(i) = max(dumqc(i),0.);
-            dums(i) = dumqv(i)-dumqss(i);
-            pcc(i,k) = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt;
-            if (pcc(i,k)*dt+dumqc(i) < 0.) {
-              pcc(i,k) = -dumqc(i)/dt;
-            }
-            qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
-            t3dten(i,k) = t3dten(i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
-            qc3dten(i,k) = qc3dten(i,k)+pcc(i,k);
-          } else {  // temperature < 273.15
-            if (iinum==1) {
-              nc3d(i,k)=ndcnst*1.e6/rho(i,k);
-            }
-            ni3d(i,k) = max(0.,ni3d(i,k));
-            ns3d(i,k) = max(0.,ns3d(i,k));
-            nc3d(i,k) = max(0.,nc3d(i,k));
-            nr3d(i,k) = max(0.,nr3d(i,k));
-            ng3d(i,k) = max(0.,ng3d(i,k));
-            if (qi3d(i,k) >= qsmall) {
-              lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
-              n0i(i,k) = ni3d(i,k)*lami(i,k);
-              if (lami(i,k) < lammini) {
-                lami(i,k) = lammini;
-                n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
-                ni3d(i,k) = n0i(i,k)/lami(i,k);
-              } else if (lami(i,k) > lammaxi) {
-                lami(i,k) = lammaxi;
-                n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
-                ni3d(i,k) = n0i(i,k)/lami(i,k);
-              }
-            }
-            if (qr3d(i,k) >= qsmall) {
-              lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
-              n0rr(i,k) = nr3d(i,k)*lamr(i,k);
-              if (lamr(i,k) < lamminr) {
-                lamr(i,k) = lamminr;
-                n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
-                nr3d(i,k) = n0rr(i,k)/lamr(i,k);
-              } else if (lamr(i,k) > lammaxr) {
-                lamr(i,k) = lammaxr;
-                n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
-                nr3d(i,k) = n0rr(i,k)/lamr(i,k);
-              }
-            }
-            if (qc3d(i,k) >= qsmall) {
-              dum     = pres(i,k)/(287.15*t3d(i,k));
-              pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
-              pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
-              pgam(i,k) = max(pgam(i,k),2.);
-              pgam(i,k) = min(pgam(i,k),10.);
-              lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
-              lammin(i)  = (pgam(i,k)+1.)/60.e-6;
-              lammax(i)  = (pgam(i,k)+1.)/1.e-6;
-              if (lamc(i,k) < lammin(i)) {
-                lamc(i,k) = lammin(i);
-                nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
-              } else if (lamc(i,k) > lammax(i)) {
-                lamc(i,k) = lammax(i);
-                nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
-              }
-              cdist1(i,k) = nc3d(i,k)/gamma(pgam(i,k)+1.);
-            }
-            if (qni3d(i,k) >= qsmall) {
-              lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
-              n0s(i,k) = ns3d(i,k)*lams(i,k);
-              if (lams(i,k) < lammins) {
-                lams(i,k) = lammins;
-                n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
-                ns3d(i,k) = n0s(i,k)/lams(i,k);
-              } else if (lams(i,k) > lammaxs) {
-                lams(i,k) = lammaxs;
-                n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
-                ns3d(i,k) = n0s(i,k)/lams(i,k);
-              }
-            }
-            if (qg3d(i,k) >= qsmall) {
-              lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
-              n0g(i,k) = ng3d(i,k)*lamg(i,k);
-              if (lamg(i,k) < lamming) {
-                lamg(i,k) = lamming;
-                n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
-                ng3d(i,k) = n0g(i,k)/lamg(i,k);
-              } else if (lamg(i,k) > lammaxg) {
-                lamg(i,k) = lammaxg;
-                n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
-                ng3d(i,k) = n0g(i,k)/lamg(i,k);
-              }
-            }
-            mnuccc(i,k) = 0.;
-            nnuccc(i,k) = 0.;
-            prc(i,k) = 0.;
-            nprc(i,k) = 0.;
-            nprc1(i,k) = 0.;
-            nsagg(i,k) = 0.;
-            psacws(i,k) = 0.;
-            npsacws(i,k) = 0.;
-            psacwi(i,k) = 0.;
-            npsacwi(i,k) = 0.;
-            pracs(i,k) = 0.;
-            npracs(i,k) = 0.;
-            nmults(i,k) = 0.;
-            qmults(i,k) = 0.;
-            nmultr(i,k) = 0.;
-            qmultr(i,k) = 0.;
-            nmultg(i,k) = 0.;
-            qmultg(i,k) = 0.;
-            nmultrg(i,k) = 0.;
-            qmultrg(i,k) = 0.;
-            mnuccr(i,k) = 0.;
-            nnuccr(i,k) = 0.;
-            pra(i,k) = 0.;
-            npra(i,k) = 0.;
-            nragg(i,k) = 0.;
-            prci(i,k) = 0.;
-            nprci(i,k) = 0.;
-            prai(i,k) = 0.;
-            nprai(i,k) = 0.;
-            nnuccd(i,k) = 0.;
-            mnuccd(i,k) = 0.;
-            pcc(i,k) = 0.;
-            pre(i,k) = 0.;
-            prd(i,k) = 0.;
-            prds(i,k) = 0.;
-            eprd(i,k) = 0.;
-            eprds(i,k) = 0.;
-            nsubc(i,k) = 0.;
-            nsubi(i,k) = 0.;
-            nsubs(i,k) = 0.;
-            nsubr(i,k) = 0.;
-            piacr(i,k) = 0.;
-            niacr(i,k) = 0.;
-            praci(i,k) = 0.;
-            piacrs(i,k) = 0.;
-            niacrs(i,k) = 0.;
-            pracis(i,k) = 0.;
-            pracg(i,k) = 0.;
-            psacr(i,k) = 0.;
-            psacwg(i,k) = 0.;
-            pgsacw(i,k) = 0.;
-            pgracs(i,k) = 0.;
-            prdg(i,k) = 0.;
-            eprdg(i,k) = 0.;
-            npracg(i,k) = 0.;
-            npsacwg(i,k) = 0.;
-            nscng(i,k) = 0.;
-            ngracs(i,k) = 0.;
-            nsubg(i,k) = 0.;
-            if (qc3d(i,k) >= qsmall  &&  t3d(i,k) < 269.15) {
-              nacnt(i)     = std::exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.;
-              dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
-              dap(i,k) = cons37*t3d(i,k)*(1.+dum/rin)/mu(i,k);
-              mnuccc(i,k) = cons38*dap(i,k)*nacnt(i)*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
-              nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt(i)*cdist1(i,k)*gamma(pgam(i,k)+2.)/lamc(i,k);
-              mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(gamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
-              nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
-              nnuccc(i,k) = min(nnuccc(i,k),nc3d(i,k)/dt);
-            }
-            if (qc3d(i,k) >= 1.e-6) {
-              prc(i,k) = 1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
-              nprc1(i,k) = prc(i,k)/cons29;
-              nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
-              nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt );
-              nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
-            }
-            if (qni3d(i,k) >= 1.e-8) {
-              nsagg(i,k) = cons15*asn(i,k)*pow(rho(i,k),(2.+bs)/3.)*pow(qni3d(i,k),(2.+bs)/3.)*pow(ns3d(i,k)*rho(i,k),(4.-bs)/3.)/(rho(i,k));
-            }
-            if (qni3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
-              psacws(i,k) = cons13*asn(i,k)*qc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-              npsacws(i,k) = cons13*asn(i,k)*nc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-            }
-            if (qg3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
-              psacwg(i,k) = cons14*agn(i,k)*qc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
-              npsacwg(i,k) = cons14*agn(i,k)*nc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
-            }
-            if (qi3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
-              if (1./lami(i,k) >= 100.e-6) {
-                psacwi(i,k) = cons16*ain(i,k)*qc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
-                npsacwi(i,k) = cons16*ain(i,k)*nc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
-              }
-            }
-            if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
-              ums(i) = asn(i,k)*cons3/pow(lams(i,k),bs);
-              umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br);
-              uns(i) = asn(i,k)*cons5/pow(lams(i,k),bs);
-              unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br);
-              dum = pow(rhosu/rho(i,k),0.54);
-              ums(i) = min( ums(i) , 1.2*dum );
-              uns(i) = min( uns(i) , 1.2*dum );
-              umr(i) = min( umr(i) , 9.1*dum );
-              unr(i) = min( unr(i) , 9.1*dum );
-              pracs(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)*
-                         (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
-              npracs(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-uns(i),2)+0.3*unr(i)*uns(i),0.5)*n0rr(i,k)*n0s(i,k)*(1./(pow(lamr(i,k),3)*lams(i,k))+
-                          1./(pow(lamr(i,k),2)*pow(lams(i,k),2))+1./(lamr(i,k)*pow(lams(i,k),3)));
-              pracs(i,k) = min(pracs(i,k),qr3d(i,k)/dt);
-              if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
-                psacr(i,k) = cons31*(pow(pow(1.2*umr(i)-0.95*ums(i),2)+0.08*ums(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lams(i,k),3)* 
-                           (5./(pow(lams(i,k),3)*lamr(i,k))+2./(pow(lams(i,k),2)*pow(lamr(i,k),2))+0.5/(lams(i,k)*pow(lamr(i,k),3))))            ;
-              }
-            }
-            if (qr3d(i,k) >= 1.e-8 && qg3d(i,k) >= 1.e-8) {
-              umg(i) = agn(i,k)*cons7/pow(lamg(i,k),bg);
-              umr(i) = arn(i,k)*cons4/pow(lamr(i,k),br);
-              ung(i) = agn(i,k)*cons8/pow(lamg(i,k),bg);
-              unr(i) = arn(i,k)*cons6/pow(lamr(i,k),br);
-              dum = pow(rhosu/rho(i,k),0.54);
-              umg(i) = min( umg(i) , 20.*dum );
-              ung(i) = min( ung(i) , 20.*dum );
-              umr(i) = min( umr(i) , 9.1*dum );
-              unr(i) = min( unr(i) , 9.1*dum );
-              pracg(i,k) = cons41*(pow(pow(1.2*umr(i)-0.95*umg(i),2)+0.08*umg(i)*umr(i),0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)* 
-                          (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))));
-              npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr(i)-ung(i),2)+0.3*unr(i)*ung(i),0.5)*n0rr(i,k)*n0g(i,k)*(1./(pow(lamr(i,k),3)*lamg(i,k))+
-                          1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
-              pracg(i,k) = min(pracg(i,k),qr3d(i,k)/dt);
-            }
-            if (qni3d(i,k) >= 0.1e-3) {
-              if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
-                if (psacws(i,k) > 0. || pracs(i,k) > 0.) {
-                  if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
-                    if (t3d(i,k) > 270.16) {
-                      fmult(i) = 0.;
-                    } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
-                      fmult(i) = (270.16-t3d(i,k))/2.;
-                    } else if (t3d(i,k) >= 265.16 && t3d(i,k) <= 268.16)   {
-                      fmult(i) = (t3d(i,k)-265.16)/3.;
-                    } else if (t3d(i,k) < 265.16) {
-                      fmult(i) = 0.;
-                    }
-                    if (psacws(i,k) > 0.) {
-                      nmults(i,k) = 35.e4*psacws(i,k)*fmult(i)*1000.;
-                      qmults(i,k) = nmults(i,k)*mmult;
-                      qmults(i,k) = min(qmults(i,k),psacws(i,k));
-                      psacws(i,k) = psacws(i,k)-qmults(i,k);
-                    }
-                    if (pracs(i,k) > 0.) {
-                      nmultr(i,k) = 35.e4*pracs(i,k)*fmult(i)*1000.;
-                      qmultr(i,k) = nmultr(i,k)*mmult;
-                      qmultr(i,k) = min(qmultr(i,k),pracs(i,k));
-                      pracs(i,k) = pracs(i,k)-qmultr(i,k);
-                    }
-                  }
-                }
-              }
-            }
-            if (qg3d(i,k) >= 0.1e-3) {
-              if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
-                if (psacwg(i,k) > 0. || pracg(i,k) > 0.) {
-                  if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
-                    if (t3d(i,k) > 270.16) {
-                      fmult(i) = 0.;
-                    } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
-                      fmult(i) = (270.16-t3d(i,k))/2.;
-                    } else if (t3d(i,k) >= 265.16 && t3d(i,k) <= 268.16)   {
-                      fmult(i) = (t3d(i,k)-265.16)/3.;
-                    } else if (t3d(i,k) < 265.16) {
-                      fmult(i) = 0.;
-                    }
-                    if (psacwg(i,k) > 0.) {
-                      nmultg(i,k) = 35.e4*psacwg(i,k)*fmult(i)*1000.;
-                      qmultg(i,k) = nmultg(i,k)*mmult;
-                      qmultg(i,k) = min(qmultg(i,k),psacwg(i,k));
-                      psacwg(i,k) = psacwg(i,k)-qmultg(i,k);
-                    }
-                    if (pracg(i,k) > 0.) {
-                      nmultrg(i,k) = 35.e4*pracg(i,k)*fmult(i)*1000.;
-                      qmultrg(i,k) = nmultrg(i,k)*mmult;
-                      qmultrg(i,k) = min(qmultrg(i,k),pracg(i,k));
-                      pracg(i,k) = pracg(i,k)-qmultrg(i,k);
-                    }
-                  }
-                }
-              }
-            }
-            if (psacws(i,k) > 0.) {
-              if (qni3d(i,k) >= 0.1e-3 && qc3d(i,k) >= 0.5e-3) {
-                pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)));
-                dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
-                nscng(i,k) = dum/mg0*rho(i,k);
-                nscng(i,k) = min(nscng(i,k),ns3d(i,k)/dt);
-                psacws(i,k) = psacws(i,k) - pgsacw(i,k);
-              }
-            }
-            if (pracs(i,k) > 0.) {
-              if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
-                dum       = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
-                            cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3));
-                dum       = min( dum , 1. );
-                dum       = max( dum , 0. );
-                pgracs(i,k) = (1.-dum)*pracs(i,k);
-                ngracs(i,k) = (1.-dum)*npracs(i,k);
-                ngracs(i,k) = min(ngracs(i,k),nr3d(i,k)/dt);
-                ngracs(i,k) = min(ngracs(i,k),ns3d(i,k)/dt);
-                pracs(i,k) = pracs(i,k) - pgracs(i,k);
-                npracs(i,k) = npracs(i,k) - ngracs(i,k);
-                psacr(i,k) = psacr(i,k)*(1.-dum);
-              }
-            }
-            if (t3d(i,k) < 269.15 && qr3d(i,k) >= qsmall) {
-              mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)/pow(lamr(i,k),3);
-              nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3);
-              nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
-            }
-            if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
-              dum     = (qc3d(i,k)*qr3d(i,k));
-              pra(i,k) = 67.*pow(dum,1.15);
-              npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
-            }
-            if (qr3d(i,k) >= 1.e-8) {
-              dum1(i)=300.e-6;
-              if (1./lamr(i,k) < dum1(i)) {
-                dum=1.;
-              } else if (1./lamr(i,k) >= dum1(i)) {
-                dum=2.-std::exp(2300.*(1./lamr(i,k)-dum1(i)));
-              }
-              nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k);
-            }
-            if (qi3d(i,k) >= 1.e-8  && qvqvsi(i,k) >= 1.) {
-              nprci(i,k) = cons21*(qv3d(i,k)-qvi(i,k))*rho(i,k)*n0i(i,k)*std::exp(-lami(i,k)*dcs)*dv(i,k)/abi(i,k);
-              prci(i,k) = cons22*nprci(i,k);
-              nprci(i,k) = min(nprci(i,k),ni3d(i,k)/dt);
-            }
-            if (qni3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= qsmall) {
-              prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-              nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-              nprai(i,k) = min( nprai(i,k) , ni3d(i,k)/dt );
-            }
-            if (qr3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= 1.e-8  &&  t3d(i,k) <= 273.15) {
-              if (qr3d(i,k) >= 0.1e-3) {
-                niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
-                praci(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                niacr(i,k)=min(niacr(i,k),nr3d(i,k)/dt);
-                niacr(i,k)=min(niacr(i,k),ni3d(i,k)/dt);
-              } else {
-                niacrs(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                piacrs(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
-                pracis(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                niacrs(i,k)=min(niacrs(i,k),nr3d(i,k)/dt);
-                niacrs(i,k)=min(niacrs(i,k),ni3d(i,k)/dt);
-              }
-            }
-            if (inuc==0) {
-              if ((qvqvs(i,k) >= 0.999  &&  t3d(i,k) <= 265.15)  ||  qvqvsi(i,k) >= 1.08) {
-                kc2(i) = 0.005*std::exp(0.304*(273.15-t3d(i,k)))*1000.;
-                kc2(i) = min( kc2(i) ,500.e3 );
-                kc2(i) = max( kc2(i)/rho(i,k) , 0. );
-                if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
-                  nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt;
-                  mnuccd(i,k) = nnuccd(i,k)*mi0;
-                }
-              }
-            } else if (inuc==1) {
-              if (t3d(i,k) < 273.15 && qvqvsi(i,k) > 1.) {
-                kc2(i) = 0.16*1000./rho(i,k);
-                if (kc2(i) > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
-                  nnuccd(i,k) = (kc2(i)-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt;
-                  mnuccd(i,k) = nnuccd(i,k)*mi0;
-                }
-              }
-            }
-
-            if (qi3d(i,k) >= qsmall) {
-               epsi(i) = 2.*pi*n0i(i,k)*rho(i,k)*dv(i,k)/(lami(i,k)*lami(i,k));
-            } else {
-               epsi(i) = 0.;
-            }
-            if (qni3d(i,k) >= qsmall) {
-              epss(i) = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
-            } else {
-              epss(i) = 0.;
-            }
-            if (qg3d(i,k) >= qsmall) {
-              epsg(i) = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
-            } else {
-              epsg(i) = 0.;
-            }
-            if (qr3d(i,k) >= qsmall) {
-              epsr(i) = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)));
-            } else {
-              epsr(i) = 0.;
-            }
-            if (qi3d(i,k) >= qsmall) {              
-              dum    = (1.-std::exp(-lami(i,k)*dcs)*(1.+lami(i,k)*dcs));
-              prd(i,k) = epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*dum;
-            } else {
-              dum=0.;
-            }
-            if (qni3d(i,k) >= qsmall) {
-              prds(i,k) = epss(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
-            } else {
-              prd(i,k) = prd(i,k)+epsi(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
-            }
-            prdg(i,k) = epsg(i)*(qv3d(i,k)-qvi(i,k))/abi(i,k);
-            if (qv3d(i,k) < qvs(i,k)) {
-              pre(i,k) = epsr(i)*(qv3d(i,k)-qvs(i,k))/ab(i,k);
-              pre(i,k) = min( pre(i,k) , 0. );
-            } else {
-              pre(i,k) = 0.;
-            }
-            dum = (qv3d(i,k)-qvi(i,k))/dt;
-            fudgef(i) = 0.9999;
-            sum_dep(i) = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k);
-            if( (dum > 0.  &&  sum_dep(i) > dum*fudgef(i))  ||  (dum < 0.  &&  sum_dep(i) < dum*fudgef(i)) ) {
-              mnuccd(i,k) = fudgef(i)*mnuccd(i,k)*dum/sum_dep(i);
-              prd(i,k) = fudgef(i)*prd(i,k)*dum/sum_dep(i);
-              prds(i,k) = fudgef(i)*prds(i,k)*dum/sum_dep(i);
-              prdg(i,k) = fudgef(i)*prdg(i,k)*dum/sum_dep(i);
-            }
-            if (prd(i,k) < 0.) {
-              eprd(i,k)=prd(i,k);
-              prd(i,k)=0.;
-            }
-            if (prds(i,k) < 0.) {
-              eprds(i,k)=prds(i,k);
-              prds(i,k)=0.;
-            }
-            if (prdg(i,k) < 0.) {
-              eprdg(i,k)=prdg(i,k);
-              prdg(i,k)=0.;
-            }
-            if (iliq==1) {
-              mnuccc(i,k)=0.;
-              nnuccc(i,k)=0.;
-              mnuccr(i,k)=0.;
-              nnuccr(i,k)=0.;
-              mnuccd(i,k)=0.;
-              nnuccd(i,k)=0.;
-            }
-            if (igraup==1) {
-              pracg(i,k) = 0.;
-              psacr(i,k) = 0.;
-              psacwg(i,k) = 0.;
-              prdg(i,k) = 0.;
-              eprdg(i,k) = 0.;
-              evpmg(i,k) = 0.;
-              pgmlt(i,k) = 0.;
-              npracg(i,k) = 0.;
-              npsacwg(i,k) = 0.;
-              nscng(i,k) = 0.;
-              ngracs(i,k) = 0.;
-              nsubg(i,k) = 0.;
-              ngmltg(i,k) = 0.;
-              ngmltr(i,k) = 0.;
-              piacrs(i,k) = piacrs(i,k)+piacr(i,k);
-              piacr(i,k) = 0.;
-              pracis(i,k) = pracis(i,k)+praci(i,k);
-              praci(i,k) = 0.;
-              psacws(i,k) = psacws(i,k)+pgsacw(i,k);
-              pgsacw(i,k) = 0.;
-              pracs(i,k) = pracs(i,k)+pgracs(i,k);
-              pgracs(i,k) = 0.;
-            }
-            dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+pgsacw(i,k)+qmultg(i,k))*dt;
-            if (dum > qc3d(i,k)  &&  qc3d(i,k) >= qsmall) {
-              ratio(i) = qc3d(i,k)/dum;
-              prc(i,k) = prc(i,k)*ratio(i);
-              pra(i,k) = pra(i,k)*ratio(i);
-              mnuccc(i,k) = mnuccc(i,k)*ratio(i);
-              psacws(i,k) = psacws(i,k)*ratio(i);
-              psacwi(i,k) = psacwi(i,k)*ratio(i);
-              qmults(i,k) = qmults(i,k)*ratio(i);
-              qmultg(i,k) = qmultg(i,k)*ratio(i);
-              psacwg(i,k) = psacwg(i,k)*ratio(i);
-              pgsacw(i,k) = pgsacw(i,k)*ratio(i);
-            }
-            dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
-            if (dum > qi3d(i,k)  &&  qi3d(i,k) >= qsmall) {
-              ratio(i) = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
-              prci(i,k) = prci(i,k)*ratio(i);
-              prai(i,k) = prai(i,k)*ratio(i);
-              praci(i,k) = praci(i,k)*ratio(i);
-              pracis(i,k) = pracis(i,k)*ratio(i);
-              eprd(i,k) = eprd(i,k)*ratio(i);
-            }
-            dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
-            if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
-              ratio(i) = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
-              pre(i,k) = pre(i,k)*ratio(i);
-              pracs(i,k) = pracs(i,k)*ratio(i);
-              qmultr(i,k) = qmultr(i,k)*ratio(i);
-              qmultrg(i,k) = qmultrg(i,k)*ratio(i);
-              mnuccr(i,k) = mnuccr(i,k)*ratio(i);
-              piacr(i,k) = piacr(i,k)*ratio(i);
-              piacrs(i,k) = piacrs(i,k)*ratio(i);
-              pgracs(i,k) = pgracs(i,k)*ratio(i);
-              pracg(i,k) = pracg(i,k)*ratio(i);
-            }
-            if (igraup==0) {
-              dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k))*dt;
-              if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k))/(-eprds(i,k)+psacr(i,k));
-                eprds(i,k) = eprds(i,k)*ratio(i);
-                psacr(i,k) = psacr(i,k)*ratio(i);
-              }
-            } else if (igraup==1) {
-              dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k)-mnuccr(i,k))*dt;
-              if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                ratio(i) = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k));
-                eprds(i,k) = eprds(i,k)*ratio(i);
-                psacr(i,k) = psacr(i,k)*ratio(i);
-              }
-            }
-            dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-praci(i,k)-psacr(i,k))*dt;
-            if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
-              ratio(i) = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
-              eprdg(i,k) = eprdg(i,k)*ratio(i);
-            }
-            qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-prdg(i,k)-eprdg(i,k));
-            t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
-            qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k));
-            qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)-prai(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)-praci(i,k)-pracis(i,k));
-            qr3dten(i,k) = qr3dten(i,k)+(pre(i,k)+pra(i,k)+prc(i,k)-pracs(i,k)-mnuccr(i,k)-qmultr(i,k)-qmultrg(i,k)-piacr(i,k)-piacrs(i,k)-pracg(i,k)-pgracs(i,k));
-            if (igraup==0) {
-              qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k));
-              ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k));
-              qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k));
-              ng3dten(i,k) = ng3dten(i,k)+(nscng(i,k)+ngracs(i,k)+nnuccr(i,k)+niacr(i,k));
-            } else if (igraup==1) {
-              qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
-              ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k));
-            }
-            nc3dten(i,k) = nc3dten(i,k)+(-nnuccc(i,k)-npsacws(i,k)-npra(i,k)-nprc(i,k)-npsacwi(i,k)-npsacwg(i,k));
-            ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
-            nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-npracg(i,k)-ngracs(i,k));
-            c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+mnuccc(i,k)+psacwi(i,k);
-            dumt(i)       = t3d(i,k)+dt*t3dten(i,k);
-            dumqv(i)      = qv3d(i,k)+dt*qv3dten(i,k);
-            dum        = min( 0.99*pres(i,k) , polysvp(dumt(i),0) );
-            dumqss(i)     = ep_2*dum/(pres(i,k)-dum);
-            dumqc(i)      = qc3d(i,k)+dt*qc3dten(i,k);
-            dumqc(i)      = max( dumqc(i) , 0. );
-            dums(i)       = dumqv(i)-dumqss(i);
-            pcc(i,k)     = dums(i)/(1.+pow(xxlv(i,k),2)*dumqss(i)/(cpm(i,k)*rv*pow(dumt(i),2)))/dt;
-            if (pcc(i,k)*dt+dumqc(i) < 0.) pcc(i,k) = -dumqc(i)/dt;
-            qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
-            t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
-            qc3dten(i,k) = qc3dten(i,k)+pcc(i,k);
-            if (eprd(i,k) < 0.) {
-              dum      = eprd(i,k)*dt/qi3d(i,k);
-              dum      = max(-1.,dum);
-              nsubi(i,k) = dum*ni3d(i,k)/dt;
-            }
-            if (eprds(i,k) < 0.) {
-              dum      = eprds(i,k)*dt/qni3d(i,k);
-              dum      = max(-1.,dum);
-              nsubs(i,k) = dum*ns3d(i,k)/dt;
-            }
-            if (pre(i,k) < 0.) {
-              dum      = pre(i,k)*dt/qr3d(i,k);
-              dum      = max(-1.,dum);
-              nsubr(i,k) = dum*nr3d(i,k)/dt;
-            }
-            if (eprdg(i,k) < 0.) {
-              dum      = eprdg(i,k)*dt/qg3d(i,k);
-              dum      = max(-1.,dum);
-              nsubg(i,k) = dum*ng3d(i,k)/dt;
-            }
-            ni3dten(i,k) = ni3dten(i,k)+nsubi(i,k);
-            ns3dten(i,k) = ns3dten(i,k)+nsubs(i,k);
-            ng3dten(i,k) = ng3dten(i,k)+nsubg(i,k);
-            nr3dten(i,k) = nr3dten(i,k)+nsubr(i,k);
-          } //!!!!! temperature
-          ltrue(i) = 1;
+              ni3dten(i,k) = ni3dten(i,k)+nsubi(i,k);
+              ns3dten(i,k) = ns3dten(i,k)+nsubs(i,k);
+              ng3dten(i,k) = ng3dten(i,k)+nsubg(i,k);
+              nr3dten(i,k) = nr3dten(i,k)+nsubr(i,k);
+            } //!!!!! temperature
+            ltrue(i) = 1;
+          }  // if (proceed)
         }  //!! k
       } //!! i
 
@@ -2144,15 +2165,15 @@ namespace modules {
     }
 
 
-    template <class T1, class T2> float max(T1 a, T2 b) { return a > b ? a : b; }
-    template <class T1, class T2> float min(T1 a, T2 b) { return a < b ? a : b; }
-    template <class T1, class T2> float pow(T1 a, T2 b) { return std::pow(static_cast<float>(a),static_cast<float>(b)); }
-    float gamma(float  z) { return std::tgamma(z); }
-    float gamma(double z) { return std::tgamma(static_cast<float>(z)); }
+    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float max(T1 a, T2 b) { return a > b ? a : b; }
+    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float min(T1 a, T2 b) { return a < b ? a : b; }
+    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float pow(T1 a, T2 b) { return std::pow(static_cast<float>(a),static_cast<float>(b)); }
+    KOKKOS_INLINE_FUNCTION static float gamma(float  z) { return std::tgamma(z); }
+    KOKKOS_INLINE_FUNCTION static float gamma(double z) { return std::tgamma(static_cast<float>(z)); }
 
 
 
-    float polysvp( float t , int type) {
+    KOKKOS_INLINE_FUNCTION static float polysvp( float t , int type) {
       float a0 = 6.11239921;
       float a1 = 0.443987641;
       float a2 = 0.142986287e-1;

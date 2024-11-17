@@ -20,16 +20,16 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 2000;
-    real        dz          = 2000;
+    real        dx          = 8000;
+    real        dz          = 1000;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
     real        dtphys_in   = 0;    // Use dycore time step
     int         dyn_cycle   = 10;
-    real        out_freq    = 120;
-    real        inform_freq = 10;
-    std::string out_prefix  = "supercell_500m";
+    real        out_freq    = 7200;
+    real        inform_freq = 1000;
+    std::string out_prefix  = "supercell_2000m";
     bool        is_restart  = false;
 
     core::Coupler coupler;

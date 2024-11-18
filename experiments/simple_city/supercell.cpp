@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 500;
+    real        dx          = 2000;
     real        dz          = 500;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;

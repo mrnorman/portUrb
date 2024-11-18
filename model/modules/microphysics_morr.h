@@ -1771,6 +1771,12 @@ namespace modules {
                   }
                 }
               }
+              // rime-splintering - graupel 
+              // hallet-mossop (1974)
+              // number of splinters formed is based on mass of rimed water
+              // dum1 = mass of individual splinters
+              // hm add threshold snow mixing ratio for rime-splintering
+              // to limit rime-splintering in stratiform clouds
               if (qg3d(i,k) >= 0.1e-3) {
                 if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
                   if (psacwg(i,k) > 0. || pracg(i,k) > 0.) {
@@ -1785,15 +1791,22 @@ namespace modules {
                       } else if (t3d(i,k) < 265.16) {
                         fmult = 0.;
                       }
+                      // 1000 is to convert from kg to g
+                      // splintering from droplets accreted onto graupel
                       if (psacwg(i,k) > 0.) {
                         nmultg(i,k) = 35.e4*psacwg(i,k)*fmult*1000.;
                         qmultg(i,k) = nmultg(i,k)*mmult;
+                        // constrain so that transfer of mass from graupel to ice cannot be more mass
+                        // than was rimed onto graupel
                         qmultg(i,k) = min(qmultg(i,k),psacwg(i,k));
                         psacwg(i,k) = psacwg(i,k)-qmultg(i,k);
                       }
+                      // riming and splintering from accreted raindrops
                       if (pracg(i,k) > 0.) {
                         nmultrg(i,k) = 35.e4*pracg(i,k)*fmult*1000.;
                         qmultrg(i,k) = nmultrg(i,k)*mmult;
+                        // constrain so that transfer of mass from graupel to ice cannot be more mass
+                        // than was rimed onto graupel
                         qmultrg(i,k) = min(qmultrg(i,k),pracg(i,k));
                         pracg(i,k) = pracg(i,k)-qmultrg(i,k);
                       }
@@ -1807,40 +1820,65 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
+              // conversion of rimed cloud water onto snow to graupel/hail
               if (psacws(i,k) > 0.) {
+                // only allow conversion if qni > 0.1 and qc > 0.5 g/kg following rutledge and hobbs (1984)
                 if (qni3d(i,k) >= 0.1e-3 && qc3d(i,k) >= 0.5e-3) {
+                  // portion of riming converted to graupel (reisner et al. 1998, originally is1991)
                   pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)));
+                  // mix rat converted into graupel as embryo (reisner et al. 1998, orig m1990)
                   float dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
+                  // number concentraiton of embryo graupel from riming of snow
                   nscng(i,k) = dum/mg0*rho(i,k);
+                  // limit max number converted to snow number
                   nscng(i,k) = min(nscng(i,k),ns3d(i,k)/dt);
+                  // portion of riming left for snow
                   psacws(i,k) = psacws(i,k) - pgsacw(i,k);
                 }
               }
+              // conversion of rimed rainwater onto snow converted to graupel
               if (pracs(i,k) > 0.) {
+                // only allow conversion if qni > 0.1 and qr > 0.1 g/kg following rutledge and hobbs (1984)
                 if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
+                  // portion of collected rainwater converted to graupel (reisner et al. 1998)
                   float dum = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
                               cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3));
                   dum       = min( dum , 1. );
                   dum       = max( dum , 0. );
                   pgracs(i,k) = (1.-dum)*pracs(i,k);
                   ngracs(i,k) = (1.-dum)*npracs(i,k);
+                  // limit max number converted to min of either rain or snow number concentration
                   ngracs(i,k) = min(ngracs(i,k),nr3d(i,k)/dt);
                   ngracs(i,k) = min(ngracs(i,k),ns3d(i,k)/dt);
+                  // amount left for snow production
                   pracs(i,k) = pracs(i,k) - pgracs(i,k);
                   npracs(i,k) = npracs(i,k) - ngracs(i,k);
+                  // conversion to graupel due to collection of snow by rain
                   psacr(i,k) = psacr(i,k)*(1.-dum);
                 }
               }
+              // freezing of rain drops
+              // freezing allowed below -4 c
               if (t3d(i,k) < 269.15 && qr3d(i,k) >= qsmall) {
+                // immersion freezing (bigg 1953)
                 mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)/pow(lamr(i,k),3);
                 nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3);
+                // prevent divergence between mixing ratio and number conc
                 nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
               }
+              // accretion of cloud liquid water by rain
+              // continuous collection equation with
+              // gravitational collection kernel, droplet fall speed neglected
               if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
+                // khairoutdinov and kogan 2000, mwr
                 float dum     = (qc3d(i,k)*qr3d(i,k));
                 pra(i,k) = 67.*pow(dum,1.15);
                 npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
               }
+              // self-collection of rain drops
+              // from beheng(1994)
+              // from numerical simulation of the stochastic collection equation
+              // as descrined above for autoconversion
               if (qr3d(i,k) >= 1.e-8) {
                 float dum1=300.e-6;
                 float dum;
@@ -1851,17 +1889,29 @@ namespace modules {
                 }
                 nragg(i,k) = -5.78*dum*nr3d(i,k)*qr3d(i,k)*rho(i,k);
               }
+              // autoconversion of cloud ice to snow
+              // following harrington et al. (1995) with modification
+              // here it is assumed that autoconversion can only occur when the
+              // ice is growing, i.e. in conditions of ice supersaturation
               if (qi3d(i,k) >= 1.e-8  && qvqvsi(i,k) >= 1.) {
                 nprci(i,k) = cons21*(qv3d(i,k)-qvi(i,k))*rho(i,k)*n0i(i,k)*std::exp(-lami(i,k)*dcs)*dv(i,k)/abi(i,k);
                 prci(i,k) = cons22*nprci(i,k);
                 nprci(i,k) = min(nprci(i,k),ni3d(i,k)/dt);
               }
+              // accretion of cloud ice by snow
+              // for this calculation, it is assumed that the vs >> vi
+              // and ds >> di for continuous collection
               if (qni3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= qsmall) {
                 prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
                 nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
                 nprai(i,k) = min( nprai(i,k) , ni3d(i,k)/dt );
               }
+              // hm, add 12/13/06, collision of rain and ice to produce snow or graupel
+              // follows reisner et al. 1998
+              // assumed fallspeed and size of ice crystal << than for rain
               if (qr3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= 1.e-8  &&  t3d(i,k) <= 273.15) {
+                // allow graupel formation from rain-ice collisions only if rain mixing ratio > 0.1 g/kg,
+                // otherwise add to snow
                 if (qr3d(i,k) >= 0.1e-3) {
                   niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
                   piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
@@ -1876,8 +1926,11 @@ namespace modules {
                   niacrs(i,k)=min(niacrs(i,k),ni3d(i,k)/dt);
                 }
               }
+              // nucleation of cloud ice from homogeneous and heterogeneous freezing on aerosol
               if (inuc==0) {
+                // add threshold according to greg thomspon
                 if ((qvqvs(i,k) >= 0.999  &&  t3d(i,k) <= 265.15)  ||  qvqvsi(i,k) >= 1.08) {
+                  // hm, modify dec. 5, 2006, replace with cooper curve
                   float kc2 = 0.005*std::exp(0.304*(273.15-t3d(i,k)))*1000.;
                   kc2 = min( kc2 ,500.e3 );
                   kc2 = max( kc2/rho(i,k) , 0. );
@@ -1902,6 +1955,8 @@ namespace modules {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               float epsi;
+              // calculate evap/sub/dep terms for qi,qni,qr
+              // no ventilation for cloud ice
               if (qi3d(i,k) >= qsmall) {
                  epsi = 2.*pi*n0i(i,k)*rho(i,k)*dv(i,k)/(lami(i,k)*lami(i,k));
               } else {
@@ -1926,24 +1981,32 @@ namespace modules {
                 epsr = 0.;
               }
               float dum;
+              // only include region of ice size dist < dcs
+              // dum is fraction of d*n(d) < dcs
+              // logic below follows that of harrington et al. 1995 (jas)
               if (qi3d(i,k) >= qsmall) {              
                 dum    = (1.-std::exp(-lami(i,k)*dcs)*(1.+lami(i,k)*dcs));
                 prd(i,k) = epsi*(qv3d(i,k)-qvi(i,k))/abi(i,k)*dum;
               } else {
                 dum=0.;
               }
+              // add deposition in tail of ice size dist to snow if snow is present
               if (qni3d(i,k) >= qsmall) {
                 prds(i,k) = epss*(qv3d(i,k)-qvi(i,k))/abi(i,k)+epsi*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
-              } else {
+              } else { // otherwise add to cloud ice
                 prd(i,k) = prd(i,k)+epsi*(qv3d(i,k)-qvi(i,k))/abi(i,k)*(1.-dum);
               }
+              // vapor dpeosition on graupel
               prdg(i,k) = epsg*(qv3d(i,k)-qvi(i,k))/abi(i,k);
+              // no condensation onto rain, only evap
               if (qv3d(i,k) < qvs(i,k)) {
                 pre(i,k) = epsr*(qv3d(i,k)-qvs(i,k))/ab(i,k);
                 pre(i,k) = min( pre(i,k) , 0. );
               } else {
                 pre(i,k) = 0.;
               }
+              // make sure not pushed into ice supersat/subsat
+              // formula from reisner 2 scheme
               dum = (qv3d(i,k)-qvi(i,k))/dt;
               float fudgef = 0.9999;
               float sum_dep = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k);
@@ -1953,6 +2016,7 @@ namespace modules {
                 prds(i,k) = fudgef*prds(i,k)*dum/sum_dep;
                 prdg(i,k) = fudgef*prdg(i,k)*dum/sum_dep;
               }
+              // if cloud ice/snow/graupel vap deposition is neg, then assign to sublimation processes
               if (prd(i,k) < 0.) {
                 eprd(i,k)=prd(i,k);
                 prd(i,k)=0.;
@@ -1965,6 +2029,17 @@ namespace modules {
                 eprdg(i,k)=prdg(i,k);
                 prdg(i,k)=0.;
               }
+              // conservation of water
+              // this is adopted loosely from mm5 resiner code. however, here we
+              // only adjust processes that are negative, rather than all processes.
+              // if mixing ratios less than qsmall, then no depletion of water
+              // through microphysical processes, skip conservation
+              // note: conservation check not applied to number concentration species. additional catch
+              // below will prevent negative number concentration
+              // for each microphysical process which provides a source for number, there is a check
+              // to make sure that can't exceed total number of depleted species with the time
+              // step
+              // ****sensitivity - no ice
               if (iliq==1) {
                 mnuccc(i,k)=0.;
                 nnuccc(i,k)=0.;
@@ -1973,6 +2048,7 @@ namespace modules {
                 mnuccd(i,k)=0.;
                 nnuccd(i,k)=0.;
               }
+              // ****sensitivity - no graupel
               if (igraup==1) {
                 pracg(i,k) = 0.;
                 psacr(i,k) = 0.;
@@ -1997,6 +2073,7 @@ namespace modules {
                 pracs(i,k) = pracs(i,k)+pgracs(i,k);
                 pgracs(i,k) = 0.;
               }
+              // conservation of qc
               dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+pgsacw(i,k)+qmultg(i,k))*dt;
               if (dum > qc3d(i,k)  &&  qc3d(i,k) >= qsmall) {
                 float ratio = qc3d(i,k)/dum;
@@ -2010,6 +2087,7 @@ namespace modules {
                 psacwg(i,k) = psacwg(i,k)*ratio;
                 pgsacw(i,k) = pgsacw(i,k)*ratio;
               }
+              // conservation of qi
               dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
               if (dum > qi3d(i,k)  &&  qi3d(i,k) >= qsmall) {
                 float ratio = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
@@ -2019,6 +2097,7 @@ namespace modules {
                 pracis(i,k) = pracis(i,k)*ratio;
                 eprd(i,k) = eprd(i,k)*ratio;
               }
+              // conservation of qr
               dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
               if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
                 float ratio = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
@@ -2032,6 +2111,8 @@ namespace modules {
                 pgracs(i,k) = pgracs(i,k)*ratio;
                 pracg(i,k) = pracg(i,k)*ratio;
               }
+              // conservation of qni
+              // conservation for graupel scheme
               if (igraup==0) {
                 dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
@@ -2039,6 +2120,7 @@ namespace modules {
                   eprds(i,k) = eprds(i,k)*ratio;
                   psacr(i,k) = psacr(i,k)*ratio;
                 }
+              // for no graupel, need to include freezing of rain for snow
               } else if (igraup==1) {
                 dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k)-mnuccr(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
@@ -2054,6 +2136,7 @@ namespace modules {
           float dum;
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
+              // conservation of qg
               dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-praci(i,k)-psacr(i,k))*dt;
               if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
                 float ratio = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
@@ -2076,6 +2159,7 @@ namespace modules {
                 ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k));
                 qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k));
                 ng3dten(i,k) = ng3dten(i,k)+(nscng(i,k)+ngracs(i,k)+nnuccr(i,k)+niacr(i,k));
+              // for no graupel, need to include freezing of rain for snow
               } else if (igraup==1) {
                 qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
                 ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k));
@@ -2095,13 +2179,20 @@ namespace modules {
               float dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
               float dumqss     = ep_2*dum/(pres(i,k)-dum);
               float dumqc      = qc3d(i,k)+dt*qc3dten(i,k);
-              dumqc      = max( dumqc , 0. );
+              dumqc            = max( dumqc , 0. );
+              // saturation adjustment for liquid
               float dums       = dumqv-dumqss;
               pcc(i,k)     = dums/(1.+pow(xxlv(i,k),2)*dumqss/(cpm(i,k)*rv*pow(dumt,2)))/dt;
               if (pcc(i,k)*dt+dumqc < 0.) pcc(i,k) = -dumqc/dt;
               qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
               t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
               qc3dten(i,k) = qc3dten(i,k)+pcc(i,k);
+              // activation of cloud droplets
+              // activation of droplet currently not calculated
+              // droplet concentration is specified !!!!!
+              // sublimate, melt, or evaporate number concentration
+              // this formulation assumes 1:1 ratio between mass loss and
+              // loss of number concentration
               if (eprd(i,k) < 0.) {
                 dum      = eprd(i,k)*dt/qi3d(i,k);
                 dum      = max(-1.,dum);
@@ -2133,6 +2224,10 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (hydro_pres(i)) {
+            // calculate sedimenation
+            // the numerics here follow from reisner et al. (1998)
+            // fallout terms are calculated on split time steps to ensure numerical
+            // stability, i.e. courant# < 1
             dumi  (i,k) = qi3d (i,k)+qi3dten (i,k)*dt;
             dumqs (i,k) = qni3d(i,k)+qni3dten(i,k)*dt;
             dumr  (i,k) = qr3d (i,k)+qr3dten (i,k)*dt;
@@ -2143,24 +2238,29 @@ namespace modules {
             dumfnc(i,k) = nc3d (i,k)+nc3dten (i,k)*dt;
             dumg  (i,k) = qg3d (i,k)+qg3dten (i,k)*dt;
             dumfng(i,k) = ng3d (i,k)+ng3dten (i,k)*dt;
+            // switch for constant droplet number
             if (iinum==1) dumfnc(i,k) = nc3d(i,k);
+            // make sure number concentrations are positive
             dumfni(i,k) = max( 0. , dumfni(i,k) );
             dumfns(i,k) = max( 0. , dumfns(i,k) );
             dumfnc(i,k) = max( 0. , dumfnc(i,k) );
             dumfnr(i,k) = max( 0. , dumfnr(i,k) );
             dumfng(i,k) = max( 0. , dumfng(i,k) );
+            // cloud ice
             float dlami;
             if (dumi(i,k) >= qsmall) {
               dlami = pow(cons12*dumfni(i,k)/dumi(i,k),1./di);
               dlami = max( dlami , lammini );
               dlami = min( dlami , lammaxi );
             }
+            // rain
             float dlamr;
             if (dumr(i,k) >= qsmall) {
               dlamr = pow(pi*rhow*dumfnr(i,k)/dumr(i,k),1./3.);
               dlamr = max( dlamr , lamminr );
               dlamr = min( dlamr , lammaxr );
             }
+            // cloud droplets
             float dlamc;
             if (dumc(i,k) >= qsmall) {
               float dum     = pres(i,k)/(287.15*t3d(i,k));
@@ -2174,18 +2274,22 @@ namespace modules {
               dlamc   = max(dlamc,lammin);
               dlamc   = min(dlamc,lammax);
             }
+            // snow
             float dlams;
             if (dumqs(i,k) >= qsmall) {
               dlams = pow(cons1*dumfns(i,k)/ dumqs(i,k),1./ds);
               dlams=max(dlams,lammins);
               dlams=min(dlams,lammaxs);
             }
+            // graupel
             float dlamg;
             if (dumg(i,k) >= qsmall) {
               dlamg = pow(cons2*dumfng(i,k)/ dumg(i,k),1./dg);
               dlamg=max(dlamg,lamming);
               dlamg=min(dlamg,lammaxg);
             }
+            // calculate number-weighted and mass-weighted terminal fall speeds
+            // cloud water
             float unc, umc;
             if (dumc(i,k) >= qsmall) {
               unc =  acn(i,k)*gamma(1.+bc+pgam(i,k))/ (pow(dlamc,bc)*gamma(pgam(i,k)+1.));
@@ -2226,6 +2330,7 @@ namespace modules {
               umg = 0.;
               ung = 0.;
             }
+            // set realistic limits on fallspeed
             float dum    = pow(rhosu/rho(i,k),0.54);
             ums    = min(ums,1.2*dum);
             uns    = min(uns,1.2*dum);
@@ -2263,6 +2368,7 @@ namespace modules {
           nstep(i) = 1;
           for (int k = nz; k >= 1; k--) {
             if (k <= nz-1) {
+              //  v3.3 modify fallspeed below level of precip
               if (fr (i,k) < 1.e-10) fr (i,k) = fr (i,k+1);
               if (fi (i,k) < 1.e-10) fi (i,k) = fi (i,k+1);
               if (fni(i,k) < 1.e-10) fni(i,k) = fni(i,k+1);
@@ -2274,6 +2380,7 @@ namespace modules {
               if (fg (i,k) < 1.e-10) fg (i,k) = fg (i,k+1);
               if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1);
             } // k le nz-1
+            // calculate number of split time steps
             float rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
             nstep(i) = max(int(rgvm*dt/dzq(i,k)+1.),nstep(i));
           }
@@ -2300,6 +2407,7 @@ namespace modules {
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
           if (hydro_pres(i) && nstep(i) <= n) {
             {
+              // top of model
               int k = nz;
               float faltndr  = faloutr (i,k)/dzq(i,k);
               float faltndi  = falouti (i,k)/dzq(i,k);
@@ -2311,6 +2419,7 @@ namespace modules {
               float faltndnc = faloutnc(i,k)/dzq(i,k);
               float faltndg  = faloutg (i,k)/dzq(i,k);
               float faltndng = faloutng(i,k)/dzq(i,k);
+              // add fallout terms to eulerian tendencies
               qrsten (i,k) = qrsten (i,k)-faltndr /nstep(i)/rho(i,k);
               qisten (i,k) = qisten (i,k)-faltndi /nstep(i)/rho(i,k);
               ni3dten(i,k) = ni3dten(i,k)-faltndni/nstep(i)/rho(i,k);
@@ -2346,6 +2455,7 @@ namespace modules {
               float faltndnc = (faloutnc(i,k+1)-faloutnc(i,k))/dzq(i,k);
               float faltndg  = (faloutg (i,k+1)-faloutg (i,k))/dzq(i,k);
               float faltndng = (faloutng(i,k+1)-faloutng(i,k))/dzq(i,k);
+              // add fallout terms to eulerian tendencies
               qrsten (i,k) = qrsten (i,k)+faltndr    /nstep(i)/rho(i,k);
               qisten (i,k) = qisten (i,k)+faltndi    /nstep(i)/rho(i,k);
               ni3dten(i,k) = ni3dten(i,k)+faltndni   /nstep(i)/rho(i,k);
@@ -2366,6 +2476,7 @@ namespace modules {
               dumfnc (i,k) = dumfnc (i,k)+faltndnc*dt/nstep(i);
               dumg   (i,k) = dumg   (i,k)+faltndg *dt/nstep(i);
               dumfng (i,k) = dumfng (i,k)+faltndng*dt/nstep(i);
+              // for wrf-chem, need precip rates (units of kg/m^2/s)
               csed(i,k)=csed(i,k)+faloutc(i,k)/nstep(i);
               ised(i,k)=ised(i,k)+falouti(i,k)/nstep(i);
               ssed(i,k)=ssed(i,k)+falouts(i,k)/nstep(i);
@@ -2384,11 +2495,13 @@ namespace modules {
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (hydro_pres(i)) {
+            // add on sedimentation tendencies for mixing ratio to rest of tendencies
             qr3dten (i,k) = qr3dten (i,k) + qrsten (i,k);
             qi3dten (i,k) = qi3dten (i,k) + qisten (i,k);
             qc3dten (i,k) = qc3dten (i,k) + qcsten (i,k);
             qg3dten (i,k) = qg3dten (i,k) + qgsten (i,k);
             qni3dten(i,k) = qni3dten(i,k) + qnisten(i,k);;
+            // put all cloud ice in snow category if mean diameter exceeds 2 * dcs
             if (qi3d(i,k) >= qsmall && t3d(i,k) < 273.15 && lami(i,k) >= 1.e-10) {
               if (1./lami(i,k) >= 2.*dcs) {
                 qni3dten(i,k) = qni3dten(i,k)+qi3d(i,k)/dt+ qi3dten(i,k);
@@ -2397,6 +2510,8 @@ namespace modules {
                 ni3dten(i,k) = -ni3d(i,k)/dt;
               }
             }
+            // hm add tendencies here, then call sizeparameter
+            // to ensure consisitency between mixing ratio and number concentration
             qc3d (i,k) = qc3d (i,k)+qc3dten (i,k)*dt;
             qi3d (i,k) = qi3d (i,k)+qi3dten (i,k)*dt;
             qni3d(i,k) = qni3d(i,k)+qni3dten(i,k)*dt;
@@ -2409,15 +2524,19 @@ namespace modules {
               qg3d(i,k) = qg3d(i,k)+qg3dten(i,k)*dt;
               ng3d(i,k) = ng3d(i,k)+ng3dten(i,k)*dt;
             }
+            // add temperature and water vapor tendencies from microphysics
             t3d (i,k) = t3d (i,k)+t3dten (i,k)*dt;
             qv3d(i,k) = qv3d(i,k)+qv3dten(i,k)*dt;
+            // saturation vapor pressure and mixing ratio
             evs(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),0) )  ; // pa
             eis(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),1) ) ;  // pa
+            // make sure ice saturation doesn't exceed water sat. near freezing
             if (eis(i,k) > evs(i,k)) eis(i,k) = evs(i,k);
             qvs(i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k));
             qvi(i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k));
             qvqvs(i,k) = qv3d(i,k)/qvs(i,k);
             qvqvsi(i,k) = qv3d(i,k)/qvi(i,k);
+            // at subsaturation, remove small amounts of cloud/precip water
             if (qvqvs(i,k) < 0.9) {
               if (qr3d(i,k) < 1.e-8) {
                 qv3d(i,k)=qv3d(i,k)+qr3d(i,k);
@@ -2447,6 +2566,7 @@ namespace modules {
                 qg3d(i,k)=0.;
               }
             }
+            // if mixing ratio < qsmall set mixing ratio and number conc to zero
             if (qc3d(i,k) < qsmall) {
               qc3d(i,k) = 0.;
               nc3d(i,k) = 0.;
@@ -2472,7 +2592,10 @@ namespace modules {
               ng3d(i,k) = 0.;
               effg(i,k) = 0.;
             }
+            // if there is no cloud/precip water, then skip calculations
             if ( !  (qc3d(i,k) < qsmall && qi3d(i,k) < qsmall && qni3d(i,k) < qsmall  && qr3d(i,k) < qsmall && qg3d(i,k) < qsmall)) {
+              // calculate instantaneous processes
+              // add melting of cloud ice to form rain
               if (qi3d(i,k) >= qsmall && t3d(i,k) >= 273.15) {
                 qr3d(i,k) = qr3d(i,k)+qi3d(i,k);
                 t3d(i,k) = t3d(i,k)-qi3d(i,k)*xlf(i,k)/cpm(i,k);
@@ -2480,7 +2603,9 @@ namespace modules {
                 nr3d(i,k) = nr3d(i,k)+ni3d(i,k);
                 ni3d(i,k) = 0.;
               }
+              // ****sensitivity - no ice
               if (iliq != 1) {
+                // homogeneous freezing of cloud water
                 if (t3d(i,k) <= 233.15 && qc3d(i,k) >= qsmall) {
                   qi3d(i,k)=qi3d(i,k)+qc3d(i,k);
                   t3d (i,k)=t3d (i,k)+qc3d(i,k)*xlf(i,k)/cpm(i,k);
@@ -2488,6 +2613,7 @@ namespace modules {
                   ni3d(i,k)=ni3d(i,k)+nc3d(i,k);
                   nc3d(i,k)=0.;
                 }
+                // homogeneous freezing of rain
                 if (igraup==0) {
                   if (t3d(i,k) <= 233.15 && qr3d(i,k) >= qsmall) {
                      qg3d(i,k) = qg3d(i,k)+qr3d(i,k);
@@ -2506,11 +2632,13 @@ namespace modules {
                   }
                 }
               }
+              // make sure number concentrations aren't negative
               ni3d(i,k) = max( 0. , ni3d(i,k) );
               ns3d(i,k) = max( 0. , ns3d(i,k) );
               nc3d(i,k) = max( 0. , nc3d(i,k) );
               nr3d(i,k) = max( 0. , nr3d(i,k) );
               ng3d(i,k) = max( 0. , ng3d(i,k) );
+              // cloud ice
               if (qi3d(i,k) >= qsmall) {
                 lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
                 if (lami(i,k) < lammini) {
@@ -2523,6 +2651,7 @@ namespace modules {
                   ni3d(i,k) = n0i(i,k)/lami(i,k);
                 }
               }
+              // rain
               if (qr3d(i,k) >= qsmall) {
                 lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
                 if (lamr(i,k) < lamminr) {
@@ -2535,6 +2664,7 @@ namespace modules {
                   nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                 }
               }
+              // cloud droplets
               if (qc3d(i,k) >= qsmall) {
                 float dum = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k)=0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
@@ -2542,6 +2672,8 @@ namespace modules {
                 pgam(i,k)=max(pgam(i,k),2.);
                 pgam(i,k)=min(pgam(i,k),10.);
                 lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
+                // lammin, 60 micron diameter
+                // lammax, 1 micron
                 float lammin = (pgam(i,k)+1.)/60.e-6;
                 float lammax = (pgam(i,k)+1.)/1.e-6;
                 if (lamc(i,k) < lammin) {
@@ -2552,6 +2684,7 @@ namespace modules {
                   nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
                 }
               }
+              // snow
               if (qni3d(i,k) >= qsmall) {
                 lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
                 if (lams(i,k) < lammins) {
@@ -2564,6 +2697,7 @@ namespace modules {
                   ns3d(i,k) = n0s(i,k)/lams(i,k);
                 }
               }
+              // graupel
               if (qg3d(i,k) >= qsmall) {
                 lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
                 if (lamg(i,k) < lamming) {
@@ -2577,6 +2711,7 @@ namespace modules {
                 }
               }
             }
+            // calculate effective radius
             if (qi3d(i,k) >= qsmall) {
               effi(i,k) = 3./lami(i,k)/2.*1.e6;
             } else {
@@ -2602,11 +2737,21 @@ namespace modules {
             } else {
               effg(i,k) = 25.;
             }
+            // hm add 1/10/06, add upper bound on ice number, this is needed
+            // to prevent very large ice number due to homogeneous freezing
+            // of droplets, especially when inum = 1, set max at 10 cm-3
+            //          ni3d(k) = min(ni3d(k),10.e6/rho(k))
+            // hm, 12/28/12, lower maximum ice concentration to address problem
+            // of excessive and persistent anvil
+            // note: this may change/reduce sensitivity to aerosol/ccn concentration
             ni3d(i,k) = min( ni3d(i,k) , 0.3e6/rho(i,k) );
+            // add bound on droplet number - cannot exceed aerosol concentration
             if (iinum==0 && iact==2) {
               nc3d(i,k) = min( nc3d(i,k) , (nanew1+nanew2)/rho(i,k) );
             }
+            // switch for constant droplet number
             if (iinum==1) { 
+              // change ndcnst from cm-3 to kg-1
               nc3d(i,k) = ndcnst*1.e6/rho(i,k);
             }
           } // If (hydro_pres(i))
@@ -2622,7 +2767,13 @@ namespace modules {
 
 
 
+    // compute saturation vapor pressure
+    // polysvp returned in units of pa.
+    // t is input in units of k.
+    // type refers to saturation with respect to liquid (0) or ice (1)
+    // replace goff-gratch with faster formulation from flatau et al. 1992, table 4 (right-hand column)
     KOKKOS_INLINE_FUNCTION static float polysvp( float t , int type) {
+      // liquid
       float a0 = 6.11239921;
       float a1 = 0.443987641;
       float a2 = 0.142986287e-1;
@@ -2632,6 +2783,7 @@ namespace modules {
       float a6 = 0.640689451e-10;
       float a7 = -0.952447341e-13;
       float a8 = -0.976195544e-15;
+      // ice
       float a0i = 6.11147274;
       float a1i = 0.503160820;
       float a2i = 0.188439774e-1;
@@ -2644,6 +2796,7 @@ namespace modules {
       float ret;
       // ice
       if (type==1) {
+        // hm 11/16/20, use goff-gratch for t < 195.8 k and flatau et al. equal or above 195.8 k
         if (t >= 195.8) {
           float dt=t-273.15;
           ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) ;
@@ -2654,11 +2807,13 @@ namespace modules {
       }
       // liquid
       if (type==0) {
+        // hm 11/16/20, use goff-gratch for t < 202.0 k and flatau et al. equal or above 202.0 k
         if (t >= 202.0) {
           float dt = t-273.15;
           ret = a0 + dt*(a1+dt*(a2+dt*(a3+dt*(a4+dt*(a5+dt*(a6+dt*(a7+a8*dt)))))));
           ret = ret*100.;
         } else {
+          // note: uncertain below -70 c, but produces physical values (non-negative) unlike flatau
           ret = pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*(pow(10.,11.344*(1.-t/373.16))-1.)+
                 8.1328e-3*(pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
         }

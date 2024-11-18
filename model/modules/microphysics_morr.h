@@ -1873,6 +1873,16 @@ namespace modules {
             fnc(i,k) = unc;
             fg (i,k) = umg;
             fng(i,k) = ung;
+            dumr  (i,k) = dumr  (i,k)*rho(i,k);
+            dumi  (i,k) = dumi  (i,k)*rho(i,k);
+            dumfni(i,k) = dumfni(i,k)*rho(i,k);
+            dumqs (i,k) = dumqs (i,k)*rho(i,k);
+            dumfns(i,k) = dumfns(i,k)*rho(i,k);
+            dumfnr(i,k) = dumfnr(i,k)*rho(i,k);
+            dumc  (i,k) = dumc  (i,k)*rho(i,k);
+            dumfnc(i,k) = dumfnc(i,k)*rho(i,k);
+            dumg  (i,k) = dumg  (i,k)*rho(i,k);
+            dumfng(i,k) = dumfng(i,k)*rho(i,k);
           }
       });
 
@@ -1896,21 +1906,6 @@ namespace modules {
             nstep(i) = max(int(rgvm*dt/dzq(i,k)+1.),nstep(i));
           }
         }
-      });
-
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          if (hydro_pres(i)) {
-            dumr  (i,k) = dumr  (i,k)*rho(i,k);
-            dumi  (i,k) = dumi  (i,k)*rho(i,k);
-            dumfni(i,k) = dumfni(i,k)*rho(i,k);
-            dumqs (i,k) = dumqs (i,k)*rho(i,k);
-            dumfns(i,k) = dumfns(i,k)*rho(i,k);
-            dumfnr(i,k) = dumfnr(i,k)*rho(i,k);
-            dumc  (i,k) = dumc  (i,k)*rho(i,k);
-            dumfnc(i,k) = dumfnc(i,k)*rho(i,k);
-            dumg  (i,k) = dumg  (i,k)*rho(i,k);
-            dumfng(i,k) = dumfng(i,k)*rho(i,k);
-          }
       });
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {

@@ -152,8 +152,6 @@ namespace modules {
       auto dm_snownc    = dm.get_collapsed<real>("micro_snownc"   );
       auto dm_graupelnc = dm.get_collapsed<real>("micro_graupelnc");
       real dz = coupler.get_dz();
-      float2d_F dz_arr("dz_arr",nz,ncol);
-      dz_arr = dz;
 
       // Allocates inputs and outputs
       float dt_in=dt;
@@ -178,6 +176,7 @@ namespace modules {
       float2d_F qrcuten   ("qrcuten   ",ncol,nz);
       float2d_F qscuten   ("qscuten   ",ncol,nz);
       float2d_F qicuten   ("qicuten   ",ncol,nz);
+      float2d_F dz_arr    ("dz_arr"    ,ncol,nz);
       float1d_F rainncv   ("rainncv   ",ncol   );
       float1d_F sr        ("sr        ",ncol   );
       float1d_F snowncv   ("snowncv   ",ncol   );
@@ -211,6 +210,7 @@ namespace modules {
         qrcuten(i+1,k+1) = 0;
         qscuten(i+1,k+1) = 0;
         qicuten(i+1,k+1) = 0;
+        dz_arr (i+1,k+1) = dz;
         if (k == 0) {
           rainnc   (i+1) = dm_rainnc   (i);
           snownc   (i+1) = dm_snownc   (i);
@@ -218,58 +218,58 @@ namespace modules {
         }
       });
 
-      auto host_rainnc     = rainnc    .createHostObject();
-      auto host_snownc     = snownc    .createHostObject();
-      auto host_graupelnc  = graupelnc .createHostObject();
-      auto host_qv         = qv        .createHostObject();
-      auto host_qc         = qc        .createHostObject();
-      auto host_qr         = qr        .createHostObject();
-      auto host_qi         = qi        .createHostObject();
-      auto host_qs         = qs        .createHostObject();
-      auto host_qg         = qg        .createHostObject();
-      auto host_ni         = ni        .createHostObject();
-      auto host_ns         = ns        .createHostObject();
-      auto host_nr         = nr        .createHostObject();
-      auto host_t          = t         .createHostObject();
-      auto host_ng         = ng        .createHostObject();
-      auto host_qlsink     = qlsink    .createHostObject();
-      auto host_preci      = preci     .createHostObject();
-      auto host_precs      = precs     .createHostObject();
-      auto host_precg      = precg     .createHostObject();
-      auto host_precr      = precr     .createHostObject();
-      auto host_p          = p         .createHostObject();
-      auto host_rho        = rho       .createHostObject();
-      auto host_qrcuten    = qrcuten   .createHostObject();
-      auto host_qscuten    = qscuten   .createHostObject();
-      auto host_qicuten    = qicuten   .createHostObject();
-      auto host_rainncv    = rainncv   .createHostObject();
-      auto host_sr         = sr        .createHostObject();
-      auto host_snowncv    = snowncv   .createHostObject();
-      auto host_graupelncv = graupelncv.createHostObject();
-      auto host_dz         = dz_arr    .createHostObject();
+      // auto host_rainnc     = rainnc    .createHostObject();
+      // auto host_snownc     = snownc    .createHostObject();
+      // auto host_graupelnc  = graupelnc .createHostObject();
+      // auto host_qv         = qv        .createHostObject();
+      // auto host_qc         = qc        .createHostObject();
+      // auto host_qr         = qr        .createHostObject();
+      // auto host_qi         = qi        .createHostObject();
+      // auto host_qs         = qs        .createHostObject();
+      // auto host_qg         = qg        .createHostObject();
+      // auto host_ni         = ni        .createHostObject();
+      // auto host_ns         = ns        .createHostObject();
+      // auto host_nr         = nr        .createHostObject();
+      // auto host_t          = t         .createHostObject();
+      // auto host_ng         = ng        .createHostObject();
+      // auto host_qlsink     = qlsink    .createHostObject();
+      // auto host_preci      = preci     .createHostObject();
+      // auto host_precs      = precs     .createHostObject();
+      // auto host_precg      = precg     .createHostObject();
+      // auto host_precr      = precr     .createHostObject();
+      // auto host_p          = p         .createHostObject();
+      // auto host_rho        = rho       .createHostObject();
+      // auto host_qrcuten    = qrcuten   .createHostObject();
+      // auto host_qscuten    = qscuten   .createHostObject();
+      // auto host_qicuten    = qicuten   .createHostObject();
+      // auto host_rainncv    = rainncv   .createHostObject();
+      // auto host_sr         = sr        .createHostObject();
+      // auto host_snowncv    = snowncv   .createHostObject();
+      // auto host_graupelncv = graupelncv.createHostObject();
+      // auto host_dz         = dz_arr    .createHostObject();
 
-      rainnc    .deep_copy_to(host_rainnc    );
-      snownc    .deep_copy_to(host_snownc    );
-      graupelnc .deep_copy_to(host_graupelnc );
-      qv        .deep_copy_to(host_qv        );
-      qc        .deep_copy_to(host_qc        );
-      qr        .deep_copy_to(host_qr        );
-      qi        .deep_copy_to(host_qi        );
-      qs        .deep_copy_to(host_qs        );
-      qg        .deep_copy_to(host_qg        );
-      ni        .deep_copy_to(host_ni        );
-      ns        .deep_copy_to(host_ns        );
-      nr        .deep_copy_to(host_nr        );
-      t         .deep_copy_to(host_t         );
-      ng        .deep_copy_to(host_ng        );
-      p         .deep_copy_to(host_p         );
-      rho       .deep_copy_to(host_rho       );
-      qrcuten   .deep_copy_to(host_qrcuten   );
-      qscuten   .deep_copy_to(host_qscuten   );
-      qicuten   .deep_copy_to(host_qicuten   );
-      dz_arr    .deep_copy_to(host_dz        );
+      // rainnc    .deep_copy_to(host_rainnc    );
+      // snownc    .deep_copy_to(host_snownc    );
+      // graupelnc .deep_copy_to(host_graupelnc );
+      // qv        .deep_copy_to(host_qv        );
+      // qc        .deep_copy_to(host_qc        );
+      // qr        .deep_copy_to(host_qr        );
+      // qi        .deep_copy_to(host_qi        );
+      // qs        .deep_copy_to(host_qs        );
+      // qg        .deep_copy_to(host_qg        );
+      // ni        .deep_copy_to(host_ni        );
+      // ns        .deep_copy_to(host_ns        );
+      // nr        .deep_copy_to(host_nr        );
+      // t         .deep_copy_to(host_t         );
+      // ng        .deep_copy_to(host_ng        );
+      // p         .deep_copy_to(host_p         );
+      // rho       .deep_copy_to(host_rho       );
+      // qrcuten   .deep_copy_to(host_qrcuten   );
+      // qscuten   .deep_copy_to(host_qscuten   );
+      // qicuten   .deep_copy_to(host_qicuten   );
+      // dz_arr    .deep_copy_to(host_dz        );
 
-      Kokkos::fence();
+      // Kokkos::fence();
 
       // mp_morr_two_moment(host_t.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(), host_qs.data(),
       //                    host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(), host_ng.data(), host_rho.data(),
@@ -278,25 +278,26 @@ namespace modules {
       //                    host_qrcuten.data(), host_qscuten.data(),
       //                    host_qicuten.data(), &ncol, &nz,
       //                    host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(), host_precg.data());
-      two_mom_wrapper(host_t, host_qv, host_qc, host_qr, host_qi, host_qs, host_qg, host_ni, host_ns, host_nr,
-                      host_ng, host_rho, host_p, dt_in, host_dz, host_rainnc, host_rainncv, host_sr, host_snownc,
-                      host_snowncv, host_graupelnc, host_graupelncv, host_qrcuten, host_qscuten, host_qicuten, ncol,
-                      nz, host_qlsink, host_precr, host_preci, host_precs, host_precg);
 
-      host_rainnc    .deep_copy_to(rainnc    );
-      host_snownc    .deep_copy_to(snownc    );
-      host_graupelnc .deep_copy_to(graupelnc );
-      host_qv        .deep_copy_to(qv        );
-      host_qc        .deep_copy_to(qc        );
-      host_qr        .deep_copy_to(qr        );
-      host_qi        .deep_copy_to(qi        );
-      host_qs        .deep_copy_to(qs        );
-      host_qg        .deep_copy_to(qg        );
-      host_ni        .deep_copy_to(ni        );
-      host_ns        .deep_copy_to(ns        );
-      host_nr        .deep_copy_to(nr        );
-      host_t         .deep_copy_to(t         );
-      host_ng        .deep_copy_to(ng        );
+      // host_rainnc    .deep_copy_to(rainnc    );
+      // host_snownc    .deep_copy_to(snownc    );
+      // host_graupelnc .deep_copy_to(graupelnc );
+      // host_qv        .deep_copy_to(qv        );
+      // host_qc        .deep_copy_to(qc        );
+      // host_qr        .deep_copy_to(qr        );
+      // host_qi        .deep_copy_to(qi        );
+      // host_qs        .deep_copy_to(qs        );
+      // host_qg        .deep_copy_to(qg        );
+      // host_ni        .deep_copy_to(ni        );
+      // host_ns        .deep_copy_to(ns        );
+      // host_nr        .deep_copy_to(nr        );
+      // host_t         .deep_copy_to(t         );
+      // host_ng        .deep_copy_to(ng        );
+
+      two_mom_wrapper(t, qv, qc, qr, qi, qs, qg, ni, ns, nr,
+                      ng, rho, p, dt_in, dz_arr, rainnc, rainncv, sr, snownc,
+                      snowncv, graupelnc, graupelncv, qrcuten, qscuten, qicuten, ncol,
+                      nz, qlsink, precr, preci, precs, precg);
       
       ///////////////////////////////////////////////////////////////////////////////
       // Convert Morrison 2mom outputs into dynamics coupler state and tracer masses
@@ -458,18 +459,18 @@ namespace modules {
 
 
 
-    void two_mom_wrapper(floatHost2d_F const &t, floatHost2d_F const &qv, floatHost2d_F const &qc, floatHost2d_F const &qr,
-                         floatHost2d_F const &qi, floatHost2d_F const &qs, floatHost2d_F const &qg, floatHost2d_F const &ni,
-                         floatHost2d_F const &ns, floatHost2d_F const &nr, floatHost2d_F const &ng, floatHostConst2d_F rho,
-                         floatHostConst2d_F p, float dt_in, floatHostConst2d_F dz, floatHost1d_F const &rainnc,
-                         floatHost1d_F const &rainncv, floatHost1d_F const &sr, floatHost1d_F const &snownc,
-                         floatHost1d_F const &snowncv, floatHost1d_F const &graupelnc, floatHost1d_F const &graupelncv,
-                         floatHostConst2d_F qrcuten, floatHostConst2d_F qscuten, floatHostConst2d_F qicuten, int ncol,
-                         int nz, floatHost2d_F const &qlsink, floatHost2d_F const &precr, floatHost2d_F const &preci,
-                         floatHost2d_F const &precs, floatHost2d_F const &precg) {
+    void two_mom_wrapper(float2d_F const &t, float2d_F const &qv, float2d_F const &qc, float2d_F const &qr,
+                         float2d_F const &qi, float2d_F const &qs, float2d_F const &qg, float2d_F const &ni,
+                         float2d_F const &ns, float2d_F const &nr, float2d_F const &ng, floatConst2d_F rho,
+                         floatConst2d_F p, float dt_in, floatConst2d_F dz, float1d_F const &rainnc,
+                         float1d_F const &rainncv, float1d_F const &sr, float1d_F const &snownc,
+                         float1d_F const &snowncv, float1d_F const &graupelnc, float1d_F const &graupelncv,
+                         floatConst2d_F qrcuten, floatConst2d_F qscuten, floatConst2d_F qicuten, int ncol,
+                         int nz, float2d_F const &qlsink, float2d_F const &precr, float2d_F const &preci,
+                         float2d_F const &precs, float2d_F const &precg) {
       using yakl::fortran::parallel_for;
       using yakl::fortran::SimpleBounds;
-      floatHost2d_F c2prec("c2prec",ncol,nz);
+      float2d_F c2prec("c2prec",ncol,nz);
       float dt    = dt_in;
       int  iinum = 1;
       run_two_mom(qc, qi, qs, qr ,ni, ns, nr, t, qv, p, dz, rainncv, sr, snowncv, graupelncv, dt, ncol, nz, qg,
@@ -488,13 +489,13 @@ namespace modules {
 
 
 
-    void run_two_mom(floatHost2d_F const &qc3d, floatHost2d_F const &qi3d, floatHost2d_F const &qni3d, floatHost2d_F const &qr3d,
-                     floatHost2d_F const &ni3d, floatHost2d_F const &ns3d, floatHost2d_F const &nr3d, floatHost2d_F const &t3d,
-                     floatHost2d_F const &qv3d, floatHostConst2d_F pres, floatHostConst2d_F dzq, floatHost1d_F const &precrt,
-                     floatHost1d_F const &snowrt, floatHost1d_F const &snowprt, floatHost1d_F const &grplprt, float dt, int ncol,
-                     int nz, floatHost2d_F const &qg3d, floatHost2d_F const &ng3d, floatHostConst2d_F qrcu1d,
-                     floatHostConst2d_F qscu1d, floatHostConst2d_F qicu1d, int iinum, floatHost2d_F const &c2prec,
-                     floatHost2d_F const &ised, floatHost2d_F const &ssed, floatHost2d_F const &gsed, floatHost2d_F const &rsed) {
+    void run_two_mom(float2d_F const &qc3d, float2d_F const &qi3d, float2d_F const &qni3d, float2d_F const &qr3d,
+                     float2d_F const &ni3d, float2d_F const &ns3d, float2d_F const &nr3d, float2d_F const &t3d,
+                     float2d_F const &qv3d, floatConst2d_F pres, floatConst2d_F dzq, float1d_F const &precrt,
+                     float1d_F const &snowrt, float1d_F const &snowprt, float1d_F const &grplprt, float dt, int ncol,
+                     int nz, float2d_F const &qg3d, float2d_F const &ng3d, floatConst2d_F qrcu1d,
+                     floatConst2d_F qscu1d, floatConst2d_F qicu1d, int iinum, float2d_F const &c2prec,
+                     float2d_F const &ised, float2d_F const &ssed, float2d_F const &gsed, float2d_F const &rsed) {
       using yakl::fortran::parallel_for;
       using yakl::fortran::SimpleBounds;
       YAKL_SCOPE( ag      , this->ag      );     
@@ -552,169 +553,169 @@ namespace modules {
       YAKL_SCOPE( cons39  , this->cons39  );         
       YAKL_SCOPE( cons40  , this->cons40  );         
       YAKL_SCOPE( cons41  , this->cons41  );         
-      floatHost2d_F ng3dten   ("ng3dten   ",ncol,nz);  // graupel numb conc tendency (1/kg/s)
-      floatHost2d_F qg3dten   ("qg3dten   ",ncol,nz);  // graupel mix ratio tendency (kg/kg/s)
-      floatHost2d_F effc      ("effc      ",ncol,nz);  // droplet effective radius (micron)
-      floatHost2d_F effi      ("effi      ",ncol,nz);  // cloud ice effective radius (micron)
-      floatHost2d_F effs      ("effs      ",ncol,nz);  // snow effective radius (micron)
-      floatHost2d_F effr      ("effr      ",ncol,nz);  // rain effective radius (micron)
-      floatHost2d_F effg      ("effg      ",ncol,nz);  // graupel effective radius (micron)
-      floatHost2d_F t3dten    ("t3dten    ",ncol,nz);  // temperature tendency (k/s)
-      floatHost2d_F qv3dten   ("qv3dten   ",ncol,nz);  // water vapor mixing ratio tendency (kg/kg/s)
-      floatHost2d_F qc3dten   ("qc3dten   ",ncol,nz);  // cloud water mixing ratio tendency (kg/kg/s)
-      floatHost2d_F qi3dten   ("qi3dten   ",ncol,nz);  // cloud ice mixing ratio tendency (kg/kg/s)
-      floatHost2d_F qni3dten  ("qni3dten  ",ncol,nz);  // snow mixing ratio tendency (kg/kg/s)
-      floatHost2d_F qr3dten   ("qr3dten   ",ncol,nz);  // rain mixing ratio tendency (kg/kg/s)
-      floatHost2d_F ni3dten   ("ni3dten   ",ncol,nz);  // cloud ice number concentration (1/kg/s)
-      floatHost2d_F ns3dten   ("ns3dten   ",ncol,nz);  // snow number concentration (1/kg/s)
-      floatHost2d_F nr3dten   ("nr3dten   ",ncol,nz);  // rain number concentration (1/kg/s)
-      floatHost2d_F csed      ("csed      ",ncol,nz);  //
-      floatHost2d_F qgsten    ("qgsten    ",ncol,nz);  // graupel sed tend (kg/kg/s)
-      floatHost2d_F qrsten    ("qrsten    ",ncol,nz);  // rain sed tend (kg/kg/s)
-      floatHost2d_F qisten    ("qisten    ",ncol,nz);  // cloud ice sed tend (kg/kg/s)
-      floatHost2d_F qnisten   ("qnisten   ",ncol,nz);  // snow sed tend (kg/kg/s)
-      floatHost2d_F qcsten    ("qcsten    ",ncol,nz);  // cloud wat sed tend (kg/kg/s)      
-      floatHost2d_F nc3d      ("nc3d      ",ncol,nz);  //
-      floatHost2d_F nc3dten   ("nc3dten   ",ncol,nz);  //
-      floatHost2d_F lamc      ("lamc      ",ncol,nz);  // slope parameter for droplets (m-1)
-      floatHost2d_F lami      ("lami      ",ncol,nz);  // slope parameter for cloud ice (m-1)
-      floatHost2d_F lams      ("lams      ",ncol,nz);  // slope parameter for snow (m-1)
-      floatHost2d_F lamr      ("lamr      ",ncol,nz);  // slope parameter for rain (m-1)
-      floatHost2d_F lamg      ("lamg      ",ncol,nz);  // slope parameter for graupel (m-1)
-      floatHost2d_F cdist1    ("cdist1    ",ncol,nz);  // psd parameter for droplets
-      floatHost2d_F n0i       ("n0i       ",ncol,nz);  // intercept parameter for cloud ice (kg-1 m-1)
-      floatHost2d_F n0s       ("n0s       ",ncol,nz);  // intercept parameter for snow (kg-1 m-1)
-      floatHost2d_F n0rr      ("n0rr      ",ncol,nz);  // intercept parameter for rain (kg-1 m-1)
-      floatHost2d_F n0g       ("n0g       ",ncol,nz);  // intercept parameter for graupel (kg-1 m-1)
-      floatHost2d_F pgam      ("pgam      ",ncol,nz);  // spectral shape parameter for droplets
-      floatHost2d_F nsubc     ("nsubc     ",ncol,nz);  // loss of nc during evap
-      floatHost2d_F nsubi     ("nsubi     ",ncol,nz);  // loss of ni during sub.
-      floatHost2d_F nsubs     ("nsubs     ",ncol,nz);  // loss of ns during sub.
-      floatHost2d_F nsubr     ("nsubr     ",ncol,nz);  // loss of nr during evap
-      floatHost2d_F prd       ("prd       ",ncol,nz);  // dep cloud ice
-      floatHost2d_F pre       ("pre       ",ncol,nz);  // evap of rain
-      floatHost2d_F prds      ("prds      ",ncol,nz);  // dep snow
-      floatHost2d_F nnuccc    ("nnuccc    ",ncol,nz);  // change n due to contact freez droplets
-      floatHost2d_F mnuccc    ("mnuccc    ",ncol,nz);  // change q due to contact freez droplets
-      floatHost2d_F pra       ("pra       ",ncol,nz);  // accretion droplets by rain
-      floatHost2d_F prc       ("prc       ",ncol,nz);  // autoconversion droplets
-      floatHost2d_F pcc       ("pcc       ",ncol,nz);  // cond/evap droplets
-      floatHost2d_F nnuccd    ("nnuccd    ",ncol,nz);  // change n freezing aerosol (prim ice nucleation)
-      floatHost2d_F mnuccd    ("mnuccd    ",ncol,nz);  // change q freezing aerosol (prim ice nucleation)
-      floatHost2d_F mnuccr    ("mnuccr    ",ncol,nz);  // change q due to contact freez rain
-      floatHost2d_F nnuccr    ("nnuccr    ",ncol,nz);  // change n due to contact freez rain
-      floatHost2d_F npra      ("npra      ",ncol,nz);  // change in n due to droplet acc by rain
-      floatHost2d_F nragg     ("nragg     ",ncol,nz);  // self-collection/breakup of rain
-      floatHost2d_F nsagg     ("nsagg     ",ncol,nz);  // self-collection of snow
-      floatHost2d_F nprc      ("nprc      ",ncol,nz);  // change nc autoconversion droplets
-      floatHost2d_F nprc1     ("nprc1     ",ncol,nz);  // change nr autoconversion droplets
-      floatHost2d_F prai      ("prai      ",ncol,nz);  // change q accretion cloud ice by snow
-      floatHost2d_F prci      ("prci      ",ncol,nz);  // change q autoconversin cloud ice to snow
-      floatHost2d_F psacws    ("psacws    ",ncol,nz);  // change q droplet accretion by snow
-      floatHost2d_F npsacws   ("npsacws   ",ncol,nz);  // change n droplet accretion by snow
-      floatHost2d_F psacwi    ("psacwi    ",ncol,nz);  // change q droplet accretion by cloud ice
-      floatHost2d_F npsacwi   ("npsacwi   ",ncol,nz);  // change n droplet accretion by cloud ice
-      floatHost2d_F nprci     ("nprci     ",ncol,nz);  // change n autoconversion cloud ice by snow
-      floatHost2d_F nprai     ("nprai     ",ncol,nz);  // change n accretion cloud ice
-      floatHost2d_F nmults    ("nmults    ",ncol,nz);  // ice mult due to riming droplets by snow
-      floatHost2d_F nmultr    ("nmultr    ",ncol,nz);  // ice mult due to riming rain by snow
-      floatHost2d_F qmults    ("qmults    ",ncol,nz);  // change q due to ice mult droplets/snow
-      floatHost2d_F qmultr    ("qmultr    ",ncol,nz);  // change q due to ice rain/snow
-      floatHost2d_F pracs     ("pracs     ",ncol,nz);  // change q rain-snow collection
-      floatHost2d_F npracs    ("npracs    ",ncol,nz);  // change n rain-snow collection
-      floatHost2d_F pccn      ("pccn      ",ncol,nz);  // change q droplet activation
-      floatHost2d_F psmlt     ("psmlt     ",ncol,nz);  // change q melting snow to rain
-      floatHost2d_F evpms     ("evpms     ",ncol,nz);  // chnage q melting snow evaporating
-      floatHost2d_F nsmlts    ("nsmlts    ",ncol,nz);  // change n melting snow
-      floatHost2d_F nsmltr    ("nsmltr    ",ncol,nz);  // change n melting snow to rain
-      floatHost2d_F piacr     ("piacr     ",ncol,nz);  // change qr, ice-rain collection
-      floatHost2d_F niacr     ("niacr     ",ncol,nz);  // change n, ice-rain collection
-      floatHost2d_F praci     ("praci     ",ncol,nz);  // change qi, ice-rain collection
-      floatHost2d_F piacrs    ("piacrs    ",ncol,nz);  // change qr, ice rain collision, added to snow
-      floatHost2d_F niacrs    ("niacrs    ",ncol,nz);  // change n, ice rain collision, added to snow
-      floatHost2d_F pracis    ("pracis    ",ncol,nz);  // change qi, ice rain collision, added to snow
-      floatHost2d_F eprd      ("eprd      ",ncol,nz);  // sublimation cloud ice
-      floatHost2d_F eprds     ("eprds     ",ncol,nz);  // sublimation snow
-      floatHost2d_F pracg     ("pracg     ",ncol,nz);  // change in q collection rain by graupel
-      floatHost2d_F psacwg    ("psacwg    ",ncol,nz);  // change in q collection droplets by graupel
-      floatHost2d_F pgsacw    ("pgsacw    ",ncol,nz);  // conversion q to graupel due to collection droplets by snow
-      floatHost2d_F pgracs    ("pgracs    ",ncol,nz);  // conversion q to graupel due to collection rain by snow
-      floatHost2d_F prdg      ("prdg      ",ncol,nz);  // dep of graupel
-      floatHost2d_F eprdg     ("eprdg     ",ncol,nz);  // sub of graupel
-      floatHost2d_F evpmg     ("evpmg     ",ncol,nz);  // change q melting of graupel and evaporation
-      floatHost2d_F pgmlt     ("pgmlt     ",ncol,nz);  // change q melting of graupel
-      floatHost2d_F npracg    ("npracg    ",ncol,nz);  // change n collection rain by graupel
-      floatHost2d_F npsacwg   ("npsacwg   ",ncol,nz);  // change n collection droplets by graupel
-      floatHost2d_F nscng     ("nscng     ",ncol,nz);  // change n conversion to graupel due to collection droplets by snow
-      floatHost2d_F ngracs    ("ngracs    ",ncol,nz);  // change n conversion to graupel due to collection rain by snow
-      floatHost2d_F ngmltg    ("ngmltg    ",ncol,nz);  // change n melting graupel
-      floatHost2d_F ngmltr    ("ngmltr    ",ncol,nz);  // change n melting graupel to rain
-      floatHost2d_F nsubg     ("nsubg     ",ncol,nz);  // change n sub/dep of graupel
-      floatHost2d_F psacr     ("psacr     ",ncol,nz);  // conversion due to coll of snow by rain
-      floatHost2d_F nmultg    ("nmultg    ",ncol,nz);  // ice mult due to acc droplets by graupel
-      floatHost2d_F nmultrg   ("nmultrg   ",ncol,nz);  // ice mult due to acc rain by graupel
-      floatHost2d_F qmultg    ("qmultg    ",ncol,nz);  // change q due to ice mult droplets/graupel
-      floatHost2d_F qmultrg   ("qmultrg   ",ncol,nz);  // change q due to ice mult rain/graupel
-      floatHost2d_F kap       ("kap       ",ncol,nz);  // thermal conductivity of air
-      floatHost2d_F evs       ("evs       ",ncol,nz);  // saturation vapor pressure
-      floatHost2d_F eis       ("eis       ",ncol,nz);  // ice saturation vapor pressure
-      floatHost2d_F qvs       ("qvs       ",ncol,nz);  // saturation mixing ratio
-      floatHost2d_F qvi       ("qvi       ",ncol,nz);  // ice saturation mixing ratio
-      floatHost2d_F qvqvs     ("qvqvs     ",ncol,nz);  // sautration ratio
-      floatHost2d_F qvqvsi    ("qvqvsi    ",ncol,nz);  // ice saturaion ratio
-      floatHost2d_F dv        ("dv        ",ncol,nz);  // diffusivity of water vapor in air
-      floatHost2d_F xxls      ("xxls      ",ncol,nz);  // latent heat of sublimation
-      floatHost2d_F xxlv      ("xxlv      ",ncol,nz);  // latent heat of vaporization
-      floatHost2d_F cpm       ("cpm       ",ncol,nz);  // specific heat at const pressure for moist air
-      floatHost2d_F mu        ("mu        ",ncol,nz);  // viscocity of air
-      floatHost2d_F sc        ("sc        ",ncol,nz);  // schmidt number
-      floatHost2d_F xlf       ("xlf       ",ncol,nz);  // latent heat of freezing
-      floatHost2d_F rho       ("rho       ",ncol,nz);  // air density
-      floatHost2d_F ab        ("ab        ",ncol,nz);  // correction to condensation rate due to latent heating
-      floatHost2d_F abi       ("abi       ",ncol,nz);  // correction to deposition rate due to latent heating
-      floatHost2d_F dap       ("dap       ",ncol,nz);  // diffusivity of aerosol
-      floatHost2d_F dumi      ("dumi      ",ncol,nz);  //
-      floatHost2d_F dumr      ("dumr      ",ncol,nz);  //
-      floatHost2d_F dumfni    ("dumfni    ",ncol,nz);  //
-      floatHost2d_F dumg      ("dumg      ",ncol,nz);  //
-      floatHost2d_F dumfng    ("dumfng    ",ncol,nz);  //
-      floatHost2d_F fr        ("fr        ",ncol,nz);  //
-      floatHost2d_F fi        ("fi        ",ncol,nz);  //
-      floatHost2d_F fni       ("fni       ",ncol,nz);  //
-      floatHost2d_F fg        ("fg        ",ncol,nz);  //
-      floatHost2d_F fng       ("fng       ",ncol,nz);  //
-      floatHost2d_F faloutr   ("faloutr   ",ncol,nz);  //
-      floatHost2d_F falouti   ("falouti   ",ncol,nz);  //
-      floatHost2d_F faloutni  ("faloutni  ",ncol,nz);  //
-      floatHost2d_F dumqs     ("dumqs     ",ncol,nz);  //
-      floatHost2d_F dumfns    ("dumfns    ",ncol,nz);  //
-      floatHost2d_F fs        ("fs        ",ncol,nz);  //
-      floatHost2d_F fns       ("fns       ",ncol,nz);  //
-      floatHost2d_F falouts   ("falouts   ",ncol,nz);  //
-      floatHost2d_F faloutns  ("faloutns  ",ncol,nz);  //
-      floatHost2d_F faloutg   ("faloutg   ",ncol,nz);  //
-      floatHost2d_F faloutng  ("faloutng  ",ncol,nz);  //
-      floatHost2d_F dumc      ("dumc      ",ncol,nz);  //
-      floatHost2d_F dumfnc    ("dumfnc    ",ncol,nz);  //
-      floatHost2d_F fc        ("fc        ",ncol,nz);  //
-      floatHost2d_F faloutc   ("faloutc   ",ncol,nz);  //
-      floatHost2d_F faloutnc  ("faloutnc  ",ncol,nz);  //
-      floatHost2d_F fnc       ("fnc       ",ncol,nz);  //
-      floatHost2d_F dumfnr    ("dumfnr    ",ncol,nz);  //
-      floatHost2d_F faloutnr  ("faloutnr  ",ncol,nz);  //
-      floatHost2d_F fnr       ("fnr       ",ncol,nz);  //
-      floatHost2d_F ain       ("ain       ",ncol,nz);  //
-      floatHost2d_F arn       ("arn       ",ncol,nz);  //
-      floatHost2d_F asn       ("asn       ",ncol,nz);  //
-      floatHost2d_F acn       ("acn       ",ncol,nz);  //
-      floatHost2d_F agn       ("agn       ",ncol,nz);  //
-      floatHost2d_F tqimelt   ("tqimelt   ",ncol,nz);  // melting of cloud ice (tendency)
-      intHost1d_F   nstep     ("nstep     ",ncol);     //
+      float2d_F ng3dten   ("ng3dten   ",ncol,nz);  // graupel numb conc tendency (1/kg/s)
+      float2d_F qg3dten   ("qg3dten   ",ncol,nz);  // graupel mix ratio tendency (kg/kg/s)
+      float2d_F effc      ("effc      ",ncol,nz);  // droplet effective radius (micron)
+      float2d_F effi      ("effi      ",ncol,nz);  // cloud ice effective radius (micron)
+      float2d_F effs      ("effs      ",ncol,nz);  // snow effective radius (micron)
+      float2d_F effr      ("effr      ",ncol,nz);  // rain effective radius (micron)
+      float2d_F effg      ("effg      ",ncol,nz);  // graupel effective radius (micron)
+      float2d_F t3dten    ("t3dten    ",ncol,nz);  // temperature tendency (k/s)
+      float2d_F qv3dten   ("qv3dten   ",ncol,nz);  // water vapor mixing ratio tendency (kg/kg/s)
+      float2d_F qc3dten   ("qc3dten   ",ncol,nz);  // cloud water mixing ratio tendency (kg/kg/s)
+      float2d_F qi3dten   ("qi3dten   ",ncol,nz);  // cloud ice mixing ratio tendency (kg/kg/s)
+      float2d_F qni3dten  ("qni3dten  ",ncol,nz);  // snow mixing ratio tendency (kg/kg/s)
+      float2d_F qr3dten   ("qr3dten   ",ncol,nz);  // rain mixing ratio tendency (kg/kg/s)
+      float2d_F ni3dten   ("ni3dten   ",ncol,nz);  // cloud ice number concentration (1/kg/s)
+      float2d_F ns3dten   ("ns3dten   ",ncol,nz);  // snow number concentration (1/kg/s)
+      float2d_F nr3dten   ("nr3dten   ",ncol,nz);  // rain number concentration (1/kg/s)
+      float2d_F csed      ("csed      ",ncol,nz);  //
+      float2d_F qgsten    ("qgsten    ",ncol,nz);  // graupel sed tend (kg/kg/s)
+      float2d_F qrsten    ("qrsten    ",ncol,nz);  // rain sed tend (kg/kg/s)
+      float2d_F qisten    ("qisten    ",ncol,nz);  // cloud ice sed tend (kg/kg/s)
+      float2d_F qnisten   ("qnisten   ",ncol,nz);  // snow sed tend (kg/kg/s)
+      float2d_F qcsten    ("qcsten    ",ncol,nz);  // cloud wat sed tend (kg/kg/s)      
+      float2d_F nc3d      ("nc3d      ",ncol,nz);  //
+      float2d_F nc3dten   ("nc3dten   ",ncol,nz);  //
+      float2d_F lamc      ("lamc      ",ncol,nz);  // slope parameter for droplets (m-1)
+      float2d_F lami      ("lami      ",ncol,nz);  // slope parameter for cloud ice (m-1)
+      float2d_F lams      ("lams      ",ncol,nz);  // slope parameter for snow (m-1)
+      float2d_F lamr      ("lamr      ",ncol,nz);  // slope parameter for rain (m-1)
+      float2d_F lamg      ("lamg      ",ncol,nz);  // slope parameter for graupel (m-1)
+      float2d_F cdist1    ("cdist1    ",ncol,nz);  // psd parameter for droplets
+      float2d_F n0i       ("n0i       ",ncol,nz);  // intercept parameter for cloud ice (kg-1 m-1)
+      float2d_F n0s       ("n0s       ",ncol,nz);  // intercept parameter for snow (kg-1 m-1)
+      float2d_F n0rr      ("n0rr      ",ncol,nz);  // intercept parameter for rain (kg-1 m-1)
+      float2d_F n0g       ("n0g       ",ncol,nz);  // intercept parameter for graupel (kg-1 m-1)
+      float2d_F pgam      ("pgam      ",ncol,nz);  // spectral shape parameter for droplets
+      float2d_F nsubc     ("nsubc     ",ncol,nz);  // loss of nc during evap
+      float2d_F nsubi     ("nsubi     ",ncol,nz);  // loss of ni during sub.
+      float2d_F nsubs     ("nsubs     ",ncol,nz);  // loss of ns during sub.
+      float2d_F nsubr     ("nsubr     ",ncol,nz);  // loss of nr during evap
+      float2d_F prd       ("prd       ",ncol,nz);  // dep cloud ice
+      float2d_F pre       ("pre       ",ncol,nz);  // evap of rain
+      float2d_F prds      ("prds      ",ncol,nz);  // dep snow
+      float2d_F nnuccc    ("nnuccc    ",ncol,nz);  // change n due to contact freez droplets
+      float2d_F mnuccc    ("mnuccc    ",ncol,nz);  // change q due to contact freez droplets
+      float2d_F pra       ("pra       ",ncol,nz);  // accretion droplets by rain
+      float2d_F prc       ("prc       ",ncol,nz);  // autoconversion droplets
+      float2d_F pcc       ("pcc       ",ncol,nz);  // cond/evap droplets
+      float2d_F nnuccd    ("nnuccd    ",ncol,nz);  // change n freezing aerosol (prim ice nucleation)
+      float2d_F mnuccd    ("mnuccd    ",ncol,nz);  // change q freezing aerosol (prim ice nucleation)
+      float2d_F mnuccr    ("mnuccr    ",ncol,nz);  // change q due to contact freez rain
+      float2d_F nnuccr    ("nnuccr    ",ncol,nz);  // change n due to contact freez rain
+      float2d_F npra      ("npra      ",ncol,nz);  // change in n due to droplet acc by rain
+      float2d_F nragg     ("nragg     ",ncol,nz);  // self-collection/breakup of rain
+      float2d_F nsagg     ("nsagg     ",ncol,nz);  // self-collection of snow
+      float2d_F nprc      ("nprc      ",ncol,nz);  // change nc autoconversion droplets
+      float2d_F nprc1     ("nprc1     ",ncol,nz);  // change nr autoconversion droplets
+      float2d_F prai      ("prai      ",ncol,nz);  // change q accretion cloud ice by snow
+      float2d_F prci      ("prci      ",ncol,nz);  // change q autoconversin cloud ice to snow
+      float2d_F psacws    ("psacws    ",ncol,nz);  // change q droplet accretion by snow
+      float2d_F npsacws   ("npsacws   ",ncol,nz);  // change n droplet accretion by snow
+      float2d_F psacwi    ("psacwi    ",ncol,nz);  // change q droplet accretion by cloud ice
+      float2d_F npsacwi   ("npsacwi   ",ncol,nz);  // change n droplet accretion by cloud ice
+      float2d_F nprci     ("nprci     ",ncol,nz);  // change n autoconversion cloud ice by snow
+      float2d_F nprai     ("nprai     ",ncol,nz);  // change n accretion cloud ice
+      float2d_F nmults    ("nmults    ",ncol,nz);  // ice mult due to riming droplets by snow
+      float2d_F nmultr    ("nmultr    ",ncol,nz);  // ice mult due to riming rain by snow
+      float2d_F qmults    ("qmults    ",ncol,nz);  // change q due to ice mult droplets/snow
+      float2d_F qmultr    ("qmultr    ",ncol,nz);  // change q due to ice rain/snow
+      float2d_F pracs     ("pracs     ",ncol,nz);  // change q rain-snow collection
+      float2d_F npracs    ("npracs    ",ncol,nz);  // change n rain-snow collection
+      float2d_F pccn      ("pccn      ",ncol,nz);  // change q droplet activation
+      float2d_F psmlt     ("psmlt     ",ncol,nz);  // change q melting snow to rain
+      float2d_F evpms     ("evpms     ",ncol,nz);  // chnage q melting snow evaporating
+      float2d_F nsmlts    ("nsmlts    ",ncol,nz);  // change n melting snow
+      float2d_F nsmltr    ("nsmltr    ",ncol,nz);  // change n melting snow to rain
+      float2d_F piacr     ("piacr     ",ncol,nz);  // change qr, ice-rain collection
+      float2d_F niacr     ("niacr     ",ncol,nz);  // change n, ice-rain collection
+      float2d_F praci     ("praci     ",ncol,nz);  // change qi, ice-rain collection
+      float2d_F piacrs    ("piacrs    ",ncol,nz);  // change qr, ice rain collision, added to snow
+      float2d_F niacrs    ("niacrs    ",ncol,nz);  // change n, ice rain collision, added to snow
+      float2d_F pracis    ("pracis    ",ncol,nz);  // change qi, ice rain collision, added to snow
+      float2d_F eprd      ("eprd      ",ncol,nz);  // sublimation cloud ice
+      float2d_F eprds     ("eprds     ",ncol,nz);  // sublimation snow
+      float2d_F pracg     ("pracg     ",ncol,nz);  // change in q collection rain by graupel
+      float2d_F psacwg    ("psacwg    ",ncol,nz);  // change in q collection droplets by graupel
+      float2d_F pgsacw    ("pgsacw    ",ncol,nz);  // conversion q to graupel due to collection droplets by snow
+      float2d_F pgracs    ("pgracs    ",ncol,nz);  // conversion q to graupel due to collection rain by snow
+      float2d_F prdg      ("prdg      ",ncol,nz);  // dep of graupel
+      float2d_F eprdg     ("eprdg     ",ncol,nz);  // sub of graupel
+      float2d_F evpmg     ("evpmg     ",ncol,nz);  // change q melting of graupel and evaporation
+      float2d_F pgmlt     ("pgmlt     ",ncol,nz);  // change q melting of graupel
+      float2d_F npracg    ("npracg    ",ncol,nz);  // change n collection rain by graupel
+      float2d_F npsacwg   ("npsacwg   ",ncol,nz);  // change n collection droplets by graupel
+      float2d_F nscng     ("nscng     ",ncol,nz);  // change n conversion to graupel due to collection droplets by snow
+      float2d_F ngracs    ("ngracs    ",ncol,nz);  // change n conversion to graupel due to collection rain by snow
+      float2d_F ngmltg    ("ngmltg    ",ncol,nz);  // change n melting graupel
+      float2d_F ngmltr    ("ngmltr    ",ncol,nz);  // change n melting graupel to rain
+      float2d_F nsubg     ("nsubg     ",ncol,nz);  // change n sub/dep of graupel
+      float2d_F psacr     ("psacr     ",ncol,nz);  // conversion due to coll of snow by rain
+      float2d_F nmultg    ("nmultg    ",ncol,nz);  // ice mult due to acc droplets by graupel
+      float2d_F nmultrg   ("nmultrg   ",ncol,nz);  // ice mult due to acc rain by graupel
+      float2d_F qmultg    ("qmultg    ",ncol,nz);  // change q due to ice mult droplets/graupel
+      float2d_F qmultrg   ("qmultrg   ",ncol,nz);  // change q due to ice mult rain/graupel
+      float2d_F kap       ("kap       ",ncol,nz);  // thermal conductivity of air
+      float2d_F evs       ("evs       ",ncol,nz);  // saturation vapor pressure
+      float2d_F eis       ("eis       ",ncol,nz);  // ice saturation vapor pressure
+      float2d_F qvs       ("qvs       ",ncol,nz);  // saturation mixing ratio
+      float2d_F qvi       ("qvi       ",ncol,nz);  // ice saturation mixing ratio
+      float2d_F qvqvs     ("qvqvs     ",ncol,nz);  // sautration ratio
+      float2d_F qvqvsi    ("qvqvsi    ",ncol,nz);  // ice saturaion ratio
+      float2d_F dv        ("dv        ",ncol,nz);  // diffusivity of water vapor in air
+      float2d_F xxls      ("xxls      ",ncol,nz);  // latent heat of sublimation
+      float2d_F xxlv      ("xxlv      ",ncol,nz);  // latent heat of vaporization
+      float2d_F cpm       ("cpm       ",ncol,nz);  // specific heat at const pressure for moist air
+      float2d_F mu        ("mu        ",ncol,nz);  // viscocity of air
+      float2d_F sc        ("sc        ",ncol,nz);  // schmidt number
+      float2d_F xlf       ("xlf       ",ncol,nz);  // latent heat of freezing
+      float2d_F rho       ("rho       ",ncol,nz);  // air density
+      float2d_F ab        ("ab        ",ncol,nz);  // correction to condensation rate due to latent heating
+      float2d_F abi       ("abi       ",ncol,nz);  // correction to deposition rate due to latent heating
+      float2d_F dap       ("dap       ",ncol,nz);  // diffusivity of aerosol
+      float2d_F dumi      ("dumi      ",ncol,nz);  //
+      float2d_F dumr      ("dumr      ",ncol,nz);  //
+      float2d_F dumfni    ("dumfni    ",ncol,nz);  //
+      float2d_F dumg      ("dumg      ",ncol,nz);  //
+      float2d_F dumfng    ("dumfng    ",ncol,nz);  //
+      float2d_F fr        ("fr        ",ncol,nz);  //
+      float2d_F fi        ("fi        ",ncol,nz);  //
+      float2d_F fni       ("fni       ",ncol,nz);  //
+      float2d_F fg        ("fg        ",ncol,nz);  //
+      float2d_F fng       ("fng       ",ncol,nz);  //
+      float2d_F faloutr   ("faloutr   ",ncol,nz);  //
+      float2d_F falouti   ("falouti   ",ncol,nz);  //
+      float2d_F faloutni  ("faloutni  ",ncol,nz);  //
+      float2d_F dumqs     ("dumqs     ",ncol,nz);  //
+      float2d_F dumfns    ("dumfns    ",ncol,nz);  //
+      float2d_F fs        ("fs        ",ncol,nz);  //
+      float2d_F fns       ("fns       ",ncol,nz);  //
+      float2d_F falouts   ("falouts   ",ncol,nz);  //
+      float2d_F faloutns  ("faloutns  ",ncol,nz);  //
+      float2d_F faloutg   ("faloutg   ",ncol,nz);  //
+      float2d_F faloutng  ("faloutng  ",ncol,nz);  //
+      float2d_F dumc      ("dumc      ",ncol,nz);  //
+      float2d_F dumfnc    ("dumfnc    ",ncol,nz);  //
+      float2d_F fc        ("fc        ",ncol,nz);  //
+      float2d_F faloutc   ("faloutc   ",ncol,nz);  //
+      float2d_F faloutnc  ("faloutnc  ",ncol,nz);  //
+      float2d_F fnc       ("fnc       ",ncol,nz);  //
+      float2d_F dumfnr    ("dumfnr    ",ncol,nz);  //
+      float2d_F faloutnr  ("faloutnr  ",ncol,nz);  //
+      float2d_F fnr       ("fnr       ",ncol,nz);  //
+      float2d_F ain       ("ain       ",ncol,nz);  //
+      float2d_F arn       ("arn       ",ncol,nz);  //
+      float2d_F asn       ("asn       ",ncol,nz);  //
+      float2d_F acn       ("acn       ",ncol,nz);  //
+      float2d_F agn       ("agn       ",ncol,nz);  //
+      float2d_F tqimelt   ("tqimelt   ",ncol,nz);  // melting of cloud ice (tendency)
+      int1d_F   nstep     ("nstep     ",ncol);     //
       float dum;
-      boolHost2d_F skip_micro("skip_micro",ncol,nz);
-      boolHost2d_F t_ge_273  ("t_ge_273"  ,ncol,nz);
-      boolHost2d_F no_cirg   ("no_cirg"   ,ncol,nz);      //
-      boolHost1d_F hydro_pres("hydro_pres",ncol);      //
+      bool2d_F skip_micro("skip_micro",ncol,nz);
+      bool2d_F t_ge_273  ("t_ge_273"  ,ncol,nz);
+      bool2d_F no_cirg   ("no_cirg"   ,ncol,nz);      //
+      bool1d_F hydro_pres("hydro_pres",ncol);      //
       parallel_for( YAKL_AUTO_LABEL() , ncol , KOKKOS_LAMBDA (int i) {
         hydro_pres(i) = false;
         precrt    (i) = 0.;
@@ -2156,7 +2157,6 @@ namespace modules {
             }
           } // If (hydro_pres(i))
       });
-      Kokkos::fence();
     }
 
 

@@ -467,13 +467,14 @@ namespace modules {
                          floatHostConst2d_F qrcuten, floatHostConst2d_F qscuten, floatHostConst2d_F qicuten, int ncol,
                          int nz, floatHost2d_F const &qlsink, floatHost2d_F const &precr, floatHost2d_F const &preci,
                          floatHost2d_F const &precs, floatHost2d_F const &precg) {
+      using yakl::fortran::parallel_for;
+      using yakl::fortran::SimpleBounds;
       floatHost2d_F c2prec("c2prec",ncol,nz);
       float dt    = dt_in;
       int  iinum = 1;
       run_two_mom(qc, qi, qs, qr ,ni, ns, nr, t, qv, p, dz, rainncv, sr, snowncv, graupelncv, dt, ncol, nz, qg,
                   ng, qrcuten, qscuten, qicuten, iinum, c2prec, preci, precs, precg, precr);
-      for (int k = 1; k <= nz; k++) {
-        for (int i = 1; i <= ncol; i++) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (qc(i,k) > 1.e-10) { qlsink(i,k) = c2prec(i,k)/qc(i,k); }
           else                  { qlsink(i,k) = 0.0;                 }
           if (k == 1) {
@@ -482,8 +483,7 @@ namespace modules {
             graupelnc (i) = graupelnc(i)+graupelncv(i);
             sr        (i) = sr(i)/(rainncv(i)+1.e-12);
           }
-        }
-      }
+      });
     }
 
 
@@ -1119,9 +1119,7 @@ namespace modules {
             }
           }
       });
-      Kokkos::fence();
-      for (int i = 1; i <= ncol; i++) {
-        for (int k = 1; k <= nz; k++) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               if (iinum==1) {
@@ -1159,7 +1157,7 @@ namespace modules {
                 }
               }
               if (qc3d(i,k) >= qsmall) {
-                dum     = pres(i,k)/(287.15*t3d(i,k));
+                float dum     = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
                 pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
                 pgam(i,k) = max(pgam(i,k),2.);
@@ -1263,7 +1261,7 @@ namespace modules {
               nsubg(i,k) = 0.;
               if (qc3d(i,k) >= qsmall  &&  t3d(i,k) < 269.15) {
                 float nacnt     = std::exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.;
-                dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
+                float dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
                 dap(i,k) = cons37*t3d(i,k)*(1.+dum/rin)/mu(i,k);
                 mnuccc(i,k) = cons38*dap(i,k)*nacnt*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
                 nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt*cdist1(i,k)*gamma(pgam(i,k)+2.)/lamc(i,k);
@@ -1394,7 +1392,7 @@ namespace modules {
               if (psacws(i,k) > 0.) {
                 if (qni3d(i,k) >= 0.1e-3 && qc3d(i,k) >= 0.5e-3) {
                   pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)));
-                  dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
+                  float dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
                   nscng(i,k) = dum/mg0*rho(i,k);
                   nscng(i,k) = min(nscng(i,k),ns3d(i,k)/dt);
                   psacws(i,k) = psacws(i,k) - pgsacw(i,k);
@@ -1402,7 +1400,7 @@ namespace modules {
               }
               if (pracs(i,k) > 0.) {
                 if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
-                  dum       = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
+                  float dum = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
                               cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3));
                   dum       = min( dum , 1. );
                   dum       = max( dum , 0. );
@@ -1421,12 +1419,13 @@ namespace modules {
                 nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
               }
               if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
-                dum     = (qc3d(i,k)*qr3d(i,k));
+                float dum     = (qc3d(i,k)*qr3d(i,k));
                 pra(i,k) = 67.*pow(dum,1.15);
                 npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
               }
               if (qr3d(i,k) >= 1.e-8) {
                 float dum1=300.e-6;
+                float dum;
                 if (1./lamr(i,k) < dum1) {
                   dum=1.;
                 } else if (1./lamr(i,k) >= dum1) {
@@ -1478,7 +1477,6 @@ namespace modules {
                   }
                 }
               }
-
               float epsi;
               if (qi3d(i,k) >= qsmall) {
                  epsi = 2.*pi*n0i(i,k)*rho(i,k)*dv(i,k)/(lami(i,k)*lami(i,k));
@@ -1503,6 +1501,7 @@ namespace modules {
               } else {
                 epsr = 0.;
               }
+              float dum;
               if (qi3d(i,k) >= qsmall) {              
                 dum    = (1.-std::exp(-lami(i,k)*dcs)*(1.+lami(i,k)*dcs));
                 prd(i,k) = epsi*(qv3d(i,k)-qvi(i,k))/abi(i,k)*dum;
@@ -1643,13 +1642,19 @@ namespace modules {
                 qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
                 ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k));
               }
+            }
+          }
+      });
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          if (! skip_micro(i,k)) {
+            if (! t_ge_273(i,k)) {
               nc3dten(i,k) = nc3dten(i,k)+(-nnuccc(i,k)-npsacws(i,k)-npra(i,k)-nprc(i,k)-npsacwi(i,k)-npsacwg(i,k));
               ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
               nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-npracg(i,k)-ngracs(i,k));
               c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+mnuccc(i,k)+psacwi(i,k);
               float dumt       = t3d(i,k)+dt*t3dten(i,k);
               float dumqv      = qv3d(i,k)+dt*qv3dten(i,k);
-              dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
+              float dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
               float dumqss     = ep_2*dum/(pres(i,k)-dum);
               float dumqc      = qc3d(i,k)+dt*qc3dten(i,k);
               dumqc      = max( dumqc , 0. );
@@ -1686,10 +1691,9 @@ namespace modules {
             } // temperature
             hydro_pres(i) = true; // No hydrometeors are present. Skip the rest of the routine
           } // if (! skip_micro(i,k))
-        }  // k
-      }  // i
+      });
 
-      for (int i = 1; i <= ncol; i++) {
+      parallel_for( YAKL_AUTO_LABEL() , ncol , KOKKOS_LAMBDA (int i) {
         if (hydro_pres(i)) {
           nstep(i) = 1;
           for (int k = nz; k >= 1; k--) {
@@ -1723,7 +1727,7 @@ namespace modules {
             }
             float dlamc;
             if (dumc(i,k) >= qsmall) {
-              dum     = pres(i,k)/(287.15*t3d(i,k));
+              float dum     = pres(i,k)/(287.15*t3d(i,k));
               pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
               pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
               pgam(i,k) = max(pgam(i,k),2.);
@@ -1786,7 +1790,7 @@ namespace modules {
               umg = 0.;
               ung = 0.;
             }
-            dum    = pow(rhosu/rho(i,k),0.54);
+            float dum    = pow(rhosu/rho(i,k),0.54);
             ums    = min(ums,1.2*dum);
             uns    = min(uns,1.2*dum);
             umi    = min(umi,1.2*pow(rhosu/rho(i,k),0.35));
@@ -1919,8 +1923,12 @@ namespace modules {
             snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
             grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
           } // nstep(i)
+        }
+      });
 
-          for (int k = 1; k <= nz; k++) {
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          if (hydro_pres(i)) {
             qr3dten (i,k) = qr3dten (i,k) + qrsten (i,k);
             qi3dten (i,k) = qi3dten (i,k) + qisten (i,k);
             qc3dten (i,k) = qc3dten (i,k) + qcsten (i,k);
@@ -2073,7 +2081,7 @@ namespace modules {
                 }
               }
               if (qc3d(i,k) >= qsmall) {
-                dum = pres(i,k)/(287.15*t3d(i,k));
+                float dum = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k)=0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
                 pgam(i,k)=1./(pow(pgam(i,k),2))-1.;
                 pgam(i,k)=max(pgam(i,k),2.);
@@ -2146,9 +2154,9 @@ namespace modules {
             if (iinum==1) { 
               nc3d(i,k) = ndcnst*1.e6/rho(i,k);
             }
-          } // k loop
-        } // If (hydro_pres(i))
-      } // i loop
+          } // If (hydro_pres(i))
+      });
+      Kokkos::fence();
     }
 
 

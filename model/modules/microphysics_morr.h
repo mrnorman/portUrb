@@ -1911,9 +1911,8 @@ namespace modules {
       auto max_nstep = yakl::intrinsics::maxval( nstep );
 
       for (int n = 1; n <= max_nstep; n++) {
-        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (hydro_pres(i) && nstep(i) <= n) {
-            for (int k = 1; k <= nz; k++) {
               faloutr (i,k) = fr (i,k)*dumr  (i,k);
               falouti (i,k) = fi (i,k)*dumi  (i,k);
               faloutni(i,k) = fni(i,k)*dumfni(i,k);
@@ -1924,7 +1923,10 @@ namespace modules {
               faloutnc(i,k) = fnc(i,k)*dumfnc(i,k);
               faloutg (i,k) = fg (i,k)*dumg  (i,k);
               faloutng(i,k) = fng(i,k)*dumfng(i,k);
-            }
+          }
+        });
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
+          if (hydro_pres(i) && nstep(i) <= n) {
             {
               int k = nz;
               float faltndr  = faloutr (i,k)/dzq(i,k);
@@ -1958,7 +1960,10 @@ namespace modules {
               dumg  (i,k) = dumg  (i,k)-faltndg *dt/nstep(i);
               dumfng(i,k) = dumfng(i,k)-faltndng*dt/nstep(i);
             }
-            for (int k = nz-1; k >= 1; k--) {
+          }
+        });
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz-1,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          if (hydro_pres(i) && nstep(i) <= n) {
               float faltndr  = (faloutr (i,k+1)-faloutr (i,k))/dzq(i,k);
               float faltndi  = (falouti (i,k+1)-falouti (i,k))/dzq(i,k);
               float faltndni = (faloutni(i,k+1)-faloutni(i,k))/dzq(i,k);
@@ -1969,36 +1974,37 @@ namespace modules {
               float faltndnc = (faloutnc(i,k+1)-faloutnc(i,k))/dzq(i,k);
               float faltndg  = (faloutg (i,k+1)-faloutg (i,k))/dzq(i,k);
               float faltndng = (faloutng(i,k+1)-faloutng(i,k))/dzq(i,k);
-              qrsten (i,k) = qrsten (i,k)+faltndr /nstep(i)/rho(i,k);
-              qisten (i,k) = qisten (i,k)+faltndi /nstep(i)/rho(i,k);
-              ni3dten(i,k) = ni3dten(i,k)+faltndni/nstep(i)/rho(i,k);
-              qnisten(i,k) = qnisten(i,k)+faltnds /nstep(i)/rho(i,k);
-              ns3dten(i,k) = ns3dten(i,k)+faltndns/nstep(i)/rho(i,k);
-              nr3dten(i,k) = nr3dten(i,k)+faltndnr/nstep(i)/rho(i,k);
-              qcsten (i,k) = qcsten (i,k)+faltndc /nstep(i)/rho(i,k);
-              nc3dten(i,k) = nc3dten(i,k)+faltndnc/nstep(i)/rho(i,k);
-              qgsten (i,k) = qgsten (i,k)+faltndg /nstep(i)/rho(i,k);
-              ng3dten(i,k) = ng3dten(i,k)+faltndng/nstep(i)/rho(i,k);
-              dumr  (i,k) = dumr  (i,k)+faltndr *dt/nstep(i);
-              dumi  (i,k) = dumi  (i,k)+faltndi *dt/nstep(i);
-              dumfni(i,k) = dumfni(i,k)+faltndni*dt/nstep(i);
-              dumqs (i,k) = dumqs (i,k)+faltnds *dt/nstep(i);
-              dumfns(i,k) = dumfns(i,k)+faltndns*dt/nstep(i);
-              dumfnr(i,k) = dumfnr(i,k)+faltndnr*dt/nstep(i);
-              dumc  (i,k) = dumc  (i,k)+faltndc *dt/nstep(i);
-              dumfnc(i,k) = dumfnc(i,k)+faltndnc*dt/nstep(i);
-              dumg  (i,k) = dumg  (i,k)+faltndg *dt/nstep(i);
-              dumfng(i,k) = dumfng(i,k)+faltndng*dt/nstep(i);
+              qrsten (i,k) = qrsten (i,k)+faltndr    /nstep(i)/rho(i,k);
+              qisten (i,k) = qisten (i,k)+faltndi    /nstep(i)/rho(i,k);
+              ni3dten(i,k) = ni3dten(i,k)+faltndni   /nstep(i)/rho(i,k);
+              qnisten(i,k) = qnisten(i,k)+faltnds    /nstep(i)/rho(i,k);
+              ns3dten(i,k) = ns3dten(i,k)+faltndns   /nstep(i)/rho(i,k);
+              nr3dten(i,k) = nr3dten(i,k)+faltndnr   /nstep(i)/rho(i,k);
+              qcsten (i,k) = qcsten (i,k)+faltndc    /nstep(i)/rho(i,k);
+              nc3dten(i,k) = nc3dten(i,k)+faltndnc   /nstep(i)/rho(i,k);
+              qgsten (i,k) = qgsten (i,k)+faltndg    /nstep(i)/rho(i,k);
+              ng3dten(i,k) = ng3dten(i,k)+faltndng   /nstep(i)/rho(i,k);
+              dumr   (i,k) = dumr   (i,k)+faltndr *dt/nstep(i);
+              dumi   (i,k) = dumi   (i,k)+faltndi *dt/nstep(i);
+              dumfni (i,k) = dumfni (i,k)+faltndni*dt/nstep(i);
+              dumqs  (i,k) = dumqs  (i,k)+faltnds *dt/nstep(i);
+              dumfns (i,k) = dumfns (i,k)+faltndns*dt/nstep(i);
+              dumfnr (i,k) = dumfnr (i,k)+faltndnr*dt/nstep(i);
+              dumc   (i,k) = dumc   (i,k)+faltndc *dt/nstep(i);
+              dumfnc (i,k) = dumfnc (i,k)+faltndnc*dt/nstep(i);
+              dumg   (i,k) = dumg   (i,k)+faltndg *dt/nstep(i);
+              dumfng (i,k) = dumfng (i,k)+faltndng*dt/nstep(i);
               csed(i,k)=csed(i,k)+faloutc(i,k)/nstep(i);
               ised(i,k)=ised(i,k)+falouti(i,k)/nstep(i);
               ssed(i,k)=ssed(i,k)+falouts(i,k)/nstep(i);
               gsed(i,k)=gsed(i,k)+faloutg(i,k)/nstep(i);
               rsed(i,k)=rsed(i,k)+faloutr(i,k)/nstep(i);
-            }
-            precrt (i) = precrt (i)+(faloutr(i,1)+faloutc(i,1)+falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
-            snowrt (i) = snowrt (i)+(falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
-            snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
-            grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
+              if (k == 1) {
+                precrt (i) = precrt (i)+(faloutr(i,1)+faloutc(i,1)+falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
+                snowrt (i) = snowrt (i)+(falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
+                snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
+                grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
+              }
           }
         });
       } // nstep(i)

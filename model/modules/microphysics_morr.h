@@ -1908,9 +1908,11 @@ namespace modules {
         }
       });
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
-        if (hydro_pres(i)) {
-          for (int n = 1; n <= nstep(i); n++) {
+      auto max_nstep = yakl::intrinsics::maxval( nstep );
+
+      for (int n = 1; n <= max_nstep; n++) {
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
+          if (hydro_pres(i) && nstep(i) <= n) {
             for (int k = 1; k <= nz; k++) {
               faloutr (i,k) = fr (i,k)*dumr  (i,k);
               falouti (i,k) = fi (i,k)*dumi  (i,k);
@@ -1997,9 +1999,9 @@ namespace modules {
             snowrt (i) = snowrt (i)+(falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
             snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
             grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
-          } // nstep(i)
-        }
-      });
+          }
+        });
+      } // nstep(i)
 
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {

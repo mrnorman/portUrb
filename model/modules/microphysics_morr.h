@@ -1759,10 +1759,8 @@ namespace modules {
           } // if (! skip_micro(i,k))
       });
 
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
-        if (hydro_pres(i)) {
-          nstep(i) = 1;
-          for (int k = nz; k >= 1; k--) {
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          if (hydro_pres(i)) {
             dumi  (i,k) = qi3d (i,k)+qi3dten (i,k)*dt;
             dumqs (i,k) = qni3d(i,k)+qni3dten(i,k)*dt;
             dumr  (i,k) = qr3d (i,k)+qr3dten (i,k)*dt;
@@ -1875,6 +1873,13 @@ namespace modules {
             fnc(i,k) = unc;
             fg (i,k) = umg;
             fng(i,k) = ung;
+          }
+      });
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
+        if (hydro_pres(i)) {
+          nstep(i) = 1;
+          for (int k = nz; k >= 1; k--) {
             if (k <= nz-1) {
               if (fr (i,k) < 1.e-10) fr (i,k) = fr (i,k+1);
               if (fi (i,k) < 1.e-10) fi (i,k) = fi (i,k+1);
@@ -1889,6 +1894,12 @@ namespace modules {
             } // k le nz-1
             float rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
             nstep(i) = max(int(rgvm*dt/dzq(i,k)+1.),nstep(i));
+          }
+        }
+      });
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          if (hydro_pres(i)) {
             dumr  (i,k) = dumr  (i,k)*rho(i,k);
             dumi  (i,k) = dumi  (i,k)*rho(i,k);
             dumfni(i,k) = dumfni(i,k)*rho(i,k);
@@ -1900,7 +1911,10 @@ namespace modules {
             dumg  (i,k) = dumg  (i,k)*rho(i,k);
             dumfng(i,k) = dumfng(i,k)*rho(i,k);
           }
+      });
 
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
+        if (hydro_pres(i)) {
           for (int n = 1; n <= nstep(i); n++) {
             for (int k = 1; k <= nz; k++) {
               faloutr (i,k) = fr (i,k)*dumr  (i,k);

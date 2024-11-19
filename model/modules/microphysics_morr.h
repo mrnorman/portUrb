@@ -52,6 +52,23 @@ namespace modules {
     typedef yakl::Array<bool  const,2,yakl::memHost  ,yakl::styleFortran> boolHostConst2d_F;
     // Doesn't actually have to be static or constexpr. Could be assigned in the constructor
     int static constexpr num_tracers = 10;
+    #ifdef MICRO_MORR_FORTRAN
+      int trace_size;
+      std::vector<float> errs_qv       ;
+      std::vector<float> errs_qc       ;
+      std::vector<float> errs_qr       ;
+      std::vector<float> errs_qi       ;
+      std::vector<float> errs_qs       ;
+      std::vector<float> errs_qg       ;
+      std::vector<float> errs_ni       ;
+      std::vector<float> errs_ns       ;
+      std::vector<float> errs_nr       ;
+      std::vector<float> errs_ng       ;
+      std::vector<float> errs_th       ;
+      std::vector<float> errs_rainnc   ;
+      std::vector<float> errs_snownc   ;
+      std::vector<float> errs_graupelnc;
+    #endif
 
 
     KOKKOS_INLINE_FUNCTION static int get_num_tracers() { return num_tracers; }
@@ -70,6 +87,7 @@ namespace modules {
       init_two_moment( ihail );
 
       #ifdef MICRO_MORR_FORTRAN
+        trace_size = 0;
         morr_two_moment_init(&ihail);
       #endif
 
@@ -131,6 +149,92 @@ namespace modules {
       coupler.set_option<real>("cv_v"   ,cv_v   );
       coupler.set_option<real>("p0"     ,p0     );
       coupler.set_option<real>("grav"   ,grav   );
+
+      #ifdef MICRO_MORR_FORTRAN
+        coupler.register_write_output_module( [=] (core::Coupler &coupler, yakl::SimplePNetCDF &nc) {
+          if (trace_size > 0) {
+            nc.redef();
+            nc.create_dim( "num_time_steps_phys" , trace_size );
+            nc.create_var<real>( "micro_morr_errs_qv"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_qc"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_qr"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_qi"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_qs"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_qg"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_ni"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_ns"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_nr"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_ng"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_th"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_rainnc"    , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_snownc"    , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_graupelnc" , {"num_time_steps_phys"} );
+            nc.enddef();
+            nc.begin_indep_data();
+            if (coupler.is_mainproc()) {
+              realHost1d arr_qv       ("arr_qv       " , trace_size );
+              realHost1d arr_qc       ("arr_qc       " , trace_size );
+              realHost1d arr_qr       ("arr_qr       " , trace_size );
+              realHost1d arr_qi       ("arr_qi       " , trace_size );
+              realHost1d arr_qs       ("arr_qs       " , trace_size );
+              realHost1d arr_qg       ("arr_qg       " , trace_size );
+              realHost1d arr_ni       ("arr_ni       " , trace_size );
+              realHost1d arr_ns       ("arr_ns       " , trace_size );
+              realHost1d arr_nr       ("arr_nr       " , trace_size );
+              realHost1d arr_ng       ("arr_ng       " , trace_size );
+              realHost1d arr_th       ("arr_th       " , trace_size );
+              realHost1d arr_rainnc   ("arr_rainnc   " , trace_size );
+              realHost1d arr_snownc   ("arr_snownc   " , trace_size );
+              realHost1d arr_graupelnc("arr_graupelnc" , trace_size );
+              for (int i=0; i < trace_size; i++) { arr_qv       (i) = errs_qv       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_qc       (i) = errs_qc       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_qr       (i) = errs_qr       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_qi       (i) = errs_qi       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_qs       (i) = errs_qs       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_qg       (i) = errs_qg       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_ni       (i) = errs_ni       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_ns       (i) = errs_ns       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_nr       (i) = errs_nr       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_ng       (i) = errs_ng       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_th       (i) = errs_th       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_rainnc   (i) = errs_rainnc   .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_snownc   (i) = errs_snownc   .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_graupelnc(i) = errs_graupelnc.at(i); }
+              nc.write( arr_qv        , "micro_morr_errs_qv"        );
+              nc.write( arr_qc        , "micro_morr_errs_qc"        );
+              nc.write( arr_qr        , "micro_morr_errs_qr"        );
+              nc.write( arr_qi        , "micro_morr_errs_qi"        );
+              nc.write( arr_qs        , "micro_morr_errs_qs"        );
+              nc.write( arr_qg        , "micro_morr_errs_qg"        );
+              nc.write( arr_ni        , "micro_morr_errs_ni"        );
+              nc.write( arr_ns        , "micro_morr_errs_ns"        );
+              nc.write( arr_nr        , "micro_morr_errs_nr"        );
+              nc.write( arr_ng        , "micro_morr_errs_ng"        );
+              nc.write( arr_th        , "micro_morr_errs_th"        );
+              nc.write( arr_rainnc    , "micro_morr_errs_rainnc"    );
+              nc.write( arr_snownc    , "micro_morr_errs_snownc"    );
+              nc.write( arr_graupelnc , "micro_morr_errs_graupelnc" );
+              errs_qv       .clear();
+              errs_qc       .clear();
+              errs_qr       .clear();
+              errs_qi       .clear();
+              errs_qs       .clear();
+              errs_qg       .clear();
+              errs_ni       .clear();
+              errs_ns       .clear();
+              errs_nr       .clear();
+              errs_ng       .clear();
+              errs_th       .clear();
+              errs_rainnc   .clear();
+              errs_snownc   .clear();
+              errs_graupelnc.clear();
+              trace_size = 0;
+            }
+            nc.end_indep_data();
+          }
+          trace_size = 0;
+        });
+      #endif
     }
 
 
@@ -228,7 +332,6 @@ namespace modules {
       });
 
       #ifdef MICRO_MORR_FORTRAN
-
         float2d_F th       ("th"       ,ncol,nz);
         float2d_F pii      ("pii"      ,ncol,nz);
         float2d_F rho      ("rho"      ,ncol,nz);  // not used
@@ -327,70 +430,56 @@ namespace modules {
                       snowncv, graupelnc, graupelncv, qrcuten, qscuten, qicuten, ncol,
                       nz, qlsink, precr, preci, precs, precg);
       
-      using yakl::componentwise::operator-;
-      using yakl::intrinsics::abs;
-      using yakl::intrinsics::sum;
-      auto nx_glob = coupler.get_nx_glob();
-      auto ny_glob = coupler.get_ny_glob();
-      auto diff_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       -qv       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       -qc       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       -qr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       -qi       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       -qs       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       -qg       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       -ni       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       -ns       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       -nr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       -ng       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       -th       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   -rainnc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   -snownc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-      auto diff_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc-graupelnc)) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
-
-      auto sum_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-      auto sum_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc)) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
-
-      DEBUG_PRINT_MAIN_VAL( diff_qv        );
-      DEBUG_PRINT_MAIN_VAL( diff_qc        );
-      DEBUG_PRINT_MAIN_VAL( diff_qr        );
-      DEBUG_PRINT_MAIN_VAL( diff_qi        );
-      DEBUG_PRINT_MAIN_VAL( diff_qs        );
-      DEBUG_PRINT_MAIN_VAL( diff_qg        );
-      DEBUG_PRINT_MAIN_VAL( diff_ni        );
-      DEBUG_PRINT_MAIN_VAL( diff_ns        );
-      DEBUG_PRINT_MAIN_VAL( diff_nr        );
-      DEBUG_PRINT_MAIN_VAL( diff_ng        );
-      DEBUG_PRINT_MAIN_VAL( diff_th        );
-      DEBUG_PRINT_MAIN_VAL( diff_rainnc    );
-      DEBUG_PRINT_MAIN_VAL( diff_snownc    );
-      DEBUG_PRINT_MAIN_VAL( diff_graupelnc );
-
-      DEBUG_PRINT_MAIN_VAL( diff_qv       /sum_qv        );
-      DEBUG_PRINT_MAIN_VAL( diff_qc       /sum_qc        );
-      DEBUG_PRINT_MAIN_VAL( diff_qr       /sum_qr        );
-      DEBUG_PRINT_MAIN_VAL( diff_qi       /sum_qi        );
-      DEBUG_PRINT_MAIN_VAL( diff_qs       /sum_qs        );
-      DEBUG_PRINT_MAIN_VAL( diff_qg       /sum_qg        );
-      DEBUG_PRINT_MAIN_VAL( diff_ni       /sum_ni        );
-      DEBUG_PRINT_MAIN_VAL( diff_ns       /sum_ns        );
-      DEBUG_PRINT_MAIN_VAL( diff_nr       /sum_nr        );
-      DEBUG_PRINT_MAIN_VAL( diff_ng       /sum_ng        );
-      DEBUG_PRINT_MAIN_VAL( diff_th       /sum_th        );
-      DEBUG_PRINT_MAIN_VAL( diff_rainnc   /sum_rainnc    );
-      DEBUG_PRINT_MAIN_VAL( diff_snownc   /sum_snownc    );
-      DEBUG_PRINT_MAIN_VAL( diff_graupelnc/sum_graupelnc );
+      #ifdef MICRO_MORR_FORTRAN
+        using yakl::componentwise::operator-;
+        using yakl::intrinsics::abs;
+        using yakl::intrinsics::sum;
+        auto nx_glob = coupler.get_nx_glob();
+        auto ny_glob = coupler.get_ny_glob();
+        auto diff_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       -qv       )) , MPI_SUM , "" );
+        auto diff_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       -qc       )) , MPI_SUM , "" );
+        auto diff_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       -qr       )) , MPI_SUM , "" );
+        auto diff_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       -qi       )) , MPI_SUM , "" );
+        auto diff_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       -qs       )) , MPI_SUM , "" );
+        auto diff_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       -qg       )) , MPI_SUM , "" );
+        auto diff_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       -ni       )) , MPI_SUM , "" );
+        auto diff_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       -ns       )) , MPI_SUM , "" );
+        auto diff_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       -nr       )) , MPI_SUM , "" );
+        auto diff_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       -ng       )) , MPI_SUM , "" );
+        auto diff_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       -th       )) , MPI_SUM , "" );
+        auto diff_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   -rainnc   )) , MPI_SUM , "" );
+        auto diff_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   -snownc   )) , MPI_SUM , "" );
+        auto diff_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc-graupelnc)) , MPI_SUM , "" );
+        auto sum_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       )) , MPI_SUM , "" );
+        auto sum_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       )) , MPI_SUM , "" );
+        auto sum_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       )) , MPI_SUM , "" );
+        auto sum_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       )) , MPI_SUM , "" );
+        auto sum_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       )) , MPI_SUM , "" );
+        auto sum_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       )) , MPI_SUM , "" );
+        auto sum_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       )) , MPI_SUM , "" );
+        auto sum_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       )) , MPI_SUM , "" );
+        auto sum_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       )) , MPI_SUM , "" );
+        auto sum_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       )) , MPI_SUM , "" );
+        auto sum_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       )) , MPI_SUM , "" );
+        auto sum_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   )) , MPI_SUM , "" );
+        auto sum_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   )) , MPI_SUM , "" );
+        auto sum_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc)) , MPI_SUM , "" );
+        errs_qv       .push_back( sum_qv       > 1.e-14 ? diff_qv       /sum_qv        : 0 );
+        errs_qc       .push_back( sum_qc       > 1.e-14 ? diff_qc       /sum_qc        : 0 );
+        errs_qr       .push_back( sum_qr       > 1.e-14 ? diff_qr       /sum_qr        : 0 );
+        errs_qi       .push_back( sum_qi       > 1.e-14 ? diff_qi       /sum_qi        : 0 );
+        errs_qs       .push_back( sum_qs       > 1.e-14 ? diff_qs       /sum_qs        : 0 );
+        errs_qg       .push_back( sum_qg       > 1.e-14 ? diff_qg       /sum_qg        : 0 );
+        errs_ni       .push_back( sum_ni       > 1.e-14 ? diff_ni       /sum_ni        : 0 );
+        errs_ns       .push_back( sum_ns       > 1.e-14 ? diff_ns       /sum_ns        : 0 );
+        errs_nr       .push_back( sum_nr       > 1.e-14 ? diff_nr       /sum_nr        : 0 );
+        errs_ng       .push_back( sum_ng       > 1.e-14 ? diff_ng       /sum_ng        : 0 );
+        errs_th       .push_back( sum_th       > 1.e-14 ? diff_th       /sum_th        : 0 );
+        errs_rainnc   .push_back( sum_rainnc   > 1.e-14 ? diff_rainnc   /sum_rainnc    : 0 );
+        errs_snownc   .push_back( sum_snownc   > 1.e-14 ? diff_snownc   /sum_snownc    : 0 );
+        errs_graupelnc.push_back( sum_graupelnc> 1.e-14 ? diff_graupelnc/sum_graupelnc : 0 );
+        trace_size++;
+      #endif
       
       ///////////////////////////////////////////////////////////////////////////////
       // Convert Morrison 2mom outputs into dynamics coupler state and tracer masses

@@ -28,9 +28,9 @@ int main(int argc, char** argv) {
     real        dtphys_in   = 0;    // Use dycore time step
     int         dyn_cycle   = 10;
     real        out_freq    = 7200;
-    real        inform_freq = 1000;
+    real        inform_freq = 10;
     std::string out_prefix  = "supercell_2000m";
-    bool        is_restart  = true;
+    bool        is_restart  = false;
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"     , out_prefix  );

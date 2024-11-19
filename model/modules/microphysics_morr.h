@@ -5,14 +5,19 @@
 
 
 extern "C"
-void mp_morr_two_moment(float *t, float *qv, float *qc, float *qr, float *qi, float *qs,
-                        float *qg, float *ni, float *ns, float *nr, float *ng, float *rho,
-                        float *p, float *dt_in, float *dz, float *rainnc, float *rainncv,
-                        float *sr, float *snownc, float *snowncv, float *graupelnc, float *graupelncv,
-                        float *qrcuten, float *qscuten,
-                        float *qicuten, int *ncol, int *nz,
-                        float *qlsink, float *precr, float *preci, float *precs, float *precg);
-
+void mp_morr_two_moment(float *th, float *qv, float *qc, float *qr, float *qi,
+                        float *qs,float *qg, float *ni, float *ns, float *nr,
+                        float *ng, float *rho, float *pii, float *p, float *dt_in, float *dz,
+                        float *ht,
+                        float *w, float *rainnc, float *rainncv, float *sr, float *snownc,
+                        float *snowncv, float *graupelnc, float *graupelncv, float *refl_10cm,
+                        float *qrcuten, float *qscuten, float *qicuten, 
+                        float *qndrop,
+                        int *ids, int *ide, int *jds, int *jde, int *kds, int *kde,
+                        int *ims, int *ime, int *jms, int *jme, int *kms, int *kme,
+                        int *its, int *ite, int *jts, int *jte, int *kts, int *kte, float *rainprod, float *evapprod,
+                        float *qlsink, float *precr, float *preci, float *precs,
+                        float *precg);
 
 extern "C"
 void morr_two_moment_init(int *morr_rimed_ice);
@@ -64,6 +69,10 @@ namespace modules {
       int ihail = 1;
       init_two_moment( ihail );
 
+      #ifdef MICRO_MORR_FORTRAN
+        morr_two_moment_init(&ihail);
+      #endif
+
       int nx   = coupler.get_nx();
       int ny   = coupler.get_ny();
       int nz   = coupler.get_nz();
@@ -99,9 +108,6 @@ namespace modules {
       dm.get_collapsed<real>( "micro_rainnc"    ) = 0;
       dm.get_collapsed<real>( "micro_snownc"    ) = 0;
       dm.get_collapsed<real>( "micro_graupelnc" ) = 0;
-
-      int morr_rimed_ice = 1;
-      morr_two_moment_init( &morr_rimed_ice );
 
       coupler.set_option<std::string>("micro","p3");
       real R_d        = 287.;
@@ -159,7 +165,7 @@ namespace modules {
       real dz = coupler.get_dz();
 
       // Allocates inputs and outputs
-      float dt_in=dt;
+      float dt_in = dt;
       float2d_F qv        ("qv        ",ncol,nz);
       float2d_F qc        ("qc        ",ncol,nz);
       float2d_F qr        ("qr        ",ncol,nz);
@@ -177,7 +183,6 @@ namespace modules {
       float2d_F precg     ("precg     ",ncol,nz);
       float2d_F precr     ("precr     ",ncol,nz);
       float2d_F p         ("p         ",ncol,nz);
-      float2d_F rho       ("rho       ",ncol,nz);
       float2d_F qrcuten   ("qrcuten   ",ncol,nz);
       float2d_F qscuten   ("qscuten   ",ncol,nz);
       float2d_F qicuten   ("qicuten   ",ncol,nz);
@@ -199,7 +204,6 @@ namespace modules {
       real p0   = coupler.get_option<real>("p0"  );
 
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-        rho    (i+1,k+1) = dm_rho_dry(k,i) + dm_rho_c(k,i) + dm_rho_r(k,i) + dm_rho_i(k,i) + dm_rho_v(k,i);
         qv     (i+1,k+1) = dm_rho_v (k,i)/dm_rho_dry(k,i);
         qc     (i+1,k+1) = dm_rho_c (k,i)/dm_rho_dry(k,i);
         qr     (i+1,k+1) = dm_rho_r (k,i)/dm_rho_dry(k,i);
@@ -223,86 +227,170 @@ namespace modules {
         }
       });
 
-      // auto host_rainnc     = rainnc    .createHostObject();
-      // auto host_snownc     = snownc    .createHostObject();
-      // auto host_graupelnc  = graupelnc .createHostObject();
-      // auto host_qv         = qv        .createHostObject();
-      // auto host_qc         = qc        .createHostObject();
-      // auto host_qr         = qr        .createHostObject();
-      // auto host_qi         = qi        .createHostObject();
-      // auto host_qs         = qs        .createHostObject();
-      // auto host_qg         = qg        .createHostObject();
-      // auto host_ni         = ni        .createHostObject();
-      // auto host_ns         = ns        .createHostObject();
-      // auto host_nr         = nr        .createHostObject();
-      // auto host_t          = t         .createHostObject();
-      // auto host_ng         = ng        .createHostObject();
-      // auto host_qlsink     = qlsink    .createHostObject();
-      // auto host_preci      = preci     .createHostObject();
-      // auto host_precs      = precs     .createHostObject();
-      // auto host_precg      = precg     .createHostObject();
-      // auto host_precr      = precr     .createHostObject();
-      // auto host_p          = p         .createHostObject();
-      // auto host_rho        = rho       .createHostObject();
-      // auto host_qrcuten    = qrcuten   .createHostObject();
-      // auto host_qscuten    = qscuten   .createHostObject();
-      // auto host_qicuten    = qicuten   .createHostObject();
-      // auto host_rainncv    = rainncv   .createHostObject();
-      // auto host_sr         = sr        .createHostObject();
-      // auto host_snowncv    = snowncv   .createHostObject();
-      // auto host_graupelncv = graupelncv.createHostObject();
-      // auto host_dz         = dz_arr    .createHostObject();
+      #ifdef MICRO_MORR_FORTRAN
 
-      // rainnc    .deep_copy_to(host_rainnc    );
-      // snownc    .deep_copy_to(host_snownc    );
-      // graupelnc .deep_copy_to(host_graupelnc );
-      // qv        .deep_copy_to(host_qv        );
-      // qc        .deep_copy_to(host_qc        );
-      // qr        .deep_copy_to(host_qr        );
-      // qi        .deep_copy_to(host_qi        );
-      // qs        .deep_copy_to(host_qs        );
-      // qg        .deep_copy_to(host_qg        );
-      // ni        .deep_copy_to(host_ni        );
-      // ns        .deep_copy_to(host_ns        );
-      // nr        .deep_copy_to(host_nr        );
-      // t         .deep_copy_to(host_t         );
-      // ng        .deep_copy_to(host_ng        );
-      // p         .deep_copy_to(host_p         );
-      // rho       .deep_copy_to(host_rho       );
-      // qrcuten   .deep_copy_to(host_qrcuten   );
-      // qscuten   .deep_copy_to(host_qscuten   );
-      // qicuten   .deep_copy_to(host_qicuten   );
-      // dz_arr    .deep_copy_to(host_dz        );
+        float2d_F th       ("th"       ,ncol,nz);
+        float2d_F pii      ("pii"      ,ncol,nz);
+        float2d_F rho      ("rho"      ,ncol,nz);  // not used
+        float1d_F ht       ("ht"       ,ncol   );  // not used
+        float2d_F w        ("w"        ,ncol,nz);  // not used
+        float2d_F refl_10cm("refl_10cm",ncol,nz);  // not used
+        float2d_F rainprod ("rainprod" ,ncol,nz);  // not used
+        float2d_F evapprod ("evapprod" ,ncol,nz);  // not used
+        float2d_F qndrop   ("qndrop"   ,ncol,nz);  // not used
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          pii(i+1,k+1) = std::pow( p(i+1,k+1) / p0 , R_d/cp_d );
+          th (i+1,k+1) = t(i+1,k+1) / pii(i+1,k+1);
+        });
+        auto host_th         = th        .createHostCopy();
+        auto host_qv         = qv        .createHostCopy();
+        auto host_qc         = qc        .createHostCopy();
+        auto host_qr         = qr        .createHostCopy();
+        auto host_qi         = qi        .createHostCopy();
+        auto host_qs         = qs        .createHostCopy();
+        auto host_qg         = qg        .createHostCopy();
+        auto host_ni         = ni        .createHostCopy();
+        auto host_ns         = ns        .createHostCopy();
+        auto host_nr         = nr        .createHostCopy();
+        auto host_ng         = ng        .createHostCopy();
+        auto host_rho        = rho       .createHostCopy();
+        auto host_pii        = pii       .createHostCopy();
+        auto host_p          = p         .createHostCopy();
+        auto host_dz         = dz_arr    .createHostCopy();
+        auto host_ht         = ht        .createHostCopy();
+        auto host_w          = w         .createHostCopy();
+        auto host_rainnc     = rainnc    .createHostCopy();
+        auto host_rainncv    = rainncv   .createHostCopy();
+        auto host_sr         = sr        .createHostCopy();
+        auto host_snownc     = snownc    .createHostCopy();
+        auto host_snowncv    = snowncv   .createHostCopy();
+        auto host_graupelnc  = graupelnc .createHostCopy();
+        auto host_graupelncv = graupelncv.createHostCopy();
+        auto host_refl_10cm  = refl_10cm .createHostCopy();
+        auto host_qrcuten    = qrcuten   .createHostCopy();
+        auto host_qscuten    = qscuten   .createHostCopy();
+        auto host_qicuten    = qicuten   .createHostCopy();
+        auto host_rainprod   = rainprod  .createHostCopy();
+        auto host_evapprod   = evapprod  .createHostCopy();
+        auto host_qlsink     = qlsink    .createHostCopy();
+        auto host_precr      = precr     .createHostCopy();
+        auto host_preci      = preci     .createHostCopy();
+        auto host_precs      = precs     .createHostCopy();
+        auto host_precg      = precg     .createHostCopy();
+        auto host_qndrop     = qndrop    .createHostCopy();
+        // Unused
+        bool diagflag     = false;
+        int  do_radar_ref = 0;
+        bool f_qndrop     = false;
+        bool wetscav_on   = false;
+        int  itimestep    = 1;
+        int ids = 1   , jds=1, kds = 1 , ims = 1   , jms = 1, kms = 1 , its = 1   , jts = 1, kts = 1 ;
+        int ide = ncol, jde=1, kde = nz, ime = ncol, jme = 1, kme = nz, ite = ncol, jte = 1, kte = nz;
 
-      // Kokkos::fence();
+        mp_morr_two_moment(host_th.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(),
+                           host_qs.data(),host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(),
+                           host_ng.data(), host_rho.data(), host_pii.data(), host_p.data(), &dt_in, host_dz.data(),
+                           host_ht.data(),
+                           host_w.data(), host_rainnc.data(), host_rainncv.data(), host_sr.data(), host_snownc.data(),
+                           host_snowncv.data(), host_graupelnc.data(), host_graupelncv.data(), host_refl_10cm.data(),
+                           host_qrcuten.data(), host_qscuten.data(), host_qicuten.data(), 
+                           host_qndrop.data(),
+                           &ids, &ide, &jds, &jde, &kds, &kde,
+                           &ims, &ime, &jms, &jme, &kms, &kme,
+                           &its, &ite, &jts, &jte, &kts, &kte, host_rainprod.data(), host_evapprod.data(),
+                           host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(),
+                           host_precg.data());
 
-      // mp_morr_two_moment(host_t.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(), host_qs.data(),
-      //                    host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(), host_ng.data(), host_rho.data(),
-      //                    host_p.data(), &dt_in, host_dz.data(), host_rainnc.data(), host_rainncv.data(),
-      //                    host_sr.data(), host_snownc.data(), host_snowncv.data(), host_graupelnc.data(), host_graupelncv.data(),
-      //                    host_qrcuten.data(), host_qscuten.data(),
-      //                    host_qicuten.data(), &ncol, &nz,
-      //                    host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(), host_precg.data());
+        auto for_qv        = host_qv       .createDeviceCopy();
+        auto for_qc        = host_qc       .createDeviceCopy();
+        auto for_qr        = host_qr       .createDeviceCopy();
+        auto for_qi        = host_qi       .createDeviceCopy();
+        auto for_qs        = host_qs       .createDeviceCopy();
+        auto for_qg        = host_qg       .createDeviceCopy();
+        auto for_ni        = host_ni       .createDeviceCopy();
+        auto for_ns        = host_ns       .createDeviceCopy();
+        auto for_nr        = host_nr       .createDeviceCopy();
+        auto for_ng        = host_ng       .createDeviceCopy();
+        auto for_th        = host_th       .createDeviceCopy();
+        auto for_rainnc    = host_rainnc   .createDeviceCopy();
+        auto for_snownc    = host_snownc   .createDeviceCopy();
+        auto for_graupelnc = host_graupelnc.createDeviceCopy();
 
-      // host_rainnc    .deep_copy_to(rainnc    );
-      // host_snownc    .deep_copy_to(snownc    );
-      // host_graupelnc .deep_copy_to(graupelnc );
-      // host_qv        .deep_copy_to(qv        );
-      // host_qc        .deep_copy_to(qc        );
-      // host_qr        .deep_copy_to(qr        );
-      // host_qi        .deep_copy_to(qi        );
-      // host_qs        .deep_copy_to(qs        );
-      // host_qg        .deep_copy_to(qg        );
-      // host_ni        .deep_copy_to(ni        );
-      // host_ns        .deep_copy_to(ns        );
-      // host_nr        .deep_copy_to(nr        );
-      // host_t         .deep_copy_to(t         );
-      // host_ng        .deep_copy_to(ng        );
+        parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
+          t(i+1,k+1) = th(i+1,k+1) * pii(i+1,k+1);
+        });
+
+      #endif
 
       two_mom_wrapper(t, qv, qc, qr, qi, qs, qg, ni, ns, nr,
-                      ng, rho, p, dt_in, dz_arr, rainnc, rainncv, sr, snownc,
+                      ng, p, dt_in, dz_arr, rainnc, rainncv, sr, snownc,
                       snowncv, graupelnc, graupelncv, qrcuten, qscuten, qicuten, ncol,
                       nz, qlsink, precr, preci, precs, precg);
+      
+      using yakl::componentwise::operator-;
+      using yakl::intrinsics::abs;
+      using yakl::intrinsics::sum;
+      auto nx_glob = coupler.get_nx_glob();
+      auto ny_glob = coupler.get_ny_glob();
+      auto diff_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       -qv       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       -qc       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       -qr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       -qi       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       -qs       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       -qg       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       -ni       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       -ns       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       -nr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       -ng       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       -th       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   -rainnc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   -snownc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+      auto diff_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc-graupelnc)) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);
+
+      auto sum_qv        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qv       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_qc        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qc       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_qr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_qi        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qi       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_qs        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qs       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_qg        = coupler.get_parallel_comm().all_reduce( sum(abs(for_qg       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_ni        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ni       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   )) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+      auto sum_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc)) , MPI_SUM , "" )/(nx_glob*ny_glob*nz);;
+
+      DEBUG_PRINT_MAIN_VAL( diff_qv        );
+      DEBUG_PRINT_MAIN_VAL( diff_qc        );
+      DEBUG_PRINT_MAIN_VAL( diff_qr        );
+      DEBUG_PRINT_MAIN_VAL( diff_qi        );
+      DEBUG_PRINT_MAIN_VAL( diff_qs        );
+      DEBUG_PRINT_MAIN_VAL( diff_qg        );
+      DEBUG_PRINT_MAIN_VAL( diff_ni        );
+      DEBUG_PRINT_MAIN_VAL( diff_ns        );
+      DEBUG_PRINT_MAIN_VAL( diff_nr        );
+      DEBUG_PRINT_MAIN_VAL( diff_ng        );
+      DEBUG_PRINT_MAIN_VAL( diff_th        );
+      DEBUG_PRINT_MAIN_VAL( diff_rainnc    );
+      DEBUG_PRINT_MAIN_VAL( diff_snownc    );
+      DEBUG_PRINT_MAIN_VAL( diff_graupelnc );
+
+      DEBUG_PRINT_MAIN_VAL( diff_qv       /sum_qv        );
+      DEBUG_PRINT_MAIN_VAL( diff_qc       /sum_qc        );
+      DEBUG_PRINT_MAIN_VAL( diff_qr       /sum_qr        );
+      DEBUG_PRINT_MAIN_VAL( diff_qi       /sum_qi        );
+      DEBUG_PRINT_MAIN_VAL( diff_qs       /sum_qs        );
+      DEBUG_PRINT_MAIN_VAL( diff_qg       /sum_qg        );
+      DEBUG_PRINT_MAIN_VAL( diff_ni       /sum_ni        );
+      DEBUG_PRINT_MAIN_VAL( diff_ns       /sum_ns        );
+      DEBUG_PRINT_MAIN_VAL( diff_nr       /sum_nr        );
+      DEBUG_PRINT_MAIN_VAL( diff_ng       /sum_ng        );
+      DEBUG_PRINT_MAIN_VAL( diff_th       /sum_th        );
+      DEBUG_PRINT_MAIN_VAL( diff_rainnc   /sum_rainnc    );
+      DEBUG_PRINT_MAIN_VAL( diff_snownc   /sum_snownc    );
+      DEBUG_PRINT_MAIN_VAL( diff_graupelnc/sum_graupelnc );
       
       ///////////////////////////////////////////////////////////////////////////////
       // Convert Morrison 2mom outputs into dynamics coupler state and tracer masses
@@ -508,7 +596,6 @@ namespace modules {
     // ns - snow number concentration (1/kg)
     // nr - rain number concentration (1/kg)
     // ng - graupel number concentration (1/kg)
-    // note: rho and ht not used by this scheme and do not need to be passed into scheme!!!!
     // p - air pressure (pa)
     // w - vertical air velocity (m/s)
     // t - temperature (k)
@@ -541,7 +628,7 @@ namespace modules {
     // evapprod - tendency of evaporation of rain (kg kg-1 s-1)
     void two_mom_wrapper(float2d_F const &t, float2d_F const &qv, float2d_F const &qc, float2d_F const &qr,
                          float2d_F const &qi, float2d_F const &qs, float2d_F const &qg, float2d_F const &ni,
-                         float2d_F const &ns, float2d_F const &nr, float2d_F const &ng, floatConst2d_F rho,
+                         float2d_F const &ns, float2d_F const &nr, float2d_F const &ng, 
                          floatConst2d_F p, float dt_in, floatConst2d_F dz, float1d_F const &rainnc,
                          float1d_F const &rainncv, float1d_F const &sr, float1d_F const &snownc,
                          float1d_F const &snowncv, float1d_F const &graupelnc, float1d_F const &graupelncv,
@@ -575,12 +662,9 @@ namespace modules {
 
     // wrf:model_layer:physics
     // 
-
     //  this module contains the two-moment microphysics code described by
     //      morrison et al. (2009, mwr)
-
     //  changes for v3.2, relative to most recent (bug-fix) code for v3.1
-
     //  1) added accelerated melting of graupel/snow due to collision with rain, following lin et al. (1983)
     //  2) increased minimum lambda for rain, and added rain drop breakup following modified version
     //      of verlinde and cotton (1993)
@@ -589,18 +673,15 @@ namespace modules {
     //  4) bug fix to maximum allowed particle fallspeeds as a function of air density
     //  5) bug fix to calculation of liquid water saturation vapor pressure (change is very minor)
     //  6) include wrf constants per suggestion of jimy
-
     //  bug fix, 5/12/10
     //  7) bug fix for saturation vapor pressure in low pressure, to avoid division by zero
     //  8) include 'ep2' wrf constant for saturation mixing ratio calculation, instead of hardwire constant
-
     //  changes for v3.3
     //  1) modification for coupling with wrf-chem (predicted droplet number concentration) as an option
     //  2) modify fallspeed below the lowest level of precipitation, which prevents
     //       potential for spurious accumulation of precipitation during sub-stepping for sedimentation
     //  3) bug fix to latent heat release due to collisions of cloud ice with rain
     //  4) clean up of comments in the code
-    //    
     //  additional minor bug fixes and small changes, 5/30/2011
     //  minor revisions by a. ackerman april 2011:
     //  1) replaced kinematic with dynamic viscosity 
@@ -608,28 +689,22 @@ namespace modules {
     //     with viscosity-dependent stokes expression
     //  3) use ikawa and saito (1991) air-density scaling for cloud ice
     //  4) corrected typo in 2nd digit of ventilation constant f2r
-
     //  additional fixes:
     //  5) temperature for accelerated melting due to colliions of snow and graupel
     //     with rain should use celsius, not kelvin (bug reported by k. van weverberg)
     //  6) npracs is not subtracted from snow number concentration, since
     //     decrease in snow number is already accounted for by nsmlts 
     //  7) fix for switch for running w/o graupel/hail (cloud ice and snow only)
-
     //  hm bug fix 3/16/12
-
     //  1) very minor change to limits on autoconversion source of rain number when cloud water is depleted
-
     //  wrfv3.5
     //  hm/a. ackerman bug fix 11/08/12
-
     //  1) for accelerated melting from collisions, should use rain mass collected by snow, not snow mass 
     //     collected by rain
     //  2) minor changes to some comments
     //  3) reduction of maximum-allowed ice concentration from 10 cm-3 to 0.3
     //     cm-3. this was done to address the problem of excessive and persistent
     //     anvil cirrus produced by the scheme.
-    // 
     //  changes for wrfv3.5.1
     //  1) added output for snow+cloud ice and graupel time step and accumulated
     //     surface precipitation
@@ -641,26 +716,15 @@ namespace modules {
     //  5) minor change to shedding of rain, remove limit so that the number of 
     //     collected drops can smaller than number of shed drops
     //  6) change of specific heat of liquid water from 4218 to 4187 j/kg/k
-    // 
     //  changes for wrfv3.6.1
     //  1) minor bug fix to melting of snow and graupel, an extra factor of air density (rho) was removed
     //     from the calculation of psmlt and pgmlt
     //  2) redundant initialization of psmlt (non answer-changing)
-    // 
     //  changes for wrfv3.8.1
     //  1) changes and cleanup of code comments
     //  2) correction to universal gas constant (very small change)
-    // 
     //  changes for wrfv4.3
     //  1) fix to saturation vapor pressure polysvp to work at t < -80 c
-    // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // 
-    //  this scheme is a bulk double-moment scheme that predicts mixing
-    //  ratios and number concentrations of five hydrometeor species:
-    //  cloud droplets, cloud (small) ice, rain, snow, and graupel/hail.
-    // this program is the main two-moment microphysics subroutine described by
-    // morrison et al. 2005 jas and morrison et al. 2009 mwr
-    //
     // this scheme is a bulk double-moment scheme that predicts mixing
     // ratios and number concentrations of five hydrometeor species:
     // cloud droplets, cloud (small) ice, rain, snow, and graupel/hail.
@@ -2074,7 +2138,8 @@ namespace modules {
                 pgracs(i,k) = 0.;
               }
               // conservation of qc
-              dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+pgsacw(i,k)+qmultg(i,k))*dt;
+              dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+
+                     pgsacw(i,k)+qmultg(i,k))*dt;
               if (dum > qc3d(i,k)  &&  qc3d(i,k) >= qsmall) {
                 float ratio = qc3d(i,k)/dum;
                 prc(i,k) = prc(i,k)*ratio;
@@ -2088,9 +2153,11 @@ namespace modules {
                 pgsacw(i,k) = pgsacw(i,k)*ratio;
               }
               // conservation of qi
-              dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
+              dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-
+                               mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
               if (dum > qi3d(i,k)  &&  qi3d(i,k) >= qsmall) {
-                float ratio = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
+                float ratio = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+
+                              mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
                 prci(i,k) = prci(i,k)*ratio;
                 prai(i,k) = prai(i,k)*ratio;
                 praci(i,k) = praci(i,k)*ratio;
@@ -2098,9 +2165,11 @@ namespace modules {
                 eprd(i,k) = eprd(i,k)*ratio;
               }
               // conservation of qr
-              dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
+              dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+
+                    piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
               if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
-                float ratio = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
+                float ratio = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+
+                                mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
                 pre(i,k) = pre(i,k)*ratio;
                 pracs(i,k) = pracs(i,k)*ratio;
                 qmultr(i,k) = qmultr(i,k)*ratio;
@@ -2114,17 +2183,21 @@ namespace modules {
               // conservation of qni
               // conservation for graupel scheme
               if (igraup==0) {
-                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k))*dt;
+                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-
+                      piacrs(i,k)-pracis(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k))/(-eprds(i,k)+psacr(i,k));
+                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
+                                pracis(i,k))/(-eprds(i,k)+psacr(i,k));
                   eprds(i,k) = eprds(i,k)*ratio;
                   psacr(i,k) = psacr(i,k)*ratio;
                 }
               // for no graupel, need to include freezing of rain for snow
               } else if (igraup==1) {
-                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-pracis(i,k)-mnuccr(i,k))*dt;
+                dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-
+                      pracis(i,k)-mnuccr(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k));
+                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
+                                pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k));
                   eprds(i,k) = eprds(i,k)*ratio;
                   psacr(i,k) = psacr(i,k)*ratio;
                 }
@@ -2137,16 +2210,25 @@ namespace modules {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               // conservation of qg
-              dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-praci(i,k)-psacr(i,k))*dt;
+              dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-
+                    praci(i,k)-psacr(i,k))*dt;
               if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
-                float ratio = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
+                float ratio = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+
+                              psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
                 eprdg(i,k) = eprdg(i,k)*ratio;
               }
-              qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-prdg(i,k)-eprdg(i,k));
-              t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
-              qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k));
-              qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)-prai(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)-praci(i,k)-pracis(i,k));
-              qr3dten(i,k) = qr3dten(i,k)+(pre(i,k)+pra(i,k)+prc(i,k)-pracs(i,k)-mnuccr(i,k)-qmultr(i,k)-qmultrg(i,k)-piacr(i,k)-piacrs(i,k)-pracg(i,k)-pgracs(i,k));
+              qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-
+                             prdg(i,k)-eprdg(i,k));
+              t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+
+                            prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+
+                            qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+
+                            pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
+              qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-
+                             qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k));
+              qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)-prai(i,k)+
+                             qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+mnuccd(i,k)-praci(i,k)-pracis(i,k));
+              qr3dten(i,k) = qr3dten(i,k)+(pre(i,k)+pra(i,k)+prc(i,k)-pracs(i,k)-mnuccr(i,k)-qmultr(i,k)-
+                             qmultrg(i,k)-piacr(i,k)-piacrs(i,k)-pracg(i,k)-pgracs(i,k));
             }
           }
       });
@@ -2155,13 +2237,16 @@ namespace modules {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               if (igraup==0) {
-                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k));
+                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+
+                                eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k));
                 ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k));
-                qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k));
+                qg3dten(i,k) = qg3dten(i,k)+(pracg(i,k)+psacwg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+eprdg(i,k)+
+                               mnuccr(i,k)+piacr(i,k)+praci(i,k)+psacr(i,k));
                 ng3dten(i,k) = ng3dten(i,k)+(nscng(i,k)+ngracs(i,k)+nnuccr(i,k)+niacr(i,k));
               // for no graupel, need to include freezing of rain for snow
               } else if (igraup==1) {
-                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
+                qni3dten(i,k) = qni3dten(i,k)+(prai(i,k)+psacws(i,k)+prds(i,k)+pracs(i,k)+prci(i,k)+eprds(i,k)-
+                                psacr(i,k)+piacrs(i,k)+pracis(i,k)+mnuccr(i,k));
                 ns3dten(i,k) = ns3dten(i,k)+(nsagg(i,k)+nprci(i,k)-nscng(i,k)-ngracs(i,k)+niacrs(i,k)+nnuccr(i,k));
               }
             }
@@ -2171,9 +2256,12 @@ namespace modules {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               nc3dten(i,k) = nc3dten(i,k)+(-nnuccc(i,k)-npsacws(i,k)-npra(i,k)-nprc(i,k)-npsacwi(i,k)-npsacwg(i,k));
-              ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
-              nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-npracg(i,k)-ngracs(i,k));
-              c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+mnuccc(i,k)+psacwi(i,k);
+              ni3dten(i,k) = ni3dten(i,k)+(nnuccc(i,k)-nprci(i,k)-nprai(i,k)+nmults(i,k)+nmultg(i,k)+nmultr(i,k)+
+                             nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
+              nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-
+                             npracg(i,k)-ngracs(i,k));
+              c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+
+                             mnuccc(i,k)+psacwi(i,k);
               float dumt       = t3d(i,k)+dt*t3dten(i,k);
               float dumqv      = qv3d(i,k)+dt*qv3dten(i,k);
               float dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
@@ -2381,7 +2469,8 @@ namespace modules {
               if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1);
             } // k le nz-1
             // calculate number of split time steps
-            float rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
+            float rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),
+                              max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
             nstep(i) = max(int(rgvm*dt/dzq(i,k)+1.),nstep(i));
           }
         }
@@ -2593,7 +2682,8 @@ namespace modules {
               effg(i,k) = 0.;
             }
             // if there is no cloud/precip water, then skip calculations
-            if ( !  (qc3d(i,k) < qsmall && qi3d(i,k) < qsmall && qni3d(i,k) < qsmall  && qr3d(i,k) < qsmall && qg3d(i,k) < qsmall)) {
+            if ( !  (qc3d(i,k) < qsmall && qi3d(i,k) < qsmall && qni3d(i,k) < qsmall  && 
+                     qr3d(i,k) < qsmall && qg3d(i,k) < qsmall)) {
               // calculate instantaneous processes
               // add melting of cloud ice to form rain
               if (qi3d(i,k) >= qsmall && t3d(i,k) >= 273.15) {
@@ -2678,10 +2768,12 @@ namespace modules {
                 float lammax = (pgam(i,k)+1.)/1.e-6;
                 if (lamc(i,k) < lammin) {
                   lamc(i,k) = lammin;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-
+                              std::log(gamma(pgam(i,k)+4.)))/cons26;
                 } else if (lamc(i,k) > lammax) {
                   lamc(i,k) = lammax;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-
+                              std::log(gamma(pgam(i,k)+4.)))/cons26;
                 }
               }
               // snow
@@ -2759,9 +2851,12 @@ namespace modules {
     }
 
 
-    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float max(T1 a, T2 b) { return a > b ? a : b; }
-    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float min(T1 a, T2 b) { return a < b ? a : b; }
-    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static float pow(T1 a, T2 b) { return std::pow(static_cast<float>(a),static_cast<float>(b)); }
+    template <class T1, class T2>
+    KOKKOS_INLINE_FUNCTION static float max(T1 a, T2 b) { return a > b ? a : b; }
+    template <class T1, class T2>
+    KOKKOS_INLINE_FUNCTION static float min(T1 a, T2 b) { return a < b ? a : b; }
+    template <class T1, class T2>
+    KOKKOS_INLINE_FUNCTION static float pow(T1 a,T2 b) { return std::pow(static_cast<float>(a),static_cast<float>(b)); }
     KOKKOS_INLINE_FUNCTION static float gamma(float  z) { return std::tgamma(z); }
     KOKKOS_INLINE_FUNCTION static float gamma(double z) { return std::tgamma(static_cast<float>(z)); }
 
@@ -2802,7 +2897,8 @@ namespace modules {
           ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) ;
           ret = ret*100.;
         } else {
-          ret = pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*(1.-t/273.16)+std::log10(6.1071))*100.;
+          ret = pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*
+                (1.-t/273.16)+std::log10(6.1071))*100.;
         }
       }
       // liquid
@@ -2814,7 +2910,8 @@ namespace modules {
           ret = ret*100.;
         } else {
           // note: uncertain below -70 c, but produces physical values (non-negative) unlike flatau
-          ret = pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*(pow(10.,11.344*(1.-t/373.16))-1.)+
+          ret = pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*
+                (pow(10.,11.344*(1.-t/373.16))-1.)+
                 8.1328e-3*(pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
         }
       }

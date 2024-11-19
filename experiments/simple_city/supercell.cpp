@@ -30,14 +30,14 @@ int main(int argc, char** argv) {
     real        out_freq    = 7200;
     real        inform_freq = 1000;
     std::string out_prefix  = "supercell_2000m";
-    bool        is_restart  = false;
+    bool        is_restart  = true;
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"     , out_prefix  );
     coupler.set_option<std::string>( "init_data"      , "supercell" );
     coupler.set_option<real       >( "out_freq"       , out_freq    );
     coupler.set_option<bool       >( "is_restart"     , is_restart  );
-    coupler.set_option<std::string>( "restart_file"   , ""          );
+    coupler.set_option<std::string>( "restart_file"   , "supercell_2000m_00000001.nc" );
     coupler.set_option<real       >( "latitude"       , 0.          );
     coupler.set_option<real       >( "roughness"      , 0.1         );
     coupler.set_option<real       >( "cfl"            , 0.6         );

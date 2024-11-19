@@ -64,7 +64,7 @@ namespace modules {
       std::vector<float> errs_ns       ;
       std::vector<float> errs_nr       ;
       std::vector<float> errs_ng       ;
-      std::vector<float> errs_th       ;
+      std::vector<float> errs_t        ;
       std::vector<float> errs_rainnc   ;
       std::vector<float> errs_snownc   ;
       std::vector<float> errs_graupelnc;
@@ -165,7 +165,7 @@ namespace modules {
             nc.create_var<real>( "micro_morr_errs_ns"        , {"num_time_steps_phys"} );
             nc.create_var<real>( "micro_morr_errs_nr"        , {"num_time_steps_phys"} );
             nc.create_var<real>( "micro_morr_errs_ng"        , {"num_time_steps_phys"} );
-            nc.create_var<real>( "micro_morr_errs_th"        , {"num_time_steps_phys"} );
+            nc.create_var<real>( "micro_morr_errs_t"         , {"num_time_steps_phys"} );
             nc.create_var<real>( "micro_morr_errs_rainnc"    , {"num_time_steps_phys"} );
             nc.create_var<real>( "micro_morr_errs_snownc"    , {"num_time_steps_phys"} );
             nc.create_var<real>( "micro_morr_errs_graupelnc" , {"num_time_steps_phys"} );
@@ -182,7 +182,7 @@ namespace modules {
               realHost1d arr_ns       ("arr_ns       " , trace_size );
               realHost1d arr_nr       ("arr_nr       " , trace_size );
               realHost1d arr_ng       ("arr_ng       " , trace_size );
-              realHost1d arr_th       ("arr_th       " , trace_size );
+              realHost1d arr_t        ("arr_t        " , trace_size );
               realHost1d arr_rainnc   ("arr_rainnc   " , trace_size );
               realHost1d arr_snownc   ("arr_snownc   " , trace_size );
               realHost1d arr_graupelnc("arr_graupelnc" , trace_size );
@@ -196,7 +196,7 @@ namespace modules {
               for (int i=0; i < trace_size; i++) { arr_ns       (i) = errs_ns       .at(i); }
               for (int i=0; i < trace_size; i++) { arr_nr       (i) = errs_nr       .at(i); }
               for (int i=0; i < trace_size; i++) { arr_ng       (i) = errs_ng       .at(i); }
-              for (int i=0; i < trace_size; i++) { arr_th       (i) = errs_th       .at(i); }
+              for (int i=0; i < trace_size; i++) { arr_t        (i) = errs_t        .at(i); }
               for (int i=0; i < trace_size; i++) { arr_rainnc   (i) = errs_rainnc   .at(i); }
               for (int i=0; i < trace_size; i++) { arr_snownc   (i) = errs_snownc   .at(i); }
               for (int i=0; i < trace_size; i++) { arr_graupelnc(i) = errs_graupelnc.at(i); }
@@ -210,7 +210,7 @@ namespace modules {
               nc.write( arr_ns        , "micro_morr_errs_ns"        );
               nc.write( arr_nr        , "micro_morr_errs_nr"        );
               nc.write( arr_ng        , "micro_morr_errs_ng"        );
-              nc.write( arr_th        , "micro_morr_errs_th"        );
+              nc.write( arr_t         , "micro_morr_errs_t"         );
               nc.write( arr_rainnc    , "micro_morr_errs_rainnc"    );
               nc.write( arr_snownc    , "micro_morr_errs_snownc"    );
               nc.write( arr_graupelnc , "micro_morr_errs_graupelnc" );
@@ -224,7 +224,7 @@ namespace modules {
               errs_ns       .clear();
               errs_nr       .clear();
               errs_ng       .clear();
-              errs_th       .clear();
+              errs_t        .clear();
               errs_rainnc   .clear();
               errs_snownc   .clear();
               errs_graupelnc.clear();
@@ -419,8 +419,9 @@ namespace modules {
         auto for_snownc    = host_snownc   .createDeviceCopy();
         auto for_graupelnc = host_graupelnc.createDeviceCopy();
 
+        float2d_F for_t("fort_t",ncol,nz);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          t(i+1,k+1) = th(i+1,k+1) * pii(i+1,k+1);
+          for_t(i+1,k+1) = th(i+1,k+1) * pii(i+1,k+1);
         });
 
       #endif
@@ -446,7 +447,7 @@ namespace modules {
         auto diff_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       -ns       )) , MPI_SUM , "" );
         auto diff_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       -nr       )) , MPI_SUM , "" );
         auto diff_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       -ng       )) , MPI_SUM , "" );
-        auto diff_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       -th       )) , MPI_SUM , "" );
+        auto diff_t         = coupler.get_parallel_comm().all_reduce( sum(abs(for_t        -t        )) , MPI_SUM , "" );
         auto diff_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   -rainnc   )) , MPI_SUM , "" );
         auto diff_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   -snownc   )) , MPI_SUM , "" );
         auto diff_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc-graupelnc)) , MPI_SUM , "" );
@@ -460,7 +461,7 @@ namespace modules {
         auto sum_ns        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ns       )) , MPI_SUM , "" );
         auto sum_nr        = coupler.get_parallel_comm().all_reduce( sum(abs(for_nr       )) , MPI_SUM , "" );
         auto sum_ng        = coupler.get_parallel_comm().all_reduce( sum(abs(for_ng       )) , MPI_SUM , "" );
-        auto sum_th        = coupler.get_parallel_comm().all_reduce( sum(abs(for_th       )) , MPI_SUM , "" );
+        auto sum_t         = coupler.get_parallel_comm().all_reduce( sum(abs(for_t        )) , MPI_SUM , "" );
         auto sum_rainnc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_rainnc   )) , MPI_SUM , "" );
         auto sum_snownc    = coupler.get_parallel_comm().all_reduce( sum(abs(for_snownc   )) , MPI_SUM , "" );
         auto sum_graupelnc = coupler.get_parallel_comm().all_reduce( sum(abs(for_graupelnc)) , MPI_SUM , "" );
@@ -474,7 +475,7 @@ namespace modules {
         errs_ns       .push_back( sum_ns       > 1.e-14 ? diff_ns       /sum_ns        : 0 );
         errs_nr       .push_back( sum_nr       > 1.e-14 ? diff_nr       /sum_nr        : 0 );
         errs_ng       .push_back( sum_ng       > 1.e-14 ? diff_ng       /sum_ng        : 0 );
-        errs_th       .push_back( sum_th       > 1.e-14 ? diff_th       /sum_th        : 0 );
+        errs_t        .push_back( sum_t        > 1.e-14 ? diff_t        /sum_t         : 0 );
         errs_rainnc   .push_back( sum_rainnc   > 1.e-14 ? diff_rainnc   /sum_rainnc    : 0 );
         errs_snownc   .push_back( sum_snownc   > 1.e-14 ? diff_snownc   /sum_snownc    : 0 );
         errs_graupelnc.push_back( sum_graupelnc> 1.e-14 ? diff_graupelnc/sum_graupelnc : 0 );

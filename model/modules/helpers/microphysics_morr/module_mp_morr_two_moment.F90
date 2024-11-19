@@ -561,19 +561,19 @@ END SUBROUTINE MORR_TWO_MOMENT_INIT
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-SUBROUTINE MP_MORR_TWO_MOMENT(                  &
+SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                 TH, QV, QC, QR, QI, QS, QG, NI, NS, NR, NG, &
                 RHO, PII, P, DT_IN, DZ, HT, W,          &
                 RAINNC, RAINNCV, SR,                    &
 		SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV,    & ! hm added 7/13/13
-                refl_10cm,  & ! GT added for reflectivity calcs
+                refl_10cm, diagflag, do_radar_ref,      & ! GT added for reflectivity calcs
                 qrcuten, qscuten, qicuten               & ! hm added
-               ,qndrop                        & ! hm added, wrf-chem 
+               ,F_QNDROP, qndrop                        & ! hm added, wrf-chem 
                ,IDS,IDE, JDS,JDE, KDS,KDE               & ! domain dims
                ,IMS,IME, JMS,JME, KMS,KME               & ! memory dims
                ,ITS,ITE, JTS,JTE, KTS,KTE               & ! tile   dims            )
 !jdf		   ,C2PREC3D,CSED3D,ISED3D,SSED3D,GSED3D,RSED3D & ! HM ADD, WRF-CHEM
-               ,rainprod, evapprod                      &
+               ,wetscav_on, rainprod, evapprod                      &
 		   ,QLSINK,PRECR,PRECI,PRECS,PRECG &        ! HM ADD, WRF-CHEM
                                             ) bind(C,name="mp_morr_two_moment")
  
@@ -650,30 +650,32 @@ SUBROUTINE MP_MORR_TWO_MOMENT(                  &
                                        its, ite, jts, jte, kts, kte
 ! Temporary changed from INOUT to IN
 
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(INOUT):: &
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
                           qv, qc, qr, qi, qs, qg, ni, ns, nr, TH, NG   
 !jdf                      qndrop ! hm added, wrf-chem
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(INOUT):: qndrop
-!jdf  REAL, DIMENSION(ime, kme, 1),INTENT(INOUT):: CSED3D, &
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(INOUT):: QLSINK, &
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: qndrop
+!jdf  REAL, DIMENSION(ims:ime, kms:kme, jms:jme),INTENT(INOUT):: CSED3D, &
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: QLSINK, &
                           rainprod, evapprod, &
                           PRECI,PRECS,PRECG,PRECR ! HM, WRF-CHEM
 !, effcs, effis
 
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(IN):: &
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
                           pii, p, dz, rho, w !, tke, nctend, nitend,kzh
    REAL(c_float), INTENT(IN):: dt_in
+   INTEGER(c_int), INTENT(IN):: ITIMESTEP
 
-   REAL(c_float), DIMENSION(ime, 1), INTENT(INOUT):: &
+   REAL(c_float), DIMENSION(ims:ime, jms:jme), INTENT(INOUT):: &
                           RAINNC, RAINNCV, SR, &
 ! hm added 7/13/13
                           SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
 
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(INOUT)::       &  ! GT
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT)::       &  ! GT
                           refl_10cm
 
-   REAL(c_float) , DIMENSION( ime , 1 ) , INTENT(IN) ::       ht
+   REAL(c_float) , DIMENSION( ims:ime , jms:jme ) , INTENT(IN) ::       ht
 
+   LOGICAL(c_bool), INTENT(IN) :: wetscav_on
 
    ! LOCAL VARIABLES
 
@@ -699,9 +701,10 @@ SUBROUTINE MP_MORR_TWO_MOMENT(                  &
 
 ! add cumulus tendencies
 
-   REAL(c_float), DIMENSION(ime, kme, 1), INTENT(IN):: &
+   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
       qrcuten, qscuten, qicuten
 
+  LOGICAL(c_bool), INTENT(IN) ::                F_QNDROP  ! wrf-chem
   LOGICAL :: flag_qndrop  ! wrf-chem
   integer :: iinum ! wrf-chem
 
@@ -717,11 +720,8 @@ SUBROUTINE MP_MORR_TWO_MOMENT(                  &
 
    REAL DT
 
-   INTEGER , parameter :: ITIMESTEP = 1
-   LOGICAL , parameter :: wetscav_on = .false.
-   LOGICAL , parameter :: F_QNDROP   = .false.  ! wrf-chem
-   LOGICAL , parameter :: diagflag   = .false.
-   INTEGER , parameter :: do_radar_ref = 0
+   LOGICAL(c_bool), INTENT(IN) :: diagflag
+   INTEGER(c_int), INTENT(IN) :: do_radar_ref
 
    LOGICAL :: has_wetscav
 

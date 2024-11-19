@@ -5,17 +5,17 @@
 
 
 extern "C"
-void mp_morr_two_moment(float *th, float *qv, float *qc, float *qr, float *qi,
+void mp_morr_two_moment(int *itimestep,float *th, float *qv, float *qc, float *qr, float *qi,
                         float *qs,float *qg, float *ni, float *ns, float *nr,
                         float *ng, float *rho, float *pii, float *p, float *dt_in, float *dz,
                         float *ht,
                         float *w, float *rainnc, float *rainncv, float *sr, float *snownc,
                         float *snowncv, float *graupelnc, float *graupelncv, float *refl_10cm,
-                        float *qrcuten, float *qscuten, float *qicuten, 
-                        float *qndrop,
+                        bool *diagflag, int *do_radar_ref, float *qrcuten, float *qscuten, float *qicuten, 
+                        bool *f_qndrop, float *qndrop,
                         int *ids, int *ide, int *jds, int *jde, int *kds, int *kde,
                         int *ims, int *ime, int *jms, int *jme, int *kms, int *kme,
-                        int *its, int *ite, int *jts, int *jte, int *kts, int *kte, float *rainprod, float *evapprod,
+                        int *its, int *ite, int *jts, int *jte, int *kts, int *kte, bool *wetscav_on, float *rainprod, float *evapprod,
                         float *qlsink, float *precr, float *preci, float *precs,
                         float *precg);
 
@@ -287,17 +287,17 @@ namespace modules {
         int ids = 1   , jds=1, kds = 1 , ims = 1   , jms = 1, kms = 1 , its = 1   , jts = 1, kts = 1 ;
         int ide = ncol, jde=1, kde = nz, ime = ncol, jme = 1, kme = nz, ite = ncol, jte = 1, kte = nz;
 
-        mp_morr_two_moment(host_th.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(),
+        mp_morr_two_moment(&itimestep,host_th.data(), host_qv.data(), host_qc.data(), host_qr.data(), host_qi.data(),
                            host_qs.data(),host_qg.data(), host_ni.data(), host_ns.data(), host_nr.data(),
                            host_ng.data(), host_rho.data(), host_pii.data(), host_p.data(), &dt_in, host_dz.data(),
                            host_ht.data(),
                            host_w.data(), host_rainnc.data(), host_rainncv.data(), host_sr.data(), host_snownc.data(),
                            host_snowncv.data(), host_graupelnc.data(), host_graupelncv.data(), host_refl_10cm.data(),
-                           host_qrcuten.data(), host_qscuten.data(), host_qicuten.data(), 
-                           host_qndrop.data(),
+                           &diagflag, &do_radar_ref, host_qrcuten.data(), host_qscuten.data(), host_qicuten.data(), 
+                           &f_qndrop, host_qndrop.data(),
                            &ids, &ide, &jds, &jde, &kds, &kde,
                            &ims, &ime, &jms, &jme, &kms, &kme,
-                           &its, &ite, &jts, &jte, &kts, &kte, host_rainprod.data(), host_evapprod.data(),
+                           &its, &ite, &jts, &jte, &kts, &kte, &wetscav_on, host_rainprod.data(), host_evapprod.data(),
                            host_qlsink.data(), host_precr.data(), host_preci.data(), host_precs.data(),
                            host_precg.data());
 

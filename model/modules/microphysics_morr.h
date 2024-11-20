@@ -1077,13 +1077,14 @@ namespace modules {
       float2d_F acn       ("acn       ",ncol,nz);  //
       float2d_F agn       ("agn       ",ncol,nz);  //
       float2d_F tqimelt   ("tqimelt   ",ncol,nz);  // melting of cloud ice (tendency)
-      bool2d_F skip_micro ("skip_micro",ncol,nz);  // Nothing to do: skip the microphysics for this cell
-      bool2d_F t_ge_273   ("t_ge_273"  ,ncol,nz);  // The cell's temperature is >= 273.15
-      bool2d_F no_cirg    ("no_cirg"   ,ncol,nz);  // There is no cloud, ice, rain, or graupel
+      bool2d_F  skip_micro("skip_micro",ncol,nz);  // Nothing to do: skip the microphysics for this cell
+      bool2d_F  t_ge_273  ("t_ge_273"  ,ncol,nz);  // The cell's temperature is >= 273.15
+      bool2d_F  no_cirg   ("no_cirg"   ,ncol,nz);  // There is no cloud, ice, rain, or graupel
       int1d_F   nstep     ("nstep     ",ncol);     // Number of fallout substeps due to large terminal velocity
-      bool1d_F hydro_pres ("hydro_pres",ncol);     // Hydrometeors are present in this column: do fallout
+      bool1d_F  hydro_pres("hydro_pres",ncol);     // Hydrometeors are present in this column: do fallout
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<1>(ncol) , KOKKOS_LAMBDA (int i) {
         hydro_pres(i) = false;
+        nstep     (i) = 1;
         precrt    (i) = 0.;
         snowrt    (i) = 0.;
         snowprt   (i) = 0.;

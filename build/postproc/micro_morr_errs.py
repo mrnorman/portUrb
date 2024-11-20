@@ -1,7 +1,7 @@
 from netCDF4 import Dataset
 import numpy as np
 
-nc = Dataset("supercell_2000m_00000001.nc","r")
+nc = Dataset("supercell_with_micro_morr_errors.nc","r")
 print("qv: ",np.mean(np.array(nc["micro_morr_errs_qv"])))
 print("qc: ",np.mean(np.array(nc["micro_morr_errs_qc"])))
 print("qr: ",np.mean(np.array(nc["micro_morr_errs_qr"])))

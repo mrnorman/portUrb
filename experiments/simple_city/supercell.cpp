@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 2000;
+    real        dx          = 1000;
     real        dz          = 500;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 7200;
     real        inform_freq = 100;
-    std::string out_prefix  = "supercell_2000m";
+    std::string out_prefix  = "supercell_1000m";
     bool        is_restart  = false;
 
     core::Coupler coupler;

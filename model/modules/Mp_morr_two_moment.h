@@ -4,16 +4,16 @@
 namespace modules {
 
   struct Mp_morr_two_moment {
-    typedef yakl::Array<float      ,1,yakl::memDevice,yakl::styleFortran> float1d_F;
-    typedef yakl::Array<float      ,2,yakl::memDevice,yakl::styleFortran> float2d_F;
-    typedef yakl::Array<float const,2,yakl::memDevice,yakl::styleFortran> floatConst2d_F;
+    typedef yakl::Array<double      ,1,yakl::memDevice,yakl::styleFortran> double1d_F;
+    typedef yakl::Array<double      ,2,yakl::memDevice,yakl::styleFortran> double2d_F;
+    typedef yakl::Array<double const,2,yakl::memDevice,yakl::styleFortran> doubleConst2d_F;
     typedef yakl::Array<int        ,1,yakl::memDevice,yakl::styleFortran> int1d_F;
     typedef yakl::Array<bool       ,1,yakl::memDevice,yakl::styleFortran> bool1d_F;
     typedef yakl::Array<bool       ,2,yakl::memDevice,yakl::styleFortran> bool2d_F;
 
     int   static constexpr inum    = 1;
     // switches for microphysics scheme
-    // iact = 1, use power-law ccn spectra, nccn = cs^k
+    // iact = 1, use std::power-law ccn spectra, nccn = cs^k
     // iact = 2, use lognormal aerosol size dist to derive ccn spectra
     // iact = 3, activation calculated in module_mixactivate
     int   static constexpr iact    = 2;
@@ -47,67 +47,67 @@ namespace modules {
     // igraup = 0, include graupel
     // igraup = 1, no graupel
     int   static constexpr igraup  = 0;
-    float static constexpr pi      = 3.1415926535897932384626434;
-    float static constexpr xxx     = 0.9189385332046727417803297;
-    float static constexpr r       = 287.;
-    float static constexpr rv      = 461.6;
-    float static constexpr g       = 9.81;
-    float static constexpr cp      = 1004.5;
-    float static constexpr ep_2    = 0.621750433;
+    double static constexpr pi      = 3.1415926535897932384626434;
+    double static constexpr xxx     = 0.9189385332046727417803297;
+    double static constexpr r       = 287.;
+    double static constexpr rv      = 461.6;
+    double static constexpr g       = 9.81;
+    double static constexpr cp      = 1004.5;
+    double static constexpr ep_2    = 0.621750433;
     // for inum = 1, set constant droplet concentration (cm-3)
-    float static constexpr ndcnst  = 250.;
-    float static constexpr ai      = 700.;        // 'a' parameter in fallspeed-diam relationship
-    float static constexpr ac      = 3.e7;        // 'a' parameter in fallspeed-diam relationship
-    float static constexpr as      = 11.72;       // 'a' parameter in fallspeed-diam relationship
-    float static constexpr ar      = 841.99667;   // 'a' parameter in fallspeed-diam relationship
-    float static constexpr bi      = 1.;          // 'b' parameter in fallspeed-diam relationship
-    float static constexpr bc      = 2.;          // 'b' parameter in fallspeed-diam relationship
-    float static constexpr bs      = 0.41;        // 'b' parameter in fallspeed-diam relationship
-    float static constexpr br      = 0.8;         // 'b' parameter in fallspeed-diam relationship
-    float static constexpr rhosu   = 85000./(287.15*273.15); // standard air density at 850 mb
-    float static constexpr rhow    = 997.;        // density of liquid water
-    float static constexpr rhoi    = 500.;        // bulk density of cloud ice
-    float static constexpr rhosn   = 100.;        // bulk density of snow
-    float static constexpr aimm    = 0.66;        // parameter in bigg immersion freezing
-    float static constexpr bimm    = 100.;        // parameter in bigg immersion freezing
-    float static constexpr ecr     = 1.;          // collection efficiency between droplets/rain and snow/rain
-    float static constexpr dcs     = 125.e-6;     // threshold size for cloud ice autoconversion
-    float static constexpr mg0     = 1.6e-10;     // mass of embryo graupel
-    float static constexpr f1s     = 0.86;        // ventilation parameter for snow
-    float static constexpr f2s     = 0.28;        // ventilation parameter for snow
-    float static constexpr f1r     = 0.78;        // ventilation parameter for rain
-    float static constexpr f2r     = 0.308;       // ventilation parameter for rain
-    float static constexpr qsmall  = 1.e-14;      // smallest allowed hydrometeor mixing ratio
-    float static constexpr eii     = 0.1;         // collection efficiency, ice-ice collisions
-    float static constexpr eci     = 0.7;         // collection efficiency, ice-droplet collisions
-    float static constexpr cpw     = 4187.;       // specific heat of liquid water
-    float static constexpr di      = 3.;          // size distribution parameters for cloud ice, snow, graupel
-    float static constexpr ds      = 3.;          // size distribution parameters for cloud ice, snow, graupel
-    float static constexpr dg      = 3.;          // size distribution parameters for cloud ice, snow, graupel
-    float static constexpr rin     = 0.1e-6;      // radius of contact nuclei (m)
-    float static constexpr lammaxi = 1./1.e-6;    // No documentation
-    float static constexpr lammaxr = 1./20.e-6;   // No documentation
-    float static constexpr lamminr = 1./2800.e-6; // No documentation
-    float static constexpr lammaxs = 1./10.e-6;   // No documentation
-    float static constexpr lammins = 1./2000.e-6; // No documentation
-    float static constexpr lammaxg = 1./20.e-6;   // No documentation
-    float static constexpr lamming = 1./2000.e-6; // No documentation
-    float static constexpr mw      = 0.018;       // molecular weight water (kg/mol)
-    float static constexpr osm     = 1.;          // osmotic coefficient
-    float static constexpr vi      = 3.;          // number of ion dissociated in solution
-    float static constexpr epsm    = 0.7;         // aerosol soluble fraction
-    float static constexpr rhoa    = 1777.;       // aerosol bulk density (kg/m3)
-    float static constexpr map     = 0.132;       // molecular weight aerosol (kg/mol)
-    float static constexpr ma      = 0.0284;      // molecular weight of 'air' (kg/mol)
-    float static constexpr rr      = 8.3145;      // universal gas constant
-    float static constexpr rm1     = 0.052e-6;    // activation parameter
-    float static constexpr sig1    = 2.04;        // geometric mean radius, mode 1 (m)
-    float static constexpr nanew1  = 72.2e6;      // total aerosol concentration, mode 1 (m^-3)
-    float static constexpr rm2     = 1.3e-6;      // geometric mean radius, mode 2 (m)
-    float static constexpr sig2    = 2.5;         // standard deviation of aerosol s.d., mode 2
-    float static constexpr nanew2  = 1.8e6;       // total aerosol concentration, mode 2 (m^-3)
+    double static constexpr ndcnst  = 250.;
+    double static constexpr ai      = 700.;        // 'a' parameter in fallspeed-diam relationship
+    double static constexpr ac      = 3.e7;        // 'a' parameter in fallspeed-diam relationship
+    double static constexpr as      = 11.72;       // 'a' parameter in fallspeed-diam relationship
+    double static constexpr ar      = 841.99667;   // 'a' parameter in fallspeed-diam relationship
+    double static constexpr bi      = 1.;          // 'b' parameter in fallspeed-diam relationship
+    double static constexpr bc      = 2.;          // 'b' parameter in fallspeed-diam relationship
+    double static constexpr bs      = 0.41;        // 'b' parameter in fallspeed-diam relationship
+    double static constexpr br      = 0.8;         // 'b' parameter in fallspeed-diam relationship
+    double static constexpr rhosu   = 85000./(287.15*273.15); // standard air density at 850 mb
+    double static constexpr rhow    = 997.;        // density of liquid water
+    double static constexpr rhoi    = 500.;        // bulk density of cloud ice
+    double static constexpr rhosn   = 100.;        // bulk density of snow
+    double static constexpr aimm    = 0.66;        // parameter in bigg immersion freezing
+    double static constexpr bimm    = 100.;        // parameter in bigg immersion freezing
+    double static constexpr ecr     = 1.;          // collection efficiency between droplets/rain and snow/rain
+    double static constexpr dcs     = 125.e-6;     // threshold size for cloud ice autoconversion
+    double static constexpr mg0     = 1.6e-10;     // mass of embryo graupel
+    double static constexpr f1s     = 0.86;        // ventilation parameter for snow
+    double static constexpr f2s     = 0.28;        // ventilation parameter for snow
+    double static constexpr f1r     = 0.78;        // ventilation parameter for rain
+    double static constexpr f2r     = 0.308;       // ventilation parameter for rain
+    double static constexpr qsmall  = 1.e-14;      // smallest allowed hydrometeor mixing ratio
+    double static constexpr eii     = 0.1;         // collection efficiency, ice-ice collisions
+    double static constexpr eci     = 0.7;         // collection efficiency, ice-droplet collisions
+    double static constexpr cpw     = 4187.;       // specific heat of liquid water
+    double static constexpr di      = 3.;          // size distribution parameters for cloud ice, snow, graupel
+    double static constexpr ds      = 3.;          // size distribution parameters for cloud ice, snow, graupel
+    double static constexpr dg      = 3.;          // size distribution parameters for cloud ice, snow, graupel
+    double static constexpr rin     = 0.1e-6;      // radius of contact nuclei (m)
+    double static constexpr lammaxi = 1./1.e-6;    // No documentation
+    double static constexpr lammaxr = 1./20.e-6;   // No documentation
+    double static constexpr lamminr = 1./2800.e-6; // No documentation
+    double static constexpr lammaxs = 1./10.e-6;   // No documentation
+    double static constexpr lammins = 1./2000.e-6; // No documentation
+    double static constexpr lammaxg = 1./20.e-6;   // No documentation
+    double static constexpr lamming = 1./2000.e-6; // No documentation
+    double static constexpr mw      = 0.018;       // molecular weight water (kg/mol)
+    double static constexpr osm     = 1.;          // osmotic coefficient
+    double static constexpr vi      = 3.;          // number of ion dissociated in solution
+    double static constexpr epsm    = 0.7;         // aerosol soluble fraction
+    double static constexpr rhoa    = 1777.;       // aerosol bulk density (kg/m3)
+    double static constexpr map     = 0.132;       // molecular weight aerosol (kg/mol)
+    double static constexpr ma      = 0.0284;      // molecular weight of 'air' (kg/mol)
+    double static constexpr rr      = 8.3145;      // universal gas constant
+    double static constexpr rm1     = 0.052e-6;    // activation parameter
+    double static constexpr sig1    = 2.04;        // geometric mean radius, mode 1 (m)
+    double static constexpr nanew1  = 72.2e6;      // total aerosol concentration, mode 1 (m^-3)
+    double static constexpr rm2     = 1.3e-6;      // geometric mean radius, mode 2 (m)
+    double static constexpr sig2    = 2.5;         // standard deviation of aerosol s.d., mode 2
+    double static constexpr nanew2  = 1.8e6;       // total aerosol concentration, mode 2 (m^-3)
     // Docuementation for these is in init_two_moment
-    float ag,bg,rhog,mi0,ci,cs,cg,mmult,lammini,bact,f11,f21,f12,f22,cons1,cons2,cons3,cons4,cons5,
+    double ag,bg,rhog,mi0,ci,cs,cg,mmult,lammini,bact,f11,f21,f12,f22,cons1,cons2,cons3,cons4,cons5,
           cons6,cons7,cons8,cons9,cons10,cons11,cons12,cons13,cons14,cons15,cons16,cons17,cons18,cons19,
           cons20,cons21,cons22,cons23,cons24,cons25,cons26,cons27,cons28,cons29,cons30,cons31,cons32,
           cons33,cons34,cons35,cons36,cons37,cons38,cons39,cons40,cons41;
@@ -121,47 +121,47 @@ namespace modules {
       ag      = ihail == 0 ? 19.3 : 114.5;               // 'a' parameter in fallspeed-diam relationship
       bg      = ihail == 0 ? 0.37 : 0.5  ;               // 'b' parameter in fallspeed-diam relationship
       rhog    = ihail == 0 ? 400. : 900. ;               //  bulk density of graupel
-      mi0     = 4./3.*pi*rhoi*pow(10.e-6,3);             // initial size of nucleated crystal
+      mi0     = 4./3.*pi*rhoi*std::pow(10.e-6,3);             // initial size of nucleated crystal
       ci      = rhoi*pi/6.;                              // size distribution parameters for cloud ice, snow, graupel
       cs      = rhosn*pi/6.;                             // size distribution parameters for cloud ice, snow, graupel
       cg      = rhog*pi/6.;                              // size distribution parameters for cloud ice, snow, graupel
-      mmult   = 4./3.*pi*rhoi*pow(5.e-6,3);              // mass of splintered ice particle
+      mmult   = 4./3.*pi*rhoi*std::pow(5.e-6,3);              // mass of splintered ice particle
       lammini = 1./(2.*dcs+100.e-6);
       bact    = vi*osm*epsm*mw*rhoa/(map*rhow);          // activation parameter
-      f11     = 0.5*std::exp(2.5*pow(std::log(sig1),2)); // correction factor for activation, mode 1
+      f11     = 0.5*std::exp(2.5*std::pow(std::log(sig1),2)); // correction factor for activation, mode 1
       f21     = 1.+0.25*std::log(sig1);                  // correction factor for activation, mode 1
-      f12     = 0.5*std::exp(2.5*pow(std::log(sig2),2)); // correction factor for activation, mode 2
+      f12     = 0.5*std::exp(2.5*std::pow(std::log(sig2),2)); // correction factor for activation, mode 2
       f22     = 1.+0.25*std::log(sig2);                  // correction factor for activation, mode 2     
       // constants for efficiency
-      cons1   = gamma(1.+ds)*cs;
-      cons2   = gamma(1.+dg)*cg;
-      cons3   = gamma(4.+bs)/6.;
-      cons4   = gamma(4.+br)/6.;
-      cons5   = gamma(1.+bs);
-      cons6   = gamma(1.+br);
-      cons7   = gamma(4.+bg)/6.;
-      cons8   = gamma(1.+bg);
-      cons9   = gamma(5./2.+br/2.);
-      cons10  = gamma(5./2.+bs/2.);
-      cons11  = gamma(5./2.+bg/2.);
-      cons12  = gamma(1.+di)*ci;
-      cons13  = gamma(bs+3.)*pi/4.*eci;
-      cons14  = gamma(bg+3.)*pi/4.*eci;
-      cons15  = -1108.*eii*pow(pi,(1.-bs)/3.)*pow(rhosn,(-2.-bs)/3.)/(4.*720.);
-      cons16  = gamma(bi+3.)*pi/4.*eci;
-      cons17  = 4.*2.*3.*rhosu*pi*eci*eci*gamma(2.*bs+2.)/(8.*(rhog-rhosn));
+      cons1   = std::tgamma(1.+ds)*cs;
+      cons2   = std::tgamma(1.+dg)*cg;
+      cons3   = std::tgamma(4.+bs)/6.;
+      cons4   = std::tgamma(4.+br)/6.;
+      cons5   = std::tgamma(1.+bs);
+      cons6   = std::tgamma(1.+br);
+      cons7   = std::tgamma(4.+bg)/6.;
+      cons8   = std::tgamma(1.+bg);
+      cons9   = std::tgamma(5./2.+br/2.);
+      cons10  = std::tgamma(5./2.+bs/2.);
+      cons11  = std::tgamma(5./2.+bg/2.);
+      cons12  = std::tgamma(1.+di)*ci;
+      cons13  = std::tgamma(bs+3.)*pi/4.*eci;
+      cons14  = std::tgamma(bg+3.)*pi/4.*eci;
+      cons15  = -1108.*eii*std::pow(pi,(1.-bs)/3.)*std::pow(rhosn,(-2.-bs)/3.)/(4.*720.);
+      cons16  = std::tgamma(bi+3.)*pi/4.*eci;
+      cons17  = 4.*2.*3.*rhosu*pi*eci*eci*std::tgamma(2.*bs+2.)/(8.*(rhog-rhosn));
       cons18  = rhosn*rhosn;
       cons19  = rhow*rhow;
       cons20  = 20.*pi*pi*rhow*bimm;
       cons21  = 4./(dcs*rhoi);
-      cons22  = pi*rhoi*pow(dcs,3)/6.;
-      cons23  = pi/4.*eii*gamma(bs+3.);
-      cons24  = pi/4.*ecr*gamma(br+3.);
-      cons25  = pi*pi/24.*rhow*ecr*gamma(br+6.);
+      cons22  = pi*rhoi*std::pow(dcs,3)/6.;
+      cons23  = pi/4.*eii*std::tgamma(bs+3.);
+      cons24  = pi/4.*ecr*std::tgamma(br+3.);
+      cons25  = pi*pi/24.*rhow*ecr*std::tgamma(br+6.);
       cons26  = pi/6.*rhow;
-      cons27  = gamma(1.+bi);
-      cons28  = gamma(4.+bi)/6.;
-      cons29  = 4./3.*pi*rhow*pow(25.e-6,3);
+      cons27  = std::tgamma(1.+bi);
+      cons28  = std::tgamma(4.+bi)/6.;
+      cons29  = 4./3.*pi*rhow*std::pow(25.e-6,3);
       cons30  = 4./3.*pi*rhow;
       cons31  = pi*pi*ecr*rhosn;
       cons32  = pi/2.*ecr;
@@ -218,19 +218,19 @@ namespace modules {
     // preci,precs,precg,precr - sedimentation fluxes (kg/m^2/s) for ice, snow, graupel, rain
     // rainprod - total tendency of conversion of cloud water/ice and graupel to rain (kg kg-1 s-1)
     // evapprod - tendency of evaporation of rain (kg kg-1 s-1)
-    void run(float2d_F const &t, float2d_F const &qv, float2d_F const &qc, float2d_F const &qr,
-             float2d_F const &qi, float2d_F const &qs, float2d_F const &qg, float2d_F const &ni,
-             float2d_F const &ns, float2d_F const &nr, float2d_F const &ng, 
-             floatConst2d_F p, float dt_in, floatConst2d_F dz, float1d_F const &rainnc,
-             float1d_F const &rainncv, float1d_F const &sr, float1d_F const &snownc,
-             float1d_F const &snowncv, float1d_F const &graupelnc, float1d_F const &graupelncv,
-             floatConst2d_F qrcuten, floatConst2d_F qscuten, floatConst2d_F qicuten, int ncol,
-             int nz, float2d_F const &qlsink, float2d_F const &precr, float2d_F const &preci,
-             float2d_F const &precs, float2d_F const &precg) {
+    void run(double2d_F const &t, double2d_F const &qv, double2d_F const &qc, double2d_F const &qr,
+             double2d_F const &qi, double2d_F const &qs, double2d_F const &qg, double2d_F const &ni,
+             double2d_F const &ns, double2d_F const &nr, double2d_F const &ng, 
+             doubleConst2d_F p, double dt_in, doubleConst2d_F dz, double1d_F const &rainnc,
+             double1d_F const &rainncv, double1d_F const &sr, double1d_F const &snownc,
+             double1d_F const &snowncv, double1d_F const &graupelnc, double1d_F const &graupelncv,
+             doubleConst2d_F qrcuten, doubleConst2d_F qscuten, doubleConst2d_F qicuten, int ncol,
+             int nz, double2d_F const &qlsink, double2d_F const &precr, double2d_F const &preci,
+             double2d_F const &precs, double2d_F const &precg) {
       using yakl::fortran::parallel_for;
       using yakl::fortran::SimpleBounds;
-      float2d_F c2prec("c2prec",ncol,nz);
-      float dt    = dt_in;
+      double2d_F c2prec("c2prec",ncol,nz);
+      double dt    = dt_in;
       // inum = 0, predict droplet concentration
       // inum = 1, assume constant droplet concentration   
       // !!!note: predicted droplet concentration not available in this version
@@ -358,13 +358,13 @@ namespace modules {
     // snowrt   : snow per time step (mm)
     // snowprt  : total cloud ice plus snow per time step (mm)
     // dt       : model time step (sec)
-    void run_two_mom(float2d_F const &qc3d, float2d_F const &qi3d, float2d_F const &qni3d, float2d_F const &qr3d,
-                     float2d_F const &ni3d, float2d_F const &ns3d, float2d_F const &nr3d, float2d_F const &t3d,
-                     float2d_F const &qv3d, floatConst2d_F pres, floatConst2d_F dzq, float1d_F const &precrt,
-                     float1d_F const &snowrt, float1d_F const &snowprt, float1d_F const &grplprt, float dt, int ncol,
-                     int nz, float2d_F const &qg3d, float2d_F const &ng3d, floatConst2d_F qrcu1d,
-                     floatConst2d_F qscu1d, floatConst2d_F qicu1d, int iinum, float2d_F const &c2prec,
-                     float2d_F const &ised, float2d_F const &ssed, float2d_F const &gsed, float2d_F const &rsed) {
+    void run_two_mom(double2d_F const &qc3d, double2d_F const &qi3d, double2d_F const &qni3d, double2d_F const &qr3d,
+                     double2d_F const &ni3d, double2d_F const &ns3d, double2d_F const &nr3d, double2d_F const &t3d,
+                     double2d_F const &qv3d, doubleConst2d_F pres, doubleConst2d_F dzq, double1d_F const &precrt,
+                     double1d_F const &snowrt, double1d_F const &snowprt, double1d_F const &grplprt, double dt, int ncol,
+                     int nz, double2d_F const &qg3d, double2d_F const &ng3d, doubleConst2d_F qrcu1d,
+                     doubleConst2d_F qscu1d, doubleConst2d_F qicu1d, int iinum, double2d_F const &c2prec,
+                     double2d_F const &ised, double2d_F const &ssed, double2d_F const &gsed, double2d_F const &rsed) {
       using yakl::fortran::parallel_for;
       using yakl::fortran::SimpleBounds;
       YAKL_SCOPE( ag      , this->ag      );
@@ -422,163 +422,163 @@ namespace modules {
       YAKL_SCOPE( cons39  , this->cons39  );         
       YAKL_SCOPE( cons40  , this->cons40  );         
       YAKL_SCOPE( cons41  , this->cons41  );         
-      float2d_F ng3dten   ("ng3dten   ",ncol,nz);  // graupel numb conc tendency (1/kg/s)
-      float2d_F qg3dten   ("qg3dten   ",ncol,nz);  // graupel mix ratio tendency (kg/kg/s)
-      float2d_F effc      ("effc      ",ncol,nz);  // droplet effective radius (micron)
-      float2d_F effi      ("effi      ",ncol,nz);  // cloud ice effective radius (micron)
-      float2d_F effs      ("effs      ",ncol,nz);  // snow effective radius (micron)
-      float2d_F effr      ("effr      ",ncol,nz);  // rain effective radius (micron)
-      float2d_F effg      ("effg      ",ncol,nz);  // graupel effective radius (micron)
-      float2d_F t3dten    ("t3dten    ",ncol,nz);  // temperature tendency (k/s)
-      float2d_F qv3dten   ("qv3dten   ",ncol,nz);  // water vapor mixing ratio tendency (kg/kg/s)
-      float2d_F qc3dten   ("qc3dten   ",ncol,nz);  // cloud water mixing ratio tendency (kg/kg/s)
-      float2d_F qi3dten   ("qi3dten   ",ncol,nz);  // cloud ice mixing ratio tendency (kg/kg/s)
-      float2d_F qni3dten  ("qni3dten  ",ncol,nz);  // snow mixing ratio tendency (kg/kg/s)
-      float2d_F qr3dten   ("qr3dten   ",ncol,nz);  // rain mixing ratio tendency (kg/kg/s)
-      float2d_F ni3dten   ("ni3dten   ",ncol,nz);  // cloud ice number concentration (1/kg/s)
-      float2d_F ns3dten   ("ns3dten   ",ncol,nz);  // snow number concentration (1/kg/s)
-      float2d_F nr3dten   ("nr3dten   ",ncol,nz);  // rain number concentration (1/kg/s)
-      float2d_F csed      ("csed      ",ncol,nz);  // sedimentation fluxes (kg/m^2/s) for cloud water, ice, snow, graupel, rain
-      float2d_F qgsten    ("qgsten    ",ncol,nz);  // graupel sed tend (kg/kg/s)
-      float2d_F qrsten    ("qrsten    ",ncol,nz);  // rain sed tend (kg/kg/s)
-      float2d_F qisten    ("qisten    ",ncol,nz);  // cloud ice sed tend (kg/kg/s)
-      float2d_F qnisten   ("qnisten   ",ncol,nz);  // snow sed tend (kg/kg/s)
-      float2d_F qcsten    ("qcsten    ",ncol,nz);  // cloud wat sed tend (kg/kg/s)      
-      float2d_F nc3d      ("nc3d      ",ncol,nz);  //
-      float2d_F nc3dten   ("nc3dten   ",ncol,nz);  //
-      float2d_F lamc      ("lamc      ",ncol,nz);  // slope parameter for droplets (m-1)
-      float2d_F lami      ("lami      ",ncol,nz);  // slope parameter for cloud ice (m-1)
-      float2d_F lams      ("lams      ",ncol,nz);  // slope parameter for snow (m-1)
-      float2d_F lamr      ("lamr      ",ncol,nz);  // slope parameter for rain (m-1)
-      float2d_F lamg      ("lamg      ",ncol,nz);  // slope parameter for graupel (m-1)
-      float2d_F cdist1    ("cdist1    ",ncol,nz);  // psd parameter for droplets
-      float2d_F n0i       ("n0i       ",ncol,nz);  // intercept parameter for cloud ice (kg-1 m-1)
-      float2d_F n0s       ("n0s       ",ncol,nz);  // intercept parameter for snow (kg-1 m-1)
-      float2d_F n0rr      ("n0rr      ",ncol,nz);  // intercept parameter for rain (kg-1 m-1)
-      float2d_F n0g       ("n0g       ",ncol,nz);  // intercept parameter for graupel (kg-1 m-1)
-      float2d_F pgam      ("pgam      ",ncol,nz);  // spectral shape parameter for droplets
-      float2d_F nsubc     ("nsubc     ",ncol,nz);  // loss of nc during evap
-      float2d_F nsubi     ("nsubi     ",ncol,nz);  // loss of ni during sub.
-      float2d_F nsubs     ("nsubs     ",ncol,nz);  // loss of ns during sub.
-      float2d_F nsubr     ("nsubr     ",ncol,nz);  // loss of nr during evap
-      float2d_F prd       ("prd       ",ncol,nz);  // dep cloud ice
-      float2d_F pre       ("pre       ",ncol,nz);  // evap of rain
-      float2d_F prds      ("prds      ",ncol,nz);  // dep snow
-      float2d_F nnuccc    ("nnuccc    ",ncol,nz);  // change n due to contact freez droplets
-      float2d_F mnuccc    ("mnuccc    ",ncol,nz);  // change q due to contact freez droplets
-      float2d_F pra       ("pra       ",ncol,nz);  // accretion droplets by rain
-      float2d_F prc       ("prc       ",ncol,nz);  // autoconversion droplets
-      float2d_F pcc       ("pcc       ",ncol,nz);  // cond/evap droplets
-      float2d_F nnuccd    ("nnuccd    ",ncol,nz);  // change n freezing aerosol (prim ice nucleation)
-      float2d_F mnuccd    ("mnuccd    ",ncol,nz);  // change q freezing aerosol (prim ice nucleation)
-      float2d_F mnuccr    ("mnuccr    ",ncol,nz);  // change q due to contact freez rain
-      float2d_F nnuccr    ("nnuccr    ",ncol,nz);  // change n due to contact freez rain
-      float2d_F npra      ("npra      ",ncol,nz);  // change in n due to droplet acc by rain
-      float2d_F nragg     ("nragg     ",ncol,nz);  // self-collection/breakup of rain
-      float2d_F nsagg     ("nsagg     ",ncol,nz);  // self-collection of snow
-      float2d_F nprc      ("nprc      ",ncol,nz);  // change nc autoconversion droplets
-      float2d_F nprc1     ("nprc1     ",ncol,nz);  // change nr autoconversion droplets
-      float2d_F prai      ("prai      ",ncol,nz);  // change q accretion cloud ice by snow
-      float2d_F prci      ("prci      ",ncol,nz);  // change q autoconversin cloud ice to snow
-      float2d_F psacws    ("psacws    ",ncol,nz);  // change q droplet accretion by snow
-      float2d_F npsacws   ("npsacws   ",ncol,nz);  // change n droplet accretion by snow
-      float2d_F psacwi    ("psacwi    ",ncol,nz);  // change q droplet accretion by cloud ice
-      float2d_F npsacwi   ("npsacwi   ",ncol,nz);  // change n droplet accretion by cloud ice
-      float2d_F nprci     ("nprci     ",ncol,nz);  // change n autoconversion cloud ice by snow
-      float2d_F nprai     ("nprai     ",ncol,nz);  // change n accretion cloud ice
-      float2d_F nmults    ("nmults    ",ncol,nz);  // ice mult due to riming droplets by snow
-      float2d_F nmultr    ("nmultr    ",ncol,nz);  // ice mult due to riming rain by snow
-      float2d_F qmults    ("qmults    ",ncol,nz);  // change q due to ice mult droplets/snow
-      float2d_F qmultr    ("qmultr    ",ncol,nz);  // change q due to ice rain/snow
-      float2d_F pracs     ("pracs     ",ncol,nz);  // change q rain-snow collection
-      float2d_F npracs    ("npracs    ",ncol,nz);  // change n rain-snow collection
-      float2d_F pccn      ("pccn      ",ncol,nz);  // change q droplet activation
-      float2d_F psmlt     ("psmlt     ",ncol,nz);  // change q melting snow to rain
-      float2d_F evpms     ("evpms     ",ncol,nz);  // chnage q melting snow evaporating
-      float2d_F nsmlts    ("nsmlts    ",ncol,nz);  // change n melting snow
-      float2d_F nsmltr    ("nsmltr    ",ncol,nz);  // change n melting snow to rain
-      float2d_F piacr     ("piacr     ",ncol,nz);  // change qr, ice-rain collection
-      float2d_F niacr     ("niacr     ",ncol,nz);  // change n, ice-rain collection
-      float2d_F praci     ("praci     ",ncol,nz);  // change qi, ice-rain collection
-      float2d_F piacrs    ("piacrs    ",ncol,nz);  // change qr, ice rain collision, added to snow
-      float2d_F niacrs    ("niacrs    ",ncol,nz);  // change n, ice rain collision, added to snow
-      float2d_F pracis    ("pracis    ",ncol,nz);  // change qi, ice rain collision, added to snow
-      float2d_F eprd      ("eprd      ",ncol,nz);  // sublimation cloud ice
-      float2d_F eprds     ("eprds     ",ncol,nz);  // sublimation snow
-      float2d_F pracg     ("pracg     ",ncol,nz);  // change in q collection rain by graupel
-      float2d_F psacwg    ("psacwg    ",ncol,nz);  // change in q collection droplets by graupel
-      float2d_F pgsacw    ("pgsacw    ",ncol,nz);  // conversion q to graupel due to collection droplets by snow
-      float2d_F pgracs    ("pgracs    ",ncol,nz);  // conversion q to graupel due to collection rain by snow
-      float2d_F prdg      ("prdg      ",ncol,nz);  // dep of graupel
-      float2d_F eprdg     ("eprdg     ",ncol,nz);  // sub of graupel
-      float2d_F evpmg     ("evpmg     ",ncol,nz);  // change q melting of graupel and evaporation
-      float2d_F pgmlt     ("pgmlt     ",ncol,nz);  // change q melting of graupel
-      float2d_F npracg    ("npracg    ",ncol,nz);  // change n collection rain by graupel
-      float2d_F npsacwg   ("npsacwg   ",ncol,nz);  // change n collection droplets by graupel
-      float2d_F nscng     ("nscng     ",ncol,nz);  // change n conversion to graupel due to collection droplets by snow
-      float2d_F ngracs    ("ngracs    ",ncol,nz);  // change n conversion to graupel due to collection rain by snow
-      float2d_F ngmltg    ("ngmltg    ",ncol,nz);  // change n melting graupel
-      float2d_F ngmltr    ("ngmltr    ",ncol,nz);  // change n melting graupel to rain
-      float2d_F nsubg     ("nsubg     ",ncol,nz);  // change n sub/dep of graupel
-      float2d_F psacr     ("psacr     ",ncol,nz);  // conversion due to coll of snow by rain
-      float2d_F nmultg    ("nmultg    ",ncol,nz);  // ice mult due to acc droplets by graupel
-      float2d_F nmultrg   ("nmultrg   ",ncol,nz);  // ice mult due to acc rain by graupel
-      float2d_F qmultg    ("qmultg    ",ncol,nz);  // change q due to ice mult droplets/graupel
-      float2d_F qmultrg   ("qmultrg   ",ncol,nz);  // change q due to ice mult rain/graupel
-      float2d_F kap       ("kap       ",ncol,nz);  // thermal conductivity of air
-      float2d_F evs       ("evs       ",ncol,nz);  // saturation vapor pressure
-      float2d_F eis       ("eis       ",ncol,nz);  // ice saturation vapor pressure
-      float2d_F qvs       ("qvs       ",ncol,nz);  // saturation mixing ratio
-      float2d_F qvi       ("qvi       ",ncol,nz);  // ice saturation mixing ratio
-      float2d_F qvqvs     ("qvqvs     ",ncol,nz);  // sautration ratio
-      float2d_F qvqvsi    ("qvqvsi    ",ncol,nz);  // ice saturaion ratio
-      float2d_F dv        ("dv        ",ncol,nz);  // diffusivity of water vapor in air
-      float2d_F xxls      ("xxls      ",ncol,nz);  // latent heat of sublimation
-      float2d_F xxlv      ("xxlv      ",ncol,nz);  // latent heat of vaporization
-      float2d_F cpm       ("cpm       ",ncol,nz);  // specific heat at const pressure for moist air
-      float2d_F mu        ("mu        ",ncol,nz);  // viscocity of air
-      float2d_F sc        ("sc        ",ncol,nz);  // schmidt number
-      float2d_F xlf       ("xlf       ",ncol,nz);  // latent heat of freezing
-      float2d_F rho       ("rho       ",ncol,nz);  // air density
-      float2d_F ab        ("ab        ",ncol,nz);  // correction to condensation rate due to latent heating
-      float2d_F abi       ("abi       ",ncol,nz);  // correction to deposition rate due to latent heating
-      float2d_F dap       ("dap       ",ncol,nz);  // diffusivity of aerosol
-      float2d_F dumi      ("dumi      ",ncol,nz);  //
-      float2d_F dumr      ("dumr      ",ncol,nz);  //
-      float2d_F dumfni    ("dumfni    ",ncol,nz);  //
-      float2d_F dumg      ("dumg      ",ncol,nz);  //
-      float2d_F dumfng    ("dumfng    ",ncol,nz);  //
-      float2d_F fr        ("fr        ",ncol,nz);  //
-      float2d_F fi        ("fi        ",ncol,nz);  //
-      float2d_F fni       ("fni       ",ncol,nz);  //
-      float2d_F fg        ("fg        ",ncol,nz);  //
-      float2d_F fng       ("fng       ",ncol,nz);  //
-      float2d_F faloutr   ("faloutr   ",ncol,nz);  //
-      float2d_F falouti   ("falouti   ",ncol,nz);  //
-      float2d_F faloutni  ("faloutni  ",ncol,nz);  //
-      float2d_F dumqs     ("dumqs     ",ncol,nz);  //
-      float2d_F dumfns    ("dumfns    ",ncol,nz);  //
-      float2d_F fs        ("fs        ",ncol,nz);  //
-      float2d_F fns       ("fns       ",ncol,nz);  //
-      float2d_F falouts   ("falouts   ",ncol,nz);  //
-      float2d_F faloutns  ("faloutns  ",ncol,nz);  //
-      float2d_F faloutg   ("faloutg   ",ncol,nz);  //
-      float2d_F faloutng  ("faloutng  ",ncol,nz);  //
-      float2d_F dumc      ("dumc      ",ncol,nz);  //
-      float2d_F dumfnc    ("dumfnc    ",ncol,nz);  //
-      float2d_F fc        ("fc        ",ncol,nz);  //
-      float2d_F faloutc   ("faloutc   ",ncol,nz);  //
-      float2d_F faloutnc  ("faloutnc  ",ncol,nz);  //
-      float2d_F fnc       ("fnc       ",ncol,nz);  //
-      float2d_F dumfnr    ("dumfnr    ",ncol,nz);  //
-      float2d_F faloutnr  ("faloutnr  ",ncol,nz);  //
-      float2d_F fnr       ("fnr       ",ncol,nz);  //
-      float2d_F ain       ("ain       ",ncol,nz);  //
-      float2d_F arn       ("arn       ",ncol,nz);  //
-      float2d_F asn       ("asn       ",ncol,nz);  //
-      float2d_F acn       ("acn       ",ncol,nz);  //
-      float2d_F agn       ("agn       ",ncol,nz);  //
-      float2d_F tqimelt   ("tqimelt   ",ncol,nz);  // melting of cloud ice (tendency)
+      double2d_F ng3dten   ("ng3dten   ",ncol,nz);  // graupel numb conc tendency (1/kg/s)
+      double2d_F qg3dten   ("qg3dten   ",ncol,nz);  // graupel mix ratio tendency (kg/kg/s)
+      double2d_F effc      ("effc      ",ncol,nz);  // droplet effective radius (micron)
+      double2d_F effi      ("effi      ",ncol,nz);  // cloud ice effective radius (micron)
+      double2d_F effs      ("effs      ",ncol,nz);  // snow effective radius (micron)
+      double2d_F effr      ("effr      ",ncol,nz);  // rain effective radius (micron)
+      double2d_F effg      ("effg      ",ncol,nz);  // graupel effective radius (micron)
+      double2d_F t3dten    ("t3dten    ",ncol,nz);  // temperature tendency (k/s)
+      double2d_F qv3dten   ("qv3dten   ",ncol,nz);  // water vapor mixing ratio tendency (kg/kg/s)
+      double2d_F qc3dten   ("qc3dten   ",ncol,nz);  // cloud water mixing ratio tendency (kg/kg/s)
+      double2d_F qi3dten   ("qi3dten   ",ncol,nz);  // cloud ice mixing ratio tendency (kg/kg/s)
+      double2d_F qni3dten  ("qni3dten  ",ncol,nz);  // snow mixing ratio tendency (kg/kg/s)
+      double2d_F qr3dten   ("qr3dten   ",ncol,nz);  // rain mixing ratio tendency (kg/kg/s)
+      double2d_F ni3dten   ("ni3dten   ",ncol,nz);  // cloud ice number concentration (1/kg/s)
+      double2d_F ns3dten   ("ns3dten   ",ncol,nz);  // snow number concentration (1/kg/s)
+      double2d_F nr3dten   ("nr3dten   ",ncol,nz);  // rain number concentration (1/kg/s)
+      double2d_F csed      ("csed      ",ncol,nz);  // sedimentation fluxes (kg/m^2/s) for cloud water, ice, snow, graupel, rain
+      double2d_F qgsten    ("qgsten    ",ncol,nz);  // graupel sed tend (kg/kg/s)
+      double2d_F qrsten    ("qrsten    ",ncol,nz);  // rain sed tend (kg/kg/s)
+      double2d_F qisten    ("qisten    ",ncol,nz);  // cloud ice sed tend (kg/kg/s)
+      double2d_F qnisten   ("qnisten   ",ncol,nz);  // snow sed tend (kg/kg/s)
+      double2d_F qcsten    ("qcsten    ",ncol,nz);  // cloud wat sed tend (kg/kg/s)      
+      double2d_F nc3d      ("nc3d      ",ncol,nz);  //
+      double2d_F nc3dten   ("nc3dten   ",ncol,nz);  //
+      double2d_F lamc      ("lamc      ",ncol,nz);  // slope parameter for droplets (m-1)
+      double2d_F lami      ("lami      ",ncol,nz);  // slope parameter for cloud ice (m-1)
+      double2d_F lams      ("lams      ",ncol,nz);  // slope parameter for snow (m-1)
+      double2d_F lamr      ("lamr      ",ncol,nz);  // slope parameter for rain (m-1)
+      double2d_F lamg      ("lamg      ",ncol,nz);  // slope parameter for graupel (m-1)
+      double2d_F cdist1    ("cdist1    ",ncol,nz);  // psd parameter for droplets
+      double2d_F n0i       ("n0i       ",ncol,nz);  // intercept parameter for cloud ice (kg-1 m-1)
+      double2d_F n0s       ("n0s       ",ncol,nz);  // intercept parameter for snow (kg-1 m-1)
+      double2d_F n0rr      ("n0rr      ",ncol,nz);  // intercept parameter for rain (kg-1 m-1)
+      double2d_F n0g       ("n0g       ",ncol,nz);  // intercept parameter for graupel (kg-1 m-1)
+      double2d_F pgam      ("pgam      ",ncol,nz);  // spectral shape parameter for droplets
+      double2d_F nsubc     ("nsubc     ",ncol,nz);  // loss of nc during evap
+      double2d_F nsubi     ("nsubi     ",ncol,nz);  // loss of ni during sub.
+      double2d_F nsubs     ("nsubs     ",ncol,nz);  // loss of ns during sub.
+      double2d_F nsubr     ("nsubr     ",ncol,nz);  // loss of nr during evap
+      double2d_F prd       ("prd       ",ncol,nz);  // dep cloud ice
+      double2d_F pre       ("pre       ",ncol,nz);  // evap of rain
+      double2d_F prds      ("prds      ",ncol,nz);  // dep snow
+      double2d_F nnuccc    ("nnuccc    ",ncol,nz);  // change n due to contact freez droplets
+      double2d_F mnuccc    ("mnuccc    ",ncol,nz);  // change q due to contact freez droplets
+      double2d_F pra       ("pra       ",ncol,nz);  // accretion droplets by rain
+      double2d_F prc       ("prc       ",ncol,nz);  // autoconversion droplets
+      double2d_F pcc       ("pcc       ",ncol,nz);  // cond/evap droplets
+      double2d_F nnuccd    ("nnuccd    ",ncol,nz);  // change n freezing aerosol (prim ice nucleation)
+      double2d_F mnuccd    ("mnuccd    ",ncol,nz);  // change q freezing aerosol (prim ice nucleation)
+      double2d_F mnuccr    ("mnuccr    ",ncol,nz);  // change q due to contact freez rain
+      double2d_F nnuccr    ("nnuccr    ",ncol,nz);  // change n due to contact freez rain
+      double2d_F npra      ("npra      ",ncol,nz);  // change in n due to droplet acc by rain
+      double2d_F nragg     ("nragg     ",ncol,nz);  // self-collection/breakup of rain
+      double2d_F nsagg     ("nsagg     ",ncol,nz);  // self-collection of snow
+      double2d_F nprc      ("nprc      ",ncol,nz);  // change nc autoconversion droplets
+      double2d_F nprc1     ("nprc1     ",ncol,nz);  // change nr autoconversion droplets
+      double2d_F prai      ("prai      ",ncol,nz);  // change q accretion cloud ice by snow
+      double2d_F prci      ("prci      ",ncol,nz);  // change q autoconversin cloud ice to snow
+      double2d_F psacws    ("psacws    ",ncol,nz);  // change q droplet accretion by snow
+      double2d_F npsacws   ("npsacws   ",ncol,nz);  // change n droplet accretion by snow
+      double2d_F psacwi    ("psacwi    ",ncol,nz);  // change q droplet accretion by cloud ice
+      double2d_F npsacwi   ("npsacwi   ",ncol,nz);  // change n droplet accretion by cloud ice
+      double2d_F nprci     ("nprci     ",ncol,nz);  // change n autoconversion cloud ice by snow
+      double2d_F nprai     ("nprai     ",ncol,nz);  // change n accretion cloud ice
+      double2d_F nmults    ("nmults    ",ncol,nz);  // ice mult due to riming droplets by snow
+      double2d_F nmultr    ("nmultr    ",ncol,nz);  // ice mult due to riming rain by snow
+      double2d_F qmults    ("qmults    ",ncol,nz);  // change q due to ice mult droplets/snow
+      double2d_F qmultr    ("qmultr    ",ncol,nz);  // change q due to ice rain/snow
+      double2d_F pracs     ("pracs     ",ncol,nz);  // change q rain-snow collection
+      double2d_F npracs    ("npracs    ",ncol,nz);  // change n rain-snow collection
+      double2d_F pccn      ("pccn      ",ncol,nz);  // change q droplet activation
+      double2d_F psmlt     ("psmlt     ",ncol,nz);  // change q melting snow to rain
+      double2d_F evpms     ("evpms     ",ncol,nz);  // chnage q melting snow evaporating
+      double2d_F nsmlts    ("nsmlts    ",ncol,nz);  // change n melting snow
+      double2d_F nsmltr    ("nsmltr    ",ncol,nz);  // change n melting snow to rain
+      double2d_F piacr     ("piacr     ",ncol,nz);  // change qr, ice-rain collection
+      double2d_F niacr     ("niacr     ",ncol,nz);  // change n, ice-rain collection
+      double2d_F praci     ("praci     ",ncol,nz);  // change qi, ice-rain collection
+      double2d_F piacrs    ("piacrs    ",ncol,nz);  // change qr, ice rain collision, added to snow
+      double2d_F niacrs    ("niacrs    ",ncol,nz);  // change n, ice rain collision, added to snow
+      double2d_F pracis    ("pracis    ",ncol,nz);  // change qi, ice rain collision, added to snow
+      double2d_F eprd      ("eprd      ",ncol,nz);  // sublimation cloud ice
+      double2d_F eprds     ("eprds     ",ncol,nz);  // sublimation snow
+      double2d_F pracg     ("pracg     ",ncol,nz);  // change in q collection rain by graupel
+      double2d_F psacwg    ("psacwg    ",ncol,nz);  // change in q collection droplets by graupel
+      double2d_F pgsacw    ("pgsacw    ",ncol,nz);  // conversion q to graupel due to collection droplets by snow
+      double2d_F pgracs    ("pgracs    ",ncol,nz);  // conversion q to graupel due to collection rain by snow
+      double2d_F prdg      ("prdg      ",ncol,nz);  // dep of graupel
+      double2d_F eprdg     ("eprdg     ",ncol,nz);  // sub of graupel
+      double2d_F evpmg     ("evpmg     ",ncol,nz);  // change q melting of graupel and evaporation
+      double2d_F pgmlt     ("pgmlt     ",ncol,nz);  // change q melting of graupel
+      double2d_F npracg    ("npracg    ",ncol,nz);  // change n collection rain by graupel
+      double2d_F npsacwg   ("npsacwg   ",ncol,nz);  // change n collection droplets by graupel
+      double2d_F nscng     ("nscng     ",ncol,nz);  // change n conversion to graupel due to collection droplets by snow
+      double2d_F ngracs    ("ngracs    ",ncol,nz);  // change n conversion to graupel due to collection rain by snow
+      double2d_F ngmltg    ("ngmltg    ",ncol,nz);  // change n melting graupel
+      double2d_F ngmltr    ("ngmltr    ",ncol,nz);  // change n melting graupel to rain
+      double2d_F nsubg     ("nsubg     ",ncol,nz);  // change n sub/dep of graupel
+      double2d_F psacr     ("psacr     ",ncol,nz);  // conversion due to coll of snow by rain
+      double2d_F nmultg    ("nmultg    ",ncol,nz);  // ice mult due to acc droplets by graupel
+      double2d_F nmultrg   ("nmultrg   ",ncol,nz);  // ice mult due to acc rain by graupel
+      double2d_F qmultg    ("qmultg    ",ncol,nz);  // change q due to ice mult droplets/graupel
+      double2d_F qmultrg   ("qmultrg   ",ncol,nz);  // change q due to ice mult rain/graupel
+      double2d_F kap       ("kap       ",ncol,nz);  // thermal conductivity of air
+      double2d_F evs       ("evs       ",ncol,nz);  // saturation vapor pressure
+      double2d_F eis       ("eis       ",ncol,nz);  // ice saturation vapor pressure
+      double2d_F qvs       ("qvs       ",ncol,nz);  // saturation mixing ratio
+      double2d_F qvi       ("qvi       ",ncol,nz);  // ice saturation mixing ratio
+      double2d_F qvqvs     ("qvqvs     ",ncol,nz);  // sautration ratio
+      double2d_F qvqvsi    ("qvqvsi    ",ncol,nz);  // ice saturaion ratio
+      double2d_F dv        ("dv        ",ncol,nz);  // diffusivity of water vapor in air
+      double2d_F xxls      ("xxls      ",ncol,nz);  // latent heat of sublimation
+      double2d_F xxlv      ("xxlv      ",ncol,nz);  // latent heat of vaporization
+      double2d_F cpm       ("cpm       ",ncol,nz);  // specific heat at const pressure for moist air
+      double2d_F mu        ("mu        ",ncol,nz);  // viscocity of air
+      double2d_F sc        ("sc        ",ncol,nz);  // schmidt number
+      double2d_F xlf       ("xlf       ",ncol,nz);  // latent heat of freezing
+      double2d_F rho       ("rho       ",ncol,nz);  // air density
+      double2d_F ab        ("ab        ",ncol,nz);  // correction to condensation rate due to latent heating
+      double2d_F abi       ("abi       ",ncol,nz);  // correction to deposition rate due to latent heating
+      double2d_F dap       ("dap       ",ncol,nz);  // diffusivity of aerosol
+      double2d_F dumi      ("dumi      ",ncol,nz);  //
+      double2d_F dumr      ("dumr      ",ncol,nz);  //
+      double2d_F dumfni    ("dumfni    ",ncol,nz);  //
+      double2d_F dumg      ("dumg      ",ncol,nz);  //
+      double2d_F dumfng    ("dumfng    ",ncol,nz);  //
+      double2d_F fr        ("fr        ",ncol,nz);  //
+      double2d_F fi        ("fi        ",ncol,nz);  //
+      double2d_F fni       ("fni       ",ncol,nz);  //
+      double2d_F fg        ("fg        ",ncol,nz);  //
+      double2d_F fng       ("fng       ",ncol,nz);  //
+      double2d_F faloutr   ("faloutr   ",ncol,nz);  //
+      double2d_F falouti   ("falouti   ",ncol,nz);  //
+      double2d_F faloutni  ("faloutni  ",ncol,nz);  //
+      double2d_F dumqs     ("dumqs     ",ncol,nz);  //
+      double2d_F dumfns    ("dumfns    ",ncol,nz);  //
+      double2d_F fs        ("fs        ",ncol,nz);  //
+      double2d_F fns       ("fns       ",ncol,nz);  //
+      double2d_F falouts   ("falouts   ",ncol,nz);  //
+      double2d_F faloutns  ("faloutns  ",ncol,nz);  //
+      double2d_F faloutg   ("faloutg   ",ncol,nz);  //
+      double2d_F faloutng  ("faloutng  ",ncol,nz);  //
+      double2d_F dumc      ("dumc      ",ncol,nz);  //
+      double2d_F dumfnc    ("dumfnc    ",ncol,nz);  //
+      double2d_F fc        ("fc        ",ncol,nz);  //
+      double2d_F faloutc   ("faloutc   ",ncol,nz);  //
+      double2d_F faloutnc  ("faloutnc  ",ncol,nz);  //
+      double2d_F fnc       ("fnc       ",ncol,nz);  //
+      double2d_F dumfnr    ("dumfnr    ",ncol,nz);  //
+      double2d_F faloutnr  ("faloutnr  ",ncol,nz);  //
+      double2d_F fnr       ("fnr       ",ncol,nz);  //
+      double2d_F ain       ("ain       ",ncol,nz);  //
+      double2d_F arn       ("arn       ",ncol,nz);  //
+      double2d_F asn       ("asn       ",ncol,nz);  //
+      double2d_F acn       ("acn       ",ncol,nz);  //
+      double2d_F agn       ("agn       ",ncol,nz);  //
+      double2d_F tqimelt   ("tqimelt   ",ncol,nz);  // melting of cloud ice (tendency)
       bool2d_F  skip_micro("skip_micro",ncol,nz);  // Nothing to do: skip the microphysics for this cell
       bool2d_F  t_ge_273  ("t_ge_273"  ,ncol,nz);  // The cell's temperature is >= 273.15
       bool2d_F  no_cirg   ("no_cirg"   ,ncol,nz);  // There is no cloud, ice, rain, or graupel
@@ -593,7 +593,7 @@ namespace modules {
         grplprt   (i) = 0.;
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           skip_micro(i,k) = false;
           nc3d    (i,k) = 0.;
           ng3dten (i,k) = 0.;
@@ -629,9 +629,9 @@ namespace modules {
           // assume n0 associated with cumulus param rain is 10^7 m^-4
           // assume n0 associated with cumulus param snow is 2 x 10^7 m^-4
           // for detrained cloud ice, assume mean volume diam of 80 micron
-          if (qrcu1d(i,k) >= 1.e-10) nr3d(i,k) = nr3d(i,k)+1.8e5*pow(qrcu1d(i,k)*dt/(pi*rhow*pow(rho(i,k),3)),0.25);
-          if (qscu1d(i,k) >= 1.e-10) ns3d(i,k) = ns3d(i,k)+3.e5*pow(qscu1d(i,k)*dt/(cons1*pow(rho(i,k),3)),1./(ds+1.));
-          if (qicu1d(i,k) >= 1.e-10) ni3d(i,k) = ni3d(i,k)+qicu1d(i,k)*dt/(ci*pow(80.e-6,di));
+          if (qrcu1d(i,k) >= 1.e-10) nr3d(i,k) = nr3d(i,k)+1.8e5*std::pow(qrcu1d(i,k)*dt/(pi*rhow*std::pow(rho(i,k),3)),0.25);
+          if (qscu1d(i,k) >= 1.e-10) ns3d(i,k) = ns3d(i,k)+3.e5*std::pow(qscu1d(i,k)*dt/(cons1*std::pow(rho(i,k),3)),1./(ds+1.));
+          if (qicu1d(i,k) >= 1.e-10) ni3d(i,k) = ni3d(i,k)+qicu1d(i,k)*dt/(ci*std::pow(80.e-6,di));
           // at subsaturation, remove small amounts of cloud/precip water
           if (qvqvs(i,k) < 0.9) {
             if (qr3d(i,k) < 1.e-8) {
@@ -695,11 +695,11 @@ namespace modules {
           qcsten (i,k) = 0.;
           qgsten (i,k) = 0.;
           // microphysics parameters varying in time/height
-          mu     (i,k) = 1.496e-6*pow(t3d(i,k),1.5)/(t3d(i,k)+120.);
+          mu     (i,k) = 1.496e-6*std::pow(t3d(i,k),1.5)/(t3d(i,k)+120.);
           // fall speed with density correction (heymsfield and benssemer 2006)
-          dum          = pow(rhosu/rho(i,k),0.54);
+          dum          = std::pow(rhosu/rho(i,k),0.54);
           // ikawa and saito 1991 air-density correction 
-          ain    (i,k) = pow(rhosu/rho(i,k),0.35)*ai;
+          ain    (i,k) = std::pow(rhosu/rho(i,k),0.35)*ai;
           arn    (i,k) = dum*ar;
           asn    (i,k) = dum*as;
           // temperature-dependent stokes fall speed
@@ -715,21 +715,21 @@ namespace modules {
             // thermal conductivity for air
             kap   (i,k) = 1.414e3*mu(i,k);
             // diffusivity of water vapor
-            dv    (i,k) = 8.794e-5*pow(t3d(i,k),1.81)/pres(i,k);
+            dv    (i,k) = 8.794e-5*std::pow(t3d(i,k),1.81)/pres(i,k);
             // schmit number
             sc    (i,k) = mu(i,k)/(rho(i,k)*dv(i,k));
             // psychometic corrections
             // rate of change sat. mix. ratio with temperature
-            dum         = (rv*pow(t3d(i,k),2));
-            float dqsdt  = xxlv(i,k)*qvs(i,k)/dum;
-            float dqsidt = xxls(i,k)*qvi(i,k)/dum;
+            dum         = (rv*std::pow(t3d(i,k),2));
+            double dqsdt  = xxlv(i,k)*qvs(i,k)/dum;
+            double dqsidt = xxls(i,k)*qvi(i,k)/dum;
             abi   (i,k) = 1.+dqsidt*xxls(i,k)/cpm(i,k);
             ab    (i,k) = 1.+dqsdt*xxlv(i,k)/cpm(i,k);
             t_ge_273(i,k) = t3d(i,k) >= 273.15;  // This is a primary code split, so save to bool array for fissioning
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (t_ge_273(i,k)) {
               if (iinum==1) {
@@ -761,7 +761,7 @@ namespace modules {
           if (! skip_micro(i,k)) {
             if (t_ge_273(i,k)) {
               if ( ! no_cirg(i,k)) {  // If there's cloud or ice or rain or graupel
-                float dum;
+                double dum;
                 // make sure number concentrations aren't negative
                 ns3d(i,k) = max(0.,ns3d(i,k));
                 nc3d(i,k) = max(0.,nc3d(i,k));
@@ -769,17 +769,17 @@ namespace modules {
                 ng3d(i,k) = max(0.,ng3d(i,k));
                 // rain
                 if (qr3d(i,k) >= qsmall) {
-                  lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
+                  lamr(i,k) = std::pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
                   n0rr(i,k) = nr3d(i,k)*lamr(i,k);
                   // check for slope
                   // adjust vars
                   if (lamr(i,k) < lamminr) {
                     lamr(i,k) = lamminr;
-                    n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                    n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                     nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                   } else if (lamr(i,k) > lammaxr) {
                     lamr(i,k) = lammaxr;
-                    n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                    n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                     nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                   }
                   // cloud droplets
@@ -787,48 +787,48 @@ namespace modules {
                   if (qc3d(i,k) >= qsmall) {
                     dum     =  pres(i,k)/(287.15*t3d(i,k));
                     pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
-                    pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
+                    pgam(i,k) = 1./(std::pow(pgam(i,k),2))-1.;
                     pgam(i,k) = max(pgam(i,k),2.);
                     pgam(i,k) = min(pgam(i,k),10.);
-                    lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
+                    lamc(i,k) = std::pow(cons26*nc3d(i,k)*std::tgamma(pgam(i,k)+4.)/(qc3d(i,k)*std::tgamma(pgam(i,k)+1.)),1./3.);
                     // lammin, 60 micron diameter
                     // lammax, 1 micron
-                    float lammin  = (pgam(i,k)+1.)/60.e-6;
-                    float lammax  = (pgam(i,k)+1.)/1.e-6;
+                    double lammin  = (pgam(i,k)+1.)/60.e-6;
+                    double lammax  = (pgam(i,k)+1.)/1.e-6;
                     if (lamc(i,k) < lammin) {
                       lamc(i,k) = lammin;
-                      nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                      nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                     } else if (lamc(i,k) > lammax) {
                       lamc(i,k) = lammax;
-                      nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                      nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                     }
                   }
                 }
                 // snow
                 if (qni3d(i,k) >= qsmall) {
-                  lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
+                  lams(i,k) = std::pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
                   n0s(i,k) = ns3d(i,k)*lams(i,k);
                   if (lams(i,k) < lammins) {
                     lams(i,k) = lammins;
-                    n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                    n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                     ns3d(i,k) = n0s(i,k)/lams(i,k);
                   } else if (lams(i,k) > lammaxs) {
                     lams(i,k) = lammaxs;
-                    n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                    n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                     ns3d(i,k) = n0s(i,k)/lams(i,k);
                   }
                 }
                 // graupel
                 if (qg3d(i,k) >= qsmall) {
-                  lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
+                  lamg(i,k) = std::pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
                   n0g(i,k) = ng3d(i,k)*lamg(i,k);
                   if (lamg(i,k) < lamming) {
                     lamg(i,k) = lamming;
-                    n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                    n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                     ng3d(i,k) = n0g(i,k)/lamg(i,k);
                   } else if (lamg(i,k) > lammaxg) {
                     lamg(i,k) = lammaxg;
-                    n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                    n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                     ng3d(i,k) = n0g(i,k)/lamg(i,k);
                   }
                 }
@@ -837,7 +837,7 @@ namespace modules {
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (t_ge_273(i,k)) {
               if ( ! no_cirg(i,k)) {  // If there's cloud or ice or rain or graupel
@@ -868,11 +868,11 @@ namespace modules {
                 // formula from beheng (1994)
                 // using numerical simulation of stochastic collection equation
                 // and initial cloud droplet size distribution specified
-                // as a gamma distribution
-                // use minimum value of 1.e-6 to prevent floating point error
+                // as a std::tgamma distribution
+                // use minimum value of 1.e-6 to prevent doubleing point error
                 if (qc3d(i,k) >= 1.e-6) {
                   // from khairoutdinov and kogan 2000, mwr
-                  prc(i,k)=1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
+                  prc(i,k)=1350.*std::pow(qc3d(i,k),2.47)*std::pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
                   // nprc is change in nc
                   nprc1(i,k) = prc(i,k)/cons29;
                   nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
@@ -881,45 +881,45 @@ namespace modules {
                 }
                 // formula from ikawa and saito (1991)
                 if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
-                  float ums = asn(i,k)*cons3/pow(lams(i,k),bs);
-                  float umr = arn(i,k)*cons4/pow(lamr(i,k),br);
-                  float uns = asn(i,k)*cons5/pow(lams(i,k),bs);
-                  float unr = arn(i,k)*cons6/pow(lamr(i,k),br);
+                  double ums = asn(i,k)*cons3/std::pow(lams(i,k),bs);
+                  double umr = arn(i,k)*cons4/std::pow(lamr(i,k),br);
+                  double uns = asn(i,k)*cons5/std::pow(lams(i,k),bs);
+                  double unr = arn(i,k)*cons6/std::pow(lamr(i,k),br);
                   // set reaslistic limits on fallspeeds
-                  float dum = pow(rhosu/rho(i,k),0.54);
+                  double dum = std::pow(rhosu/rho(i,k),0.54);
                   ums = min( ums , 1.2*dum );
                   uns = min( uns , 1.2*dum );
                   umr = min( umr , 9.1*dum );
                   unr = min( unr , 9.1*dum );
                   // for above freezing conditions to get accelerated melting of snow,
                   // we need collection of rain by snow (following lin et al. 1983)
-                  pracs(i,k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)*
-                              (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
+                  pracs(i,k) = cons41*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lamr(i,k),3)*
+                              (5./(std::pow(lamr(i,k),3)*lams(i,k))+2./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+0.5/(lamr(i,k)*std::pow(lams(i,k),3))));
                 }
                 // add collection of graupel by rain above freezing
                 // assume all rain collection by graupel above freezing is shed
                 // assume shed drops are 1 mm in size
                 if (qr3d(i,k) >= 1.e-8 && qg3d(i,k) >= 1.e-8) {
-                  float umg = agn(i,k)*cons7/pow(lamg(i,k),bg);
-                  float umr = arn(i,k)*cons4/pow(lamr(i,k),br);
-                  float ung = agn(i,k)*cons8/pow(lamg(i,k),bg);
-                  float unr = arn(i,k)*cons6/pow(lamr(i,k),br);
+                  double umg = agn(i,k)*cons7/std::pow(lamg(i,k),bg);
+                  double umr = arn(i,k)*cons4/std::pow(lamr(i,k),br);
+                  double ung = agn(i,k)*cons8/std::pow(lamg(i,k),bg);
+                  double unr = arn(i,k)*cons6/std::pow(lamr(i,k),br);
                   // set reaslistic limits on fallspeeds
-                  float dum = pow(rhosu/rho(i,k),0.54);
+                  double dum = std::pow(rhosu/rho(i,k),0.54);
                   umg = min( umg , 20.*dum );
                   ung = min( ung , 20.*dum );
                   umr = min( umr , 9.1*dum );
                   unr = min( unr , 9.1*dum );
                   // pracg is mixing ratio of rain per sec collected by graupel/hail
-                  pracg(i,k)  = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*
-                                rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)*
-                                (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*
-                                pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))));
+                  pracg(i,k)  = cons41*(std::pow(std::pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*
+                                rho(i,k)*n0rr(i,k)*n0g(i,k)/std::pow(lamr(i,k),3)*
+                                (5./(std::pow(lamr(i,k),3)*lamg(i,k))+2./(std::pow(lamr(i,k),2)*
+                                std::pow(lamg(i,k),2))+0.5/(lamr(i,k)*std::pow(lamg(i,k),3))));
                   dum       = pracg(i,k)/5.2e-7;
                   // assume 1 mm drops are shed, get number shed per sec
-                  npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(i,k)*n0g(i,k)*
-                                (1./(pow(lamr(i,k),3)*lamg(i,k))+1./(pow(lamr(i,k),2)*
-                                pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
+                  npracg(i,k) = cons32*rho(i,k)*std::pow(1.7*std::pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(i,k)*n0g(i,k)*
+                                (1./(std::pow(lamr(i,k),3)*lamg(i,k))+1./(std::pow(lamr(i,k),2)*
+                                std::pow(lamg(i,k),2))+1./(lamr(i,k)*std::pow(lamg(i,k),3)));
                   npracg(i,k) = npracg(i,k)-dum;
                 }
                 // accretion of cloud liquid water by rain
@@ -928,7 +928,7 @@ namespace modules {
                 if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
                   // khairoutdinov and kogan 2000, mwr
                   dum     = (qc3d(i,k)*qr3d(i,k));
-                  pra(i,k) = 67.*pow(dum,1.15);
+                  pra(i,k) = 67.*std::pow(dum,1.15);
                   npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
                 }
                 // self-collection of rain drops
@@ -936,7 +936,7 @@ namespace modules {
                 // from numerical simulation of the stochastic collection equation
                 // as descrined above for autoconversion
                 if (qr3d(i,k) >= 1.e-8) {
-                  float dum1=300.e-6;
+                  double dum1=300.e-6;
                   if (1./lamr(i,k) < dum1) {
                     dum=1.;
                   } else if (1./lamr(i,k) >= dum1) {
@@ -949,15 +949,15 @@ namespace modules {
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (t_ge_273(i,k)) {
               if ( ! no_cirg(i,k)) {  // If there's cloud or ice or rain or graupel
-                float epsr;
+                double epsr;
                 // calculate evap of rain (rutledge and hobbs 1983)
                 if (qr3d(i,k) >= qsmall) {
-                  epsr = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*
-                         rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)));
+                  epsr = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*std::pow(arn(i,k)*
+                         rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons9/(std::pow(lamr(i,k),cons34)));
                 } else {
                   epsr = 0.;
                 }
@@ -974,11 +974,11 @@ namespace modules {
                 if (qni3d(i,k) >= 1.e-8) {
                   dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k);
                   psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
-                               pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)))+dum;
+                               std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)))+dum;
                   // in water subsaturation, snow melts and evaporates
                   if (qvqvs(i,k) < 1.) {
-                    float epss = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
-                                 pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
+                    double epss = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
+                                 std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)));
                     evpms(i,k) = (qv3d(i,k)-qvs(i,k))*epss/ab(i,k)    ;
                     evpms(i,k) = max(evpms(i,k),psmlt(i,k));
                     psmlt(i,k) = psmlt(i,k)-evpms(i,k);
@@ -990,10 +990,10 @@ namespace modules {
                 if (qg3d(i,k) >= 1.e-8) {
                   dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k);
                   pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*
-                              pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)))+dum;
+                              std::pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)))+dum;
                   if (qvqvs(i,k) < 1.) {
-                    float epsg = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*
-                                 rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
+                    double epsg = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*std::pow(agn(i,k)*
+                                 rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)));
                     evpmg(i,k) = (qv3d(i,k)-qvs(i,k))*epsg/ab(i,k);
                     evpmg(i,k) = max(evpmg(i,k),pgmlt(i,k));
                     pgmlt(i,k) = pgmlt(i,k)-evpmg(i,k);
@@ -1003,7 +1003,7 @@ namespace modules {
                 pracs(i,k) = 0.;
                 dum = (prc(i,k)+pra(i,k))*dt;
                 if (dum > qc3d(i,k) && qc3d(i,k) >= qsmall) {
-                  float ratio = qc3d(i,k)/dum;
+                  double ratio = qc3d(i,k)/dum;
                   prc(i,k) = prc(i,k)*ratio;
                   pra(i,k) = pra(i,k)*ratio;
                 }
@@ -1011,7 +1011,7 @@ namespace modules {
                 dum = (-psmlt(i,k)-evpms(i,k)+pracs(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
                   // no source terms for snow at t > freezing
-                  float ratio    = qni3d(i,k)/dum;
+                  double ratio    = qni3d(i,k)/dum;
                   psmlt(i,k) = psmlt(i,k)*ratio;
                   evpms(i,k) = evpms(i,k)*ratio;
                   pracs(i,k) = pracs(i,k)*ratio;
@@ -1020,7 +1020,7 @@ namespace modules {
                 dum = (-pgmlt(i,k)-evpmg(i,k)+pracg(i,k))*dt;
                 if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
                   // no source term for graupel above freezing
-                  float ratio    = qg3d (i,k)/dum;
+                  double ratio    = qg3d (i,k)/dum;
                   pgmlt(i,k) = pgmlt(i,k)*ratio;
                   evpmg(i,k) = evpmg(i,k)*ratio;
                   pracg(i,k) = pracg(i,k)*ratio;
@@ -1028,7 +1028,7 @@ namespace modules {
                 // conservation of qr
                 dum = (-pracs(i,k)-pracg(i,k)-pre(i,k)-pra(i,k)-prc(i,k)+psmlt(i,k)+pgmlt(i,k))*dt;
                 if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
-                  float ratio  = (qr3d(i,k)/dt+pracs(i,k)+pracg(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k))/(-pre(i,k));
+                  double ratio  = (qr3d(i,k)/dt+pracs(i,k)+pracg(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k))/(-pre(i,k));
                   pre(i,k) = pre(i,k)*ratio;
                 }
                 qv3dten (i,k) = qv3dten (i,k) + (-pre(i,k)-evpms(i,k)-evpmg(i,k));
@@ -1046,7 +1046,7 @@ namespace modules {
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (t_ge_273(i,k)) {
               if ( ! no_cirg(i,k)) {  // If there's cloud or ice or rain or graupel
@@ -1081,15 +1081,15 @@ namespace modules {
               } // if ( ! no_cirg(i,k)) 
               // now calculate saturation adjustment to condense extra vapor above
               // water saturation
-              float dumt   = t3d(i,k)+dt*t3dten(i,k);
-              float dumqv  = qv3d(i,k)+dt*qv3dten(i,k);
-              float dum=min(0.99*pres(i,k),polysvp(dumt,0));
-              float dumqss = ep_2*dum/(pres(i,k)-dum);
-              float dumqc  = qc3d(i,k)+dt*qc3dten(i,k);
+              double dumt   = t3d(i,k)+dt*t3dten(i,k);
+              double dumqv  = qv3d(i,k)+dt*qv3dten(i,k);
+              double dum=min(0.99*pres(i,k),polysvp(dumt,0));
+              double dumqss = ep_2*dum/(pres(i,k)-dum);
+              double dumqc  = qc3d(i,k)+dt*qc3dten(i,k);
               dumqc  = max(dumqc,0.);
               // saturation adjustment for liquid
-              float dums   = dumqv-dumqss;
-              pcc    (i,k) = dums/(1.+pow(xxlv(i,k),2)*dumqss/(cpm(i,k)*rv*pow(dumt,2)))/dt;
+              double dums   = dumqv-dumqss;
+              pcc    (i,k) = dums/(1.+std::pow(xxlv(i,k),2)*dumqss/(cpm(i,k)*rv*std::pow(dumt,2)))/dt;
               if (pcc(i,k)*dt+dumqc < 0.)  pcc(i,k) = -dumqc/dt;
               qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
               t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
@@ -1113,79 +1113,79 @@ namespace modules {
               ng3d(i,k) = max(0.,ng3d(i,k));
               // cloud ice
               if (qi3d(i,k) >= qsmall) {
-                lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
+                lami(i,k) = std::pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
                 n0i(i,k) = ni3d(i,k)*lami(i,k);
                 if (lami(i,k) < lammini) {
                   lami(i,k) = lammini;
-                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  n0i(i,k) = std::pow(lami(i,k),4)*qi3d(i,k)/cons12;
                   ni3d(i,k) = n0i(i,k)/lami(i,k);
                 } else if (lami(i,k) > lammaxi) {
                   lami(i,k) = lammaxi;
-                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  n0i(i,k) = std::pow(lami(i,k),4)*qi3d(i,k)/cons12;
                   ni3d(i,k) = n0i(i,k)/lami(i,k);
                 }
               }
               // rain
               if (qr3d(i,k) >= qsmall) {
-                lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
+                lamr(i,k) = std::pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
                 n0rr(i,k) = nr3d(i,k)*lamr(i,k);
                 if (lamr(i,k) < lamminr) {
                   lamr(i,k) = lamminr;
-                  n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                  n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                   nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                 } else if (lamr(i,k) > lammaxr) {
                   lamr(i,k) = lammaxr;
-                  n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                  n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                   nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                 }
               }
               // cloud droplets
               if (qc3d(i,k) >= qsmall) {
-                float dum     = pres(i,k)/(287.15*t3d(i,k));
+                double dum     = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
-                pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
+                pgam(i,k) = 1./(std::pow(pgam(i,k),2))-1.;
                 pgam(i,k) = max(pgam(i,k),2.);
                 pgam(i,k) = min(pgam(i,k),10.);
-                lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
+                lamc(i,k) = std::pow(cons26*nc3d(i,k)*std::tgamma(pgam(i,k)+4.)/(qc3d(i,k)*std::tgamma(pgam(i,k)+1.)),1./3.);
                 // lammin, 60 micron diameter
                 // lammax, 1 micron
-                float lammin  = (pgam(i,k)+1.)/60.e-6;
-                float lammax  = (pgam(i,k)+1.)/1.e-6;
+                double lammin  = (pgam(i,k)+1.)/60.e-6;
+                double lammax  = (pgam(i,k)+1.)/1.e-6;
                 if (lamc(i,k) < lammin) {
                   lamc(i,k) = lammin;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                 } else if (lamc(i,k) > lammax) {
                   lamc(i,k) = lammax;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                 }
                 // to calculate droplet freezing
-                cdist1(i,k) = nc3d(i,k)/gamma(pgam(i,k)+1.);
+                cdist1(i,k) = nc3d(i,k)/std::tgamma(pgam(i,k)+1.);
               }
               // snow
               if (qni3d(i,k) >= qsmall) {
-                lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
+                lams(i,k) = std::pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
                 n0s(i,k) = ns3d(i,k)*lams(i,k);
                 if (lams(i,k) < lammins) {
                   lams(i,k) = lammins;
-                  n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                  n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                   ns3d(i,k) = n0s(i,k)/lams(i,k);
                 } else if (lams(i,k) > lammaxs) {
                   lams(i,k) = lammaxs;
-                  n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                  n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                   ns3d(i,k) = n0s(i,k)/lams(i,k);
                 }
               }
               // graupel
               if (qg3d(i,k) >= qsmall) {
-                lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
+                lamg(i,k) = std::pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
                 n0g(i,k) = ng3d(i,k)*lamg(i,k);
                 if (lamg(i,k) < lamming) {
                   lamg(i,k) = lamming;
-                  n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                  n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                   ng3d(i,k) = n0g(i,k)/lamg(i,k);
                 } else if (lamg(i,k) > lammaxg) {
                   lamg(i,k) = lammaxg;
-                  n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                  n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                   ng3d(i,k) = n0g(i,k)/lamg(i,k);
                 }
               }
@@ -1262,22 +1262,22 @@ namespace modules {
                 // number of contact nuclei (m^-3) from meyers et al., 1992
                 // factor of 1000 is to convert from l^-1 to m^-3
                 // meyers curve
-                float nacnt     = std::exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.;
+                double nacnt     = std::exp(-2.80+0.262*(273.15-t3d(i,k)))*1000.;
                 // cooper curve
                 //        nacnt =  5.*exp(0.304*(273.15-t3d(k)))
                 // flecther
                 //        nacnt = 0.01*exp(0.6*(273.15-t3d(k)))
                 // contact freezing
                 // mean free path
-                float dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
+                double dum       = 7.37*t3d(i,k)/(288.*10.*pres(i,k))/100.;
                 // effective diffusivity of contact nuclei
                 // based on brownian diffusion
                 dap(i,k) = cons37*t3d(i,k)*(1.+dum/rin)/mu(i,k);
                 // immersion freezing (bigg 1953)
-                mnuccc(i,k) = cons38*dap(i,k)*nacnt*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
-                nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt*cdist1(i,k)*gamma(pgam(i,k)+2.)/lamc(i,k);
-                mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(gamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
-                nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(gamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                mnuccc(i,k) = cons38*dap(i,k)*nacnt*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
+                nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt*cdist1(i,k)*std::tgamma(pgam(i,k)+2.)/lamc(i,k);
+                mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
                 // put in a catch here to prevent divergence between number conc. and
                 // mixing ratio, since strict conservation not checked for number conc
                 nnuccc(i,k) = min(nnuccc(i,k),nc3d(i,k)/dt);
@@ -1286,11 +1286,11 @@ namespace modules {
               // formula from beheng (1994)
               // using numerical simulation of stochastic collection equation
               // and initial cloud droplet size distribution specified
-              // as a gamma distribution
-              // use minimum value of 1.e-6 to prevent floating point error
+              // as a std::tgamma distribution
+              // use minimum value of 1.e-6 to prevent doubleing point error
               if (qc3d(i,k) >= 1.e-6) {
                 // from khairoutdinov and kogan 2000, mwr
-                prc(i,k) = 1350.*pow(qc3d(i,k),2.47)*pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
+                prc(i,k) = 1350.*std::pow(qc3d(i,k),2.47)*std::pow(nc3d(i,k)/1.e6*rho(i,k),-1.79);
                 // nprc is change in nc
                 nprc1(i,k) = prc(i,k)/cons29;
                 nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
@@ -1301,20 +1301,20 @@ namespace modules {
               // snow aggregation from passarelli, 1978, used by reisner, 1998
               // this is hard-wired for bs = 0.4 for now
               if (qni3d(i,k) >= 1.e-8) {
-                nsagg(i,k) = cons15*asn(i,k)*pow(rho(i,k),(2.+bs)/3.)*pow(qni3d(i,k),(2.+bs)/3.)*pow(ns3d(i,k)*rho(i,k),(4.-bs)/3.)/(rho(i,k));
+                nsagg(i,k) = cons15*asn(i,k)*std::pow(rho(i,k),(2.+bs)/3.)*std::pow(qni3d(i,k),(2.+bs)/3.)*std::pow(ns3d(i,k)*rho(i,k),(4.-bs)/3.)/(rho(i,k));
               }
               // accretion of cloud droplets onto snow/graupel
               // here use continuous collection equation with
               // simple gravitational collection kernel ignoring
               // snow
               if (qni3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
-                psacws(i,k) = cons13*asn(i,k)*qc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-                npsacws(i,k) = cons13*asn(i,k)*nc3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+                psacws(i,k) = cons13*asn(i,k)*qc3d(i,k)*rho(i,k)*n0s(i,k)/std::pow(lams(i,k),bs+3.);
+                npsacws(i,k) = cons13*asn(i,k)*nc3d(i,k)*rho(i,k)*n0s(i,k)/std::pow(lams(i,k),bs+3.);
               }
               // collection of cloud water by graupel
               if (qg3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= qsmall) {
-                psacwg(i,k) = cons14*agn(i,k)*qc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
-                npsacwg(i,k) = cons14*agn(i,k)*nc3d(i,k)*rho(i,k)*n0g(i,k)/pow(lamg(i,k),bg+3.);
+                psacwg(i,k) = cons14*agn(i,k)*qc3d(i,k)*rho(i,k)*n0g(i,k)/std::pow(lamg(i,k),bg+3.);
+                npsacwg(i,k) = cons14*agn(i,k)*nc3d(i,k)*rho(i,k)*n0g(i,k)/std::pow(lamg(i,k),bg+3.);
               }
               // cloud ice collecting droplets, assume that cloud ice mean diam > 100 micron
               // before riming can occur
@@ -1324,19 +1324,19 @@ namespace modules {
                 // put in size dependent collection efficiency based on stokes law
                 // from thompson et al. 2004, mwr
                 if (1./lami(i,k) >= 100.e-6) {
-                  psacwi(i,k) = cons16*ain(i,k)*qc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
-                  npsacwi(i,k) = cons16*ain(i,k)*nc3d(i,k)*rho(i,k)*n0i(i,k)/pow(lami(i,k),bi+3.);
+                  psacwi(i,k) = cons16*ain(i,k)*qc3d(i,k)*rho(i,k)*n0i(i,k)/std::pow(lami(i,k),bi+3.);
+                  npsacwi(i,k) = cons16*ain(i,k)*nc3d(i,k)*rho(i,k)*n0i(i,k)/std::pow(lami(i,k),bi+3.);
                 }
               }
               // accretion of rain water by snow
               // formula from ikawa and saito, 1991, used by reisner et al, 1998
               if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
-                float ums = asn(i,k)*cons3/pow(lams(i,k),bs);
-                float umr = arn(i,k)*cons4/pow(lamr(i,k),br);
-                float uns = asn(i,k)*cons5/pow(lams(i,k),bs);
-                float unr = arn(i,k)*cons6/pow(lamr(i,k),br);
+                double ums = asn(i,k)*cons3/std::pow(lams(i,k),bs);
+                double umr = arn(i,k)*cons4/std::pow(lamr(i,k),br);
+                double uns = asn(i,k)*cons5/std::pow(lams(i,k),bs);
+                double unr = arn(i,k)*cons6/std::pow(lamr(i,k),br);
                 // set reaslistic limits on fallspeeds
-                float dum = pow(rhosu/rho(i,k),0.54);
+                double dum = std::pow(rhosu/rho(i,k),0.54);
                 ums = min( ums , 1.2*dum );
                 uns = min( uns , 1.2*dum );
                 umr = min( umr , 9.1*dum );
@@ -1344,35 +1344,35 @@ namespace modules {
                 // make sure pracs doesn't exceed total rain mixing ratio
                 // as this may otherwise result in too much transfer of water during
                 // rime-splintering
-                pracs(i,k) = cons41*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lamr(i,k),3)*
-                           (5./(pow(lamr(i,k),3)*lams(i,k))+2./(pow(lamr(i,k),2)*pow(lams(i,k),2))+0.5/(lamr(i,k)*pow(lams(i,k),3))));
-                npracs(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr-uns,2)+0.3*unr*uns,0.5)*n0rr(i,k)*n0s(i,k)*(1./(pow(lamr(i,k),3)*lams(i,k))+
-                            1./(pow(lamr(i,k),2)*pow(lams(i,k),2))+1./(lamr(i,k)*pow(lams(i,k),3)));
+                pracs(i,k) = cons41*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lamr(i,k),3)*
+                           (5./(std::pow(lamr(i,k),3)*lams(i,k))+2./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+0.5/(lamr(i,k)*std::pow(lams(i,k),3))));
+                npracs(i,k) = cons32*rho(i,k)*std::pow(1.7*std::pow(unr-uns,2)+0.3*unr*uns,0.5)*n0rr(i,k)*n0s(i,k)*(1./(std::pow(lamr(i,k),3)*lams(i,k))+
+                            1./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+1./(lamr(i,k)*std::pow(lams(i,k),3)));
                 pracs(i,k) = min(pracs(i,k),qr3d(i,k)/dt);
                 // collection of snow by rain - needed for graupel conversion calculations
                 // only calculate if snow and rain mixing ratios exceed 0.1 g/kg
                 if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
-                  psacr(i,k) = cons31*(pow(pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/pow(lams(i,k),3)* 
-                             (5./(pow(lams(i,k),3)*lamr(i,k))+2./(pow(lams(i,k),2)*pow(lamr(i,k),2))+0.5/(lams(i,k)*pow(lamr(i,k),3))))            ;
+                  psacr(i,k) = cons31*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lams(i,k),3)* 
+                             (5./(std::pow(lams(i,k),3)*lamr(i,k))+2./(std::pow(lams(i,k),2)*std::pow(lamr(i,k),2))+0.5/(lams(i,k)*std::pow(lamr(i,k),3))))            ;
                 }
               }
               // collection of rainwater by graupel, from ikawa and saito 1990, 
               // used by reisner et al 1998
               if (qr3d(i,k) >= 1.e-8 && qg3d(i,k) >= 1.e-8) {
-                float umg = agn(i,k)*cons7/pow(lamg(i,k),bg);
-                float umr = arn(i,k)*cons4/pow(lamr(i,k),br);
-                float ung = agn(i,k)*cons8/pow(lamg(i,k),bg);
-                float unr = arn(i,k)*cons6/pow(lamr(i,k),br);
+                double umg = agn(i,k)*cons7/std::pow(lamg(i,k),bg);
+                double umr = arn(i,k)*cons4/std::pow(lamr(i,k),br);
+                double ung = agn(i,k)*cons8/std::pow(lamg(i,k),bg);
+                double unr = arn(i,k)*cons6/std::pow(lamr(i,k),br);
                 // set reaslistic limits on fallspeeds
-                float dum = pow(rhosu/rho(i,k),0.54);
+                double dum = std::pow(rhosu/rho(i,k),0.54);
                 umg = min( umg , 20.*dum );
                 ung = min( ung , 20.*dum );
                 umr = min( umr , 9.1*dum );
                 unr = min( unr , 9.1*dum );
-                pracg(i,k) = cons41*(pow(pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/pow(lamr(i,k),3)* 
-                            (5./(pow(lamr(i,k),3)*lamg(i,k))+2./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+0.5/(lamr(i,k)*pow(lamg(i,k),3))));
-                npracg(i,k) = cons32*rho(i,k)*pow(1.7*pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(i,k)*n0g(i,k)*(1./(pow(lamr(i,k),3)*lamg(i,k))+
-                            1./(pow(lamr(i,k),2)*pow(lamg(i,k),2))+1./(lamr(i,k)*pow(lamg(i,k),3)));
+                pracg(i,k) = cons41*(std::pow(std::pow(1.2*umr-0.95*umg,2)+0.08*umg*umr,0.5)*rho(i,k)*n0rr(i,k)*n0g(i,k)/std::pow(lamr(i,k),3)* 
+                            (5./(std::pow(lamr(i,k),3)*lamg(i,k))+2./(std::pow(lamr(i,k),2)*std::pow(lamg(i,k),2))+0.5/(lamr(i,k)*std::pow(lamg(i,k),3))));
+                npracg(i,k) = cons32*rho(i,k)*std::pow(1.7*std::pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(i,k)*n0g(i,k)*(1./(std::pow(lamr(i,k),3)*lamg(i,k))+
+                            1./(std::pow(lamr(i,k),2)*std::pow(lamg(i,k),2))+1./(lamr(i,k)*std::pow(lamg(i,k),3)));
                 // make sure pracg doesn't exceed total rain mixing ratio
                 // as this may otherwise result in too much transfer of water during
                 // rime-splintering
@@ -1395,7 +1395,7 @@ namespace modules {
                 if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
                   if (psacws(i,k) > 0. || pracs(i,k) > 0.) {
                     if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
-                      float fmult;
+                      double fmult;
                       if (t3d(i,k) > 270.16) {
                         fmult = 0.;
                       } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
@@ -1438,7 +1438,7 @@ namespace modules {
                 if (qc3d(i,k) >= 0.5e-3 || qr3d(i,k) >= 0.1e-3) {
                   if (psacwg(i,k) > 0. || pracg(i,k) > 0.) {
                     if (t3d(i,k) < 270.16  &&  t3d(i,k) > 265.16) {
-                      float fmult;
+                      double fmult;
                       if (t3d(i,k) > 270.16) {
                         fmult = 0.;
                       } else if (t3d(i,k) <= 270.16 && t3d(i,k) > 268.16)  {
@@ -1482,9 +1482,9 @@ namespace modules {
                 // only allow conversion if qni > 0.1 and qc > 0.5 g/kg following rutledge and hobbs (1984)
                 if (qni3d(i,k) >= 0.1e-3 && qc3d(i,k) >= 0.5e-3) {
                   // portion of riming converted to graupel (reisner et al. 1998, originally is1991)
-                  pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*pow(lams(i,k),2.*bs+2.)));
+                  pgsacw(i,k) = min(psacws(i,k),cons17*dt*n0s(i,k)*qc3d(i,k)*qc3d(i,k)*asn(i,k)*asn(i,k)/(rho(i,k)*std::pow(lams(i,k),2.*bs+2.)));
                   // mix rat converted into graupel as embryo (reisner et al. 1998, orig m1990)
-                  float dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
+                  double dum       = max(rhosn/(rhog-rhosn)*pgsacw(i,k),0.) ;
                   // number concentraiton of embryo graupel from riming of snow
                   nscng(i,k) = dum/mg0*rho(i,k);
                   // limit max number converted to snow number
@@ -1498,8 +1498,8 @@ namespace modules {
                 // only allow conversion if qni > 0.1 and qr > 0.1 g/kg following rutledge and hobbs (1984)
                 if (qni3d(i,k) >= 0.1e-3 && qr3d(i,k) >= 0.1e-3) {
                   // portion of collected rainwater converted to graupel (reisner et al. 1998)
-                  float dum = cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)/(cons18*pow(4./lams(i,k),3)*pow(4./lams(i,k),3)+
-                              cons19*pow(4./lamr(i,k),3)*pow(4./lamr(i,k),3));
+                  double dum = cons18*std::pow(4./lams(i,k),3)*std::pow(4./lams(i,k),3)/(cons18*std::pow(4./lams(i,k),3)*std::pow(4./lams(i,k),3)+
+                              cons19*std::pow(4./lamr(i,k),3)*std::pow(4./lamr(i,k),3));
                   dum       = min( dum , 1. );
                   dum       = max( dum , 0. );
                   pgracs(i,k) = (1.-dum)*pracs(i,k);
@@ -1518,8 +1518,8 @@ namespace modules {
               // freezing allowed below -4 c
               if (t3d(i,k) < 269.15 && qr3d(i,k) >= qsmall) {
                 // immersion freezing (bigg 1953)
-                mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3)/pow(lamr(i,k),3);
-                nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/pow(lamr(i,k),3);
+                mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/std::pow(lamr(i,k),3)/std::pow(lamr(i,k),3);
+                nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/std::pow(lamr(i,k),3);
                 // prevent divergence between mixing ratio and number conc
                 nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
               }
@@ -1528,8 +1528,8 @@ namespace modules {
               // gravitational collection kernel, droplet fall speed neglected
               if (qr3d(i,k) >= 1.e-8  &&  qc3d(i,k) >= 1.e-8) {
                 // khairoutdinov and kogan 2000, mwr
-                float dum     = (qc3d(i,k)*qr3d(i,k));
-                pra(i,k) = 67.*pow(dum,1.15);
+                double dum     = (qc3d(i,k)*qr3d(i,k));
+                pra(i,k) = 67.*std::pow(dum,1.15);
                 npra(i,k) = pra(i,k)/(qc3d(i,k)/nc3d(i,k));
               }
               // self-collection of rain drops
@@ -1537,8 +1537,8 @@ namespace modules {
               // from numerical simulation of the stochastic collection equation
               // as descrined above for autoconversion
               if (qr3d(i,k) >= 1.e-8) {
-                float dum1=300.e-6;
-                float dum;
+                double dum1=300.e-6;
+                double dum;
                 if (1./lamr(i,k) < dum1) {
                   dum=1.;
                 } else if (1./lamr(i,k) >= dum1) {
@@ -1559,8 +1559,8 @@ namespace modules {
               // for this calculation, it is assumed that the vs >> vi
               // and ds >> di for continuous collection
               if (qni3d(i,k) >= 1.e-8  &&  qi3d(i,k) >= qsmall) {
-                prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
-                nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/pow(lams(i,k),bs+3.);
+                prai(i,k) = cons23*asn(i,k)*qi3d(i,k)*rho(i,k)*n0s(i,k)/std::pow(lams(i,k),bs+3.);
+                nprai(i,k) = cons23*asn(i,k)*ni3d(i,k)*rho(i,k)*n0s(i,k)/std::pow(lams(i,k),bs+3.);
                 nprai(i,k) = min( nprai(i,k) , ni3d(i,k)/dt );
               }
               // hm, add 12/13/06, collision of rain and ice to produce snow or graupel
@@ -1570,15 +1570,15 @@ namespace modules {
                 // allow graupel formation from rain-ice collisions only if rain mixing ratio > 0.1 g/kg,
                 // otherwise add to snow
                 if (qr3d(i,k) >= 0.1e-3) {
-                  niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                  piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
-                  praci(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  niacr(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)*rho(i,k);
+                  piacr(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)/std::pow(lamr(i,k),3)*rho(i,k);
+                  praci(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)*rho(i,k);
                   niacr(i,k)=min(niacr(i,k),nr3d(i,k)/dt);
                   niacr(i,k)=min(niacr(i,k),ni3d(i,k)/dt);
                 } else {
-                  niacrs(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
-                  piacrs(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)/pow(lamr(i,k),3)*rho(i,k);
-                  pracis(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/pow(lamr(i,k),br+3.)*rho(i,k);
+                  niacrs(i,k)=cons24*ni3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)*rho(i,k);
+                  piacrs(i,k)=cons25*ni3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)/std::pow(lamr(i,k),3)*rho(i,k);
+                  pracis(i,k)=cons24*qi3d(i,k)*n0rr(i,k)*arn(i,k)/std::pow(lamr(i,k),br+3.)*rho(i,k);
                   niacrs(i,k)=min(niacrs(i,k),nr3d(i,k)/dt);
                   niacrs(i,k)=min(niacrs(i,k),ni3d(i,k)/dt);
                 }
@@ -1588,7 +1588,7 @@ namespace modules {
                 // add threshold according to greg thomspon
                 if ((qvqvs(i,k) >= 0.999  &&  t3d(i,k) <= 265.15)  ||  qvqvsi(i,k) >= 1.08) {
                   // hm, modify dec. 5, 2006, replace with cooper curve
-                  float kc2 = 0.005*std::exp(0.304*(273.15-t3d(i,k)))*1000.;
+                  double kc2 = 0.005*std::exp(0.304*(273.15-t3d(i,k)))*1000.;
                   kc2 = min( kc2 ,500.e3 );
                   kc2 = max( kc2/rho(i,k) , 0. );
                   if (kc2 > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
@@ -1598,7 +1598,7 @@ namespace modules {
                 }
               } else if (inuc==1) {
                 if (t3d(i,k) < 273.15 && qvqvsi(i,k) > 1.) {
-                  float kc2 = 0.16*1000./rho(i,k);
+                  double kc2 = 0.16*1000./rho(i,k);
                   if (kc2 > ni3d(i,k)+ns3d(i,k)+ng3d(i,k)) {
                     nnuccd(i,k) = (kc2-ni3d(i,k)-ns3d(i,k)-ng3d(i,k))/dt;
                     mnuccd(i,k) = nnuccd(i,k)*mi0;
@@ -1611,7 +1611,7 @@ namespace modules {
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
-              float epsi;
+              double epsi;
               // calculate evap/sub/dep terms for qi,qni,qr
               // no ventilation for cloud ice
               if (qi3d(i,k) >= qsmall) {
@@ -1619,25 +1619,25 @@ namespace modules {
               } else {
                  epsi = 0.;
               }
-              float epss;
+              double epss;
               if (qni3d(i,k) >= qsmall) {
-                epss = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons10/(pow(lams(i,k),cons35)));
+                epss = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)));
               } else {
                 epss = 0.;
               }
-              float epsg;
+              double epsg;
               if (qg3d(i,k) >= qsmall) {
-                epsg = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons11/(pow(lamg(i,k),cons36)));
+                epsg = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*std::pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)));
               } else {
                 epsg = 0.;
               }
-              float epsr;
+              double epsr;
               if (qr3d(i,k) >= qsmall) {
-                epsr = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*pow(sc(i,k),1./3.)*cons9/(pow(lamr(i,k),cons34)));
+                epsr = 2.*pi*n0rr(i,k)*rho(i,k)*dv(i,k)*(f1r/(lamr(i,k)*lamr(i,k))+f2r*std::pow(arn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons9/(std::pow(lamr(i,k),cons34)));
               } else {
                 epsr = 0.;
               }
-              float dum;
+              double dum;
               // only include region of ice size dist < dcs
               // dum is fraction of d*n(d) < dcs
               // logic below follows that of harrington et al. 1995 (jas)
@@ -1665,8 +1665,8 @@ namespace modules {
               // make sure not pushed into ice supersat/subsat
               // formula from reisner 2 scheme
               dum = (qv3d(i,k)-qvi(i,k))/dt;
-              float fudgef = 0.9999;
-              float sum_dep = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k);
+              double fudgef = 0.9999;
+              double sum_dep = prd(i,k)+prds(i,k)+mnuccd(i,k)+prdg(i,k);
               if( (dum > 0.  &&  sum_dep > dum*fudgef)  ||  (dum < 0.  &&  sum_dep < dum*fudgef) ) {
                 mnuccd(i,k) = fudgef*mnuccd(i,k)*dum/sum_dep;
                 prd(i,k) = fudgef*prd(i,k)*dum/sum_dep;
@@ -1734,7 +1734,7 @@ namespace modules {
               dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+
                      pgsacw(i,k)+qmultg(i,k))*dt;
               if (dum > qc3d(i,k)  &&  qc3d(i,k) >= qsmall) {
-                float ratio = qc3d(i,k)/dum;
+                double ratio = qc3d(i,k)/dum;
                 prc(i,k) = prc(i,k)*ratio;
                 pra(i,k) = pra(i,k)*ratio;
                 mnuccc(i,k) = mnuccc(i,k)*ratio;
@@ -1749,7 +1749,7 @@ namespace modules {
               dum = (-prd(i,k)-mnuccc(i,k)+prci(i,k)+prai(i,k)-qmults(i,k)-qmultg(i,k)-qmultr(i,k)-qmultrg(i,k)-
                                mnuccd(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k)-psacwi(i,k))*dt;
               if (dum > qi3d(i,k)  &&  qi3d(i,k) >= qsmall) {
-                float ratio = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+
+                double ratio = (qi3d(i,k)/dt+prd(i,k)+mnuccc(i,k)+qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+
                               mnuccd(i,k)+psacwi(i,k))/(prci(i,k)+prai(i,k)+praci(i,k)+pracis(i,k)-eprd(i,k));
                 prci(i,k) = prci(i,k)*ratio;
                 prai(i,k) = prai(i,k)*ratio;
@@ -1761,7 +1761,7 @@ namespace modules {
               dum = ((pracs(i,k)-pre(i,k))+(qmultr(i,k)+qmultrg(i,k)-prc(i,k))+(mnuccr(i,k)-pra(i,k))+
                     piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k))*dt;
               if (dum > qr3d(i,k) && qr3d(i,k) >= qsmall) {
-                float ratio = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+
+                double ratio = (qr3d(i,k)/dt+prc(i,k)+pra(i,k))/(-pre(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+
                                 mnuccr(i,k)+piacr(i,k)+piacrs(i,k)+pgracs(i,k)+pracg(i,k));
                 pre(i,k) = pre(i,k)*ratio;
                 pracs(i,k) = pracs(i,k)*ratio;
@@ -1779,7 +1779,7 @@ namespace modules {
                 dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-
                       piacrs(i,k)-pracis(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
+                  double ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
                                 pracis(i,k))/(-eprds(i,k)+psacr(i,k));
                   eprds(i,k) = eprds(i,k)*ratio;
                   psacr(i,k) = psacr(i,k)*ratio;
@@ -1789,7 +1789,7 @@ namespace modules {
                 dum = (-prds(i,k)-psacws(i,k)-prai(i,k)-prci(i,k)-pracs(i,k)-eprds(i,k)+psacr(i,k)-piacrs(i,k)-
                       pracis(i,k)-mnuccr(i,k))*dt;
                 if (dum > qni3d(i,k) && qni3d(i,k) >= qsmall) {
-                  float ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
+                  double ratio = (qni3d(i,k)/dt+prds(i,k)+psacws(i,k)+prai(i,k)+prci(i,k)+pracs(i,k)+piacrs(i,k)+
                                 pracis(i,k)+mnuccr(i,k))/(-eprds(i,k)+psacr(i,k));
                   eprds(i,k) = eprds(i,k)*ratio;
                   psacr(i,k) = psacr(i,k)*ratio;
@@ -1799,14 +1799,14 @@ namespace modules {
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               // conservation of qg
               dum = (-psacwg(i,k)-pracg(i,k)-pgsacw(i,k)-pgracs(i,k)-prdg(i,k)-mnuccr(i,k)-eprdg(i,k)-piacr(i,k)-
                     praci(i,k)-psacr(i,k))*dt;
               if (dum > qg3d(i,k) && qg3d(i,k) >= qsmall) {
-                float ratio = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+
+                double ratio = (qg3d(i,k)/dt+psacwg(i,k)+pracg(i,k)+pgsacw(i,k)+pgracs(i,k)+prdg(i,k)+mnuccr(i,k)+
                               psacr(i,k)+piacr(i,k)+praci(i,k))/(-eprdg(i,k));
                 eprdg(i,k) = eprdg(i,k)*ratio;
               }
@@ -1826,7 +1826,7 @@ namespace modules {
           }
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          float dum;
+          double dum;
           if (! skip_micro(i,k)) {
             if (! t_ge_273(i,k)) {
               if (igraup==0) {
@@ -1855,15 +1855,15 @@ namespace modules {
                              npracg(i,k)-ngracs(i,k));
               c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+
                              mnuccc(i,k)+psacwi(i,k);
-              float dumt       = t3d(i,k)+dt*t3dten(i,k);
-              float dumqv      = qv3d(i,k)+dt*qv3dten(i,k);
-              float dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
-              float dumqss     = ep_2*dum/(pres(i,k)-dum);
-              float dumqc      = qc3d(i,k)+dt*qc3dten(i,k);
+              double dumt       = t3d(i,k)+dt*t3dten(i,k);
+              double dumqv      = qv3d(i,k)+dt*qv3dten(i,k);
+              double dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
+              double dumqss     = ep_2*dum/(pres(i,k)-dum);
+              double dumqc      = qc3d(i,k)+dt*qc3dten(i,k);
               dumqc            = max( dumqc , 0. );
               // saturation adjustment for liquid
-              float dums       = dumqv-dumqss;
-              pcc(i,k)     = dums/(1.+pow(xxlv(i,k),2)*dumqss/(cpm(i,k)*rv*pow(dumt,2)))/dt;
+              double dums       = dumqv-dumqss;
+              pcc(i,k)     = dums/(1.+std::pow(xxlv(i,k),2)*dumqss/(cpm(i,k)*rv*std::pow(dumt,2)))/dt;
               if (pcc(i,k)*dt+dumqc < 0.) pcc(i,k) = -dumqc/dt;
               qv3dten(i,k) = qv3dten(i,k)-pcc(i,k);
               t3dten (i,k) = t3dten (i,k)+pcc(i,k)*xxlv(i,k)/cpm(i,k);
@@ -1928,95 +1928,95 @@ namespace modules {
             dumfnr(i,k) = max( 0. , dumfnr(i,k) );
             dumfng(i,k) = max( 0. , dumfng(i,k) );
             // cloud ice
-            float dlami;
+            double dlami;
             if (dumi(i,k) >= qsmall) {
-              dlami = pow(cons12*dumfni(i,k)/dumi(i,k),1./di);
+              dlami = std::pow(cons12*dumfni(i,k)/dumi(i,k),1./di);
               dlami = max( dlami , lammini );
               dlami = min( dlami , lammaxi );
             }
             // rain
-            float dlamr;
+            double dlamr;
             if (dumr(i,k) >= qsmall) {
-              dlamr = pow(pi*rhow*dumfnr(i,k)/dumr(i,k),1./3.);
+              dlamr = std::pow(pi*rhow*dumfnr(i,k)/dumr(i,k),1./3.);
               dlamr = max( dlamr , lamminr );
               dlamr = min( dlamr , lammaxr );
             }
             // cloud droplets
-            float dlamc;
+            double dlamc;
             if (dumc(i,k) >= qsmall) {
-              float dum     = pres(i,k)/(287.15*t3d(i,k));
+              double dum     = pres(i,k)/(287.15*t3d(i,k));
               pgam(i,k) = 0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
-              pgam(i,k) = 1./(pow(pgam(i,k),2))-1.;
+              pgam(i,k) = 1./(std::pow(pgam(i,k),2))-1.;
               pgam(i,k) = max(pgam(i,k),2.);
               pgam(i,k) = min(pgam(i,k),10.);
-              dlamc   = pow(cons26*dumfnc(i,k)*gamma(pgam(i,k)+4.)/(dumc(i,k)*gamma(pgam(i,k)+1.)),1./3.);
-              float lammin  = (pgam(i,k)+1.)/60.e-6;
-              float lammax  = (pgam(i,k)+1.)/1.e-6;
+              dlamc   = std::pow(cons26*dumfnc(i,k)*std::tgamma(pgam(i,k)+4.)/(dumc(i,k)*std::tgamma(pgam(i,k)+1.)),1./3.);
+              double lammin  = (pgam(i,k)+1.)/60.e-6;
+              double lammax  = (pgam(i,k)+1.)/1.e-6;
               dlamc   = max(dlamc,lammin);
               dlamc   = min(dlamc,lammax);
             }
             // snow
-            float dlams;
+            double dlams;
             if (dumqs(i,k) >= qsmall) {
-              dlams = pow(cons1*dumfns(i,k)/ dumqs(i,k),1./ds);
+              dlams = std::pow(cons1*dumfns(i,k)/ dumqs(i,k),1./ds);
               dlams=max(dlams,lammins);
               dlams=min(dlams,lammaxs);
             }
             // graupel
-            float dlamg;
+            double dlamg;
             if (dumg(i,k) >= qsmall) {
-              dlamg = pow(cons2*dumfng(i,k)/ dumg(i,k),1./dg);
+              dlamg = std::pow(cons2*dumfng(i,k)/ dumg(i,k),1./dg);
               dlamg=max(dlamg,lamming);
               dlamg=min(dlamg,lammaxg);
             }
             // calculate number-weighted and mass-weighted terminal fall speeds
             // cloud water
-            float unc, umc;
+            double unc, umc;
             if (dumc(i,k) >= qsmall) {
-              unc =  acn(i,k)*gamma(1.+bc+pgam(i,k))/ (pow(dlamc,bc)*gamma(pgam(i,k)+1.));
-              umc = acn(i,k)*gamma(4.+bc+pgam(i,k))/  (pow(dlamc,bc)*gamma(pgam(i,k)+4.));
+              unc =  acn(i,k)*std::tgamma(1.+bc+pgam(i,k))/ (std::pow(dlamc,bc)*std::tgamma(pgam(i,k)+1.));
+              umc = acn(i,k)*std::tgamma(4.+bc+pgam(i,k))/  (std::pow(dlamc,bc)*std::tgamma(pgam(i,k)+4.));
             } else {
               umc = 0.;
               unc = 0.;
             }
-            float uni, umi;
+            double uni, umi;
             if (dumi(i,k) >= qsmall) {
-              uni = ain(i,k)*cons27/pow(dlami,bi);
-              umi = ain(i,k)*cons28/pow(dlami,bi);
+              uni = ain(i,k)*cons27/std::pow(dlami,bi);
+              umi = ain(i,k)*cons28/std::pow(dlami,bi);
             } else {
               umi = 0.;
               uni = 0.;
             }
-            float umr, unr;
+            double umr, unr;
             if (dumr(i,k) >= qsmall) {
-              unr = arn(i,k)*cons6/pow(dlamr,br);
-              umr = arn(i,k)*cons4/pow(dlamr,br);
+              unr = arn(i,k)*cons6/std::pow(dlamr,br);
+              umr = arn(i,k)*cons4/std::pow(dlamr,br);
             } else {
               umr = 0.;
               unr = 0.;
             }
-            float ums, uns;
+            double ums, uns;
             if (dumqs(i,k) >= qsmall) {
-              ums = asn(i,k)*cons3/pow(dlams,bs);
-              uns = asn(i,k)*cons5/pow(dlams,bs);
+              ums = asn(i,k)*cons3/std::pow(dlams,bs);
+              uns = asn(i,k)*cons5/std::pow(dlams,bs);
             } else {
               ums = 0.;
               uns = 0.;
             }
-            float umg, ung;
+            double umg, ung;
             if (dumg(i,k) >= qsmall) {
-              umg = agn(i,k)*cons7/pow(dlamg,bg);
-              ung = agn(i,k)*cons8/pow(dlamg,bg);
+              umg = agn(i,k)*cons7/std::pow(dlamg,bg);
+              ung = agn(i,k)*cons8/std::pow(dlamg,bg);
             } else {
               umg = 0.;
               ung = 0.;
             }
             // set realistic limits on fallspeed
-            float dum    = pow(rhosu/rho(i,k),0.54);
+            double dum    = std::pow(rhosu/rho(i,k),0.54);
             ums    = min(ums,1.2*dum);
             uns    = min(uns,1.2*dum);
-            umi    = min(umi,1.2*pow(rhosu/rho(i,k),0.35));
-            uni    = min(uni,1.2*pow(rhosu/rho(i,k),0.35));
+            umi    = min(umi,1.2*std::pow(rhosu/rho(i,k),0.35));
+            uni    = min(uni,1.2*std::pow(rhosu/rho(i,k),0.35));
             umr    = min(umr,9.1*dum);
             unr    = min(unr,9.1*dum);
             umg    = min(umg,20.*dum);
@@ -2062,7 +2062,7 @@ namespace modules {
               if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1);
             } // k le nz-1
             // calculate number of split time steps
-            float rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),
+            double rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),
                               max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
             nstep(i) = max(int(rgvm*dt/dzq(i,k)+1.),nstep(i));
           }
@@ -2091,16 +2091,16 @@ namespace modules {
             {
               // top of model
               int k = nz;
-              float faltndr  = faloutr (i,k)/dzq(i,k);
-              float faltndi  = falouti (i,k)/dzq(i,k);
-              float faltndni = faloutni(i,k)/dzq(i,k);
-              float faltnds  = falouts (i,k)/dzq(i,k);
-              float faltndns = faloutns(i,k)/dzq(i,k);
-              float faltndnr = faloutnr(i,k)/dzq(i,k);
-              float faltndc  = faloutc (i,k)/dzq(i,k);
-              float faltndnc = faloutnc(i,k)/dzq(i,k);
-              float faltndg  = faloutg (i,k)/dzq(i,k);
-              float faltndng = faloutng(i,k)/dzq(i,k);
+              double faltndr  = faloutr (i,k)/dzq(i,k);
+              double faltndi  = falouti (i,k)/dzq(i,k);
+              double faltndni = faloutni(i,k)/dzq(i,k);
+              double faltnds  = falouts (i,k)/dzq(i,k);
+              double faltndns = faloutns(i,k)/dzq(i,k);
+              double faltndnr = faloutnr(i,k)/dzq(i,k);
+              double faltndc  = faloutc (i,k)/dzq(i,k);
+              double faltndnc = faloutnc(i,k)/dzq(i,k);
+              double faltndg  = faloutg (i,k)/dzq(i,k);
+              double faltndng = faloutng(i,k)/dzq(i,k);
               // add fallout terms to eulerian tendencies
               qrsten (i,k) = qrsten (i,k)-faltndr /nstep(i)/rho(i,k);
               qisten (i,k) = qisten (i,k)-faltndi /nstep(i)/rho(i,k);
@@ -2127,16 +2127,16 @@ namespace modules {
         });
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz-1,ncol) , KOKKOS_LAMBDA (int k, int i) {
           if (hydro_pres(i) && nstep(i) <= n) {
-              float faltndr  = (faloutr (i,k+1)-faloutr (i,k))/dzq(i,k);
-              float faltndi  = (falouti (i,k+1)-falouti (i,k))/dzq(i,k);
-              float faltndni = (faloutni(i,k+1)-faloutni(i,k))/dzq(i,k);
-              float faltnds  = (falouts (i,k+1)-falouts (i,k))/dzq(i,k);
-              float faltndns = (faloutns(i,k+1)-faloutns(i,k))/dzq(i,k);
-              float faltndnr = (faloutnr(i,k+1)-faloutnr(i,k))/dzq(i,k);
-              float faltndc  = (faloutc (i,k+1)-faloutc (i,k))/dzq(i,k);
-              float faltndnc = (faloutnc(i,k+1)-faloutnc(i,k))/dzq(i,k);
-              float faltndg  = (faloutg (i,k+1)-faloutg (i,k))/dzq(i,k);
-              float faltndng = (faloutng(i,k+1)-faloutng(i,k))/dzq(i,k);
+              double faltndr  = (faloutr (i,k+1)-faloutr (i,k))/dzq(i,k);
+              double faltndi  = (falouti (i,k+1)-falouti (i,k))/dzq(i,k);
+              double faltndni = (faloutni(i,k+1)-faloutni(i,k))/dzq(i,k);
+              double faltnds  = (falouts (i,k+1)-falouts (i,k))/dzq(i,k);
+              double faltndns = (faloutns(i,k+1)-faloutns(i,k))/dzq(i,k);
+              double faltndnr = (faloutnr(i,k+1)-faloutnr(i,k))/dzq(i,k);
+              double faltndc  = (faloutc (i,k+1)-faloutc (i,k))/dzq(i,k);
+              double faltndnc = (faloutnc(i,k+1)-faloutnc(i,k))/dzq(i,k);
+              double faltndg  = (faloutg (i,k+1)-faloutg (i,k))/dzq(i,k);
+              double faltndng = (faloutng(i,k+1)-faloutng(i,k))/dzq(i,k);
               // add fallout terms to eulerian tendencies
               qrsten (i,k) = qrsten (i,k)+faltndr    /nstep(i)/rho(i,k);
               qisten (i,k) = qisten (i,k)+faltndi    /nstep(i)/rho(i,k);
@@ -2323,75 +2323,75 @@ namespace modules {
               ng3d(i,k) = max( 0. , ng3d(i,k) );
               // cloud ice
               if (qi3d(i,k) >= qsmall) {
-                lami(i,k) = pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
+                lami(i,k) = std::pow(cons12*ni3d(i,k)/qi3d(i,k),1./di);
                 if (lami(i,k) < lammini) {
                   lami(i,k) = lammini;
-                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  n0i(i,k) = std::pow(lami(i,k),4)*qi3d(i,k)/cons12;
                   ni3d(i,k) = n0i(i,k)/lami(i,k);
                 } else if (lami(i,k) > lammaxi) {
                   lami(i,k) = lammaxi;
-                  n0i(i,k) = pow(lami(i,k),4)*qi3d(i,k)/cons12;
+                  n0i(i,k) = std::pow(lami(i,k),4)*qi3d(i,k)/cons12;
                   ni3d(i,k) = n0i(i,k)/lami(i,k);
                 }
               }
               // rain
               if (qr3d(i,k) >= qsmall) {
-                lamr(i,k) = pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
+                lamr(i,k) = std::pow(pi*rhow*nr3d(i,k)/qr3d(i,k),1./3.);
                 if (lamr(i,k) < lamminr) {
                   lamr(i,k) = lamminr;
-                  n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                  n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                   nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                 } else if (lamr(i,k) > lammaxr) {
                   lamr(i,k) = lammaxr;
-                  n0rr(i,k) = pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
+                  n0rr(i,k) = std::pow(lamr(i,k),4)*qr3d(i,k)/(pi*rhow);
                   nr3d(i,k) = n0rr(i,k)/lamr(i,k);
                 }
               }
               // cloud droplets
               if (qc3d(i,k) >= qsmall) {
-                float dum = pres(i,k)/(287.15*t3d(i,k));
+                double dum = pres(i,k)/(287.15*t3d(i,k));
                 pgam(i,k)=0.0005714*(nc3d(i,k)/1.e6*dum)+0.2714;
-                pgam(i,k)=1./(pow(pgam(i,k),2))-1.;
+                pgam(i,k)=1./(std::pow(pgam(i,k),2))-1.;
                 pgam(i,k)=max(pgam(i,k),2.);
                 pgam(i,k)=min(pgam(i,k),10.);
-                lamc(i,k) = pow(cons26*nc3d(i,k)*gamma(pgam(i,k)+4.)/(qc3d(i,k)*gamma(pgam(i,k)+1.)),1./3.);
+                lamc(i,k) = std::pow(cons26*nc3d(i,k)*std::tgamma(pgam(i,k)+4.)/(qc3d(i,k)*std::tgamma(pgam(i,k)+1.)),1./3.);
                 // lammin, 60 micron diameter
                 // lammax, 1 micron
-                float lammin = (pgam(i,k)+1.)/60.e-6;
-                float lammax = (pgam(i,k)+1.)/1.e-6;
+                double lammin = (pgam(i,k)+1.)/60.e-6;
+                double lammax = (pgam(i,k)+1.)/1.e-6;
                 if (lamc(i,k) < lammin) {
                   lamc(i,k) = lammin;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-
-                              std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-
+                              std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                 } else if (lamc(i,k) > lammax) {
                   lamc(i,k) = lammax;
-                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(gamma(pgam(i,k)+1.))-
-                              std::log(gamma(pgam(i,k)+4.)))/cons26;
+                  nc3d(i,k) = std::exp(3.*std::log(lamc(i,k))+std::log(qc3d(i,k))+std::log(std::tgamma(pgam(i,k)+1.))-
+                              std::log(std::tgamma(pgam(i,k)+4.)))/cons26;
                 }
               }
               // snow
               if (qni3d(i,k) >= qsmall) {
-                lams(i,k) = pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
+                lams(i,k) = std::pow(cons1*ns3d(i,k)/qni3d(i,k),1./ds);
                 if (lams(i,k) < lammins) {
                   lams(i,k) = lammins;
-                  n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                  n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                   ns3d(i,k) = n0s(i,k)/lams(i,k);
                 } else if (lams(i,k) > lammaxs) {
                   lams(i,k) = lammaxs;
-                  n0s(i,k) = pow(lams(i,k),4)*qni3d(i,k)/cons1;
+                  n0s(i,k) = std::pow(lams(i,k),4)*qni3d(i,k)/cons1;
                   ns3d(i,k) = n0s(i,k)/lams(i,k);
                 }
               }
               // graupel
               if (qg3d(i,k) >= qsmall) {
-                lamg(i,k) = pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
+                lamg(i,k) = std::pow(cons2*ng3d(i,k)/qg3d(i,k),1./dg);
                 if (lamg(i,k) < lamming) {
                   lamg(i,k) = lamming;
-                  n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                  n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                   ng3d(i,k) = n0g(i,k)/lamg(i,k);
                 } else if (lamg(i,k) > lammaxg) {
                   lamg(i,k) = lammaxg;
-                  n0g(i,k) = pow(lamg(i,k),4)*qg3d(i,k)/cons2;
+                  n0g(i,k) = std::pow(lamg(i,k),4)*qg3d(i,k)/cons2;
                   ng3d(i,k) = n0g(i,k)/lamg(i,k);
                 }
               }
@@ -2413,7 +2413,7 @@ namespace modules {
               effr(i,k) = 25.;
             }
             if (qc3d(i,k) >= qsmall) {
-              effc(i,k) = gamma(pgam(i,k)+4.)/gamma(pgam(i,k)+3.)/lamc(i,k)/2.*1.e6;
+              effc(i,k) = std::tgamma(pgam(i,k)+4.)/std::tgamma(pgam(i,k)+3.)/lamc(i,k)/2.*1.e6;
             } else {
               effc(i,k) = 25.;
             }
@@ -2444,14 +2444,8 @@ namespace modules {
     }
 
 
-    template <class T1, class T2>
-    KOKKOS_INLINE_FUNCTION static float max(T1 a, T2 b) { return a > b ? a : b; }
-    template <class T1, class T2>
-    KOKKOS_INLINE_FUNCTION static float min(T1 a, T2 b) { return a < b ? a : b; }
-    template <class T1, class T2>
-    KOKKOS_INLINE_FUNCTION static float pow(T1 a,T2 b) { return std::pow(static_cast<float>(a),static_cast<float>(b)); }
-    KOKKOS_INLINE_FUNCTION static float gamma(float  z) { return std::tgamma(z); }
-    KOKKOS_INLINE_FUNCTION static float gamma(double z) { return std::tgamma(static_cast<float>(z)); }
+    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static double min(T1 a, T2 b) { return a < b ? a : b; }
+    template <class T1, class T2> KOKKOS_INLINE_FUNCTION static double max(T1 a, T2 b) { return a > b ? a : b; }
 
 
 
@@ -2460,37 +2454,37 @@ namespace modules {
     // t is input in units of k.
     // type refers to saturation with respect to liquid (0) or ice (1)
     // replace goff-gratch with faster formulation from flatau et al. 1992, table 4 (right-hand column)
-    KOKKOS_INLINE_FUNCTION static float polysvp( float t , int type) {
+    KOKKOS_INLINE_FUNCTION static double polysvp( double t , int type) {
       // liquid
-      float a0 = 6.11239921;
-      float a1 = 0.443987641;
-      float a2 = 0.142986287e-1;
-      float a3 = 0.264847430e-3;
-      float a4 = 0.302950461e-5;
-      float a5 = 0.206739458e-7;
-      float a6 = 0.640689451e-10;
-      float a7 = -0.952447341e-13;
-      float a8 = -0.976195544e-15;
+      double a0 = 6.11239921;
+      double a1 = 0.443987641;
+      double a2 = 0.142986287e-1;
+      double a3 = 0.264847430e-3;
+      double a4 = 0.302950461e-5;
+      double a5 = 0.206739458e-7;
+      double a6 = 0.640689451e-10;
+      double a7 = -0.952447341e-13;
+      double a8 = -0.976195544e-15;
       // ice
-      float a0i = 6.11147274;
-      float a1i = 0.503160820;
-      float a2i = 0.188439774e-1;
-      float a3i = 0.420895665e-3;
-      float a4i = 0.615021634e-5;
-      float a5i = 0.602588177e-7;
-      float a6i = 0.385852041e-9;
-      float a7i = 0.146898966e-11;
-      float a8i = 0.252751365e-14;
-      float ret;
+      double a0i = 6.11147274;
+      double a1i = 0.503160820;
+      double a2i = 0.188439774e-1;
+      double a3i = 0.420895665e-3;
+      double a4i = 0.615021634e-5;
+      double a5i = 0.602588177e-7;
+      double a6i = 0.385852041e-9;
+      double a7i = 0.146898966e-11;
+      double a8i = 0.252751365e-14;
+      double ret;
       // ice
       if (type==1) {
         // hm 11/16/20, use goff-gratch for t < 195.8 k and flatau et al. equal or above 195.8 k
         if (t >= 195.8) {
-          float dt=t-273.15;
+          double dt=t-273.15;
           ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) ;
           ret = ret*100.;
         } else {
-          ret = pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*
+          ret = std::pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*
                 (1.-t/273.16)+std::log10(6.1071))*100.;
         }
       }
@@ -2498,14 +2492,14 @@ namespace modules {
       if (type==0) {
         // hm 11/16/20, use goff-gratch for t < 202.0 k and flatau et al. equal or above 202.0 k
         if (t >= 202.0) {
-          float dt = t-273.15;
+          double dt = t-273.15;
           ret = a0 + dt*(a1+dt*(a2+dt*(a3+dt*(a4+dt*(a5+dt*(a6+dt*(a7+a8*dt)))))));
           ret = ret*100.;
         } else {
           // note: uncertain below -70 c, but produces physical values (non-negative) unlike flatau
-          ret = pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*
-                (pow(10.,11.344*(1.-t/373.16))-1.)+
-                8.1328e-3*(pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
+          ret = std::pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*
+                (std::pow(10.,11.344*(1.-t/373.16))-1.)+
+                8.1328e-3*(std::pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
         }
       }
       return ret;

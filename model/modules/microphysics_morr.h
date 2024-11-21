@@ -6,19 +6,19 @@
 
 
 extern "C"
-void mp_morr_two_moment(int *itimestep,float *th, float *qv, float *qc, float *qr, float *qi,
-                        float *qs,float *qg, float *ni, float *ns, float *nr,
-                        float *ng, float *rho, float *pii, float *p, float *dt_in, float *dz,
-                        float *ht,
-                        float *w, float *rainnc, float *rainncv, float *sr, float *snownc,
-                        float *snowncv, float *graupelnc, float *graupelncv, float *refl_10cm,
-                        bool *diagflag, int *do_radar_ref, float *qrcuten, float *qscuten, float *qicuten, 
-                        bool *f_qndrop, float *qndrop,
+void mp_morr_two_moment(int *itimestep,double *th, double *qv, double *qc, double *qr, double *qi,
+                        double *qs,double *qg, double *ni, double *ns, double *nr,
+                        double *ng, double *rho, double *pii, double *p, double *dt_in, double *dz,
+                        double *ht,
+                        double *w, double *rainnc, double *rainncv, double *sr, double *snownc,
+                        double *snowncv, double *graupelnc, double *graupelncv, double *refl_10cm,
+                        bool *diagflag, int *do_radar_ref, double *qrcuten, double *qscuten, double *qicuten, 
+                        bool *f_qndrop, double *qndrop,
                         int *ids, int *ide, int *jds, int *jde, int *kds, int *kde,
                         int *ims, int *ime, int *jms, int *jme, int *kms, int *kme,
-                        int *its, int *ite, int *jts, int *jte, int *kts, int *kte, bool *wetscav_on, float *rainprod, float *evapprod,
-                        float *qlsink, float *precr, float *preci, float *precs,
-                        float *precg);
+                        int *its, int *ite, int *jts, int *jte, int *kts, int *kte, bool *wetscav_on, double *rainprod, double *evapprod,
+                        double *qlsink, double *precr, double *preci, double *precs,
+                        double *precg);
 
 extern "C"
 void morr_two_moment_init(int *morr_rimed_ice);
@@ -27,14 +27,14 @@ void morr_two_moment_init(int *morr_rimed_ice);
 namespace modules {
 
   struct Microphysics_Morrison {
-    typedef yakl::Array<float      ,1,yakl::memDevice,yakl::styleFortran> float1d_F;
-    typedef yakl::Array<float      ,2,yakl::memDevice,yakl::styleFortran> float2d_F;
-    typedef yakl::Array<float const,1,yakl::memDevice,yakl::styleFortran> floatConst1d_F;
-    typedef yakl::Array<float const,2,yakl::memDevice,yakl::styleFortran> floatConst2d_F;
-    typedef yakl::Array<float      ,1,yakl::memHost  ,yakl::styleFortran> floatHost1d_F;
-    typedef yakl::Array<float      ,2,yakl::memHost  ,yakl::styleFortran> floatHost2d_F;
-    typedef yakl::Array<float const,1,yakl::memHost  ,yakl::styleFortran> floatHostConst1d_F;
-    typedef yakl::Array<float const,2,yakl::memHost  ,yakl::styleFortran> floatHostConst2d_F;
+    typedef yakl::Array<double      ,1,yakl::memDevice,yakl::styleFortran> double1d_F;
+    typedef yakl::Array<double      ,2,yakl::memDevice,yakl::styleFortran> double2d_F;
+    typedef yakl::Array<double const,1,yakl::memDevice,yakl::styleFortran> doubleConst1d_F;
+    typedef yakl::Array<double const,2,yakl::memDevice,yakl::styleFortran> doubleConst2d_F;
+    typedef yakl::Array<double      ,1,yakl::memHost  ,yakl::styleFortran> doubleHost1d_F;
+    typedef yakl::Array<double      ,2,yakl::memHost  ,yakl::styleFortran> doubleHost2d_F;
+    typedef yakl::Array<double const,1,yakl::memHost  ,yakl::styleFortran> doubleHostConst1d_F;
+    typedef yakl::Array<double const,2,yakl::memHost  ,yakl::styleFortran> doubleHostConst2d_F;
     typedef yakl::Array<int        ,1,yakl::memDevice,yakl::styleFortran> int1d_F;
     typedef yakl::Array<int        ,2,yakl::memDevice,yakl::styleFortran> int2d_F;
     typedef yakl::Array<int   const,1,yakl::memDevice,yakl::styleFortran> intConst1d_F;
@@ -55,20 +55,20 @@ namespace modules {
     int static constexpr num_tracers = 10;
     #ifdef MICRO_MORR_FORTRAN
       int trace_size;
-      std::vector<float> errs_qv       ;
-      std::vector<float> errs_qc       ;
-      std::vector<float> errs_qr       ;
-      std::vector<float> errs_qi       ;
-      std::vector<float> errs_qs       ;
-      std::vector<float> errs_qg       ;
-      std::vector<float> errs_ni       ;
-      std::vector<float> errs_ns       ;
-      std::vector<float> errs_nr       ;
-      std::vector<float> errs_ng       ;
-      std::vector<float> errs_t        ;
-      std::vector<float> errs_rainnc   ;
-      std::vector<float> errs_snownc   ;
-      std::vector<float> errs_graupelnc;
+      std::vector<double> errs_qv       ;
+      std::vector<double> errs_qc       ;
+      std::vector<double> errs_qr       ;
+      std::vector<double> errs_qi       ;
+      std::vector<double> errs_qs       ;
+      std::vector<double> errs_qg       ;
+      std::vector<double> errs_ni       ;
+      std::vector<double> errs_ns       ;
+      std::vector<double> errs_nr       ;
+      std::vector<double> errs_ng       ;
+      std::vector<double> errs_t        ;
+      std::vector<double> errs_rainnc   ;
+      std::vector<double> errs_snownc   ;
+      std::vector<double> errs_graupelnc;
     #endif
     Mp_morr_two_moment  micro;
 
@@ -271,35 +271,35 @@ namespace modules {
       real dz = coupler.get_dz();
 
       // Allocates inputs and outputs
-      float dt_in = dt;
-      float2d_F qv        ("qv        ",ncol,nz);
-      float2d_F qc        ("qc        ",ncol,nz);
-      float2d_F qr        ("qr        ",ncol,nz);
-      float2d_F qi        ("qi        ",ncol,nz);
-      float2d_F qs        ("qs        ",ncol,nz);
-      float2d_F qg        ("qg        ",ncol,nz);
-      float2d_F ni        ("ni        ",ncol,nz);
-      float2d_F ns        ("ns        ",ncol,nz);
-      float2d_F nr        ("nr        ",ncol,nz);
-      float2d_F t         ("t         ",ncol,nz);
-      float2d_F ng        ("ng        ",ncol,nz);
-      float2d_F qlsink    ("qlsink    ",ncol,nz);
-      float2d_F preci     ("preci     ",ncol,nz);
-      float2d_F precs     ("precs     ",ncol,nz);
-      float2d_F precg     ("precg     ",ncol,nz);
-      float2d_F precr     ("precr     ",ncol,nz);
-      float2d_F p         ("p         ",ncol,nz);
-      float2d_F qrcuten   ("qrcuten   ",ncol,nz);
-      float2d_F qscuten   ("qscuten   ",ncol,nz);
-      float2d_F qicuten   ("qicuten   ",ncol,nz);
-      float2d_F dz_arr    ("dz_arr"    ,ncol,nz);
-      float1d_F rainncv   ("rainncv   ",ncol   );
-      float1d_F sr        ("sr        ",ncol   );
-      float1d_F snowncv   ("snowncv   ",ncol   );
-      float1d_F graupelncv("graupelncv",ncol   );
-      float1d_F rainnc    ("rainnc    ",ncol   );
-      float1d_F snownc    ("snownc    ",ncol   );
-      float1d_F graupelnc ("graupelnc ",ncol   );
+      double dt_in = dt;
+      double2d_F qv        ("qv        ",ncol,nz);
+      double2d_F qc        ("qc        ",ncol,nz);
+      double2d_F qr        ("qr        ",ncol,nz);
+      double2d_F qi        ("qi        ",ncol,nz);
+      double2d_F qs        ("qs        ",ncol,nz);
+      double2d_F qg        ("qg        ",ncol,nz);
+      double2d_F ni        ("ni        ",ncol,nz);
+      double2d_F ns        ("ns        ",ncol,nz);
+      double2d_F nr        ("nr        ",ncol,nz);
+      double2d_F t         ("t         ",ncol,nz);
+      double2d_F ng        ("ng        ",ncol,nz);
+      double2d_F qlsink    ("qlsink    ",ncol,nz);
+      double2d_F preci     ("preci     ",ncol,nz);
+      double2d_F precs     ("precs     ",ncol,nz);
+      double2d_F precg     ("precg     ",ncol,nz);
+      double2d_F precr     ("precr     ",ncol,nz);
+      double2d_F p         ("p         ",ncol,nz);
+      double2d_F qrcuten   ("qrcuten   ",ncol,nz);
+      double2d_F qscuten   ("qscuten   ",ncol,nz);
+      double2d_F qicuten   ("qicuten   ",ncol,nz);
+      double2d_F dz_arr    ("dz_arr"    ,ncol,nz);
+      double1d_F rainncv   ("rainncv   ",ncol   );
+      double1d_F sr        ("sr        ",ncol   );
+      double1d_F snowncv   ("snowncv   ",ncol   );
+      double1d_F graupelncv("graupelncv",ncol   );
+      double1d_F rainnc    ("rainnc    ",ncol   );
+      double1d_F snownc    ("snownc    ",ncol   );
+      double1d_F graupelnc ("graupelnc ",ncol   );
 
       //////////////////////////////////////////////////////////////////////////////
       // Compute quantities needed for inputs to Morrison 2-mom
@@ -334,15 +334,15 @@ namespace modules {
       });
 
       #ifdef MICRO_MORR_FORTRAN
-        float2d_F th       ("th"       ,ncol,nz);
-        float2d_F pii      ("pii"      ,ncol,nz);
-        float2d_F rho      ("rho"      ,ncol,nz);  // not used
-        float1d_F ht       ("ht"       ,ncol   );  // not used
-        float2d_F w        ("w"        ,ncol,nz);  // not used
-        float2d_F refl_10cm("refl_10cm",ncol,nz);  // not used
-        float2d_F rainprod ("rainprod" ,ncol,nz);  // not used
-        float2d_F evapprod ("evapprod" ,ncol,nz);  // not used
-        float2d_F qndrop   ("qndrop"   ,ncol,nz);  // not used
+        double2d_F th       ("th"       ,ncol,nz);
+        double2d_F pii      ("pii"      ,ncol,nz);
+        double2d_F rho      ("rho"      ,ncol,nz);  // not used
+        double1d_F ht       ("ht"       ,ncol   );  // not used
+        double2d_F w        ("w"        ,ncol,nz);  // not used
+        double2d_F refl_10cm("refl_10cm",ncol,nz);  // not used
+        double2d_F rainprod ("rainprod" ,ncol,nz);  // not used
+        double2d_F evapprod ("evapprod" ,ncol,nz);  // not used
+        double2d_F qndrop   ("qndrop"   ,ncol,nz);  // not used
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           pii(i+1,k+1) = std::pow( p(i+1,k+1) / p0 , R_d/cp_d );
           th (i+1,k+1) = t(i+1,k+1) / pii(i+1,k+1);
@@ -421,7 +421,7 @@ namespace modules {
         auto for_snownc    = host_snownc   .createDeviceCopy();
         auto for_graupelnc = host_graupelnc.createDeviceCopy();
 
-        float2d_F for_t("fort_t",ncol,nz);
+        double2d_F for_t("fort_t",ncol,nz);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
           for_t(i+1,k+1) = th(i+1,k+1) * pii(i+1,k+1);
         });

@@ -84,8 +84,8 @@ namespace modules {
       // hm added new option for hail
       // switch for hail/graupel
       // ihail = 0, dense precipitating ice is graupel
-      // ihail = 1, dense precipitating gice is hail
-      int ihail = 1;
+      // ihail = 1, dense precipitating ice is hail
+      int ihail = coupler.get_option<int>("micro_morr_ihail",1);
       micro.init( ihail );
 
       #ifdef MICRO_MORR_FORTRAN
@@ -114,6 +114,10 @@ namespace modules {
       dm.register_and_allocate<real>("micro_rainnc"   ,"accumulated precipitation (mm)"      ,{ny,nx},{"y","x"});
       dm.register_and_allocate<real>("micro_snownc"   ,"accumulated snow plus cloud ice (mm)",{ny,nx},{"y","x"});
       dm.register_and_allocate<real>("micro_graupelnc","accumulated graupel (mm)"            ,{ny,nx},{"y","x"});
+
+      coupler.register_output_variable<real>( "micro_rainnc"    , core::Coupler::DIMS_SURFACE );
+      coupler.register_output_variable<real>( "micro_snownc"    , core::Coupler::DIMS_SURFACE );
+      coupler.register_output_variable<real>( "micro_graupelnc" , core::Coupler::DIMS_SURFACE );
 
       dm.get_collapsed<real>( "water_vapor"     ) = 0;
       dm.get_collapsed<real>( "cloud_water"     ) = 0;

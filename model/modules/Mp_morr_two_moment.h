@@ -80,7 +80,11 @@ namespace modules {
     double static constexpr qsmall  = 1.e-14;      // smallest allowed hydrometeor mixing ratio
     double static constexpr eii     = 0.1;         // collection efficiency, ice-ice collisions
     double static constexpr eci     = 0.7;         // collection efficiency, ice-droplet collisions
-    double static constexpr cpw     = 4187.;       // specific heat of liquid water
+    #ifdef MICRO_MORR_2011_02_20
+        double static constexpr cpw = 4218.;       // specific heat of liquid water
+    #else
+        double static constexpr cpw = 4187.;       // specific heat of liquid water
+    #endif
     double static constexpr di      = 3.;          // size distribution parameters for cloud ice, snow, graupel
     double static constexpr ds      = 3.;          // size distribution parameters for cloud ice, snow, graupel
     double static constexpr dg      = 3.;          // size distribution parameters for cloud ice, snow, graupel
@@ -99,7 +103,11 @@ namespace modules {
     double static constexpr rhoa    = 1777.;       // aerosol bulk density (kg/m3)
     double static constexpr map     = 0.132;       // molecular weight aerosol (kg/mol)
     double static constexpr ma      = 0.0284;      // molecular weight of 'air' (kg/mol)
-    double static constexpr rr      = 8.3145;      // universal gas constant
+    #ifdef MICRO_MORR_2011_02_20
+        double static constexpr rr  = 8.3187;      // universal gas constant
+    #else
+        double static constexpr rr  = 8.3145;      // universal gas constant
+    #endif
     double static constexpr rm1     = 0.052e-6;    // activation parameter
     double static constexpr sig1    = 2.04;        // geometric mean radius, mode 1 (m)
     double static constexpr nanew1  = 72.2e6;      // total aerosol concentration, mode 1 (m^-3)
@@ -617,11 +625,21 @@ namespace modules {
           xxlv    (i,k) = 3.1484e6-2370.*t3d(i,k);                 // latent heat of vaporation
           xxls    (i,k) = 3.15e6-2370.*t3d(i,k)+0.3337e6;          // latent heat of sublimation
           cpm     (i,k) = cp*(1.+0.887*qv3d(i,k));
-          evs     (i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),0)); // saturation vapor pressure and mixing ratio
-          eis     (i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),1));
+            #ifdef MICRO_MORR_2011_02_20
+              evs (i,k) = polysvp(t3d(i,k),0);
+              eis (i,k) = polysvp(t3d(i,k),1);
+            #else
+              evs (i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),0)); // saturation vapor pressure and mixing ratio
+              eis (i,k) = min(0.99*pres(i,k),polysvp(t3d(i,k),1));
+            #endif
           if (eis(i,k) > evs(i,k)) eis(i,k) = evs(i,k); // make sure ice saturation doesn't exceed water sat. near freezing
-          qvs     (i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k));
-          qvi     (i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k));
+          #ifdef MICRO_MORR_2011_02_20
+            qvs   (i,k) = .622*evs(i,k)/(pres(i,k)-evs(i,k));
+            qvi   (i,k) = .622*eis(i,k)/(pres(i,k)-eis(i,k));
+          #else
+            qvs   (i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k));
+            qvi   (i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k));
+          #endif
           qvqvs   (i,k) = qv3d(i,k)/qvs(i,k);
           qvqvsi  (i,k) = qv3d(i,k)/qvi(i,k);
           rho     (i,k) = pres(i,k)/(r*t3d(i,k));
@@ -699,11 +717,19 @@ namespace modules {
           // fall speed with density correction (heymsfield and benssemer 2006)
           dum          = std::pow(rhosu/rho(i,k),0.54);
           // ikawa and saito 1991 air-density correction 
-          ain    (i,k) = std::pow(rhosu/rho(i,k),0.35)*ai;
+          #ifdef MICRO_MORR_2011_02_20
+            ain  (i,k) = dum*ai;
+          #else
+            ain  (i,k) = std::pow(rhosu/rho(i,k),0.35)*ai;
+          #endif
           arn    (i,k) = dum*ar;
           asn    (i,k) = dum*as;
           // temperature-dependent stokes fall speed
-          acn    (i,k) = g*rhow/(18.*mu(i,k));
+          #ifdef MICRO_MORR_2011_02_20
+            acn  (i,k) = dum*ac;
+          #else
+            acn  (i,k) = g*rhow/(18.*mu(i,k));
+          #endif
           agn    (i,k) = dum*ag;
           lami   (i,k) = 0.;
           // if there is no cloud/precip water, and if subsaturated, then skip microphysics for this cell
@@ -713,11 +739,21 @@ namespace modules {
           }
           if (! skip_micro(i,k)) {
             // thermal conductivity for air
-            kap   (i,k) = 1.414e3*mu(i,k);
+            #ifdef MICRO_MORR_2011_02_20
+              dum = 1.496e-6*std::pow(t3d(i,k),1.5)/(t3d(i,k)+120.);
+              kap (i,k) = 1.414e3*dum;
+            #else
+              kap (i,k) = 1.414e3*mu(i,k);
+            #endif
             // diffusivity of water vapor
             dv    (i,k) = 8.794e-5*std::pow(t3d(i,k),1.81)/pres(i,k);
             // schmit number
-            sc    (i,k) = mu(i,k)/(rho(i,k)*dv(i,k));
+            #ifdef MICRO_MORR_2011_02_20
+              mu(i,k) = dum/rho(i,k);
+              sc(i,k) = mu(i,k)/dv(i,k);
+            #else
+              sc  (i,k) = mu(i,k)/(rho(i,k)*dv(i,k));
+            #endif
             // psychometic corrections
             // rate of change sat. mix. ratio with temperature
             dum         = (rv*std::pow(t3d(i,k),2));
@@ -877,7 +913,10 @@ namespace modules {
                   nprc1(i,k) = prc(i,k)/cons29;
                   nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
                   nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt );
-                  nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
+                  #ifdef MICRO_MORR_2011_02_20
+                  #else
+                    nprc1(i,k) = min( nprc1(i,k) , nprc(i,k) );
+                  #endif
                 }
                 // formula from ikawa and saito (1991)
                 if (qr3d(i,k) >= 1.e-8 && qni3d(i,k) >= 1.e-8) {
@@ -893,8 +932,18 @@ namespace modules {
                   unr = min( unr , 9.1*dum );
                   // for above freezing conditions to get accelerated melting of snow,
                   // we need collection of rain by snow (following lin et al. 1983)
-                  pracs(i,k) = cons41*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lamr(i,k),3)*
-                              (5./(std::pow(lamr(i,k),3)*lams(i,k))+2./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+0.5/(lamr(i,k)*std::pow(lams(i,k),3))));
+                  #ifdef MICRO_MORR_2011_02_20
+                    pracs(i,k) = cons31*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lams(i,k),3)*
+                                (5./(std::pow(lams(i,k),3)*lamr(i,k))+2./(std::pow(lams(i,k),2)*std::pow(lamr(i,k),2))+0.5/(lams(i,k)*std::pow(lamr(i,k),3))));
+                  #else
+                    pracs(i,k) = cons41*(std::pow(std::pow(1.2*umr-0.95*ums,2)+0.08*ums*umr,0.5)*rho(i,k)*n0rr(i,k)*n0s(i,k)/std::pow(lamr(i,k),3)*
+                                (5./(std::pow(lamr(i,k),3)*lams(i,k))+2./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+0.5/(lamr(i,k)*std::pow(lams(i,k),3))));
+                  #endif
+                  #ifdef MICRO_MORR_2011_02_20
+                    npracs(i,k) = cons32*rho(i,k)*std::pow(1.7*std::pow(unr-uns,2)+0.3*unr*uns,0.5)*n0rr(i,k)*n0s(i,k)*(1./(std::pow(lamr(i,k),3)*lams(i,k))+
+                                  1./(std::pow(lamr(i,k),2)*std::pow(lams(i,k),2))+1./(lamr(i,k)*std::pow(lams(i,k),3)));
+                  #else
+                  #endif
                 }
                 // add collection of graupel by rain above freezing
                 // assume all rain collection by graupel above freezing is shed
@@ -920,7 +969,11 @@ namespace modules {
                   npracg(i,k) = cons32*rho(i,k)*std::pow(1.7*std::pow(unr-ung,2)+0.3*unr*ung,0.5)*n0rr(i,k)*n0g(i,k)*
                                 (1./(std::pow(lamr(i,k),3)*lamg(i,k))+1./(std::pow(lamr(i,k),2)*
                                 std::pow(lamg(i,k),2))+1./(lamr(i,k)*std::pow(lamg(i,k),3)));
-                  npracg(i,k) = npracg(i,k)-dum;
+                  #ifdef MICRO_MORR_2011_02_20
+                    npracg(i,k) = max(npracg(i,k)-dum,0.);
+                  #else
+                    npracg(i,k) = npracg(i,k)-dum;
+                  #endif
                 }
                 // accretion of cloud liquid water by rain
                 // continuous collection equation with
@@ -972,9 +1025,18 @@ namespace modules {
                 // snow may persits above freezing, formula from rutledge and hobbs, 1984
                 // if water supersaturation, snow melts to form rain
                 if (qni3d(i,k) >= 1.e-8) {
-                  dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k);
-                  psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
-                               std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)))+dum;
+                  #ifdef MICRO_MORR_2011_02_20
+                    dum = -cpw/xlf(i,k)*t3d(i,k)*pracs(i,k);
+                  #else
+                    dum = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracs(i,k);
+                  #endif
+                  #ifdef MICRO_MORR_2011_02_20
+                    psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*rho(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
+                                 std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)))+dum;
+                  #else
+                    psmlt(i,k) = 2.*pi*n0s(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
+                                 std::pow(asn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons10/(std::pow(lams(i,k),cons35)))+dum;
+                  #endif
                   // in water subsaturation, snow melts and evaporates
                   if (qvqvs(i,k) < 1.) {
                     double epss = 2.*pi*n0s(i,k)*rho(i,k)*dv(i,k)*(f1s/(lams(i,k)*lams(i,k))+f2s*
@@ -988,9 +1050,18 @@ namespace modules {
                 // graupel may persits above freezing, formula from rutledge and hobbs, 1984
                 // if water supersaturation, graupel melts to form rain
                 if (qg3d(i,k) >= 1.e-8) {
-                  dum      = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k);
-                  pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*
-                              std::pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)))+dum;
+                  #ifdef MICRO_MORR_2011_02_20
+                    dum = -cpw/xlf(i,k)*t3d(i,k)*pracg(i,k);
+                  #else
+                    dum = -cpw/xlf(i,k)*(t3d(i,k)-273.15)*pracg(i,k);
+                  #endif
+                  #ifdef MICRO_MORR_2011_02_20
+                    pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*rho(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*
+                                std::pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)))+dum;
+                  #else
+                    pgmlt(i,k) = 2.*pi*n0g(i,k)*kap(i,k)*(273.15-t3d(i,k))/xlf(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*
+                                std::pow(agn(i,k)*rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)))+dum;
+                  #endif
                   if (qvqvs(i,k) < 1.) {
                     double epsg = 2.*pi*n0g(i,k)*rho(i,k)*dv(i,k)*(f1s/(lamg(i,k)*lamg(i,k))+f2s*std::pow(agn(i,k)*
                                  rho(i,k)/mu(i,k),0.5)*std::pow(sc(i,k),1./3.)*cons11/(std::pow(lamg(i,k),cons36)));
@@ -1038,6 +1109,10 @@ namespace modules {
                 qr3dten (i,k) = qr3dten (i,k) + (pre(i,k)+pra(i,k)+prc(i,k)-psmlt(i,k)-pgmlt(i,k)+pracs(i,k)+pracg(i,k));
                 qni3dten(i,k) = qni3dten(i,k) + (psmlt(i,k)+evpms(i,k)-pracs(i,k));
                 qg3dten (i,k) = qg3dten (i,k) + (pgmlt(i,k)+evpmg(i,k)-pracg(i,k));
+                #ifdef MICRO_MORR_2011_02_20
+                  ns3dten(i,k) = ns3dten(i,k)-npracs(i,k);
+                #else
+                #endif
                 nc3dten (i,k) = nc3dten (i,k) + (-npra(i,k)-nprc(i,k));
                 nr3dten (i,k) = nr3dten (i,k) + (nprc1(i,k)+nragg(i,k)-npracg(i,k));
                 c2prec  (i,k) = pra(i,k)+prc(i,k);
@@ -1084,7 +1159,11 @@ namespace modules {
               double dumt   = t3d(i,k)+dt*t3dten(i,k);
               double dumqv  = qv3d(i,k)+dt*qv3dten(i,k);
               double dum=min(0.99*pres(i,k),polysvp(dumt,0));
-              double dumqss = ep_2*dum/(pres(i,k)-dum);
+              #ifdef MICRO_MORR_2011_02_20
+                double dumqss = 0.622*polysvp(dumt,0)/ (pres(i,k)-polysvp(dumt,0));
+              #else
+                double dumqss = ep_2*dum/(pres(i,k)-dum);
+              #endif
               double dumqc  = qc3d(i,k)+dt*qc3dten(i,k);
               dumqc  = max(dumqc,0.);
               // saturation adjustment for liquid
@@ -1276,8 +1355,13 @@ namespace modules {
                 // immersion freezing (bigg 1953)
                 mnuccc(i,k) = cons38*dap(i,k)*nacnt*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+5.))-4.*std::log(lamc(i,k)));
                 nnuccc(i,k) = 2.*pi*dap(i,k)*nacnt*cdist1(i,k)*std::tgamma(pgam(i,k)+2.)/lamc(i,k);
-                mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
-                nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                #ifdef MICRO_MORR_2011_02_20
+                  mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))   );
+                  nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))   );
+                #else
+                  mnuccc(i,k) = mnuccc(i,k)+cons39*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(7.+pgam(i,k)))-6.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                  nnuccc(i,k) = nnuccc(i,k)+cons40*std::exp(std::log(cdist1(i,k))+std::log(std::tgamma(pgam(i,k)+4.))-3.*std::log(lamc(i,k)))*(std::exp(aimm*(273.15-t3d(i,k)))-1.);
+                #endif
                 // put in a catch here to prevent divergence between number conc. and
                 // mixing ratio, since strict conservation not checked for number conc
                 nnuccc(i,k) = min(nnuccc(i,k),nc3d(i,k)/dt);
@@ -1295,7 +1379,10 @@ namespace modules {
                 nprc1(i,k) = prc(i,k)/cons29;
                 nprc(i,k) = prc(i,k)/(qc3d(i,k)/nc3d(i,k));
                 nprc(i,k) = min( nprc(i,k) , nc3d(i,k)/dt );
-                nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
+                #ifdef MICRO_MORR_2011_02_20
+                #else
+                  nprc1(i,k) = min( nprc1(i,k) , nprc(i,k)    );
+                #endif
               }
               // self-collection of droplet not included in kk2000 scheme
               // snow aggregation from passarelli, 1978, used by reisner, 1998
@@ -1519,7 +1606,11 @@ namespace modules {
               if (t3d(i,k) < 269.15 && qr3d(i,k) >= qsmall) {
                 // immersion freezing (bigg 1953)
                 mnuccr(i,k) = cons20*nr3d(i,k)*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/std::pow(lamr(i,k),3)/std::pow(lamr(i,k),3);
-                nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/std::pow(lamr(i,k),3);
+                #ifdef MICRO_MORR_2011_02_20
+                  nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))   )/std::pow(lamr(i,k),3);
+                #else
+                  nnuccr(i,k) = pi*nr3d(i,k)*bimm*(std::exp(aimm*(273.15-t3d(i,k)))-1.)/std::pow(lamr(i,k),3);
+                #endif
                 // prevent divergence between mixing ratio and number conc
                 nnuccr(i,k) = min(nnuccr(i,k),nr3d(i,k)/dt);
               }
@@ -1710,6 +1801,11 @@ namespace modules {
                 pracg(i,k) = 0.;
                 psacr(i,k) = 0.;
                 psacwg(i,k) = 0.;
+                #ifdef MICRO_MORR_2011_02_20
+                  pgsacw(i,k) = 0.;
+                  pgracs(i,k) = 0.;
+                #else
+                #endif
                 prdg(i,k) = 0.;
                 eprdg(i,k) = 0.;
                 evpmg(i,k) = 0.;
@@ -1721,14 +1817,17 @@ namespace modules {
                 nsubg(i,k) = 0.;
                 ngmltg(i,k) = 0.;
                 ngmltr(i,k) = 0.;
-                piacrs(i,k) = piacrs(i,k)+piacr(i,k);
-                piacr(i,k) = 0.;
-                pracis(i,k) = pracis(i,k)+praci(i,k);
-                praci(i,k) = 0.;
-                psacws(i,k) = psacws(i,k)+pgsacw(i,k);
-                pgsacw(i,k) = 0.;
-                pracs(i,k) = pracs(i,k)+pgracs(i,k);
-                pgracs(i,k) = 0.;
+                #ifdef MICRO_MORR_2011_02_20
+                #else
+                  piacrs(i,k) = piacrs(i,k)+piacr(i,k);
+                  piacr(i,k) = 0.;
+                  pracis(i,k) = pracis(i,k)+praci(i,k);
+                  praci(i,k) = 0.;
+                  psacws(i,k) = psacws(i,k)+pgsacw(i,k);
+                  pgsacw(i,k) = 0.;
+                  pracs(i,k) = pracs(i,k)+pgracs(i,k);
+                  pgracs(i,k) = 0.;
+                #endif
               }
               // conservation of qc
               dum = (prc(i,k)+pra(i,k)+mnuccc(i,k)+psacws(i,k)+psacwi(i,k)+qmults(i,k)+psacwg(i,k)+
@@ -1812,10 +1911,17 @@ namespace modules {
               }
               qv3dten(i,k) = qv3dten(i,k)+(-pre(i,k)-prd(i,k)-prds(i,k)-mnuccd(i,k)-eprd(i,k)-eprds(i,k)-
                              prdg(i,k)-eprdg(i,k));
-              t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+
-                            prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+
-                            qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+
-                            pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
+              #ifdef MICRO_MORR_2011_02_20
+                t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+
+                              prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+
+                              qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+
+                              pgsacw(i,k)+pgracs(i,k)                       )*xlf(i,k))/cpm(i,k);
+              #else
+                t3dten(i,k) = t3dten(i,k)+(pre(i,k)*xxlv(i,k)+(prd(i,k)+prds(i,k)+mnuccd(i,k)+eprd(i,k)+eprds(i,k)+
+                              prdg(i,k)+eprdg(i,k))*xxls(i,k)+(psacws(i,k)+psacwi(i,k)+mnuccc(i,k)+mnuccr(i,k)+
+                              qmults(i,k)+qmultg(i,k)+qmultr(i,k)+qmultrg(i,k)+pracs(i,k)+psacwg(i,k)+pracg(i,k)+
+                              pgsacw(i,k)+pgracs(i,k)+piacr(i,k)+piacrs(i,k))*xlf(i,k))/cpm(i,k);
+              #endif
               qc3dten(i,k) = qc3dten(i,k)+(-pra(i,k)-prc(i,k)-mnuccc(i,k)+pcc(i,k)-psacws(i,k)-psacwi(i,k)-
                              qmults(i,k)-qmultg(i,k)-psacwg(i,k)-pgsacw(i,k));
               qi3dten(i,k) = qi3dten(i,k)+(prd(i,k)+eprd(i,k)+psacwi(i,k)+mnuccc(i,k)-prci(i,k)-prai(i,k)+
@@ -1853,12 +1959,19 @@ namespace modules {
                              nmultrg(i,k)+nnuccd(i,k)-niacr(i,k)-niacrs(i,k));
               nr3dten(i,k) = nr3dten(i,k)+(nprc1(i,k)-npracs(i,k)-nnuccr(i,k)+nragg(i,k)-niacr(i,k)-niacrs(i,k)-
                              npracg(i,k)-ngracs(i,k));
-              c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+
-                             mnuccc(i,k)+psacwi(i,k);
+              #ifdef MICRO_MORR_2011_02_20
+              #else
+                c2prec (i,k) = pra(i,k)+prc(i,k)+psacws(i,k)+qmults(i,k)+qmultg(i,k)+psacwg(i,k)+pgsacw(i,k)+
+                               mnuccc(i,k)+psacwi(i,k);
+              #endif
               double dumt       = t3d(i,k)+dt*t3dten(i,k);
               double dumqv      = qv3d(i,k)+dt*qv3dten(i,k);
               double dum        = min( 0.99*pres(i,k) , polysvp(dumt,0) );
-              double dumqss     = ep_2*dum/(pres(i,k)-dum);
+              #ifdef MICRO_MORR_2011_02_20
+                double dumqss = 0.622*polysvp(dumt,0)/ (pres(i,k)-polysvp(dumt,0));
+              #else
+                double dumqss     = ep_2*dum/(pres(i,k)-dum);
+              #endif
               double dumqc      = qc3d(i,k)+dt*qc3dten(i,k);
               dumqc            = max( dumqc , 0. );
               // saturation adjustment for liquid
@@ -2015,8 +2128,13 @@ namespace modules {
             double dum    = std::pow(rhosu/rho(i,k),0.54);
             ums    = min(ums,1.2*dum);
             uns    = min(uns,1.2*dum);
-            umi    = min(umi,1.2*std::pow(rhosu/rho(i,k),0.35));
-            uni    = min(uni,1.2*std::pow(rhosu/rho(i,k),0.35));
+            #ifdef MICRO_MORR_2011_02_20
+              umi  = min(umi,1.2*dum);
+              uni  = min(uni,1.2*dum);
+            #else
+              umi  = min(umi,1.2*std::pow(rhosu/rho(i,k),0.35));
+              uni  = min(uni,1.2*std::pow(rhosu/rho(i,k),0.35));
+            #endif
             umr    = min(umr,9.1*dum);
             unr    = min(unr,9.1*dum);
             umg    = min(umg,20.*dum);
@@ -2048,19 +2166,22 @@ namespace modules {
         if (hydro_pres(i)) {
           nstep(i) = 1;
           for (int k = nz; k >= 1; k--) {
-            if (k <= nz-1) {
-              //  v3.3 modify fallspeed below level of precip
-              if (fr (i,k) < 1.e-10) fr (i,k) = fr (i,k+1);
-              if (fi (i,k) < 1.e-10) fi (i,k) = fi (i,k+1);
-              if (fni(i,k) < 1.e-10) fni(i,k) = fni(i,k+1);
-              if (fs (i,k) < 1.e-10) fs (i,k) = fs (i,k+1);
-              if (fns(i,k) < 1.e-10) fns(i,k) = fns(i,k+1);
-              if (fnr(i,k) < 1.e-10) fnr(i,k) = fnr(i,k+1);
-              if (fc (i,k) < 1.e-10) fc (i,k) = fc (i,k+1);
-              if (fnc(i,k) < 1.e-10) fnc(i,k) = fnc(i,k+1);
-              if (fg (i,k) < 1.e-10) fg (i,k) = fg (i,k+1);
-              if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1);
-            } // k le nz-1
+            #ifdef MICRO_MORR_2011_02_20
+            #else
+              if (k <= nz-1) {
+                //  v3.3 modify fallspeed below level of precip
+                if (fr (i,k) < 1.e-10) fr (i,k) = fr (i,k+1);
+                if (fi (i,k) < 1.e-10) fi (i,k) = fi (i,k+1);
+                if (fni(i,k) < 1.e-10) fni(i,k) = fni(i,k+1);
+                if (fs (i,k) < 1.e-10) fs (i,k) = fs (i,k+1);
+                if (fns(i,k) < 1.e-10) fns(i,k) = fns(i,k+1);
+                if (fnr(i,k) < 1.e-10) fnr(i,k) = fnr(i,k+1);
+                if (fc (i,k) < 1.e-10) fc (i,k) = fc (i,k+1);
+                if (fnc(i,k) < 1.e-10) fnc(i,k) = fnc(i,k+1);
+                if (fg (i,k) < 1.e-10) fg (i,k) = fg (i,k+1);
+                if (fng(i,k) < 1.e-10) fng(i,k) = fng(i,k+1);
+              } // k le nz-1
+            #endif
             // calculate number of split time steps
             double rgvm = max(fr(i,k),max(fi(i,k),max(fs(i,k),max(fc(i,k),max(fni(i,k),max(fnr(i,k),
                               max(fns(i,k),max(fnc(i,k),max(fg(i,k),fng(i,k))))))))));
@@ -2167,8 +2288,11 @@ namespace modules {
               if (k == 1) {
                 precrt (i) = precrt (i)+(faloutr(i,1)+faloutc(i,1)+falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
                 snowrt (i) = snowrt (i)+(falouts(i,1)+falouti(i,1)+faloutg(i,1))*dt/nstep(i);
-                snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
-                grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
+                #ifdef MICRO_MORR_2011_02_20
+                #else
+                  snowprt(i) = snowprt(i)+(falouti(i,1)+falouts(i,1))*dt/nstep(i);
+                  grplprt(i) = grplprt(i)+(faloutg(i,1))*dt/nstep(i);
+                #endif
               }
           }
         });
@@ -2198,7 +2322,10 @@ namespace modules {
             qi3d (i,k) = qi3d (i,k)+qi3dten (i,k)*dt;
             qni3d(i,k) = qni3d(i,k)+qni3dten(i,k)*dt;
             qr3d (i,k) = qr3d (i,k)+qr3dten (i,k)*dt;
-            nc3d (i,k) = nc3d (i,k)+nc3dten (i,k)*dt;
+            #ifdef MICRO_MORR_2011_02_20
+            #else
+              nc3d (i,k) = nc3d (i,k)+nc3dten (i,k)*dt;
+            #endif
             ni3d (i,k) = ni3d (i,k)+ni3dten (i,k)*dt;
             ns3d (i,k) = ns3d (i,k)+ns3dten (i,k)*dt;
             nr3d (i,k) = nr3d (i,k)+nr3dten (i,k)*dt;
@@ -2210,12 +2337,22 @@ namespace modules {
             t3d (i,k) = t3d (i,k)+t3dten (i,k)*dt;
             qv3d(i,k) = qv3d(i,k)+qv3dten(i,k)*dt;
             // saturation vapor pressure and mixing ratio
-            evs(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),0) )  ; // pa
-            eis(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),1) ) ;  // pa
+            #ifdef MICRO_MORR_2011_02_20
+              evs(i,k) = polysvp(t3d(i,k),0);
+              eis(i,k) = polysvp(t3d(i,k),1);
+            #else
+              evs(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),0) )  ; // pa
+              eis(i,k) = min( 0.99*pres(i,k) , polysvp(t3d(i,k),1) ) ;  // pa
+            #endif
             // make sure ice saturation doesn't exceed water sat. near freezing
             if (eis(i,k) > evs(i,k)) eis(i,k) = evs(i,k);
-            qvs(i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k));
-            qvi(i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k));
+            #ifdef MICRO_MORR_2011_02_20
+              qvs(i,k) = .622*evs(i,k)/(pres(i,k)-evs(i,k));
+              qvi(i,k) = .622*eis(i,k)/(pres(i,k)-eis(i,k));
+            #else
+              qvs(i,k) = ep_2*evs(i,k)/(pres(i,k)-evs(i,k));
+              qvi(i,k) = ep_2*eis(i,k)/(pres(i,k)-eis(i,k));
+            #endif
             qvqvs(i,k) = qv3d(i,k)/qvs(i,k);
             qvqvsi(i,k) = qv3d(i,k)/qvi(i,k);
             // at subsaturation, remove small amounts of cloud/precip water
@@ -2429,7 +2566,11 @@ namespace modules {
             // hm, 12/28/12, lower maximum ice concentration to address problem
             // of excessive and persistent anvil
             // note: this may change/reduce sensitivity to aerosol/ccn concentration
-            ni3d(i,k) = min( ni3d(i,k) , 0.3e6/rho(i,k) );
+            #ifdef MICRO_MORR_2011_02_20
+              ni3d(i,k) = min( ni3d(i,k) , 10.e6/rho(i,k) );
+            #else
+              ni3d(i,k) = min( ni3d(i,k) , 0.3e6/rho(i,k) );
+            #endif
             // add bound on droplet number - cannot exceed aerosol concentration
             if (iinum==0 && iact==2) {
               nc3d(i,k) = min( nc3d(i,k) , (nanew1+nanew2)/rho(i,k) );
@@ -2454,56 +2595,99 @@ namespace modules {
     // t is input in units of k.
     // type refers to saturation with respect to liquid (0) or ice (1)
     // replace goff-gratch with faster formulation from flatau et al. 1992, table 4 (right-hand column)
-    KOKKOS_INLINE_FUNCTION static double polysvp( double t , int type) {
-      // liquid
-      double a0 = 6.11239921;
-      double a1 = 0.443987641;
-      double a2 = 0.142986287e-1;
-      double a3 = 0.264847430e-3;
-      double a4 = 0.302950461e-5;
-      double a5 = 0.206739458e-7;
-      double a6 = 0.640689451e-10;
-      double a7 = -0.952447341e-13;
-      double a8 = -0.976195544e-15;
-      // ice
-      double a0i = 6.11147274;
-      double a1i = 0.503160820;
-      double a2i = 0.188439774e-1;
-      double a3i = 0.420895665e-3;
-      double a4i = 0.615021634e-5;
-      double a5i = 0.602588177e-7;
-      double a6i = 0.385852041e-9;
-      double a7i = 0.146898966e-11;
-      double a8i = 0.252751365e-14;
-      double ret;
-      // ice
-      if (type==1) {
-        // hm 11/16/20, use goff-gratch for t < 195.8 k and flatau et al. equal or above 195.8 k
-        if (t >= 195.8) {
-          double dt=t-273.15;
-          ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) ;
+    #ifdef MICRO_MORR_2011_02_20
+
+      KOKKOS_INLINE_FUNCTION static double polysvp( double t , int type) {
+        // liquid
+        double a0 = 6.11239921;
+        double a1 = 0.443987641;
+        double a2 = 0.142986287e-1;
+        double a3 = 0.264847430e-3;
+        double a4 = 0.302950461e-5;
+        double a5 = 0.206739458e-7;
+        double a6 = 0.640689451e-10;
+        double a7 = -0.952447341e-13;
+        double a8 = -0.976195544e-15;
+        // ice
+        double a0i = 6.11147274;
+        double a1i = 0.503160820;
+        double a2i = 0.188439774e-1;
+        double a3i = 0.420895665e-3;
+        double a4i = 0.615021634e-5;
+        double a5i = 0.602588177e-7;
+        double a6i = 0.385852041e-9;
+        double a7i = 0.146898966e-11;
+        double a8i = 0.252751365e-14;
+        double ret;
+        // ICE
+        if (type == 1) {
+          real dt = max(-80.,t-273.16);
+          ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt)))))));
           ret = ret*100.;
-        } else {
-          ret = std::pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*
-                (1.-t/273.16)+std::log10(6.1071))*100.;
         }
-      }
-      // liquid
-      if (type==0) {
-        // hm 11/16/20, use goff-gratch for t < 202.0 k and flatau et al. equal or above 202.0 k
-        if (t >= 202.0) {
-          double dt = t-273.15;
+        // liquid
+        if (type == 0) {
+          real dt = max(-80.,t-273.16);
           ret = a0 + dt*(a1+dt*(a2+dt*(a3+dt*(a4+dt*(a5+dt*(a6+dt*(a7+a8*dt)))))));
           ret = ret*100.;
-        } else {
-          // note: uncertain below -70 c, but produces physical values (non-negative) unlike flatau
-          ret = std::pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*
-                (std::pow(10.,11.344*(1.-t/373.16))-1.)+
-                8.1328e-3*(std::pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
         }
+        return ret;
       }
-      return ret;
-    }
+
+    #else
+
+      KOKKOS_INLINE_FUNCTION static double polysvp( double t , int type) {
+        // liquid
+        double a0 = 6.11239921;
+        double a1 = 0.443987641;
+        double a2 = 0.142986287e-1;
+        double a3 = 0.264847430e-3;
+        double a4 = 0.302950461e-5;
+        double a5 = 0.206739458e-7;
+        double a6 = 0.640689451e-10;
+        double a7 = -0.952447341e-13;
+        double a8 = -0.976195544e-15;
+        // ice
+        double a0i = 6.11147274;
+        double a1i = 0.503160820;
+        double a2i = 0.188439774e-1;
+        double a3i = 0.420895665e-3;
+        double a4i = 0.615021634e-5;
+        double a5i = 0.602588177e-7;
+        double a6i = 0.385852041e-9;
+        double a7i = 0.146898966e-11;
+        double a8i = 0.252751365e-14;
+        double ret;
+        // ice
+        if (type==1) {
+          // hm 11/16/20, use goff-gratch for t < 195.8 k and flatau et al. equal or above 195.8 k
+          if (t >= 195.8) {
+            double dt=t-273.15;
+            ret = a0i + dt*(a1i+dt*(a2i+dt*(a3i+dt*(a4i+dt*(a5i+dt*(a6i+dt*(a7i+a8i*dt))))))) ;
+            ret = ret*100.;
+          } else {
+            ret = std::pow(10.,-9.09718*(273.16/t-1.)-3.56654*std::log10(273.16/t)+0.876793*
+                  (1.-t/273.16)+std::log10(6.1071))*100.;
+          }
+        }
+        // liquid
+        if (type==0) {
+          // hm 11/16/20, use goff-gratch for t < 202.0 k and flatau et al. equal or above 202.0 k
+          if (t >= 202.0) {
+            double dt = t-273.15;
+            ret = a0 + dt*(a1+dt*(a2+dt*(a3+dt*(a4+dt*(a5+dt*(a6+dt*(a7+a8*dt)))))));
+            ret = ret*100.;
+          } else {
+            // note: uncertain below -70 c, but produces physical values (non-negative) unlike flatau
+            ret = std::pow(10.,-7.90298*(373.16/t-1.)+5.02808*std::log10(373.16/t)-1.3816e-7*
+                  (std::pow(10.,11.344*(1.-t/373.16))-1.)+
+                  8.1328e-3*(std::pow(10.,-3.49149*(373.16/t-1.))-1.)+std::log10(1013.246))*100.;
+          }
+        }
+        return ret;
+      }
+
+    #endif
 
   };
 

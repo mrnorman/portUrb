@@ -20,29 +20,30 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 1000;
-    real        dz          = 500;
+    real        dx          = 250;
+    real        dz          = 250;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
     real        dtphys_in   = 0;    // Use dycore time step
-    int         dyn_cycle   = 10;
-    real        out_freq    = 7200;
+    int         dyn_cycle   = 1;
+    real        out_freq    = 100;
     real        inform_freq = 100;
     std::string out_prefix  = "supercell_1000m";
     bool        is_restart  = false;
 
     core::Coupler coupler;
-    coupler.set_option<std::string>( "out_prefix"     , out_prefix  );
-    coupler.set_option<std::string>( "init_data"      , "supercell" );
-    coupler.set_option<real       >( "out_freq"       , out_freq    );
-    coupler.set_option<bool       >( "is_restart"     , is_restart  );
-    coupler.set_option<std::string>( "restart_file"   , "supercell_2000m_00000001.nc" );
-    coupler.set_option<real       >( "latitude"       , 0.          );
-    coupler.set_option<real       >( "roughness"      , 0.1         );
-    coupler.set_option<real       >( "cfl"            , 0.6         );
-    coupler.set_option<bool       >( "enable_gravity" , true        );
-    coupler.set_option<bool       >( "weno_all"       , true        );
+    coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
+    coupler.set_option<std::string>( "init_data"        , "supercell" );
+    coupler.set_option<real       >( "out_freq"         , out_freq    );
+    coupler.set_option<bool       >( "is_restart"       , is_restart  );
+    coupler.set_option<std::string>( "restart_file"     , "supercell_2000m_00000001.nc" );
+    coupler.set_option<real       >( "latitude"         , 0.          );
+    coupler.set_option<real       >( "roughness"        , 0.1         );
+    coupler.set_option<real       >( "cfl"              , 0.6         );
+    coupler.set_option<bool       >( "enable_gravity"   , true        );
+    coupler.set_option<bool       >( "weno_all"         , true        );
+    coupler.set_option<int        >( "micro_morr_ihail" , 1           );
 
     coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 
@@ -86,14 +87,14 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step             (c,dt);            };
-        // auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
+        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
         // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
         auto run_les       = [&] (Coupler &c) { les_closure.apply            (c,dt);            };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate     (c,dt);            };
         auto run_micro     = [&] (Coupler &c) { micro.time_step              (c,dt);            };
         coupler.run_module( run_micro     , "microphysics"   );
         coupler.run_module( run_dycore    , "dycore"         );
-        // coupler.run_module( run_sponge    , "sponge"         );
+        coupler.run_module( run_sponge    , "sponge"         );
         // coupler.run_module( run_surf_flux , "surface_fluxes" );
         coupler.run_module( run_les       , "les_closure"    );
         coupler.run_module( run_tavg      , "time_averager"  );

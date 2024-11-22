@@ -664,15 +664,15 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "supercell2") {
 
-      auto compute_temp = KOKKOS_LAMBDA (real z) -> real {
-        if (z < 12000) { return 300.+(213.-300.)/12000.*z; }
-        else           { return 213.; }
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
+        if (z < 12000) { return 300 + (343-300)*std::pow(z/12000,1.25_fp); }
+        else           { return 343*std::exp(grav/(cp_d*213)*(z-12000)); }
       };
-      auto compute_qv = KOKKOS_LAMBDA (real z) -> real {
-        if (z < 12000) { return std::min(0.014_fp,std::pow(-3.17e-5_fp*z+0.53_fp,6._fp)); }
-        else           { return std::pow(4.62e-6_fp*z+0.1_fp,6._fp); }
+      auto compute_relhum = KOKKOS_LAMBDA (real z) -> real {
+        if (z < 12000) { return 1-0.75*std::pow(z/12000,1.25_fp); }
+        else           { return 0.25; }
       };
-      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_temp_qv(compute_temp,compute_qv,nz,zlen,p0,grav,R_d,R_v).createDeviceCopy();
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
@@ -681,18 +681,21 @@ namespace custom_modules {
         dm_temp (k,j,i) = 0;
         dm_rho_v(k,j,i) = 0;
         for (int kk=0; kk<nqpoints; kk++) {
-          real z     = (k+0.5)*dz + qpoints(kk)*dz;
-          real T     = compute_temp(z);
-          real qv    = compute_qv(z);
-          real p     = pressGLL(k,kk);
-          real rho_d = p/((R_d+qv*R_v)*T);
-          real rho_v = qv*rho_d;
-          real w     = 0;
+          real z      = (k+0.5)*dz + qpoints(kk)*dz;
+          real p      = pressGLL(k,kk);
+          real theta  = compute_theta(z);
+          real T      = theta*std::pow(p/p0,R_d/cp_d);
+          real qvs    = 380/p*std::exp(17.27*(T-273)/(T-36));
+          real qv     = std::min( 0.014_fp , qvs * compute_relhum(z) );
+          real rho_d  = p/((R_d+qv*R_v)*T);
+          real rho_v  = qv*rho_d;
+          real w      = 0;
           real hr = 7.25; // radius of hodograph
+          real umax = hr + (40-M_PI/2*hr);
           real u;
           if      (z <= 2000) { u = hr*(1-std::cos(M_PI/2*z/2000)); }
-          else if (z <= 7000) { u = hr+(40-hr)*(z-2000)/5000;       }
-          else                { u = 40;                             }
+          else if (z <= 7000) { u = hr+(umax-hr)*(z-2000)/5000;     }
+          else                { u = umax;                           }
           real v;
           if      (z <= 2000) { v = hr*std::sin(M_PI/2*z/2000);     }
           else                { v = hr;                             }

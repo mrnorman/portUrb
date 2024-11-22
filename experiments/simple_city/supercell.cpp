@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 250;
-    real        dz          = 250;
+    real        dx          = 1000;
+    real        dz          = 500;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
-    coupler.set_option<std::string>( "init_data"        , "supercell" );
+    coupler.set_option<std::string>( "init_data"        , "supercell2" );
     coupler.set_option<real       >( "out_freq"         , out_freq    );
     coupler.set_option<bool       >( "is_restart"       , is_restart  );
     coupler.set_option<std::string>( "restart_file"     , "supercell_2000m_00000001.nc" );
@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "cfl"              , 0.6         );
     coupler.set_option<bool       >( "enable_gravity"   , true        );
     coupler.set_option<bool       >( "weno_all"         , true        );
-    coupler.set_option<int        >( "micro_morr_ihail" , 1           );
+    coupler.set_option<int        >( "micro_morr_ihail" , 0           );
 
     coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step             (c,dt);            };
-        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt*100,0.1); };
+        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.1); };
         // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
         auto run_les       = [&] (Coupler &c) { les_closure.apply            (c,dt);            };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate     (c,dt);            };

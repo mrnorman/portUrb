@@ -664,13 +664,14 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "supercell2") {
 
+      real z_trop = 14000;
       auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
-        if (z < 12000) { return 300 + (343-300)*std::pow(z/12000,1.25_fp); }
-        else           { return 343*std::exp(grav/(cp_d*213)*(z-12000)); }
+        if (z < z_trop) { return 300 + (343-300)*std::pow(z/z_trop,1.25_fp); }
+        else            { return 343*std::exp(grav/(cp_d*213)*(z-z_trop));   }
       };
       auto compute_relhum = KOKKOS_LAMBDA (real z) -> real {
-        if (z < 12000) { return 1-0.75*std::pow(z/12000,1.25_fp); }
-        else           { return 0.25; }
+        if (z < z_trop) { return 1-0.75*std::pow(z/z_trop,1.25_fp); }
+        else            { return 0.25;                              }
       };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {

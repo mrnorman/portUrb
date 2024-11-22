@@ -427,7 +427,7 @@ namespace modules {
 
         double2d_F for_t("fort_t",ncol,nz);
         parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nz,ncol) , KOKKOS_LAMBDA (int k, int i) {
-          for_t(i+1,k+1) = th(i+1,k+1) * pii(i+1,k+1);
+          for_t(i+1,k+1) = for_th(i+1,k+1) * pii(i+1,k+1);
         });
 
       #endif
@@ -486,6 +486,21 @@ namespace modules {
         errs_snownc   .push_back( sum_snownc   > 1.e-14 ? diff_snownc   /sum_snownc    : 0 );
         errs_graupelnc.push_back( sum_graupelnc> 1.e-14 ? diff_graupelnc/sum_graupelnc : 0 );
         trace_size++;
+        Kokkos::fence();
+        qv        = for_qv       ;
+        qc        = for_qc       ;
+        qr        = for_qr       ;
+        qi        = for_qi       ;
+        qs        = for_qs       ;
+        qg        = for_qg       ;
+        ni        = for_ni       ;
+        ns        = for_ns       ;
+        nr        = for_nr       ;
+        ng        = for_ng       ;
+        t         = for_t        ;
+        rainnc    = for_rainnc   ;
+        snownc    = for_snownc   ;
+        graupelnc = for_graupelnc;
       #endif
       
       ///////////////////////////////////////////////////////////////////////////////

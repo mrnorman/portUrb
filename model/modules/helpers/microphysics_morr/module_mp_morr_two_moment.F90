@@ -650,30 +650,30 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
                                        its, ite, jts, jte, kts, kte
 ! Temporary changed from INOUT to IN
 
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
                           qv, qc, qr, qi, qs, qg, ni, ns, nr, TH, NG   
 !jdf                      qndrop ! hm added, wrf-chem
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: qndrop
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: qndrop
 !jdf  REAL, DIMENSION(ims:ime, kms:kme, jms:jme),INTENT(INOUT):: CSED3D, &
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: QLSINK, &
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: QLSINK, &
                           rainprod, evapprod, &
                           PRECI,PRECS,PRECG,PRECR ! HM, WRF-CHEM
 !, effcs, effis
 
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
                           pii, p, dz, rho, w !, tke, nctend, nitend,kzh
-   REAL(c_float), INTENT(IN):: dt_in
+   REAL(c_double), INTENT(IN):: dt_in
    INTEGER(c_int), INTENT(IN):: ITIMESTEP
 
-   REAL(c_float), DIMENSION(ims:ime, jms:jme), INTENT(INOUT):: &
+   REAL(c_double), DIMENSION(ims:ime, jms:jme), INTENT(INOUT):: &
                           RAINNC, RAINNCV, SR, &
 ! hm added 7/13/13
                           SNOWNC,SNOWNCV,GRAUPELNC,GRAUPELNCV
 
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT)::       &  ! GT
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT)::       &  ! GT
                           refl_10cm
 
-   REAL(c_float) , DIMENSION( ims:ime , jms:jme ) , INTENT(IN) ::       ht
+   REAL(c_double) , DIMENSION( ims:ime , jms:jme ) , INTENT(IN) ::       ht
 
    LOGICAL(c_bool), INTENT(IN) :: wetscav_on
 
@@ -701,7 +701,7 @@ SUBROUTINE MP_MORR_TWO_MOMENT(ITIMESTEP,                       &
 
 ! add cumulus tendencies
 
-   REAL(c_float), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
+   REAL(c_double), DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(IN):: &
       qrcuten, qscuten, qicuten
 
   LOGICAL(c_bool), INTENT(IN) ::                F_QNDROP  ! wrf-chem

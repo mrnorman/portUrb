@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     real        nz          = zlen/dz;
     real        dtphys_in   = 0;    // Use dycore time step
     int         dyn_cycle   = 1;
-    real        out_freq    = 100;
+    real        out_freq    = 7200;
     real        inform_freq = 100;
     std::string out_prefix  = "supercell_1000m";
     bool        is_restart  = false;

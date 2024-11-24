@@ -27,26 +27,31 @@ for i in range(nfiles) :
 
 plt.plot(sfc_theta_min)
 plt.title("sfc_theta_min")
+plt.grid()
 plt.show()
 plt.close()
 
 plt.plot(cold_pool_frac)
 plt.title("cold_pool_frac")
+plt.grid()
 plt.show()
 plt.close()
 
 plt.plot(precip_accum)
 plt.title("precip_accum")
+plt.grid()
 plt.show()
 plt.close()
 
 plt.plot(min_w)
 plt.title("min_w")
+plt.grid()
 plt.show()
 plt.close()
 
 plt.plot(max_w)
 plt.title("max_w")
+plt.grid()
 plt.show()
 plt.close()
 
@@ -60,12 +65,14 @@ rho_i = np.array(nc["cloud_ice"  ])
 rho_s = np.array(nc["snow"       ])
 rho_g = np.array(nc["graupel"    ])
 
-qv = np.array(nc["water_vapor"]) / rho_d
-qc = np.array(nc["cloud_water"]) / rho_d
-qr = np.array(nc["rain_water" ]) / rho_d
-qi = np.array(nc["cloud_ice"  ]) / rho_d
-qs = np.array(nc["snow"       ]) / rho_d
-qg = np.array(nc["graupel"    ]) / rho_d
+rho = rho_d + rho_v + rho_c + rho_r + rho_i + rho_s + rho_g
+
+qv = np.array(nc["water_vapor"]) / rho
+qc = np.array(nc["cloud_water"]) / rho
+qr = np.array(nc["rain_water" ]) / rho
+qi = np.array(nc["cloud_ice"  ]) / rho
+qs = np.array(nc["snow"       ]) / rho
+qg = np.array(nc["graupel"    ]) / rho
 
 # plt.plot(qv,label="qv")
 plt.plot(np.mean(qc,axis=(1,2))*1000,z,label="qc")
@@ -75,6 +82,7 @@ plt.plot(np.mean(qs,axis=(1,2))*1000,z,label="qs")
 plt.plot(np.mean(qg,axis=(1,2))*1000,z,label="qg")
 plt.xlim(0,1)
 plt.legend()
+plt.grid()
 plt.show()
 
 

@@ -662,7 +662,7 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = theta0;
       });
 
-    } else if (coupler.get_option<std::string>("init_data") == "supercell2") {
+    } else if (coupler.get_option<std::string>("init_data") == "supercell") {
 
       YAML::Node config = YAML::LoadFile( "./inputs/wrf_supercell_sounding.yaml" );
       if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
@@ -763,7 +763,7 @@ namespace custom_modules {
         if (k == 0) dm_surface_khf (j,i) = 0;
       });
 
-    } else if (coupler.get_option<std::string>("init_data") == "supercell") {
+    } else if (coupler.get_option<std::string>("init_data") == "tornado") {
 
       YAML::Node config = YAML::LoadFile( "./inputs/wrf_supercell_sounding.yaml" );
       if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
@@ -813,9 +813,17 @@ namespace custom_modules {
       real radx  = 10000;
       real rady  = 10000;
       real radz  = 1500;
-      real amp   = 3;
-      auto compute_theta = KOKKOS_LAMBDA (real z) -> real { return interp_host( shost_height , shost_theta , z ); };
-      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
+      real amp   = 6;
+      real T0  = 300;
+      real Ttr = 205;
+      real ztr = 12000;
+      auto c_T = KOKKOS_LAMBDA (real z) -> real {
+        if (z <= 12000) { return T0 + z/ztr*(Ttr-T0); }
+        else            { return Ttr; }
+      };
+      auto c_qv = KOKKOS_LAMBDA (real z) -> real { return interp_host( shost_height , shost_qv , z ); };
+      using modules::integrate_hydrostatic_pressure_gll_temp_qv;
+      auto pressGLL = integrate_hydrostatic_pressure_gll_temp_qv(c_T,c_qv,nz,zlen,p0,grav,R_d,R_v).createDeviceCopy();
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d(k,j,i) = 0;
         dm_uvel (k,j,i) = 0;
@@ -829,10 +837,10 @@ namespace custom_modules {
               real x     = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
               real y     = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
               real z     = (      k+0.5)*dz + qpoints(kk)*dz;
-              real theta = interp( s_height , s_theta , z );
-              real qv    = interp( s_height , s_qv    , z );
-              real u     = interp( s_height , s_uvel  , z );
-              real v     = interp( s_height , s_vvel  , z );
+              real theta = interp(s_height,s_theta,z);
+              real qv    = interp(s_height,s_qv   ,z);
+              real u     = interp(s_height,s_uvel ,z);
+              real v     = interp(s_height,s_vvel ,z);
               real p     = pressGLL(k,kk);
               real xn    = (x-x0)/radx;
               real yn    = (y-y0)/rady;

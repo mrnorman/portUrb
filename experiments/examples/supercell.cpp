@@ -1,6 +1,7 @@
 
 #include "coupler.h"
 #include "dynamics_rk.h"
+#include "vorticity_divergence.h"
 #include "time_averager.h"
 #include "sc_init.h"
 #include "les_closure.h"
@@ -20,24 +21,24 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 250;
-    real        dz          = 250;
+    real        dx          = 1000;
+    real        dz          = 500;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
     real        dtphys_in   = 0;    // Use dycore time step
     int         dyn_cycle   = 1;
-    real        out_freq    = 100;
-    real        inform_freq = 100;
+    real        out_freq    = 60;
+    real        inform_freq = 60;
     std::string out_prefix  = "supercell_1000m";
     bool        is_restart  = false;
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
-    coupler.set_option<std::string>( "init_data"        , "supercell2" );
+    coupler.set_option<std::string>( "init_data"        , "supercell" );
     coupler.set_option<real       >( "out_freq"         , out_freq    );
     coupler.set_option<bool       >( "is_restart"       , is_restart  );
-    coupler.set_option<std::string>( "restart_file"     , "supercell_2000m_00000001.nc" );
+    coupler.set_option<std::string>( "restart_file"     , ""          );
     coupler.set_option<real       >( "latitude"         , 0.          );
     coupler.set_option<real       >( "roughness"        , 0.1         );
     coupler.set_option<real       >( "cfl"              , 0.6         );
@@ -87,8 +88,8 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step             (c,dt);            };
-        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.05); };
-        // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);            };
+        auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.02);    };
+        // auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         };
         auto run_les       = [&] (Coupler &c) { les_closure.apply            (c,dt);            };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate     (c,dt);            };
         auto run_micro     = [&] (Coupler &c) { micro.time_step              (c,dt);            };
@@ -108,6 +109,7 @@ int main(int argc, char** argv) {
         inform_counter.reset();
       }
       if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
+        modules::compute_vorticity_divergence(coupler);
         coupler.write_output_file( out_prefix , true );
         time_averager.reset(coupler);
         output_counter.reset();

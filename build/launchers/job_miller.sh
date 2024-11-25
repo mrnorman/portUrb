@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --cluster miller
+#SBATCH --cluster fawbush
 #SBATCH --partition ampere
 #SBATCH --cluster-constraint=blue
 #SBATCH --exclusive
@@ -7,7 +7,9 @@
 #SBATCH -J portUrb
 #SBATCH -o %x-%j.out
 #SBATCH -t 24:00:00
-#SBATCH -N 4
+#SBATCH -N 8
+
+export GATOR_INITIAL_MB=39000
 
 cd /lustre/storm/nwp501/scratch/imn/portUrb/build
 source machines/miller/miller_gpu.env

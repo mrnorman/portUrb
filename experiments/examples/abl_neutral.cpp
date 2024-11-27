@@ -3,6 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
+#include "sc_perturb.h"
 #include "les_closure.h"
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
@@ -56,10 +57,11 @@ int main(int argc, char** argv) {
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
     coupler.get_data_manager_readwrite().get<real,3>("water_vapor") = 0;
 
-    custom_modules::sc_init( coupler );
-    les_closure  .init     ( coupler );
-    dycore       .init     ( coupler );
-    time_averager.init     ( coupler );
+    custom_modules::sc_init   ( coupler );
+    les_closure  .init        ( coupler );
+    dycore       .init        ( coupler );
+    time_averager.init        ( coupler );
+    custom_modules::sc_perturb( coupler );
 
     real etime = coupler.get_option<real>("elapsed_time");
     core::Counter output_counter( out_freq    , etime );

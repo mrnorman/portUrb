@@ -3,6 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
+#include "sc_perturb.h"
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
 #include "surface_flux.h"
@@ -138,9 +139,10 @@ int main(int argc, char** argv) {
       modules::WindmillActuators                 windmills;
 
       // Run the initialization modules on coupler_main
-      custom_modules::sc_init     ( coupler_main );
-      les_closure  .init          ( coupler_main );
-      dycore       .init          ( coupler_main );
+      custom_modules::sc_init   ( coupler_main );
+      les_closure  .init        ( coupler_main );
+      dycore       .init        ( coupler_main );
+      custom_modules::sc_perturb( coupler_main );
 
       /////////////////////////////////////////////////////////////////////////
       // Everything previous to this is now replicated in coupler_precursor

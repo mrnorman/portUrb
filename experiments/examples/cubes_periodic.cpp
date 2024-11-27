@@ -3,6 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
+#include "sc_perturb.h"
 #include "les_closure.h"
 #include "surface_flux.h"
 #include "uniform_pg_wind_forcing.h"
@@ -109,10 +110,11 @@ int main(int argc, char** argv) {
       coupler.get_data_manager_readwrite().get<real,3>("water_vapor") = 0;
 
       // Run the initialization modules
-      custom_modules::sc_init ( coupler );
-      les_closure  .init      ( coupler );
-      dycore       .init      ( coupler ); // Dycore should initialize its own state here
-      time_averager.init      ( coupler );
+      custom_modules::sc_init   ( coupler );
+      les_closure  .init        ( coupler );
+      dycore       .init        ( coupler ); // Dycore should initialize its own state here
+      time_averager.init        ( coupler );
+      custom_modules::sc_perturb( coupler );
 
       // Get elapsed time (zero), and create counters for output and informing the user in stdout
       real etime = coupler.get_option<real>("elapsed_time");

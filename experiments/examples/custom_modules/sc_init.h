@@ -43,7 +43,7 @@ namespace custom_modules {
     auto cv_d = coupler.get_option<real>("cv_d");
     if (! coupler.option_exists("gamma_d")) coupler.set_option<real>("gamma_d",cp_d / cv_d);
     if (! coupler.option_exists("kappa_d")) coupler.set_option<real>("kappa_d",R_d  / cp_d);
-    if (! coupler.option_exists("cv_v"   )) coupler.set_option<real>("cv_v"   ,R_v - cp_v );
+    if (! coupler.option_exists("cv_v"   )) coupler.set_option<real>("cv_v"   ,cp_v - R_v );
     auto gamma = coupler.get_option<real>("gamma_d");
     auto kappa = coupler.get_option<real>("kappa_d");
     if (! coupler.option_exists("C0")) coupler.set_option<real>("C0" , pow( R_d * pow( p0 , -kappa ) , gamma ));
@@ -285,56 +285,6 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
-    } else if (coupler.get_option<std::string>("init_data") == "sphere") {
-
-      real constexpr uref       = 10;   // Velocity at hub height
-      real constexpr theta0     = 300;
-      real constexpr href       = 100;   // Height of hub / center of windmills
-      real constexpr von_karman = 0.40;
-      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
-      realHost1d press_host("press",nz);
-      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
-      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
-      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
-      auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-        real zloc = (k+0.5_fp)*dz;
-        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
-        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
-        real p     = press(k);
-        real rt    = std::pow( p/C0 , 1._fp/gamma );
-        real r     = rt / theta0;
-        real T     = p/R_d/r;
-        dm_rho_d(k,j,i) = rt / theta0;
-        dm_uvel (k,j,i) = u;
-        dm_vvel (k,j,i) = 0;
-        dm_wvel (k,j,i) = 0;
-        dm_temp (k,j,i) = T;
-        dm_rho_v(k,j,i) = 0;
-        real x0 = 0.5 *xlen;
-        real y0 = 0.5 *ylen;
-        real z0 = 0.2 *zlen;
-        real rad = 0.05*zlen;
-        int N = 10;
-        int count = 0;
-        for (int kk=0; kk < N; kk++) {
-          for (int jj=0; jj < N; jj++) {
-            for (int ii=0; ii < N; ii++) {
-              real x = (i_beg+i)*dx+ii*dx/(N-1);
-              real y = (j_beg+j)*dy+jj*dy/(N-1);
-              real z = (      k)*dz+kk*dz/(N-1);
-              if ( (x-x0)*(x-x0) + (y-y0)*(y-y0) + (z-z0)*(z-z0) <= rad*rad ) count++;
-            }
-          }
-        }
-        dm_immersed_prop(k,j,i) = static_cast<real>(count)/(N*N*N);
-        dm_uvel         (k,j,i) *= (1-dm_immersed_prop(k,j,i));
-        dm_vvel         (k,j,i) *= (1-dm_immersed_prop(k,j,i));
-        dm_wvel         (k,j,i) *= (1-dm_immersed_prop(k,j,i));
-        if (count == N*N*N) dm_immersed_prop(k,j,i) = 1;
-        if (k == 0) dm_surface_temp(j,i) = 300;
-      });
-
     } else if (coupler.get_option<std::string>("init_data") == "constant") {
 
       coupler.set_option<std::string>("bc_x","precursor");
@@ -435,9 +385,6 @@ namespace custom_modules {
           dm_temp (k,j,i) += T     * wt;
           dm_rho_v(k,j,i) += rho_v * wt;
         }
-        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
-        if ((k+0.5_fp)*dz <= 1600) dm_temp (k,j,i) += rand.genFP<real>(-0.1,0.1);
-        if ((k+0.5_fp)*dz <= 1600) dm_rho_v(k,j,i) += rand.genFP<real>(-2.5e-5,2.5e-5)*dm_rho_d(k,j,i);
         if (k == 0) dm_surface_temp(j,i) = 300.4;
       });
 
@@ -477,8 +424,6 @@ namespace custom_modules {
           dm_temp (k,j,i) += T     * wt;
           dm_rho_v(k,j,i) += rho_v * wt;
         }
-        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
-        if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i) += rand.genFP<real>(-0.25,0.25);
         if (k == 0) dm_surface_temp(j,i) = 300;
       });
 
@@ -517,8 +462,6 @@ namespace custom_modules {
           dm_temp (k,j,i) += T     * wt;
           dm_rho_v(k,j,i) += rho_v * wt;
         }
-        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
-        if ((k+0.5_fp)*dz <= 400) dm_temp(k,j,i) += rand.genFP<real>(-0.25,0.25);
         if (k == 0) dm_surface_temp(j,i) = 309;
         if (k == 0) dm_surface_khf (j,i) = 0.35/cp_d/dm_rho_d(k,j,i);
       });
@@ -558,8 +501,6 @@ namespace custom_modules {
           dm_temp (k,j,i) += T     * wt;
           dm_rho_v(k,j,i) += rho_v * wt;
         }
-        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
-        if ((k+0.5_fp)*dz <= 50) dm_temp(k,j,i) += rand.genFP<real>(-0.10,0.10);
         if (k == 0) dm_surface_temp(j,i) = 265;
         if (k == 0) dm_surface_khf (j,i) = 0;
       });
@@ -706,13 +647,6 @@ namespace custom_modules {
         real fac = (ref_z(i+1) - z) / (ref_z(i+1)-ref_z(i));
         return fac*ref_var(i) + (1-fac)*ref_var(i+1);
       };
-      real x0    = xlen / 2;
-      real y0    = ylen / 2;
-      real z0    = 1500;
-      real radx  = 10000;
-      real rady  = 10000;
-      real radz  = 1500;
-      real amp   = 3;
       real T0  = 300;
       real Ttr = 211;
       real ztr = 12000;
@@ -741,113 +675,6 @@ namespace custom_modules {
               real u     = interp( s_height , s_uvel  , z );
               real v     = interp( s_height , s_vvel  , z );
               real p     = pressGLL(k,kk);
-              real xn    = (x-x0)/radx;
-              real yn    = (y-y0)/rady;
-              real zn    = (z-z0)/radz;
-              real rad   = sqrt( xn*xn + yn*yn + zn*zn );
-              if (rad <= 1) T += amp * pow( cos(M_PI*rad/2) , 2._fp );
-              real rho_d = p/((R_d+qv*R_v)*T);
-              real rho_v = qv*rho_d;
-              real w     = 0;
-              real wt = qweights(kk)*qweights(jj)*qweights(ii);
-              dm_rho_d(k,j,i) += rho_d * wt;
-              dm_uvel (k,j,i) += u     * wt;
-              dm_vvel (k,j,i) += v     * wt;
-              dm_wvel (k,j,i) += w     * wt;
-              dm_temp (k,j,i) += T     * wt;
-              dm_rho_v(k,j,i) += rho_v * wt;
-            }
-          }
-        }
-        if (k == 0) dm_surface_temp(j,i) = 300;
-        if (k == 0) dm_surface_khf (j,i) = 0;
-      });
-
-    } else if (coupler.get_option<std::string>("init_data") == "tornado") {
-
-      YAML::Node config = YAML::LoadFile( "./inputs/wrf_supercell_sounding.yaml" );
-      if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
-      auto sounding = config["sounding"].as<std::vector<std::vector<real>>>();
-      int num_entries = sounding.size();
-      realHost1d shost_height("s_height",num_entries);
-      realHost1d shost_theta ("s_theta" ,num_entries);
-      realHost1d shost_qv    ("s_qv"    ,num_entries);
-      realHost1d shost_uvel  ("s_uvel"  ,num_entries);
-      realHost1d shost_vvel  ("s_vvel"  ,num_entries);
-      for (int i=0; i < num_entries; i++) {
-        shost_height(i) = sounding[i][0];
-        shost_theta (i) = sounding[i][1];
-        shost_qv    (i) = sounding[i][2]/1000;
-        shost_uvel  (i) = sounding[i][3];
-        shost_vvel  (i) = sounding[i][4];
-      }
-      auto s_height = shost_height.createDeviceCopy();
-      auto s_theta  = shost_theta .createDeviceCopy();
-      auto s_qv     = shost_qv    .createDeviceCopy();
-      auto s_uvel   = shost_uvel  .createDeviceCopy();
-      auto s_vvel   = shost_vvel  .createDeviceCopy();
-      // Linear interpolation in a reference variable based on u_infinity and reference u_infinity
-      auto interp = KOKKOS_LAMBDA ( real1d ref_z , real1d ref_var , real z ) -> real {
-        int imax = ref_z.size()-1; // Max index for the table
-        if ( z < ref_z(0   ) ) return ref_var(0   );
-        if ( z > ref_z(imax) ) return ref_var(imax);
-        int i = 0;
-        while (z > ref_z(i)) { i++; }
-        if (i > 0) i--;
-        real fac = (ref_z(i+1) - z) / (ref_z(i+1)-ref_z(i));
-        return fac*ref_var(i) + (1-fac)*ref_var(i+1);
-      };
-      auto interp_host = KOKKOS_LAMBDA ( realHost1d ref_z , realHost1d ref_var , real z ) -> real {
-        int imax = ref_z.size()-1; // Max index for the table
-        if ( z < ref_z(0   ) ) return ref_var(0   );
-        if ( z > ref_z(imax) ) return ref_var(imax);
-        int i = 0;
-        while (z > ref_z(i)) { i++; }
-        if (i > 0) i--;
-        real fac = (ref_z(i+1) - z) / (ref_z(i+1)-ref_z(i));
-        return fac*ref_var(i) + (1-fac)*ref_var(i+1);
-      };
-      real x0    = xlen / 2;
-      real y0    = ylen / 2;
-      real z0    = 1500;
-      real radx  = 10000;
-      real rady  = 10000;
-      real radz  = 1500;
-      real amp   = 6;
-      real T0  = 300;
-      real Ttr = 205;
-      real ztr = 12000;
-      auto c_T = KOKKOS_LAMBDA (real z) -> real {
-        if (z <= 12000) { return T0 + z/ztr*(Ttr-T0); }
-        else            { return Ttr; }
-      };
-      auto c_qv = KOKKOS_LAMBDA (real z) -> real { return interp_host( shost_height , shost_qv , z ); };
-      using modules::integrate_hydrostatic_pressure_gll_temp_qv;
-      auto pressGLL = integrate_hydrostatic_pressure_gll_temp_qv(c_T,c_qv,nz,zlen,p0,grav,R_d,R_v).createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-        dm_rho_d(k,j,i) = 0;
-        dm_uvel (k,j,i) = 0;
-        dm_vvel (k,j,i) = 0;
-        dm_wvel (k,j,i) = 0;
-        dm_temp (k,j,i) = 0;
-        dm_rho_v(k,j,i) = 0;
-        for (int kk=0; kk<nqpoints; kk++) {
-          for (int jj=0; jj<nqpoints; jj++) {
-            for (int ii=0; ii<nqpoints; ii++) {
-              real x     = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
-              real y     = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
-              real z     = (      k+0.5)*dz + qpoints(kk)*dz;
-              real theta = interp(s_height,s_theta,z);
-              real qv    = interp(s_height,s_qv   ,z);
-              real u     = interp(s_height,s_uvel ,z);
-              real v     = interp(s_height,s_vvel ,z);
-              real p     = pressGLL(k,kk);
-              real xn    = (x-x0)/radx;
-              real yn    = (y-y0)/rady;
-              real zn    = (z-z0)/radz;
-              real rad   = sqrt( xn*xn + yn*yn + zn*zn );
-              if (rad <= 1) theta += amp * pow( cos(M_PI*rad/2) , 2._fp );
-              real T     = theta * std::pow( p/p0 , R_d/cp_d );
               real rho_d = p/((R_d+qv*R_v)*T);
               real rho_v = qv*rho_d;
               real w     = 0;

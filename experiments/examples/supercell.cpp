@@ -3,6 +3,7 @@
 #include "dynamics_rk.h"
 #include "time_averager.h"
 #include "sc_init.h"
+#include "sc_perturb.h"
 #include "les_closure.h"
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
@@ -54,11 +55,12 @@ int main(int argc, char** argv) {
     modules::LES_Closure                       les_closure;
     modules::Microphysics_Morrison             micro;
 
-    micro        .init     ( coupler );
-    custom_modules::sc_init( coupler );
-    les_closure  .init     ( coupler );
-    dycore       .init     ( coupler );
-    time_averager.init     ( coupler );
+    custom_modules::sc_init   ( coupler );
+    micro        .init        ( coupler );
+    les_closure  .init        ( coupler );
+    dycore       .init        ( coupler );
+    time_averager.init        ( coupler );
+    custom_modules::sc_perturb( coupler );
 
     real etime = coupler.get_option<real>("elapsed_time");
     core::Counter output_counter( out_freq    , etime );

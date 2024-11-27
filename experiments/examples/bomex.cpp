@@ -52,8 +52,8 @@ int main(int argc, char** argv) {
     modules::LES_Closure                          les_closure;
     modules::Microphysics_Kessler                 micro;
 
-    custom_modules::sc_init   ( coupler );
     micro        .init        ( coupler );
+    custom_modules::sc_init   ( coupler );
     les_closure  .init        ( coupler );
     dycore       .init        ( coupler );
     time_averager.init        ( coupler );

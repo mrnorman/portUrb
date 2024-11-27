@@ -648,7 +648,7 @@ namespace custom_modules {
         return fac*ref_var(i) + (1-fac)*ref_var(i+1);
       };
       real T0  = 300;
-      real Ttr = 211;
+      real Ttr = 213;
       real ztr = 12000;
       auto c_T = KOKKOS_LAMBDA (real z) -> real {
         if (z <= 12000) { return T0 + z/ztr*(Ttr-T0); }

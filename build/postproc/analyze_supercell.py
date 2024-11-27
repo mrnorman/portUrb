@@ -8,23 +8,23 @@ def get_ind(arr,val) :
 nfiles = 121
 times = np.array([2.*i/nfiles for i in range(nfiles)])
 
-dx200_files = [f"/lustre/storm/nwp501/scratch/imn/portUrb/build/supercell_200m_{i:08}.nc" for i in range(nfiles)]
-dx200_z = np.array(Dataset(dx200_files[0],"r")["z"])
-dx200_sfc_theta_min  = [0. for i in range(nfiles)]
-dx200_cold_pool_frac = [0. for i in range(nfiles)]
-dx200_precip_accum   = [0. for i in range(nfiles)]
-dx200_min_w          = [0. for i in range(nfiles)]
-dx200_max_w          = [0. for i in range(nfiles)]
-for i in range(nfiles) :
-  nc = Dataset(dx200_files[i],"r")
-  sfc_theta = np.array(nc["theta_pert"][0,:,:])
-  w         = np.array(nc["wvel"])
-  rho_d     = np.array(nc["density_dry"])
-  dx200_sfc_theta_min [i] = np.min(sfc_theta)
-  dx200_cold_pool_frac[i] = np.sum(np.where(sfc_theta <= -2,True,False)) / sfc_theta.size
-  dx200_precip_accum  [i] = np.mean(np.array(nc["micro_rainnc"]) + np.array(nc["micro_snownc"]) + np.array(nc["micro_graupelnc"]))
-  dx200_min_w         [i] = np.min(w[:get_ind(dx200_z,3500),:,:])
-  dx200_max_w         [i] = np.max(w)
+# dx200_files = [f"/lustre/storm/nwp501/scratch/imn/portUrb/build/supercell_200m_{i:08}.nc" for i in range(nfiles)]
+# dx200_z = np.array(Dataset(dx200_files[0],"r")["z"])
+# dx200_sfc_theta_min  = [0. for i in range(nfiles)]
+# dx200_cold_pool_frac = [0. for i in range(nfiles)]
+# dx200_precip_accum   = [0. for i in range(nfiles)]
+# dx200_min_w          = [0. for i in range(nfiles)]
+# dx200_max_w          = [0. for i in range(nfiles)]
+# for i in range(nfiles) :
+#   nc = Dataset(dx200_files[i],"r")
+#   sfc_theta = np.array(nc["theta_pert"][0,:,:])
+#   w         = np.array(nc["wvel"])
+#   rho_d     = np.array(nc["density_dry"])
+#   dx200_sfc_theta_min [i] = np.min(sfc_theta)
+#   dx200_cold_pool_frac[i] = np.sum(np.where(sfc_theta <= -2,True,False)) / sfc_theta.size
+#   dx200_precip_accum  [i] = np.mean(np.array(nc["micro_rainnc"]) + np.array(nc["micro_snownc"]) + np.array(nc["micro_graupelnc"]))
+#   dx200_min_w         [i] = np.min(w[:get_ind(dx200_z,3500),:,:])
+#   dx200_max_w         [i] = np.max(w)
 
 dx1000_files = [f"/lustre/storm/nwp501/scratch/imn/portUrb/build/supercell_1000m_{i:08}.nc" for i in range(nfiles)]
 dx1000_z = np.array(Dataset(dx1000_files[0],"r")["z"])
@@ -45,7 +45,7 @@ for i in range(nfiles) :
   dx1000_max_w         [i] = np.max(w)
 
 plt.plot(times,dx1000_sfc_theta_min,label="dx=1000m",color="blue")
-plt.plot(times,dx200_sfc_theta_min ,label="dx=200m" ,color="blue",linestyle="--")
+# plt.plot(times,dx200_sfc_theta_min ,label="dx=200m" ,color="blue",linestyle="--")
 plt.xlabel("Time (hrs)")
 plt.ylabel(r"Min sfc $\theta^\prime$ (K)")
 plt.grid()
@@ -55,7 +55,7 @@ plt.show()
 plt.close()
 
 plt.plot(times,dx1000_cold_pool_frac,label="dx=1000m",color="blue")
-plt.plot(times,dx200_cold_pool_frac ,label="dx=200m" ,color="blue",linestyle="--")
+# plt.plot(times,dx200_cold_pool_frac ,label="dx=200m" ,color="blue",linestyle="--")
 plt.xlabel("Time (hrs)")
 plt.ylabel(r"Sfc cold pool fraction ($\theta^\prime \leq -2K$)")
 plt.grid()
@@ -65,7 +65,7 @@ plt.show()
 plt.close()
 
 plt.plot(times,dx1000_precip_accum,label="dx=1000m",color="blue")
-plt.plot(times,dx200_precip_accum ,label="dx=200m" ,color="blue",linestyle="--")
+# plt.plot(times,dx200_precip_accum ,label="dx=200m" ,color="blue",linestyle="--")
 plt.xlabel("Time (hrs)")
 plt.ylabel(r"Total sfc accum precip (mm)")
 plt.grid()
@@ -76,8 +76,8 @@ plt.close()
 
 plt.plot(times,dx1000_min_w,label=r"dx=1000m, Min ($z \leq 3.5$km)",color="blue")
 plt.plot(times,dx1000_max_w,label=r"dx=1000m, Max ($\forall z$)"   ,color="red" )
-plt.plot(times,dx200_min_w ,label=r"dx=200m , Min ($z \leq 3.5$km)",color="blue",linestyle="--")
-plt.plot(times,dx200_max_w ,label=r"dx=200m , Max ($\forall z$)"   ,color="red" ,linestyle="--")
+# plt.plot(times,dx200_min_w ,label=r"dx=200m , Min ($z \leq 3.5$km)",color="blue",linestyle="--")
+# plt.plot(times,dx200_max_w ,label=r"dx=200m , Max ($\forall z$)"   ,color="red" ,linestyle="--")
 plt.xlabel("Time (hrs)")
 plt.ylabel(r"Vertical Velocity (m/s)")
 plt.legend()
@@ -103,30 +103,30 @@ for i in [20,40,60,80,100,120] :
   dx1000_qi = np.array(nc["cloud_ice"  ]) / rho
   dx1000_qs = np.array(nc["snow"       ]) / rho
   dx1000_qg = np.array(nc["graupel"    ]) / rho
-  nc = Dataset(dx200_files[i],"r")
-  rho_d = np.array(nc["density_dry"])
-  rho_v = np.array(nc["water_vapor"])
-  rho_c = np.array(nc["cloud_water"])
-  rho_r = np.array(nc["rain_water" ])
-  rho_i = np.array(nc["cloud_ice"  ])
-  rho_s = np.array(nc["snow"       ])
-  rho_g = np.array(nc["graupel"    ])
-  rho = rho_d + rho_v + rho_c + rho_r + rho_i + rho_s + rho_g
-  dx200_qc = np.array(nc["cloud_water"]) / rho
-  dx200_qr = np.array(nc["rain_water" ]) / rho
-  dx200_qi = np.array(nc["cloud_ice"  ]) / rho
-  dx200_qs = np.array(nc["snow"       ]) / rho
-  dx200_qg = np.array(nc["graupel"    ]) / rho
+#   nc = Dataset(dx200_files[i],"r")
+#   rho_d = np.array(nc["density_dry"])
+#   rho_v = np.array(nc["water_vapor"])
+#   rho_c = np.array(nc["cloud_water"])
+#   rho_r = np.array(nc["rain_water" ])
+#   rho_i = np.array(nc["cloud_ice"  ])
+#   rho_s = np.array(nc["snow"       ])
+#   rho_g = np.array(nc["graupel"    ])
+#   rho = rho_d + rho_v + rho_c + rho_r + rho_i + rho_s + rho_g
+#   dx200_qc = np.array(nc["cloud_water"]) / rho
+#   dx200_qr = np.array(nc["rain_water" ]) / rho
+#   dx200_qi = np.array(nc["cloud_ice"  ]) / rho
+#   dx200_qs = np.array(nc["snow"       ]) / rho
+#   dx200_qg = np.array(nc["graupel"    ]) / rho
   plt.plot(np.mean(dx1000_qc,axis=(1,2))*1000,dx1000_z/1000,label="qc (dx=1000m)",linewidth=2,color="red"    )
   plt.plot(np.mean(dx1000_qr,axis=(1,2))*1000,dx1000_z/1000,label="qr (dx=1000m)",linewidth=2,color="black"  )
   plt.plot(np.mean(dx1000_qi,axis=(1,2))*1000,dx1000_z/1000,label="qi (dx=1000m)",linewidth=2,color="blue"   )
   plt.plot(np.mean(dx1000_qs,axis=(1,2))*1000,dx1000_z/1000,label="qs (dx=1000m)",linewidth=2,color="cyan"   )
   plt.plot(np.mean(dx1000_qg,axis=(1,2))*1000,dx1000_z/1000,label="qg (dx=1000m)",linewidth=2,color="magenta")
-  plt.plot(np.mean(dx200_qc ,axis=(1,2))*1000,dx200_z /1000,label="qc (dx=200m)" ,linewidth=2,color="red"    ,linestyle="--")
-  plt.plot(np.mean(dx200_qr ,axis=(1,2))*1000,dx200_z /1000,label="qr (dx=200m)" ,linewidth=2,color="black"  ,linestyle="--")
-  plt.plot(np.mean(dx200_qi ,axis=(1,2))*1000,dx200_z /1000,label="qi (dx=200m)" ,linewidth=2,color="blue"   ,linestyle="--")
-  plt.plot(np.mean(dx200_qs ,axis=(1,2))*1000,dx200_z /1000,label="qs (dx=200m)" ,linewidth=2,color="cyan"   ,linestyle="--")
-  plt.plot(np.mean(dx200_qg ,axis=(1,2))*1000,dx200_z /1000,label="qg (dx=200m)" ,linewidth=2,color="magenta",linestyle="--")
+#   plt.plot(np.mean(dx200_qc ,axis=(1,2))*1000,dx200_z /1000,label="qc (dx=200m)" ,linewidth=2,color="red"    ,linestyle="--")
+#   plt.plot(np.mean(dx200_qr ,axis=(1,2))*1000,dx200_z /1000,label="qr (dx=200m)" ,linewidth=2,color="black"  ,linestyle="--")
+#   plt.plot(np.mean(dx200_qi ,axis=(1,2))*1000,dx200_z /1000,label="qi (dx=200m)" ,linewidth=2,color="blue"   ,linestyle="--")
+#   plt.plot(np.mean(dx200_qs ,axis=(1,2))*1000,dx200_z /1000,label="qs (dx=200m)" ,linewidth=2,color="cyan"   ,linestyle="--")
+#   plt.plot(np.mean(dx200_qg ,axis=(1,2))*1000,dx200_z /1000,label="qg (dx=200m)" ,linewidth=2,color="magenta",linestyle="--")
   plt.xlim(left=0)
   plt.ylim(0,15)
   plt.legend(ncols=2)

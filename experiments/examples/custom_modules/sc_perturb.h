@@ -44,6 +44,7 @@ namespace custom_modules {
     auto dm_wvel  = dm.get<real,3>("wvel"       );
     auto dm_temp  = dm.get<real,3>("temp"       );
     auto dm_rho_v = dm.get<real,3>("water_vapor");
+    auto dm_immersed_prop = dm.get<real,3>("immersed_proportion");
 
     const int nqpoints = 9;
     SArray<real,1,nqpoints> qpoints;
@@ -93,6 +94,17 @@ namespace custom_modules {
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_stable_bvf") {
+
+    } else if (coupler.get_option<std::string>("init_data") == "sphere") {
+
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        yakl::Random rand(k*ny_glob*nx_glob + (j_beg+j)*nx_glob + (i_beg+i));
+        if (dm_immersed_prop(k,j,i) == 0) {
+          dm_uvel(k,j,i) += rand.genFP<real>(-0.10,0.10);
+          dm_vvel(k,j,i) += rand.genFP<real>(-0.10,0.10);
+          dm_wvel(k,j,i) += rand.genFP<real>(-0.10,0.10);
+        }
+      });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
 

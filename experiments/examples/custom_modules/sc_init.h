@@ -307,6 +307,43 @@ namespace custom_modules {
         if (k == 0) dm_surface_temp(j,i) = T;
       });
 
+    } else if (coupler.get_option<std::string>("init_data") == "sphere") {
+
+      coupler.set_option<bool>("enable_gravity",false);
+      real u  = coupler.get_option<real>( "constant_uvel"  , 20.  );
+      real v  = coupler.get_option<real>( "constant_vvel"  , 0.   );
+      real w  = 0;
+      real T  = coupler.get_option<real>( "constant_temp"  , 300. );
+      real p  = coupler.get_option<real>( "constant_press" , 1.e5 );
+      real r  = p/(R_d*T);
+      real sph_x0 = xlen/2;
+      real sph_y0 = ylen/2;
+      real sph_z0 = zlen/2;
+      real sph_r  = zlen/10;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        dm_immersed_prop(k,j,i) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          for (int jj=0; jj<nqpoints; jj++) {
+            for (int ii=0; ii<nqpoints; ii++) {
+              real x = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
+              real y = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
+              real z = (      k+0.5)*dz + qpoints(kk)*dz;
+              real rad = std::sqrt( (x-sph_x0)*(x-sph_x0) + (y-sph_y0)*(y-sph_y0) + (z-sph_z0)*(z-sph_z0) );
+              if (rad <= sph_r) {
+                dm_immersed_prop(k,j,i) += qweights(kk)*qweights(jj)*qweights(ii);
+              }
+            }
+          }
+        }
+        dm_rho_d(k,j,i) = r;
+        dm_uvel (k,j,i) = (1-dm_immersed_prop(k,j,i))*u;
+        dm_vvel (k,j,i) = (1-dm_immersed_prop(k,j,i))*v;
+        dm_wvel (k,j,i) = (1-dm_immersed_prop(k,j,i))*w;
+        dm_temp (k,j,i) = T;
+        dm_rho_v(k,j,i) = 0;
+        if (k == 0) dm_surface_temp(j,i) = T;
+      });
+
     } else if (coupler.get_option<std::string>("init_data") == "bomex") {
 
       auto compute_u = KOKKOS_LAMBDA (real z) -> real {

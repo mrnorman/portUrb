@@ -309,6 +309,9 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "sphere") {
 
+      coupler.set_option<std::string>("bc_x","periodic");
+      coupler.set_option<std::string>("bc_y","periodic");
+      coupler.set_option<std::string>("bc_z","periodic");
       coupler.set_option<bool>("enable_gravity",false);
       real u  = coupler.get_option<real>( "constant_uvel"  , 20.  );
       real v  = coupler.get_option<real>( "constant_vvel"  , 0.   );
@@ -316,10 +319,10 @@ namespace custom_modules {
       real T  = coupler.get_option<real>( "constant_temp"  , 300. );
       real p  = coupler.get_option<real>( "constant_press" , 1.e5 );
       real r  = p/(R_d*T);
-      real sph_x0 = xlen/2;
+      real sph_r  = zlen/10;
+      real sph_x0 = sph_r*4;
       real sph_y0 = ylen/2;
       real sph_z0 = zlen/2;
-      real sph_r  = zlen/10;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_immersed_prop(k,j,i) = 0;
         for (int kk=0; kk<nqpoints; kk++) {

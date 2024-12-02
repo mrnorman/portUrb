@@ -49,22 +49,22 @@ namespace custom_modules {
                                         KOKKOS_LAMBDA (int l, int k, int j, int i) {
         real prop_x = static_cast<real>(i_beg+i)/nx_glob;
         real prop_y = static_cast<real>(j_beg+j)/ny_glob;
-        if (prop_x <= prop_x1) {
+        if (prop_x1 > 0 && prop_x <= prop_x1) {
           real wt = (prop_x1-prop_x)/prop_x1;
           wt = wt*wt*wt;
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
-        if (prop_x >= 1-prop_x2) {
+        if (prop_x2 > 0 && prop_x >= 1-prop_x2) {
           real wt = (prop_x-(1-prop_x2))/prop_x2;
           wt = wt*wt*wt;
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
-        if (prop_y <= prop_y1) {
+        if (prop_y1 > 0 && prop_y <= prop_y1) {
           real wt = (prop_y1-prop_y)/prop_y1;
           wt = wt*wt*wt;
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
-        if (prop_y >= 1-prop_y2) {
+        if (prop_y2 > 0 && prop_y >= 1-prop_y2) {
           real wt = (prop_y-(1-prop_y2))/prop_y2;
           wt = wt*wt*wt;
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);

@@ -5,6 +5,7 @@
 #include "sc_init.h"
 #include "sc_perturb.h"
 #include "les_closure.h"
+#include "edge_sponge.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -16,23 +17,23 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    real        xlen         = 1000;
+    real        sim_time     = 3600;
+    real        dx           = 50;
+    real        xlen         = 2000;
     real        ylen         = 1000;
     real        zlen         = 1000;
-    real        dx           = 10;
-    real        sim_time     = 3600*4;
     int         nx_glob      = xlen/dx;
     int         ny_glob      = ylen/dx;
     int         nz           = zlen/dx;
     real        dtphys_in    = 0;
     std::string init_data    = "sphere";
-    real        out_freq     = 100;
-    real        inform_freq  = 10;
-    std::string out_prefix   = "sphere";
+    real        out_freq     = 900;
+    real        inform_freq  = 100;
+    std::string out_prefix   = "sphere_lo_5";
     bool        is_restart   = false;
     std::string restart_file = "";
     real        latitude     = 0;
-    real        roughness    = 0.1;
+    real        roughness    = 0;
     int         dyn_cycle    = 1;
 
     // Things the coupler might need to know about
@@ -43,10 +44,11 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "restart_file"   , restart_file );
     coupler.set_option<real       >( "latitude"       , latitude     );
     coupler.set_option<real       >( "roughness"      , roughness    );
-    coupler.set_option<real       >( "constant_uvel"  , 20           );
+    coupler.set_option<real       >( "constant_uvel"  , 10           );
     coupler.set_option<real       >( "constant_vvel"  , 0            );
     coupler.set_option<real       >( "constant_temp"  , 300          );
     coupler.set_option<real       >( "constant_press" , 1.e5         );
+    coupler.set_option<real       >( "immersed_power" , 5            );
 
     // Coupler state is: (1) dry density;  (2) u-velocity;  (3) v-velocity;  (4) w-velocity;  (5) temperature
     //                   (6+) tracer masses (*not* mixing ratios!); and Option elapsed_time init to zero
@@ -59,6 +61,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
+    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -69,6 +72,7 @@ int main(int argc, char** argv) {
     les_closure  .init        ( coupler );
     dycore       .init        ( coupler );
     time_averager.init        ( coupler );
+    edge_sponge  .set_column  ( coupler );
     custom_modules::sc_perturb( coupler );
 
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
@@ -99,6 +103,7 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
+        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply       (c,0.02,0.02,0,0); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step        (c,dt); } , "dycore"        );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply       (c,dt); } , "les_closure"   );
         coupler.run_module( [&] (Coupler &c) { time_averager.accumulate(c,dt); } , "time_averager" );

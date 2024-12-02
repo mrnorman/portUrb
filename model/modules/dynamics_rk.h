@@ -379,7 +379,7 @@ namespace modules {
       auto nx              = coupler.get_nx();
       auto ny              = coupler.get_ny();
       auto nz              = coupler.get_nz();
-      auto immersed_power  = coupler.get_option<real>("immersed_power",4);
+      auto immersed_power  = coupler.get_option<real>("immersed_power",5);
       auto &dm             = coupler.get_data_manager_readonly();
       auto hy_dens_cells   = dm.get<float const,1>("hy_dens_cells" ); // Hydrostatic density
       auto hy_theta_cells  = dm.get<float const,1>("hy_theta_cells"); // Hydrostatic potential temperature

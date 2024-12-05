@@ -526,6 +526,7 @@ namespace modules {
       auto  hy_theta_cells    = dm.get<float const,1>("hy_theta_cells"           ); // Hydrostatic potential temperature
       auto  hy_dens_edges     = dm.get<float const,1>("hy_dens_edges"            ); // Hydrostatic density
       auto  hy_theta_edges    = dm.get<float const,1>("hy_theta_edges"           ); // Hydrostatic potential temperature
+      auto  hy_pressure_edges = dm.get<float const,1>("hy_pressure_edges"        ); // Hydrostatic potential temperature
       auto  hy_pressure_cells = dm.get<float const,1>("hy_pressure_cells"        ); // Hydrostatic pressure
       auto  weno_all          = coupler.get_option<bool>("weno_all",true);
       // Compute matrices to convert polynomial coefficients to 2 GLL points and stencil values to 2 GLL points
@@ -638,10 +639,10 @@ namespace modules {
       float constexpr r_cs = 1./cs;
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz+1,ny+1,nx+1) , KOKKOS_LAMBDA (int k, int j, int i) {
         if (j < ny && k < nz) {
-          limits_x(0,idR,k,j,i) += hy_dens_cells (hs+k);
-          limits_x(1,idR,k,j,i) += hy_dens_cells (hs+k);
-          limits_x(0,idT,k,j,i) += hy_theta_cells(hs+k);
-          limits_x(1,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_x(0,idR,k,j,i) += hy_dens_cells    (hs+k);
+          limits_x(1,idR,k,j,i) += hy_dens_cells    (hs+k);
+          limits_x(0,idT,k,j,i) += hy_theta_cells   (hs+k);
+          limits_x(1,idT,k,j,i) += hy_theta_cells   (hs+k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
           float r_L  = limits_x(0,idR,k,j,i)    ;   float r_R  = limits_x(1,idR,k,j,i)    ;
           float ru_L = limits_x(0,idU,k,j,i)*r_L;   float ru_R = limits_x(1,idU,k,j,i)*r_R;
@@ -660,10 +661,10 @@ namespace modules {
           }
         }
         if (i < nx && k < nz && !sim2d) {
-          limits_y(0,idR,k,j,i) += hy_dens_cells (hs+k);
-          limits_y(1,idR,k,j,i) += hy_dens_cells (hs+k);
-          limits_y(0,idT,k,j,i) += hy_theta_cells(hs+k);
-          limits_y(1,idT,k,j,i) += hy_theta_cells(hs+k);
+          limits_y(0,idR,k,j,i) += hy_dens_cells    (hs+k);
+          limits_y(1,idR,k,j,i) += hy_dens_cells    (hs+k);
+          limits_y(0,idT,k,j,i) += hy_theta_cells   (hs+k);
+          limits_y(1,idT,k,j,i) += hy_theta_cells   (hs+k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
           float r_L  = limits_y(0,idR,k,j,i)    ;   float r_R  = limits_y(1,idR,k,j,i)    ;
           float rv_L = limits_y(0,idV,k,j,i)*r_L;   float rv_R = limits_y(1,idV,k,j,i)*r_R;
@@ -682,10 +683,10 @@ namespace modules {
           }
         }
         if (i < nx && j < ny) {
-          limits_z(0,idR,k,j,i) += hy_dens_edges (k);
-          limits_z(1,idR,k,j,i) += hy_dens_edges (k);
-          limits_z(0,idT,k,j,i) += hy_theta_edges(k);
-          limits_z(1,idT,k,j,i) += hy_theta_edges(k);
+          limits_z(0,idR,k,j,i) += hy_dens_edges    (k);
+          limits_z(1,idR,k,j,i) += hy_dens_edges    (k);
+          limits_z(0,idT,k,j,i) += hy_theta_edges   (k);
+          limits_z(1,idT,k,j,i) += hy_theta_edges   (k);
           // Acoustically upwind mass flux and pressure, linear constant Jacobian diagonalization
           float r_L  = limits_z(0,idR,k,j,i)    ;   float r_R  = limits_z(1,idR,k,j,i)    ;
           float rw_L = limits_z(0,idW,k,j,i)*r_L;   float rw_R = limits_z(1,idW,k,j,i)*r_R;
@@ -1148,29 +1149,38 @@ namespace modules {
         auto ny   = coupler.get_ny  ();
         auto nx   = coupler.get_nx  ();
         auto &dm  = coupler.get_data_manager_readwrite();
-        if (! dm.entry_exists("hy_dens_edges" )) dm.register_and_allocate<float>("hy_dens_edges" ,"",{nz+1});
-        if (! dm.entry_exists("hy_theta_edges")) dm.register_and_allocate<float>("hy_theta_edges","",{nz+1});
-        auto hy_dens_cells  = dm.get<float const,1>("hy_dens_cells" );
-        auto hy_theta_cells = dm.get<float const,1>("hy_theta_cells");
-        auto hy_dens_edges  = dm.get<float      ,1>("hy_dens_edges" );
-        auto hy_theta_edges = dm.get<float      ,1>("hy_theta_edges");
+        if (! dm.entry_exists("hy_dens_edges"    )) dm.register_and_allocate<float>("hy_dens_edges"    ,"",{nz+1});
+        if (! dm.entry_exists("hy_theta_edges"   )) dm.register_and_allocate<float>("hy_theta_edges"   ,"",{nz+1});
+        if (! dm.entry_exists("hy_pressure_edges")) dm.register_and_allocate<float>("hy_pressure_edges","",{nz+1});
+        auto hy_dens_cells     = dm.get<float const,1>("hy_dens_cells"    );
+        auto hy_theta_cells    = dm.get<float const,1>("hy_theta_cells"   );
+        auto hy_pressure_cells = dm.get<float const,1>("hy_pressure_cells");
+        auto hy_dens_edges     = dm.get<float      ,1>("hy_dens_edges"    );
+        auto hy_theta_edges    = dm.get<float      ,1>("hy_theta_edges"   );
+        auto hy_pressure_edges = dm.get<float      ,1>("hy_pressure_edges");
         if (ord < 5) {
           parallel_for( YAKL_AUTO_LABEL() , nz+1 , KOKKOS_LAMBDA (int k) {
-            hy_dens_edges(k) = std::exp( 0.5_fp*std::log(hy_dens_cells(hs+k-1)) +
-                                         0.5_fp*std::log(hy_dens_cells(hs+k  )) );
-            hy_theta_edges(k) = 0.5_fp*hy_theta_cells(hs+k-1) +
-                                0.5_fp*hy_theta_cells(hs+k  ) ;
+            hy_dens_edges    (k) = std::exp( 0.5_fp*std::log(hy_dens_cells(hs+k-1)) +
+                                             0.5_fp*std::log(hy_dens_cells(hs+k  )) );
+            hy_theta_edges   (k) =           0.5_fp*hy_theta_cells(hs+k-1) +
+                                             0.5_fp*hy_theta_cells(hs+k  ) ;
+            hy_pressure_edges(k) = std::exp( 0.5_fp*std::log(hy_pressure_cells(hs+k-1)) +
+                                             0.5_fp*std::log(hy_pressure_cells(hs+k  )) );
           });
         } else {
           parallel_for( YAKL_AUTO_LABEL() , nz+1 , KOKKOS_LAMBDA (int k) {
-            hy_dens_edges(k) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2)) +
-                                          7./12.*std::log(hy_dens_cells(hs+k-1)) +
-                                          7./12.*std::log(hy_dens_cells(hs+k  )) +
-                                         -1./12.*std::log(hy_dens_cells(hs+k+1)) );
-            hy_theta_edges(k) = -1./12.*hy_theta_cells(hs+k-2) +
-                                 7./12.*hy_theta_cells(hs+k-1) +
-                                 7./12.*hy_theta_cells(hs+k  ) +
-                                -1./12.*hy_theta_cells(hs+k+1);
+            hy_dens_edges    (k) = std::exp( -1./12.*std::log(hy_dens_cells(hs+k-2)) +
+                                              7./12.*std::log(hy_dens_cells(hs+k-1)) +
+                                              7./12.*std::log(hy_dens_cells(hs+k  )) +
+                                             -1./12.*std::log(hy_dens_cells(hs+k+1)) );
+            hy_theta_edges   (k) =           -1./12.*hy_theta_cells(hs+k-2) +
+                                              7./12.*hy_theta_cells(hs+k-1) +
+                                              7./12.*hy_theta_cells(hs+k  ) +
+                                             -1./12.*hy_theta_cells(hs+k+1);
+            hy_pressure_edges(k) = std::exp( -1./12.*std::log(hy_pressure_cells(hs+k-2)) +
+                                              7./12.*std::log(hy_pressure_cells(hs+k-1)) +
+                                              7./12.*std::log(hy_pressure_cells(hs+k  )) +
+                                             -1./12.*std::log(hy_pressure_cells(hs+k+1)) );
           });
         }
       };

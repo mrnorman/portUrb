@@ -39,5 +39,3 @@ geostrophic_u  : 9
 geostrophic_v  : 0
 geostrophic_lat: 33.5
 
-convective_khf: 0.000348953
-

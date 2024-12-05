@@ -28,7 +28,6 @@ namespace modules {
     auto imm_prop  = dm.get<real const,3>("immersed_proportion_halos");
     auto imm_rough = dm.get<real const,3>("immersed_roughness_halos" );
     auto imm_temp  = dm.get<real const,3>("immersed_temp_halos"      );
-    auto imm_khf   = dm.get<real const,3>("immersed_khf_halos"       );
     int  hs        = 1;
 
     real3d tend_u("tend_u",nz,ny,nx);
@@ -55,12 +54,10 @@ namespace modules {
         real lgx  = std::log((dx/2+roughness)/roughness);
         real c_dx = vk*vk/(lgx*lgx);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(v*v+w*w);
         tend_v(k,j,i) += -c_dx*(v-0 )*mag/dx;
         tend_w(k,j,i) += -c_dx*(w-0 )*mag/dx;
         if (T0 != 0) tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
-        tend_T(k,j,i) +=        hf       /dx;
       }
       indk = hs+k;  indj = hs+j;  indi = hs+i+1;
       if (imm_prop(indk,indj,indi) > 0) {
@@ -68,12 +65,10 @@ namespace modules {
         real lgx  = std::log((dx/2+roughness)/roughness);
         real c_dx = vk*vk/(lgx*lgx);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(v*v+w*w);
         tend_v(k,j,i) += -c_dx*(v-0 )*mag/dx;
         tend_w(k,j,i) += -c_dx*(w-0 )*mag/dx;
         if (T0 != 0) tend_T(k,j,i) += -c_dx*(T-T0)*mag/dx;
-        tend_T(k,j,i) +=        hf       /dx;
       }
       indk = hs+k;  indj = hs+j-1;  indi = hs+i;
       if (imm_prop(indk,indj,indi) > 0) {
@@ -81,12 +76,10 @@ namespace modules {
         real lgy  = std::log((dy/2+roughness)/roughness);
         real c_dy = vk*vk/(lgy*lgy);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(u*u+w*w);
         tend_u(k,j,i) += -c_dy*(u-0 )*mag/dy;
         tend_w(k,j,i) += -c_dy*(w-0 )*mag/dy;
         if (T0 != 0) tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
-        tend_T(k,j,i) +=        hf       /dy;
       }
       indk = hs+k;  indj = hs+j+1;  indi = hs+i;
       if (imm_prop(indk,indj,indi) > 0) {
@@ -94,12 +87,10 @@ namespace modules {
         real lgy  = std::log((dy/2+roughness)/roughness);
         real c_dy = vk*vk/(lgy*lgy);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(u*u+w*w);
         tend_u(k,j,i) += -c_dy*(u-0 )*mag/dy;
         tend_w(k,j,i) += -c_dy*(w-0 )*mag/dy;
         if (T0 != 0) tend_T(k,j,i) += -c_dy*(T-T0)*mag/dy;
-        tend_T(k,j,i) +=        hf       /dy;
       }
       indk = hs+k-1;  indj = hs+j;  indi = hs+i;
       if (imm_prop(indk,indj,indi) > 0) {
@@ -107,12 +98,10 @@ namespace modules {
         real lgz  = std::log((dz/2+roughness)/roughness);
         real c_dz = vk*vk/(lgz*lgz);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(u*u+v*v);
         tend_u(k,j,i) += -c_dz*(u-0 )*mag/dz;
         tend_v(k,j,i) += -c_dz*(v-0 )*mag/dz;
         if (T0 != 0) tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
-        tend_T(k,j,i) +=        hf       /dz;
       }
       indk = hs+k+1;  indj = hs+j;  indi = hs+i;
       if (imm_prop(indk,indj,indi) > 0) {
@@ -120,12 +109,10 @@ namespace modules {
         real lgz  = std::log((dz/2+roughness)/roughness);
         real c_dz = vk*vk/(lgz*lgz);
         real T0  = imm_temp(indk,indj,indi);
-        real hf  = imm_khf (indk,indj,indi)*cp_d*r;
         real mag = std::sqrt(u*u+v*v);
         tend_u(k,j,i) += -c_dz*(u-0 )*mag/dz;
         tend_v(k,j,i) += -c_dz*(v-0 )*mag/dz;
         if (T0 != 0) tend_T(k,j,i) += -c_dz*(T-T0)*mag/dz;
-        tend_T(k,j,i) +=        hf       /dz;
       }
     });
 

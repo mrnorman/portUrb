@@ -44,7 +44,6 @@ namespace custom_modules {
     auto dm_wvel  = dm.get<real,3>("wvel"       );
     auto dm_temp  = dm.get<real,3>("temp"       );
     auto dm_rho_v = dm.get<real,3>("water_vapor");
-    auto dm_immersed_prop = dm.get<real,3>("immersed_proportion");
 
     const int nqpoints = 9;
     SArray<real,1,nqpoints> qpoints;
@@ -94,8 +93,6 @@ namespace custom_modules {
       });
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_stable_bvf") {
-
-    } else if (coupler.get_option<std::string>("init_data") == "sphere") {
 
     } else if (coupler.get_option<std::string>("init_data") == "ABL_neutral2") {
 

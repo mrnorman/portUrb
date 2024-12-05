@@ -21,8 +21,8 @@ int main(int argc, char** argv) {
     real        xlen        = 200000;
     real        ylen        = 200000;
     real        zlen        = 20000;
-    real        dx          = 1000;
-    real        dz          = 500;
+    real        dx          = 200;
+    real        dz          = 200;
     real        nx_glob     = xlen/dx;
     real        ny_glob     = ylen/dx;
     real        nz          = zlen/dz;
@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 1;
     real        out_freq    = 60;
     real        inform_freq = 60;
-    std::string out_prefix  = "supercell_1000m";
+    std::string out_prefix  = "supercell_200m";
     bool        is_restart  = false;
 
     core::Coupler coupler;
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "cfl"              , 0.6         );
     coupler.set_option<bool       >( "enable_gravity"   , true        );
     coupler.set_option<bool       >( "weno_all"         , true        );
-    coupler.set_option<int        >( "micro_morr_ihail" , 0           );
+    coupler.set_option<int        >( "micro_morr_ihail" , 1           );
 
     coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 

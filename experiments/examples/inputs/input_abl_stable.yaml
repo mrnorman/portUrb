@@ -39,6 +39,5 @@ geostrophic_u  : 8
 geostrophic_v  : 0
 geostrophic_lat: 73
 
-convective_khf: 0
 surface_cooling_rate: 0.25
 

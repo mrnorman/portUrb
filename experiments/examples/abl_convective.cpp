@@ -8,6 +8,7 @@
 #include "surface_flux.h"
 #include "geostrophic_wind_forcing.h"
 #include "sponge_layer.h"
+#include "surface_heat_flux.h"
 
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
@@ -16,22 +17,23 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    auto sim_time    = 3600*3+1;
-    auto nx_glob     = 1200;
-    auto ny_glob     = 1200;
-    auto nz          = 600;
-    auto xlen        = 6000;
-    auto ylen        = 6000;
-    auto zlen        = 3000;
-    auto dtphys_in   = 0;    // Use dycore time step
-    auto dyn_cycle   = 1;
-    auto out_freq    = 1800;
-    auto inform_freq = 10;
-    auto out_prefix  = "ABL_convective";
-    auto is_restart  = false;
-    auto u_g         = 9;
-    auto v_g         = 0;
-    auto lat_g       = 33.5;
+    real        sim_time    = 3600*3+1;
+    int         nx_glob     = 600;
+    int         ny_glob     = 600;
+    int         nz          = 300;
+    real        xlen        = 6000;
+    real        ylen        = 6000;
+    real        zlen        = 3000;
+    real        dtphys_in   = 0;    // Use dycore time step
+    int         dyn_cycle   = 10;
+    real        out_freq    = 1800;
+    real        inform_freq = 10;
+    std::string out_prefix  = "ABL_convective";
+    bool        is_restart  = false;
+    real        u_g         = 9;
+    real        v_g         = 0;
+    real        lat_g       = 33.5;
+    real        shf         = 0.35;  // sfc heat flux in K m / s
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"     , out_prefix       );
@@ -44,6 +46,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "cfl"            , 0.6              );
     coupler.set_option<bool       >( "enable_gravity" , true             );
     coupler.set_option<bool       >( "weno_all"       , true             );
+    coupler.set_option<real       >( "sfc_heat_flux"  , shf              );
 
     coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 
@@ -89,12 +92,14 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
+        auto run_shf       = [&] (Coupler &c) { custom_modules::surface_heat_flux(c,dt);               };
         auto run_geo       = [&] (Coupler &c) { modules::geostrophic_wind_forcing(c,dt,lat_g,u_g,v_g); };
         auto run_dycore    = [&] (Coupler &c) { dycore.time_step                 (c,dt);               };
         auto run_sponge    = [&] (Coupler &c) { modules::sponge_layer            (c,dt,dt*100,0.1);    };
         auto run_surf_flux = [&] (Coupler &c) { modules::apply_surface_fluxes    (c,dt);               };
         auto run_les       = [&] (Coupler &c) { les_closure.apply                (c,dt);               };
         auto run_tavg      = [&] (Coupler &c) { time_averager.accumulate         (c,dt);               };
+        coupler.run_module( run_shf       , "sfc_heat_flux"       );
         coupler.run_module( run_geo       , "geostrophic_forcing" );
         coupler.run_module( run_dycore    , "dycore"              );
         coupler.run_module( run_sponge    , "sponge"              );

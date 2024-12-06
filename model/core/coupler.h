@@ -565,66 +565,66 @@ namespace core {
       std::vector<std::string> dimnames_column  = {"z"};
       std::vector<std::string> dimnames_surface = {"y","x"};
       std::vector<std::string> dimnames_3d      = {"z","y","x"};
-      nc.create_var<real>( "x"   , {"x"} );
-      nc.create_var<real>( "y"   , {"y"} );
-      nc.create_var<real>( "z"   , {"z"} );
-      nc.create_var<real>( "density_dry"  , dimnames_3d );
-      nc.create_var<real>( "uvel"         , dimnames_3d );
-      nc.create_var<real>( "vvel"         , dimnames_3d );
-      nc.create_var<real>( "wvel"         , dimnames_3d );
-      nc.create_var<real>( "temperature"  , dimnames_3d );
-      nc.create_var<real>( "etime"        , {"t"} );
-      nc.create_var<real>( "file_counter" , {"t"} );
+      nc.create_var<float>( "x"   , {"x"} );
+      nc.create_var<float>( "y"   , {"y"} );
+      nc.create_var<float>( "z"   , {"z"} );
+      nc.create_var<float>( "density_dry"  , dimnames_3d );
+      nc.create_var<float>( "uvel"         , dimnames_3d );
+      nc.create_var<float>( "vvel"         , dimnames_3d );
+      nc.create_var<float>( "wvel"         , dimnames_3d );
+      nc.create_var<float>( "temperature"  , dimnames_3d );
+      nc.create_var<float>( "etime"        , {"t"} );
+      nc.create_var<int  >( "file_counter" , {"t"} );
       auto tracer_names = get_tracer_names();
-      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<real>( tracer_names.at(tr) , dimnames_3d ); }
+      for (int tr = 0; tr < num_tracers; tr++) { nc.create_var<float>( tracer_names.at(tr) , dimnames_3d ); }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
         auto name = output_vars.at(ivar).name;
         auto hash = output_vars.at(ivar).type_hash;
         auto dims = output_vars.at(ivar).dims;
         if        (dims == DIMS_COLUMN ) {
           if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_column ); }
-          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_column ); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<float >(name,dimnames_column ); }
           else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_column ); }
           else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_column ); }
         } else if (dims == DIMS_SURFACE) {
           if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_surface); }
-          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_surface); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<float >(name,dimnames_surface); }
           else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_surface); }
           else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_surface); }
         } else if (dims == DIMS_3D     ) {
           if      (hash == get_type_hash<float >()) { nc.create_var<float >(name,dimnames_3d     ); }
-          else if (hash == get_type_hash<double>()) { nc.create_var<double>(name,dimnames_3d     ); }
+          else if (hash == get_type_hash<double>()) { nc.create_var<float >(name,dimnames_3d     ); }
           else if (hash == get_type_hash<int   >()) { nc.create_var<int   >(name,dimnames_3d     ); }
           else if (hash == get_type_hash<uchar >()) { nc.create_var<uchar >(name,dimnames_3d     ); }
         }
       }
       nc.enddef();
       // x-coordinate
-      real1d xloc("xloc",nx);
+      float1d xloc("xloc",nx);
       parallel_for( YAKL_AUTO_LABEL() , nx , KOKKOS_LAMBDA (int i) { xloc(i) = (i+i_beg+0.5)*dx; });
       nc.write_all( xloc , "x" , {i_beg} );
       // y-coordinate
-      real1d yloc("yloc",ny);
+      float1d yloc("yloc",ny);
       parallel_for( YAKL_AUTO_LABEL() , ny , KOKKOS_LAMBDA (int j) { yloc(j) = (j+j_beg+0.5)*dy; });
       nc.write_all( yloc , "y" , {j_beg} );
       // z-coordinate
-      real1d zloc("zloc",nz);
+      float1d zloc("zloc",nz);
       parallel_for( YAKL_AUTO_LABEL() , nz , KOKKOS_LAMBDA (int k) { zloc(k) = (k      +0.5)*dz; });
       nc.begin_indep_data();
       if (is_mainproc()) nc.write( zloc , "z" );
-      if (is_mainproc()) nc.write( etime        , "etime"        );
+      if (is_mainproc()) nc.write( (float)etime , "etime"        );
       if (is_mainproc()) nc.write( file_counter , "file_counter" );
       nc.end_indep_data();
       auto &dm = get_data_manager_readonly();
       std::vector<MPI_Offset> start_3d      = {0,j_beg,i_beg};
       std::vector<MPI_Offset> start_surface = {  j_beg,i_beg};
-      nc.write_all(dm.get<real const,3>("density_dry"),"density_dry",start_3d);
-      nc.write_all(dm.get<real const,3>("uvel"       ),"uvel"       ,start_3d);
-      nc.write_all(dm.get<real const,3>("vvel"       ),"vvel"       ,start_3d);
-      nc.write_all(dm.get<real const,3>("wvel"       ),"wvel"       ,start_3d);
-      nc.write_all(dm.get<real const,3>("temp"       ),"temperature",start_3d);
+      nc.write_all(dm.get<real const,3>("density_dry").as<float>(),"density_dry",start_3d);
+      nc.write_all(dm.get<real const,3>("uvel"       ).as<float>(),"uvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("vvel"       ).as<float>(),"vvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("wvel"       ).as<float>(),"wvel"       ,start_3d);
+      nc.write_all(dm.get<real const,3>("temp"       ).as<float>(),"temperature",start_3d);
       for (int i=0; i < tracer_names.size(); i++) {
-        nc.write_all(dm.get<real const,3>(tracer_names.at(i)),tracer_names.at(i),start_3d);
+        nc.write_all(dm.get<real const,3>(tracer_names.at(i)).as<float>(),tracer_names.at(i),start_3d);
       }
       for (int ivar = 0; ivar < output_vars.size(); ivar++) {
         auto name = output_vars.at(ivar).name;
@@ -634,19 +634,19 @@ namespace core {
           nc.begin_indep_data();
           if (is_mainproc()) {
             if      (hash == get_type_hash<float >()) { nc.write(dm.get<float  const,1>(name),name); }
-            else if (hash == get_type_hash<double>()) { nc.write(dm.get<double const,1>(name),name); }
+            else if (hash == get_type_hash<double>()) { nc.write(dm.get<double const,1>(name).as<float>(),name); }
             else if (hash == get_type_hash<int   >()) { nc.write(dm.get<int    const,1>(name),name); }
             else if (hash == get_type_hash<uchar >()) { nc.write(dm.get<uchar  const,1>(name),name); }
           }
           nc.end_indep_data();
         } else if (dims == DIMS_SURFACE) {
           if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,2>(name),name,start_surface); }
-          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,2>(name),name,start_surface); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,2>(name).as<float>(),name,start_surface); }
           else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,2>(name),name,start_surface); }
           else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,2>(name),name,start_surface); }
         } else if (dims == DIMS_3D     ) {
           if      (hash == get_type_hash<float >()) { nc.write_all(dm.get<float  const,3>(name),name,start_3d); }
-          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,3>(name),name,start_3d); }
+          else if (hash == get_type_hash<double>()) { nc.write_all(dm.get<double const,3>(name).as<float>(),name,start_3d); }
           else if (hash == get_type_hash<int   >()) { nc.write_all(dm.get<int    const,3>(name),name,start_3d); }
           else if (hash == get_type_hash<uchar >()) { nc.write_all(dm.get<uchar  const,3>(name),name,start_3d); }
         }

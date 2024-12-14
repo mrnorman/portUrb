@@ -5,7 +5,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from cmap import Colormap
 import xarray
 
-workdir = "/lustre/storm/nwp501/scratch/imn/ABL_convective"
+workdir = "/lustre/storm/nwp501/scratch/imn/portUrb/build"
 
 def spectra(T,dx = 1) :
   spd = np.abs( np.fft.rfft(T[0,0,:]) )**2
@@ -45,6 +45,8 @@ mag   = np.sqrt(uvel*uvel+vvel*vvel)
 
 
 fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(12,10))
+t1 = 310
+t2 = 315
 X,Y = np.meshgrid(x,y)
 zind = get_ind(z,.078)
 print(zind, z[zind])
@@ -74,8 +76,6 @@ cbar2.ax.tick_params(labelrotation=30)
 
 X,Z = np.meshgrid(x,z)
 yind = get_ind(y,ylen/2)
-t1 = 310
-t2 = 315
 CS3 = ax3.contourf(X,Z,theta[:,yind,:],levels=np.arange(t1,t2,(t2-t1)/200),cmap=Colormap('cmasher:fusion_r').to_mpl(),extend="both")
 ax3.axis('scaled')
 ax3.set_xlabel("x-location (km)")
@@ -104,10 +104,9 @@ plt.close()
 
 
 
-dx = 10
-freq,spd1 = spectra(mag  [get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=10)
-freq,spd2 = spectra(wvel [get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=10)
-freq,spd3 = spectra(theta[get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=10)
+freq,spd1 = spectra(mag  [get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=dx)
+freq,spd2 = spectra(wvel [get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=dx)
+freq,spd3 = spectra(theta[get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=dx)
 spd1 = spd1/np.mean(spd1)
 spd2 = spd2/np.mean(spd2)
 spd3 = spd3/np.mean(spd3)
@@ -117,7 +116,7 @@ ax = fig.gca()
 ax.plot(freq,spd1,label="Horizontal Wind Speed spectra",color="black")
 ax.plot(freq,spd2,label="Vertical Velocity spectra"    ,color="blue" )
 ax.plot(freq,spd3,label="Potential Temperature spectra",color="lightgreen")
-ax.plot(freq,1.e-2*freq**(-5/3),label=r"$f^{-5/3}$"    ,color="magenta"  )
+ax.plot(freq,5.e2*freq**(-5/3),label=r"$f^{-5/3}$"    ,color="magenta"  )
 ax.vlines(2*np.pi/(2 *dx),2.e-4,1.e1,linestyle="--",color="red")
 ax.vlines(2*np.pi/(4 *dx),2.e-4,1.e1,linestyle="--",color="red")
 ax.vlines(2*np.pi/(8 *dx),2.e-4,1.e1,linestyle="--",color="red")

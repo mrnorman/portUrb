@@ -5,7 +5,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import xarray
 import cmaps
 
-workdir = "/lustre/storm/nwp501/scratch/imn/ABL_neutral"
+workdir = "/lustre/storm/nwp501/scratch/imn/portUrb/build"
 
 
 def spectra(T,dx = 1) :
@@ -130,12 +130,11 @@ plt.show()
 plt.close()
 
 
-dx = 10
 freq,spd1 = spectra(mag[get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=dx)
 fig = plt.figure(figsize=(6,3))
 ax = fig.gca()
 ax.plot(freq,spd1,label="Wind Speed spectra")
-ax.plot(freq[1:],1.5e0*freq[1:]**(-5/3),label=r"$f^{-5/3}$")
+ax.plot(freq[1:],8e4*freq[1:]**(-5/3),label=r"$f^{-5/3}$")
 ax.vlines(2*np.pi/(2 *dx),1.e-3,1.e3,linestyle="--",color="red")
 ax.vlines(2*np.pi/(4 *dx),1.e-3,1.e3,linestyle="--",color="red")
 ax.vlines(2*np.pi/(8 *dx),1.e-3,1.e3,linestyle="--",color="red")

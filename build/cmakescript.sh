@@ -17,7 +17,7 @@ if [ ! -f $1/CMakeLists.txt ]; then
   exit -1
 fi
 
-[[ "$PORTURB_DEBUG" == "ON" ]] && PORTURB_CXX_FLAGS+=";-DYAKL_DEBUG"
+[[ "$PORTURB_DEBUG" == "ON" ]] && PORTURB_CXX_FLAGS+=";-DYAKL_DEBUG;-DKOKKOS_DEBUG"
 [[ ! "$PORTURB_DEBUG" == "ON" ]] && PORTURB_CXX_FLAGS+=";-DNDEBUG"
 CMAKE_COMMAND=(cmake -Wno-dev -DPORTURB_HOME="`pwd`/..")
 CMAKE_COMMAND+=(-DPORTURB_CXX_FLAGS="$PORTURB_CXX_FLAGS")

@@ -17,24 +17,24 @@ namespace modules {
     auto uvel    = dm.get<real,3>("uvel");
     auto vvel    = dm.get<real,3>("vvel");
     real fcor    = 2*7.2921e-5*std::sin(lat_g/180*M_PI);
-    real1d ucol("ucol",nz);
-    real1d vcol("vcol",nz);
+    int constexpr idU  = 0;
+    int constexpr idV  = 1;
+    int constexpr nfld = 2;
+    real2d col("col",nfld,nz);
     real r_nx_ny = 1. / (ny_glob*nx_glob);
-    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-      ucol(k) = 0;
-      vcol(k) = 0;
+    parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(nfld,nz) , KOKKOS_LAMBDA (int v, int k) {
+      col(v,k) = 0;
       for (int j=0; j < ny; j++) {
         for (int i=0; i < nx; i++) {
-          ucol(k) += uvel(k,j,i) * r_nx_ny;
-          vcol(k) += vvel(k,j,i) * r_nx_ny;
+          if (v == idU) col(v,k) += uvel(k,j,i)*r_nx_ny;
+          if (v == idV) col(v,k) += vvel(k,j,i)*r_nx_ny;
         }
       }
     });
-    ucol = coupler.get_parallel_comm().all_reduce( ucol , MPI_SUM , "" );
-    vcol = coupler.get_parallel_comm().all_reduce( vcol , MPI_SUM , "" );
+    col = coupler.get_parallel_comm().all_reduce( col , MPI_SUM , "" );
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-      uvel(k,j,i) += dt*( fcor*(vcol(k)-v_g));
-      vvel(k,j,i) += dt*(-fcor*(ucol(k)-u_g));
+      uvel(k,j,i) += dt*( fcor*(col(idV,k)-v_g));
+      vvel(k,j,i) += dt*(-fcor*(col(idU,k)-u_g));
     });
   }
 

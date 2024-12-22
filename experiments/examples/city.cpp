@@ -33,14 +33,15 @@ struct Face {
 };
 
 struct Mesh {
-  std::vector<Face> faces; 
+  typedef yakl::Array<Face,1,yakl::memDevice,yakl::styleC> Faces;
+  Faces  faces;
   Vertex domain_lo, domain_hi;
   void add_offset(float x = 0, float y = 0, float z = 0) {
-    for (int i=0; i < faces.size(); i++) {
-      faces[i].v1.x += x;    faces[i].v1.y += y;    faces[i].v1.z += z;
-      faces[i].v2.x += x;    faces[i].v2.y += y;    faces[i].v2.z += z;
-      faces[i].v3.x += x;    faces[i].v3.y += y;    faces[i].v3.z += z;
-    }
+    yakl::c::parallel_for( YAKL_AUTO_LABEL() , faces.size() , KOKKOS_LAMBDA (int i) {
+      faces(i).v1.x += x;    faces(i).v1.y += y;    faces(i).v1.z += z;
+      faces(i).v2.x += x;    faces(i).v2.y += y;    faces(i).v2.z += z;
+      faces(i).v3.x += x;    faces(i).v3.y += y;    faces(i).v3.z += z;
+    });
     domain_lo.x += x;    domain_lo.y += y;    domain_lo.z += z;
     domain_hi.x += x;    domain_hi.y += y;    domain_hi.z += z;
   }
@@ -59,8 +60,9 @@ inline Mesh read_obj_mesh(std::string fname) {
   std::ifstream file(fname);
   std::string line;
   std::vector<Vertex> vertices;
+  std::vector<Face>   faces;
   Mesh mesh;
-  while (getline(file, line)) {
+  while (std::getline(file, line)) {
     if (line.size() > 0) {
       if (line[0] == 'v') {
         std::string lab;
@@ -74,21 +76,24 @@ inline Mesh read_obj_mesh(std::string fname) {
         std::string lab;
         int i, j, k;
         std::stringstream(line) >> lab >> i >> j >> k;
-        mesh.faces.push_back({vertices.at(i-1),vertices.at(j-1),vertices.at(k-1)});
+        faces.push_back({vertices.at(i-1),vertices.at(j-1),vertices.at(k-1)});
       }
     }
   }
   mesh.domain_lo = {xl,yl,zl};
   mesh.domain_hi = {xh,yh,zh};
+  auto mesh_faces_host = Mesh::Faces("faces",faces.size()).createHostObject();
+  for (int i=0; i < faces.size(); i++) { mesh_faces_host(i) = faces[i]; }
+  mesh.faces = mesh_faces_host.createDeviceCopy();
   file.close();
   return mesh;
 }
 
-inline float sign(Vertex const &v1, Vertex const &v2, Vertex const &v3) {
+KOKKOS_INLINE_FUNCTION float sign(Vertex const &v1, Vertex const &v2, Vertex const &v3) {
   return (v1.x-v3.x)*(v2.y-v3.y) - (v2.x-v3.x)*(v1.y-v3.y);
 }
 
-inline bool point_in_triangle(Vertex pt, Face const &face) {
+KOKKOS_INLINE_FUNCTION bool point_in_triangle(Vertex pt, Face const &face) {
   float d1 = sign( pt , face.v1 , face.v2 );
   float d2 = sign( pt , face.v2 , face.v3 );
   float d3 = sign( pt , face.v3 , face.v1 );
@@ -97,7 +102,7 @@ inline bool point_in_triangle(Vertex pt, Face const &face) {
   return !(has_neg && has_pos);
 }
 
-inline float bilinear_interpolation( Face const &face , float x , float y ) {
+KOKKOS_INLINE_FUNCTION float bilinear_interpolation( Face const &face , float x , float y ) {
   auto v1 = face.v1;
   auto v2 = face.v2;
   auto v3 = face.v3;
@@ -123,26 +128,22 @@ int main(int argc, char** argv) {
     auto mesh = read_obj_mesh("/home/imn/nyc2.obj");
     mesh.add_offset( -mesh.domain_lo.x , -mesh.domain_lo.y , -mesh.domain_lo.z );
     std::cout << mesh;
-    float dx = 1;
-    float dy = 1;
+    float dx = 5;
+    float dy = 5;
     int nx = (int) std::ceil(mesh.domain_hi.x/dx);
     int ny = (int) std::ceil(mesh.domain_hi.y/dy);
     std::cout << nx << " , " << ny << std::endl;
     floatHost2d heightmap("heightmap",ny,nx);
     heightmap = mesh.domain_lo.z;
     yakl::timer_start("heightmap");
-    #pragma omp parallel for collapse(2)
-    for (int j=0; j < ny; j++) {
-      for (int i=0; i < nx; i++) {
-        Vertex pt( { (i+0.5f)*dx , (j+0.5f)*dy , 0.f } );
-        for (int k=0; k < mesh.faces.size(); k++) {
-          if ( point_in_triangle( pt , mesh.faces[k] ) ) {
-            float zloc = bilinear_interpolation( mesh.faces[k] , pt.x , pt.y );
-            heightmap(j,i) = std::max( heightmap(j,i) , zloc );
-          }
+    yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<2>(ny,nx) , KOKKOS_LAMBDA (int j, int i) {
+      Vertex pt( { (i+0.5f)*dx , (j+0.5f)*dy , 0.f } );
+      for (int k=0; k < mesh.faces.size(); k++) {
+        if ( point_in_triangle( pt , mesh.faces(k) ) ) {
+          heightmap(j,i) = std::max( heightmap(j,i) , bilinear_interpolation( mesh.faces(k) , pt.x , pt.y ) );
         }
       }
-    }
+    });
     yakl::timer_stop("heightmap");
 
     yakl::SimpleNetCDF nc;

@@ -37,6 +37,7 @@ struct Mesh {
   Faces  faces;
   Vertex domain_lo, domain_hi;
   void add_offset(float x = 0, float y = 0, float z = 0) {
+    YAKL_SCOPE( faces , this->faces );
     yakl::c::parallel_for( YAKL_AUTO_LABEL() , faces.size() , KOKKOS_LAMBDA (int i) {
       faces(i).v1.x += x;    faces(i).v1.y += y;    faces(i).v1.z += z;
       faces(i).v2.x += x;    faces(i).v2.y += y;    faces(i).v2.z += z;
@@ -113,7 +114,8 @@ KOKKOS_INLINE_FUNCTION float bilinear_interpolation( Face const &face , float x 
   float w2 = (v3.x * v1.y - v1.x * v3.y + (v3.y - v1.y) * x + (v1.x - v3.x) * y) / (2 * area);
   float w3 = 1 - w1 - w2;
   // Interpolate the z value
-  return w1 * v1.z + w2 * v2.z + w3 * v3.z;
+  if (w1>=0 && w2>=0 && w3>=0 && w1<=1 && w2<=1 && w3<=1) { return w1 * v1.z + w2 * v2.z + w3 * v3.z; }
+  else                                                    { return 0; }
 }
 
 
@@ -125,17 +127,17 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    auto mesh = read_obj_mesh("/home/imn/nyc2.obj");
+    auto mesh = read_obj_mesh("/ccs/home/imn/nyc2.obj");
     mesh.add_offset( -mesh.domain_lo.x , -mesh.domain_lo.y , -mesh.domain_lo.z );
     std::cout << mesh;
-    float dx = 5;
-    float dy = 5;
+    float dx = 0.1;
+    float dy = 0.1;
     int nx = (int) std::ceil(mesh.domain_hi.x/dx);
     int ny = (int) std::ceil(mesh.domain_hi.y/dy);
     std::cout << nx << " , " << ny << std::endl;
-    floatHost2d heightmap("heightmap",ny,nx);
+    float2d heightmap("heightmap",ny,nx);
     heightmap = mesh.domain_lo.z;
-    yakl::timer_start("heightmap");
+    yakl::timer_start("calc_heightmap");
     yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<2>(ny,nx) , KOKKOS_LAMBDA (int j, int i) {
       Vertex pt( { (i+0.5f)*dx , (j+0.5f)*dy , 0.f } );
       for (int k=0; k < mesh.faces.size(); k++) {
@@ -144,14 +146,16 @@ int main(int argc, char** argv) {
         }
       }
     });
-    yakl::timer_stop("heightmap");
+    yakl::timer_stop("calc_heightmap");
 
+    yakl::timer_start("write_heightmap");
     yakl::SimpleNetCDF nc;
     nc.create( "heightmap.nc");
     nc.createDim( "x" , nx );
     nc.createDim( "y" , ny );
     nc.write( heightmap , "heightmap" , {"y","x"} );
     nc.close();
+    yakl::timer_stop("write_heightmap");
 
     yakl::timer_stop("main");
   }

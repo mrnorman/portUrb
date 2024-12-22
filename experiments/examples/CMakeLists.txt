@@ -46,4 +46,5 @@ process_target(windfarm_ensemble_3x3)
 process_target(cubes_periodic)
 process_target(bomex)
 process_target(sphere)
+process_target(city)
 

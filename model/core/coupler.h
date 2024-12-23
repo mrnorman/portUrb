@@ -535,7 +535,7 @@ namespace core {
       using yakl::c::SimpleBounds;
       typedef unsigned char uchar;
       yakl::timer_start("coupler_output");
-      if (verbose && is_mainproc()) std::cout << "*** Beginning outputOutput/restart file written ***" << std::endl;
+      if (verbose && is_mainproc()) std::cout << "*** Beginning outputOutput/restart file ***" << std::endl;
       auto nx          = get_nx();
       auto ny          = get_ny();
       auto nz          = get_nz();

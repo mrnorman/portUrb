@@ -242,6 +242,8 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "city") {
 
+      real uref = 20;
+      real href = 500;
       auto faces = coupler.get_data_manager_readwrite().get<float,3>("mesh_faces");
       auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
         if      (z <  500)            { return 300;                        }
@@ -271,8 +273,10 @@ namespace custom_modules {
               real p         = pressGLL(k,kk);
               real rho_theta = std::pow( p/C0 , 1._fp/gamma );
               real rho       = rho_theta / theta;
-              real u         = 10;
-              real v         = 0;
+              real umag      = uref / std::log((href+roughness)/roughness) * std::log((z+roughness)/roughness);
+              real ang       = 29./180.*M_PI;
+              real u         = umag*std::cos(ang);
+              real v         = umag*std::sin(ang);
               real w         = 0;
               real T         = p/(rho*R_d);
               real rho_v     = 0;

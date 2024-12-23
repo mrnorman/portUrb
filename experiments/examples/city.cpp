@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "is_restart"       , is_restart  );
     coupler.set_option<std::string>( "restart_file"     , ""          );
     coupler.set_option<real       >( "latitude"         , 0.          );
-    coupler.set_option<real       >( "roughness"        , 0.1         );
+    coupler.set_option<real       >( "roughness"        , 1.e-6       );
     coupler.set_option<real       >( "cfl"              , 0.6         );
     coupler.set_option<bool       >( "enable_gravity"   , true        );
     coupler.set_option<bool       >( "weno_all"         , true        );

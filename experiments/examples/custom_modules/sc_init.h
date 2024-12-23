@@ -242,6 +242,9 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "city") {
 
+      coupler.set_option<std::string>("bc_x","periodic");
+      coupler.set_option<std::string>("bc_y","periodic");
+      coupler.set_option<std::string>("bc_z","solid_wall");
       dm_immersed_rough = coupler.get_option<real>("building_roughness");
       real uref = 20;
       real href = 500;

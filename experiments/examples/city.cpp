@@ -7,6 +7,7 @@
 #include "les_closure.h"
 #include "surface_flux.h"
 #include "sponge_layer.h"
+#include "uniform_pg_wind_forcing.h"
 #include "TriMesh.h"
 #include "edge_sponge.h"
 
@@ -26,17 +27,17 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    real pad_x1 = 50;
-    real pad_x2 = 50;
-    real pad_y1 = 50;
-    real pad_y2 = 50;
+    real pad_x1 = 20;
+    real pad_x2 = 20;
+    real pad_y1 = 20;
+    real pad_y2 = 20;
     real pad_z2 = 100;
     real dx     = 2;
     real dy     = 2;
     real dz     = 2;
 
     modules::TriMesh mesh;
-    mesh.load_file("/ccs/home/imn/nyc.obj");
+    mesh.load_file("/ccs/home/imn/nyc2.obj");
     mesh.zero_domain_lo();
 
     real        sim_time    = 3600*2+1;
@@ -81,7 +82,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    custom_modules::EdgeSponge                 edge_sponge;
+    // custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -91,7 +92,7 @@ int main(int argc, char** argv) {
     les_closure  .init        ( coupler );
     dycore       .init        ( coupler );
     time_averager.init        ( coupler );
-    edge_sponge  .set_column  ( coupler );
+    // edge_sponge  .set_column  ( coupler );
     custom_modules::sc_perturb( coupler );
 
     real etime = coupler.get_option<real>("elapsed_time");
@@ -120,7 +121,13 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
+        using modules::uniform_pg_wind_forcing_height;
+        real hr = 500;
+        real ur = 20*std::cos(29./180.*M_PI);
+        real vr = 20*std::sin(29./180.*M_PI);
+        real tr = dt*100;
+        coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,hr,ur,vr,tr); } , "pg_forcing"     );
+        // coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);         } , "dycore"         );
         coupler.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.02); } , "sponge"         );
         coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         } , "surface_fluxes" );

@@ -50,22 +50,23 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 60;
     real        inform_freq = 1;
-    std::string out_prefix  = "city_1m_5e-2";
+    std::string out_prefix  = "city_2m_1e-6";
     bool        is_restart  = false;
 
     mesh.add_offset(pad_x1,pad_y1);
 
     core::Coupler coupler;
-    coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
-    coupler.set_option<std::string>( "init_data"        , "city"      );
-    coupler.set_option<real       >( "out_freq"         , out_freq    );
-    coupler.set_option<bool       >( "is_restart"       , is_restart  );
-    coupler.set_option<std::string>( "restart_file"     , ""          );
-    coupler.set_option<real       >( "latitude"         , 0.          );
-    coupler.set_option<real       >( "roughness"        , 5e-2        );
-    coupler.set_option<real       >( "cfl"              , 0.6         );
-    coupler.set_option<bool       >( "enable_gravity"   , true        );
-    coupler.set_option<bool       >( "weno_all"         , true        );
+    coupler.set_option<std::string>( "out_prefix"         , out_prefix  );
+    coupler.set_option<std::string>( "init_data"          , "city"      );
+    coupler.set_option<real       >( "out_freq"           , out_freq    );
+    coupler.set_option<bool       >( "is_restart"         , is_restart  );
+    coupler.set_option<std::string>( "restart_file"       , ""          );
+    coupler.set_option<real       >( "latitude"           , 0.          );
+    coupler.set_option<real       >( "roughness"          , 5e-2        );
+    coupler.set_option<real       >( "building_roughness" , 1.e-6       );
+    coupler.set_option<real       >( "cfl"                , 0.6         );
+    coupler.set_option<bool       >( "enable_gravity"     , true        );
+    coupler.set_option<bool       >( "weno_all"           , true        );
 
     coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
 

@@ -242,6 +242,7 @@ namespace custom_modules {
 
     } else if (coupler.get_option<std::string>("init_data") == "city") {
 
+      dm_immersed_rough = coupler.get_option<real>("building_roughness");
       real uref = 20;
       real href = 500;
       auto faces = coupler.get_data_manager_readwrite().get<float,3>("mesh_faces");
@@ -256,6 +257,7 @@ namespace custom_modules {
         real x           = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
         real y           = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
         zmesh(j,i,jj,ii) = modules::TriMesh::max_height(x,y,faces,0);
+        if (zmesh(j,i,jj,ii) == 0) zmesh(j,i,jj,ii) = -1;
       });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d        (k,j,i) = 0;

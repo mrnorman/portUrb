@@ -41,8 +41,8 @@ int main(int argc, char** argv) {
     real        xlen        = mesh.domain_hi.x + pad_x1 + pad_x2;
     real        ylen        = mesh.domain_hi.y + pad_y1 + pad_y2;
     real        zlen        = 800;
-    real        dx          = 2;
-    real        dz          = 2;
+    real        dx          = 1;
+    real        dz          = 1;
     int         nx_glob     = xlen/dx;
     int         ny_glob     = ylen/dx;
     int         nz          = zlen/dz;
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 60;
     real        inform_freq = 1;
-    std::string out_prefix  = "city_2m";
+    std::string out_prefix  = "city_1m_5e-2";
     bool        is_restart  = false;
 
     core::Coupler coupler;
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "is_restart"       , is_restart  );
     coupler.set_option<std::string>( "restart_file"     , ""          );
     coupler.set_option<real       >( "latitude"         , 0.          );
-    coupler.set_option<real       >( "roughness"        , 1.e-6       );
+    coupler.set_option<real       >( "roughness"        , 5e-2        );
     coupler.set_option<real       >( "cfl"              , 0.6         );
     coupler.set_option<bool       >( "enable_gravity"   , true        );
     coupler.set_option<bool       >( "weno_all"         , true        );

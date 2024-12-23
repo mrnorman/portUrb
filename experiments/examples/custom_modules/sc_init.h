@@ -254,6 +254,13 @@ namespace custom_modules {
       Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
       auto t1 = std::chrono::high_resolution_clock::now();
       if (coupler.is_mainproc()) std::cout << "*** Beginning setup ***" << std::endl;
+      float4d zmesh("zmesh",ny,nx,nqpoints,nqpoints);
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<4>(ny,nx,nqpoints,nqpoints) ,
+                                        KOKKOS_LAMBDA (int j, int i, int jj, int ii) {
+        real x           = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
+        real y           = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
+        zmesh(j,i,jj,ii) = modules::TriMesh::max_height(x,y,faces,0);
+      });
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         dm_rho_d        (k,j,i) = 0;
         dm_uvel         (k,j,i) = 0;
@@ -268,12 +275,11 @@ namespace custom_modules {
               real x         = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
               real y         = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
               real z         = (      k+0.5)*dz + qpoints(kk)*dz;
-              real zmesh     = modules::TriMesh::max_height(x,y,faces,0);
               real theta     = compute_theta(z);
               real p         = pressGLL(k,kk);
               real rho_theta = std::pow( p/C0 , 1._fp/gamma );
               real rho       = rho_theta / theta;
-              real umag      = uref / std::log((href+roughness)/roughness) * std::log((z+roughness)/roughness);
+              real umag      = uref*std::log((z+roughness)/roughness)/std::log((href+roughness)/roughness);
               real ang       = 29./180.*M_PI;
               real u         = umag*std::cos(ang);
               real v         = umag*std::sin(ang);
@@ -281,13 +287,13 @@ namespace custom_modules {
               real T         = p/(rho*R_d);
               real rho_v     = 0;
               real wt = qweights(kk)*qweights(jj)*qweights(ii);
-              dm_immersed_prop(k,j,i) += (z<=zmesh ? 1 : 0) * wt;
-              dm_rho_d        (k,j,i) += rho                * wt;
-              dm_uvel         (k,j,i) += (z<=zmesh ? 0 : u) * wt;
-              dm_vvel         (k,j,i) += (z<=zmesh ? 0 : v) * wt;
-              dm_wvel         (k,j,i) += (z<=zmesh ? 0 : w) * wt;
-              dm_temp         (k,j,i) += T                  * wt;
-              dm_rho_v        (k,j,i) += rho_v              * wt;
+              dm_immersed_prop(k,j,i) += (z<=zmesh(j,i,jj,ii) ? 1 : 0) * wt;
+              dm_rho_d        (k,j,i) += rho                           * wt;
+              dm_uvel         (k,j,i) += (z<=zmesh(j,i,jj,ii) ? 0 : u) * wt;
+              dm_vvel         (k,j,i) += (z<=zmesh(j,i,jj,ii) ? 0 : v) * wt;
+              dm_wvel         (k,j,i) += (z<=zmesh(j,i,jj,ii) ? 0 : w) * wt;
+              dm_temp         (k,j,i) += T                             * wt;
+              dm_rho_v        (k,j,i) += rho_v                         * wt;
             }
           }
         }

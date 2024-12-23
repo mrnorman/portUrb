@@ -7,7 +7,6 @@
 #include "les_closure.h"
 #include "surface_flux.h"
 #include "sponge_layer.h"
-#include "YAKL_netcdf.h"
 #include "TriMesh.h"
 #include "edge_sponge.h"
 
@@ -31,6 +30,7 @@ int main(int argc, char** argv) {
     real pad_x2 = 50;
     real pad_y1 = 50;
     real pad_y2 = 50;
+    real pad_z2 = 100;
     real dx     = 2;
     real dy     = 2;
     real dz     = 2;
@@ -38,12 +38,11 @@ int main(int argc, char** argv) {
     modules::TriMesh mesh;
     mesh.load_file("/ccs/home/imn/nyc.obj");
     mesh.zero_domain_lo();
-    mesh.add_offset(pad_x1,pad_y1);
 
     real        sim_time    = 3600*2+1;
     real        xlen        = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
     real        ylen        = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
-    real        zlen        = std::ceil(800/dz)*dz;
+    real        zlen        = std::ceil((mesh.domain_hi.z       +pad_z2)/dz)*dz;
     int         nx_glob     = xlen/dx;
     int         ny_glob     = ylen/dy;
     int         nz          = zlen/dz;
@@ -53,6 +52,8 @@ int main(int argc, char** argv) {
     real        inform_freq = 1;
     std::string out_prefix  = "city_1m_5e-2";
     bool        is_restart  = false;
+
+    mesh.add_offset(pad_x1,pad_y1);
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
@@ -120,7 +121,7 @@ int main(int argc, char** argv) {
         using core::Coupler;
         coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);         } , "dycore"         );
-        coupler.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.01); } , "sponge"         );
+        coupler.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.02); } , "sponge"         );
         coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         } , "surface_fluxes" );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);         } , "les_closure"    );
         coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt);         } , "time_averager"  );

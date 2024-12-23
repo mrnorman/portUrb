@@ -245,11 +245,7 @@ namespace custom_modules {
       real uref = 20;
       real href = 500;
       auto faces = coupler.get_data_manager_readwrite().get<float,3>("mesh_faces");
-      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
-        if      (z <  500)            { return 300;                        }
-        else if (z >= 500 && z < 650) { return 300+0.08*(z-500);           }
-        else                          { return 300+0.08*150+0.003*(z-650); }
-      };
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real { return 300; };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
       Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
       auto t1 = std::chrono::high_resolution_clock::now();

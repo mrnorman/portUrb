@@ -31,6 +31,9 @@ int main(int argc, char** argv) {
     real pad_x2 = 50;
     real pad_y1 = 50;
     real pad_y2 = 50;
+    real dx     = 2;
+    real dy     = 2;
+    real dz     = 2;
 
     modules::TriMesh mesh;
     mesh.load_file("/ccs/home/imn/nyc.obj");
@@ -38,13 +41,11 @@ int main(int argc, char** argv) {
     mesh.add_offset(pad_x1,pad_y1);
 
     real        sim_time    = 3600*2+1;
-    real        xlen        = mesh.domain_hi.x + pad_x1 + pad_x2;
-    real        ylen        = mesh.domain_hi.y + pad_y1 + pad_y2;
-    real        zlen        = 800;
-    real        dx          = 1;
-    real        dz          = 1;
+    real        xlen        = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
+    real        ylen        = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
+    real        zlen        = std::ceil(800/dz)*dz;
     int         nx_glob     = xlen/dx;
-    int         ny_glob     = ylen/dx;
+    int         ny_glob     = ylen/dy;
     int         nz          = zlen/dz;
     real        dtphys_in   = 0;    // Use dycore time step
     int         dyn_cycle   = 10;

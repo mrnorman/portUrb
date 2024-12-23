@@ -6,6 +6,7 @@
 #include "coupler.h"
 #include "TransformMatrices.h"
 #include "hydrostasis.h"
+#include "TriMesh.h"
 #include <random>
 
 namespace custom_modules {
@@ -99,70 +100,8 @@ namespace custom_modules {
     coupler.add_option<std::string>("bc_z","solid_wall");
     auto enable_gravity = coupler.get_option<bool>("enable_gravity",true);
 
-    if (coupler.get_option<std::string>("init_data") == "city") {
-      real height_mean = 60;
-      real height_std  = 10;
 
-      int building_length = 30;
-      int cells_per_building = (int) std::round(building_length / dx);
-      int buildings_pad = 20;
-      int nblocks_x = (static_cast<int>(xlen)/building_length - 2*buildings_pad)/3;
-      int nblocks_y = (static_cast<int>(ylen)/building_length - 2*buildings_pad)/9;
-      int nbuildings_x = nblocks_x * 3;
-      int nbuildings_y = nblocks_y * 9;
-
-      realHost2d building_heights_host("building_heights",nbuildings_y,nbuildings_x);
-      if (coupler.is_mainproc()) {
-        std::mt19937 gen{17};
-        std::normal_distribution<> d{height_mean, height_std};
-        for (int j=0; j < nbuildings_y; j++) {
-          for (int i=0; i < nbuildings_x; i++) {
-            building_heights_host(j,i) = d(gen);
-          }
-        }
-      }
-      coupler.get_parallel_comm().broadcast( building_heights_host );
-      auto building_heights = building_heights_host.createDeviceCopy();
-
-      real constexpr uref       = 10;   // Velocity at hub height
-      real constexpr theta0     = 300;
-      real constexpr href       = 100;   // Height of hub / center of windmills
-      real constexpr von_karman = 0.40;
-      real slope = -grav*std::pow( p0 , R_d/cp_d ) / (cp_d*theta0);
-      realHost1d press_host("press",nz);
-      press_host(0) = std::pow( p0 , R_d/cp_d ) + slope*dz/2;
-      for (int k=1; k < nz; k++) { press_host(k) = press_host(k-1) + slope*dz; }
-      for (int k=0; k < nz; k++) { press_host(k) = std::pow( press_host(k) , cp_d/R_d ); }
-      auto press = press_host.createDeviceCopy();
-      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-        real zloc = (k+0.5_fp)*dz;
-        real ustar = von_karman * uref / std::log((href+roughness)/roughness);
-        real u     = ustar / von_karman * std::log((zloc+roughness)/roughness);
-        real p     = press(k);
-        real rt    = std::pow( p/C0 , 1._fp/gamma );
-        real r     = rt / theta0;
-        real T     = p/R_d/r;
-        dm_rho_d(k,j,i) = rt / theta0;
-        dm_uvel (k,j,i) = u;
-        dm_vvel (k,j,i) = 0;
-        dm_wvel (k,j,i) = 0;
-        dm_temp (k,j,i) = T;
-        dm_rho_v(k,j,i) = 0;
-        int inorm = (static_cast<int>(i_beg)+i)/cells_per_building - buildings_pad;
-        int jnorm = (static_cast<int>(j_beg)+j)/cells_per_building - buildings_pad;
-        if ( ( inorm >= 0 && inorm < nblocks_x*3 && inorm%3 < 2 ) &&
-             ( jnorm >= 0 && jnorm < nblocks_y*9 && jnorm%9 < 8 ) ) {
-          if ( k <= std::ceil( building_heights(jnorm,inorm) / dz ) ) {
-            dm_immersed_prop(k,j,i) = 1;
-            dm_uvel         (k,j,i) = 0;
-            dm_vvel         (k,j,i) = 0;
-            dm_wvel         (k,j,i) = 0;
-          }
-        }
-        if (k == 0) dm_surface_temp(j,i) = 300;
-      });
-
-    } else if (coupler.get_option<std::string>("init_data") == "building") {
+    if (coupler.get_option<std::string>("init_data") == "building") {
 
       auto u_g = coupler.get_option<real>("geostrophic_u",10.);
       auto v_g = coupler.get_option<real>("geostrophic_v",0. );
@@ -300,6 +239,58 @@ namespace custom_modules {
         dm_rho_v(k,j,i) = 0;
         if (k == 0) dm_surface_temp(j,i) = T;
       });
+
+    } else if (coupler.get_option<std::string>("init_data") == "city") {
+
+      auto faces = coupler.get_data_manager_readwrite().get<float,3>("mesh_faces");
+      auto compute_theta = KOKKOS_LAMBDA (real z) -> real {
+        if      (z <  500)            { return 300;                        }
+        else if (z >= 500 && z < 650) { return 300+0.08*(z-500);           }
+        else                          { return 300+0.08*150+0.003*(z-650); }
+      };
+      auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
+      Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
+      auto t1 = std::chrono::high_resolution_clock::now();
+      if (coupler.is_mainproc()) std::cout << "*** Beginning setup ***" << std::endl;
+      parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+        dm_rho_d        (k,j,i) = 0;
+        dm_uvel         (k,j,i) = 0;
+        dm_vvel         (k,j,i) = 0;
+        dm_wvel         (k,j,i) = 0;
+        dm_temp         (k,j,i) = 0;
+        dm_rho_v        (k,j,i) = 0;
+        dm_immersed_prop(k,j,i) = 0;
+        for (int kk=0; kk<nqpoints; kk++) {
+          for (int jj=0; jj<nqpoints; jj++) {
+            for (int ii=0; ii<nqpoints; ii++) {
+              real x         = (i_beg+i+0.5)*dx + qpoints(ii)*dx;
+              real y         = (j_beg+j+0.5)*dy + qpoints(jj)*dy;
+              real z         = (      k+0.5)*dz + qpoints(kk)*dz;
+              real zmesh     = modules::TriMesh::max_height(x,y,faces,0);
+              real theta     = compute_theta(z);
+              real p         = pressGLL(k,kk);
+              real rho_theta = std::pow( p/C0 , 1._fp/gamma );
+              real rho       = rho_theta / theta;
+              real u         = 10;
+              real v         = 0;
+              real w         = 0;
+              real T         = p/(rho*R_d);
+              real rho_v     = 0;
+              real wt = qweights(kk)*qweights(jj)*qweights(ii);
+              dm_immersed_prop(k,j,i) += (z<=zmesh ? 1 : 0) * wt;
+              dm_rho_d        (k,j,i) += rho                * wt;
+              dm_uvel         (k,j,i) += (z<=zmesh ? 0 : u) * wt;
+              dm_vvel         (k,j,i) += (z<=zmesh ? 0 : v) * wt;
+              dm_wvel         (k,j,i) += (z<=zmesh ? 0 : w) * wt;
+              dm_temp         (k,j,i) += T                  * wt;
+              dm_rho_v        (k,j,i) += rho_v              * wt;
+            }
+          }
+        }
+      });
+      Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
+      std::chrono::duration<double> dur = std::chrono::high_resolution_clock::now() - t1;
+      if (coupler.is_mainproc()) std::cout << "*** Finished setup in [" << dur.count() << "] seconds ***" << std::endl;
 
     } else if (coupler.get_option<std::string>("init_data") == "sphere") {
 

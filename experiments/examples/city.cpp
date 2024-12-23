@@ -8,7 +8,8 @@
 #include "surface_flux.h"
 #include "sponge_layer.h"
 #include "YAKL_netcdf.h"
-
+#include "TriMesh.h"
+#include "edge_sponge.h"
 
 /*
 In blender, delete the initial objects.
@@ -19,107 +20,6 @@ We only want triangle faces for simplicity.
 This code will handle the rest.
 */
 
-
-struct Vertex {
-  float x, y, z;
-  inline friend std::ostream &operator<<(std::ostream& os, Vertex const &v ) {
-    os << "[" << v.x << " , " << v.y << " , " << v.z << "]";
-    return os;
-  }
-};
-
-struct Face {
-  Vertex v1, v2, v3;
-};
-
-struct Mesh {
-  typedef yakl::Array<Face,1,yakl::memDevice,yakl::styleC> Faces;
-  Faces  faces;
-  Vertex domain_lo, domain_hi;
-  void add_offset(float x = 0, float y = 0, float z = 0) {
-    YAKL_SCOPE( faces , this->faces );
-    yakl::c::parallel_for( YAKL_AUTO_LABEL() , faces.size() , KOKKOS_LAMBDA (int i) {
-      faces(i).v1.x += x;    faces(i).v1.y += y;    faces(i).v1.z += z;
-      faces(i).v2.x += x;    faces(i).v2.y += y;    faces(i).v2.z += z;
-      faces(i).v3.x += x;    faces(i).v3.y += y;    faces(i).v3.z += z;
-    });
-    domain_lo.x += x;    domain_lo.y += y;    domain_lo.z += z;
-    domain_hi.x += x;    domain_hi.y += y;    domain_hi.z += z;
-  }
-  inline friend std::ostream &operator<<(std::ostream& os, Mesh const &m ) {
-    std::cout << "Bounding Box:    " << m.domain_lo << " x " << m.domain_hi << "\n";
-    std::cout << "Number of faces: " << m.faces.size() << std::endl;
-    return os;
-  }
-};
-
-inline Mesh read_obj_mesh(std::string fname) {
-  float constexpr pos_huge = std::numeric_limits<float>::max();
-  float constexpr neg_huge = std::numeric_limits<float>::lowest();
-  float xl = pos_huge, yl = pos_huge, zl = pos_huge;
-  float xh = neg_huge, yh = neg_huge, zh = neg_huge;
-  std::ifstream file(fname);
-  std::string line;
-  std::vector<Vertex> vertices;
-  std::vector<Face>   faces;
-  Mesh mesh;
-  while (std::getline(file, line)) {
-    if (line.size() > 0) {
-      if (line[0] == 'v') {
-        std::string lab;
-        float x, y, z;
-        std::stringstream(line) >> lab >> x >> y >> z;
-        xl = std::min(xl,x);  yl = std::min(yl,y);  zl = std::min(zl,z);
-        xh = std::max(xh,x);  yh = std::max(yh,y);  zh = std::max(zh,z);
-        vertices.push_back({x,y,z});
-      }
-      if (line[0] == 'f') {
-        std::string lab;
-        int i, j, k;
-        std::stringstream(line) >> lab >> i >> j >> k;
-        faces.push_back({vertices.at(i-1),vertices.at(j-1),vertices.at(k-1)});
-      }
-    }
-  }
-  mesh.domain_lo = {xl,yl,zl};
-  mesh.domain_hi = {xh,yh,zh};
-  auto mesh_faces_host = Mesh::Faces("faces",faces.size()).createHostObject();
-  for (int i=0; i < faces.size(); i++) { mesh_faces_host(i) = faces[i]; }
-  mesh.faces = mesh_faces_host.createDeviceCopy();
-  file.close();
-  return mesh;
-}
-
-KOKKOS_INLINE_FUNCTION float sign(Vertex const &v1, Vertex const &v2, Vertex const &v3) {
-  return (v1.x-v3.x)*(v2.y-v3.y) - (v2.x-v3.x)*(v1.y-v3.y);
-}
-
-KOKKOS_INLINE_FUNCTION bool point_in_triangle(Vertex pt, Face const &face) {
-  float d1 = sign( pt , face.v1 , face.v2 );
-  float d2 = sign( pt , face.v2 , face.v3 );
-  float d3 = sign( pt , face.v3 , face.v1 );
-  bool  has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-  bool  has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-  return !(has_neg && has_pos);
-}
-
-KOKKOS_INLINE_FUNCTION float bilinear_interpolation( Face const &face , float x , float y ) {
-  auto v1 = face.v1;
-  auto v2 = face.v2;
-  auto v3 = face.v3;
-  // Calculate the area of the triangle
-  float area = 0.5f * std::abs(v1.x * (v2.y - v3.y) + v2.x * (v3.y - v1.y) + v3.x * (v1.y - v2.y));
-  // Calculate the barycentric coordinates
-  float w1 = (v2.x * v3.y - v3.x * v2.y + (v2.y - v3.y) * x + (v3.x - v2.x) * y) / (2 * area);
-  float w2 = (v3.x * v1.y - v1.x * v3.y + (v3.y - v1.y) * x + (v1.x - v3.x) * y) / (2 * area);
-  float w3 = 1 - w1 - w2;
-  // Interpolate the z value
-  if (w1>=0 && w2>=0 && w3>=0 && w1<=1 && w2<=1 && w3<=1) { return w1 * v1.z + w2 * v2.z + w3 * v3.z; }
-  else                                                    { return 0; }
-}
-
-
-
 int main(int argc, char** argv) {
   MPI_Init( &argc , &argv );
   Kokkos::initialize();
@@ -127,35 +27,117 @@ int main(int argc, char** argv) {
   {
     yakl::timer_start("main");
 
-    auto mesh = read_obj_mesh("/ccs/home/imn/nyc2.obj");
-    mesh.add_offset( -mesh.domain_lo.x , -mesh.domain_lo.y , -mesh.domain_lo.z );
-    std::cout << mesh;
-    float dx = 0.1;
-    float dy = 0.1;
-    int nx = (int) std::ceil(mesh.domain_hi.x/dx);
-    int ny = (int) std::ceil(mesh.domain_hi.y/dy);
-    std::cout << nx << " , " << ny << std::endl;
-    float2d heightmap("heightmap",ny,nx);
-    heightmap = mesh.domain_lo.z;
-    yakl::timer_start("calc_heightmap");
-    yakl::c::parallel_for( YAKL_AUTO_LABEL() , yakl::c::SimpleBounds<2>(ny,nx) , KOKKOS_LAMBDA (int j, int i) {
-      Vertex pt( { (i+0.5f)*dx , (j+0.5f)*dy , 0.f } );
-      for (int k=0; k < mesh.faces.size(); k++) {
-        if ( point_in_triangle( pt , mesh.faces(k) ) ) {
-          heightmap(j,i) = std::max( heightmap(j,i) , bilinear_interpolation( mesh.faces(k) , pt.x , pt.y ) );
-        }
-      }
-    });
-    yakl::timer_stop("calc_heightmap");
+    real pad_x1 = 50;
+    real pad_x2 = 50;
+    real pad_y1 = 50;
+    real pad_y2 = 50;
 
-    yakl::timer_start("write_heightmap");
-    yakl::SimpleNetCDF nc;
-    nc.create( "heightmap.nc");
-    nc.createDim( "x" , nx );
-    nc.createDim( "y" , ny );
-    nc.write( heightmap , "heightmap" , {"y","x"} );
-    nc.close();
-    yakl::timer_stop("write_heightmap");
+    modules::TriMesh mesh;
+    mesh.load_file("/ccs/home/imn/nyc.obj");
+    mesh.zero_domain_lo();
+    mesh.add_offset(pad_x1,pad_y1);
+
+    real        sim_time    = 3600*2+1;
+    real        xlen        = mesh.domain_hi.x + pad_x1 + pad_x2;
+    real        ylen        = mesh.domain_hi.y + pad_y1 + pad_y2;
+    real        zlen        = 800;
+    real        dx          = 2;
+    real        dz          = 2;
+    int         nx_glob     = xlen/dx;
+    int         ny_glob     = ylen/dx;
+    int         nz          = zlen/dz;
+    real        dtphys_in   = 0;    // Use dycore time step
+    int         dyn_cycle   = 10;
+    real        out_freq    = 60;
+    real        inform_freq = 1;
+    std::string out_prefix  = "city_2m";
+    bool        is_restart  = false;
+
+    core::Coupler coupler;
+    coupler.set_option<std::string>( "out_prefix"       , out_prefix  );
+    coupler.set_option<std::string>( "init_data"        , "city"      );
+    coupler.set_option<real       >( "out_freq"         , out_freq    );
+    coupler.set_option<bool       >( "is_restart"       , is_restart  );
+    coupler.set_option<std::string>( "restart_file"     , ""          );
+    coupler.set_option<real       >( "latitude"         , 0.          );
+    coupler.set_option<real       >( "roughness"        , 0.1         );
+    coupler.set_option<real       >( "cfl"              , 0.6         );
+    coupler.set_option<bool       >( "enable_gravity"   , true        );
+    coupler.set_option<bool       >( "weno_all"         , true        );
+
+    coupler.distribute_mpi_and_allocate_coupled_state( core::ParallelComm(MPI_COMM_WORLD) , nz, ny_glob, nx_glob);
+
+    coupler.set_grid( xlen , ylen , zlen );
+
+    int nfaces = mesh.faces.extent(0);
+    coupler.get_data_manager_readwrite().register_and_allocate<float>("mesh_faces","",{nfaces,3,3});
+    mesh.faces.deep_copy_to( coupler.get_data_manager_readwrite().get<float,3>("mesh_faces") );
+    Kokkos::fence();
+    if (coupler.is_mainproc()) std::cout << mesh;
+
+    modules::Dynamics_Euler_Stratified_WenoFV  dycore;
+    custom_modules::Time_Averager              time_averager;
+    modules::LES_Closure                       les_closure;
+    custom_modules::EdgeSponge                 edge_sponge;
+
+    // No microphysics specified, so create a water_vapor tracer required by the dycore
+    coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
+    coupler.get_data_manager_readwrite().get<real,3>("water_vapor") = 0;
+
+    custom_modules::sc_init   ( coupler );
+    les_closure  .init        ( coupler );
+    dycore       .init        ( coupler );
+    time_averager.init        ( coupler );
+    edge_sponge  .set_column  ( coupler );
+    custom_modules::sc_perturb( coupler );
+
+    real etime = coupler.get_option<real>("elapsed_time");
+    core::Counter output_counter( out_freq    , etime );
+    core::Counter inform_counter( inform_freq , etime );
+
+    // if restart, overwrite with restart data, and set the counters appropriately. Otherwise, write initial output
+    if (is_restart) {
+      coupler.overwrite_with_restart();
+      etime = coupler.get_option<real>("elapsed_time");
+      output_counter = core::Counter( out_freq    , etime-((int)(etime/out_freq   ))*out_freq    );
+      inform_counter = core::Counter( inform_freq , etime-((int)(etime/inform_freq))*inform_freq );
+    } else {
+      coupler.write_output_file( out_prefix , true );
+    }
+
+    real dt = dtphys_in;
+    Kokkos::fence();
+    auto tm = std::chrono::high_resolution_clock::now();
+    while (etime < sim_time) {
+      // If dt <= 0, then set it to the dynamical core's max stable time step
+      if (dtphys_in <= 0.) { dt = dycore.compute_time_step(coupler)*dyn_cycle; }
+      // If we're about to go past the final time, then limit to time step to exactly hit the final time
+      if (etime + dt > sim_time) { dt = sim_time - etime; }
+
+      // Run modules
+      {
+        using core::Coupler;
+        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
+        coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);         } , "dycore"         );
+        coupler.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.01); } , "sponge"         );
+        coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         } , "surface_fluxes" );
+        coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);         } , "les_closure"    );
+        coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt);         } , "time_averager"  );
+      }
+
+      // Update time step
+      etime += dt; // Advance elapsed time
+      coupler.set_option<real>("elapsed_time",etime);
+      if (inform_freq >= 0. && inform_counter.update_and_check(dt)) {
+        coupler.inform_user();
+        inform_counter.reset();
+      }
+      if (out_freq    >= 0. && output_counter.update_and_check(dt)) {
+        coupler.write_output_file( out_prefix , true );
+        time_averager.reset(coupler);
+        output_counter.reset();
+      }
+    } // End main simulation loop
 
     yakl::timer_stop("main");
   }

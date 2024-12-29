@@ -3,19 +3,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import xarray
-import cmaps
+from cmap import Colormap
 
-workdir = "/lustre/storm/nwp501/scratch/imn/portUrb/build"
+workdir = "/lustre/storm/nwp501/scratch/imn/ABL_neutral"
 
 
 def spectra(T,dx = 1) :
-  spd = np.abs( np.fft.rfft(T[0,0,:]) )**2
+  spd  = np.abs( np.fft.rfft(T[0,0,:]) )**2
+  freq = np.fft.rfftfreq(len(T[0,0,:]))
   spd = 0
   for k in range(T.shape[0]) :
     for j in range(T.shape[1]) :
       spd += np.abs( np.fft.rfft(T[k,j,:]) )**2
       spd += np.abs( np.fft.rfft(T[k,:,j]) )**2
-  freq = np.fft.rfftfreq(len(T[k,0,:]))
   spd /= T.shape[0]*T.shape[1]*2
   return freq*2*2*np.pi/(2*dx) , spd
 
@@ -74,15 +74,9 @@ plt.close()
 umean = np.mean(uvel,axis=(1,2))
 vmean = np.mean(vvel,axis=(1,2))
 wmean = np.mean(wvel,axis=(1,2))
-umean3d = uvel.copy()
-vmean3d = vvel.copy()
-wmean3d = wvel.copy()
-umean3d[:,:,:] = umean[:,np.newaxis,np.newaxis]
-vmean3d[:,:,:] = vmean[:,np.newaxis,np.newaxis]
-wmean3d[:,:,:] = wmean[:,np.newaxis,np.newaxis]
-up = uvel - umean3d
-vp = vvel - vmean3d
-wp = wvel - wmean3d
+up = uvel - umean[:,np.newaxis,np.newaxis]
+vp = vvel - vmean[:,np.newaxis,np.newaxis]
+wp = wvel - wmean[:,np.newaxis,np.newaxis]
 up_wp = np.abs(up*wp)
 up_wp_min  = np.min (up_wp,axis=(1,2))
 up_wp_max  = np.max (up_wp,axis=(1,2))
@@ -130,11 +124,13 @@ plt.show()
 plt.close()
 
 
-freq,spd1 = spectra(mag[get_ind(z,0.1):get_ind(z,0.2)+1,:,:],dx=dx)
+kind = get_ind(z,.0786)
+print(z[kind])
+freq,spd1 = spectra(mag[kind:kind+1,:,:],dx=dx)
 fig = plt.figure(figsize=(6,3))
 ax = fig.gca()
 ax.plot(freq,spd1,label="Wind Speed spectra")
-ax.plot(freq[1:],8e4*freq[1:]**(-5/3),label=r"$f^{-5/3}$")
+ax.plot(freq[1:],2e5*freq[1:]**(-5/3),label=r"$f^{-5/3}$")
 ax.vlines(2*np.pi/(2 *dx),1.e-3,1.e3,linestyle="--",color="red")
 ax.vlines(2*np.pi/(4 *dx),1.e-3,1.e3,linestyle="--",color="red")
 ax.vlines(2*np.pi/(8 *dx),1.e-3,1.e3,linestyle="--",color="red")
@@ -165,7 +161,7 @@ mn  = np.mean(mag[get_ind(z,.0786),:,:])
 std = np.std (mag[get_ind(z,.0786),:,:])
 t1 = 4
 t2 = 12
-CS = ax.contourf(X,Y,mag[get_ind(z,.0786),:,:],levels=np.arange(mn-2*std,mn+2*std,4*std/100),cmap="turbo",extend="both")
+CS = ax.contourf(X,Y,mag[get_ind(z,.0786),:,:],levels=np.arange(t1,t2,(t2-t1)/100),cmap=Colormap('cmasher:fusion_r').to_mpl(),extend="both")
 ax.axis('scaled')
 ax.set_xlabel("x-location (km)")
 ax.set_ylabel("y-location (km)")
@@ -189,7 +185,7 @@ mn  = np.mean(mag[:z2,yind,:])
 std = np.std (mag[:z2,yind,:])
 t1 = 4
 t2 = 12
-CS = ax.contourf(X,Z,mag[:z2,yind,:],levels=np.arange(mn-2*std,mn+2*std,4*std/100),cmap="turbo",extend="both")
+CS = ax.contourf(X,Z,mag[:z2,yind,:],levels=np.arange(t1,t2,(t2-t1)/100),cmap=Colormap('cmasher:fusion_r').to_mpl(),extend="both")
 ax.axis('scaled')
 ax.set_xlabel("x-location (km)")
 ax.set_ylabel("z-location (km)")
@@ -213,12 +209,13 @@ ax = fig.gca()
 ax.plot(u0 [:z2],z[:z2],color="black",linestyle="--",label="t=0 hr")
 ax.plot(u8 [:z2],z[:z2],color="red",label="t=8 hr")
 ax.plot(u10[:z2],z[:z2],color="blue",label="t=10hr")
-ax.set_xlabel("velocity magnitude (m/s)")
+ax.set_xlabel("velocity (m/s)")
 ax.set_ylabel("z-location (km)")
 ax.legend(loc="upper left")
 ax.set_xlim(left=0)
 ax.margins(x=0)
 plt.tight_layout()
+plt.grid()
 plt.savefig("ABL_neutral_uvel_height_times.png",dpi=600)
 plt.show()
 plt.close()
@@ -233,12 +230,13 @@ ax = fig.gca()
 ax.plot(u0 [:z2],z[:z2],color="black",linestyle="--",label="t=0 hr")
 ax.plot(u8 [:z2],z[:z2],color="red",label="t=8 hr")
 ax.plot(u10[:z2],z[:z2],color="blue",label="t=10hr")
-ax.set_xlabel("velocity magnitude (m/s)")
+ax.set_xlabel("velocity (m/s)")
 ax.set_ylabel("z-location (km)")
 ax.legend(loc="upper right")
 ax.set_xlim(left=-0.2)
 ax.margins(x=0)
 plt.tight_layout()
+plt.grid()
 plt.savefig("ABL_neutral_vvel_height_times.png",dpi=600)
 plt.show()
 plt.close()
@@ -263,6 +261,7 @@ ax.legend(loc="upper left")
 ax.set_xlim(left=299,right=313)
 ax.margins(x=0)
 plt.tight_layout()
+plt.grid()
 plt.savefig("ABL_neutral_theta_height_times.png",dpi=600)
 plt.show()
 plt.close()

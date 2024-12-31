@@ -51,7 +51,7 @@ plt.ylabel(r"Min sfc $\theta^\prime$ (K)")
 plt.grid()
 plt.legend()
 plt.savefig("supercell_sfc_theta_min.png",dpi=600)
-# plt.show()
+plt.show()
 plt.close()
 
 plt.plot(times,dx1000_cold_pool_frac,label="dx=1000m",color="blue")
@@ -61,7 +61,7 @@ plt.ylabel(r"Sfc cold pool fraction ($\theta^\prime \leq -2K$)")
 plt.grid()
 plt.legend()
 plt.savefig("supercell_cold_pool_frac.png",dpi=600)
-# plt.show()
+plt.show()
 plt.close()
 
 plt.plot(times,dx1000_precip_accum,label="dx=1000m",color="blue")
@@ -71,7 +71,7 @@ plt.ylabel(r"Total sfc accum precip (mm)")
 plt.grid()
 plt.legend()
 plt.savefig("supercell_precip_accum.png",dpi=600)
-# plt.show()
+plt.show()
 plt.close()
 
 plt.plot(times,dx1000_min_w,label=r"dx=1000m, Min ($z \leq 3.5$km)",color="blue")
@@ -84,7 +84,7 @@ plt.legend()
 plt.grid()
 plt.legend()
 plt.savefig("supercell_min_max_w.png",dpi=600)
-# plt.show()
+plt.show()
 plt.close()
 
 
@@ -139,27 +139,7 @@ for i in [60,120] :
   plt.xlabel("Horiz Avg Wet Mixing Ratio (g/kg)")
   plt.ylabel("Height (km)")
   plt.savefig(f"supercell_avg_col_moist_{i}_min.png",dpi=600)
-  # plt.show()
+  plt.show()
   plt.close()
 
-
-nc = Dataset(dx1000_files[60],"r")
-rho_d = np.array(nc["density_dry"])
-rho_v = np.array(nc["water_vapor"])
-rho_c = np.array(nc["cloud_water"])
-rho_r = np.array(nc["rain_water" ])
-rho_i = np.array(nc["cloud_ice"  ])
-rho_s = np.array(nc["snow"       ])
-rho_g = np.array(nc["graupel"    ])
-wvel  = np.array(nc["wvel"       ])
-rho = rho_d + rho_v + rho_c + rho_r + rho_i + rho_s + rho_g
-thresh = 0.1
-upmask = wvel >  thresh
-dnmask = wvel < -thresh
-mf = rho*wvel
-plt.plot(  np.sum(mf*upmask,axis=(1,2))/np.sum(upmask,axis=(1,2)) , dx1000_z/1000 )
-plt.plot( -np.sum(mf*dnmask,axis=(1,2))/np.sum(dnmask,axis=(1,2)) , dx1000_z/1000 )
-plt.ylim(0,13)
-plt.show()
-plt.close()
 

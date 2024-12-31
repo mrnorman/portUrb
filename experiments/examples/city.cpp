@@ -10,6 +10,7 @@
 #include "uniform_pg_wind_forcing.h"
 #include "TriMesh.h"
 #include "edge_sponge.h"
+#include "dump_vorticity.h"
 
 /*
 In blender, delete the initial objects.
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
     mesh.load_file("/ccs/home/imn/nyc2.obj");
     mesh.zero_domain_lo();
 
-    real        sim_time    = 3600*2+1;
+    real        sim_time    = 1210.0;
     real        xlen        = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
     real        ylen        = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
     real        zlen        = std::ceil((mesh.domain_hi.z       +pad_z2)/dz)*dz;
@@ -51,8 +52,8 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 60;
     real        inform_freq = 1;
-    std::string out_prefix  = "city_2m_1e-6";
-    bool        is_restart  = false;
+    std::string out_prefix  = "vortdump";
+    bool        is_restart  = true;
 
     mesh.add_offset(pad_x1,pad_y1);
 
@@ -61,10 +62,10 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "init_data"          , "city"      );
     coupler.set_option<real       >( "out_freq"           , out_freq    );
     coupler.set_option<bool       >( "is_restart"         , is_restart  );
-    coupler.set_option<std::string>( "restart_file"       , ""          );
+    coupler.set_option<std::string>( "restart_file"       , "/lustre/storm/nwp501/scratch/imn/portUrb/build/restart.nc" );
     coupler.set_option<real       >( "latitude"           , 0.          );
     coupler.set_option<real       >( "roughness"          , 5e-2        );
-    coupler.set_option<real       >( "building_roughness" , 1.e-6       );
+    coupler.set_option<real       >( "building_roughness" , 5.e-2       );
     coupler.set_option<real       >( "cfl"                , 0.6         );
     coupler.set_option<bool       >( "enable_gravity"     , true        );
     coupler.set_option<bool       >( "weno_all"           , true        );
@@ -122,6 +123,7 @@ int main(int argc, char** argv) {
       {
         using core::Coupler;
         using modules::uniform_pg_wind_forcing_height;
+        using custom_modules::dump_vorticity;
         real hr = 500;
         real ur = 20*std::cos(29./180.*M_PI);
         real vr = 20*std::sin(29./180.*M_PI);
@@ -133,6 +135,7 @@ int main(int argc, char** argv) {
         coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         } , "surface_fluxes" );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);         } , "les_closure"    );
         coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt);         } , "time_averager"  );
+        coupler.run_module( [&] (Coupler &c) { dump_vorticity               (c   );         } , "dump_vorticity" );
       }
 
       // Update time step

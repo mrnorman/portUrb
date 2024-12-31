@@ -2,11 +2,10 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import xarray
 from cmap import Colormap
+import xarray
 
 workdir = "/lustre/storm/nwp501/scratch/imn/ABL_neutral"
-
 
 def spectra(T,dx = 1) :
   spd  = np.abs( np.fft.rfft(T[0,0,:]) )**2
@@ -100,7 +99,8 @@ plt.savefig("ABL_neutral_up_wp_height.png",dpi=600)
 plt.show()
 plt.close()
 
-tke = (up*up + vp*vp + wp*wp)/2 + np.array(nc.variables["TKE"][:,:,:])
+rho = np.array(nc["density_dry"][:,:,:])
+tke = rho*( (up*up + vp*vp + wp*wp)/2 + np.array(nc.variables["TKE"][:,:,:]) )
 tke_min  = np.min (tke,axis=(1,2))
 tke_max  = np.max (tke,axis=(1,2))
 tke_mean = np.mean(tke,axis=(1,2))

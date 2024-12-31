@@ -30,10 +30,10 @@ int main(int argc, char** argv) {
     real        inform_freq = 10;
     std::string out_prefix  = "ABL_convective";
     bool        is_restart  = false;
-    real        u_g         = 9;
+    real        u_g         = 10;
     real        v_g         = 0;
     real        lat_g       = 33.5;
-    real        shf         = 0.35;  // sfc heat flux in K m / s
+    real        shf         = 0.40;  // sfc heat flux in K m / s
 
     core::Coupler coupler;
     coupler.set_option<std::string>( "out_prefix"     , out_prefix       );

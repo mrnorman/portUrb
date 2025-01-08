@@ -6,7 +6,7 @@ import sys
 dx = 100
 
 prefix = f"supercell_{dx}m"
-times = [i for i in range(34,38)]
+times = [i for i in range(61,64)]
 files = [f"{prefix}_{i:08d}.nc" for i in range(times[-1]+1)]
 nc = Dataset(files[0],"r")
 x = np.array(nc["x"][:])
@@ -55,7 +55,7 @@ for i in times :
   ncout.createVariable("z",'f4',("z"))[:] = nc.variables["z"][k1:k2+1]
   var = ncout.createVariable("vort_z",'f4',("z","y","x"))
   var[:,:,:] = 0
-  var[1:nz-1,1:ny-1,1:nx-1] = vort_z[:,:,:]
+  var[1:nz-1,1:ny-1,1:nx-1] = np.abs(vort_z[:,:,:])
   var = ncout.createVariable("vortmag",'f4',("z","y","x"))
   var[:,:,:] = 0
   var[1:nz-1,1:ny-1,1:nx-1] = vortmag[:,:,:]

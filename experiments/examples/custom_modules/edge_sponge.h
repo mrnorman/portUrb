@@ -42,6 +42,7 @@ namespace custom_modules {
       int ny        = coupler.get_ny();
       int nz        = coupler.get_nz();
       auto &dm      = coupler.get_data_manager_readwrite();
+      float pwr = 5;
       core::MultiField<real,3> state;
       for (int i=0; i < names.size(); i++) { state.add_field( dm.get<real,3>(names.at(i)) ); }
       YAKL_SCOPE( column , this->column );
@@ -51,22 +52,22 @@ namespace custom_modules {
         real prop_y = static_cast<real>(j_beg+j)/ny_glob;
         if (prop_x1 > 0 && prop_x <= prop_x1) {
           real wt = (prop_x1-prop_x)/prop_x1;
-          wt = wt*wt*wt;
+          wt = std::pow( wt , pwr );
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_x2 > 0 && prop_x >= 1-prop_x2) {
           real wt = (prop_x-(1-prop_x2))/prop_x2;
-          wt = wt*wt*wt;
+          wt = std::pow( wt , pwr );
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_y1 > 0 && prop_y <= prop_y1) {
           real wt = (prop_y1-prop_y)/prop_y1;
-          wt = wt*wt*wt;
+          wt = std::pow( wt , pwr );
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
         if (prop_y2 > 0 && prop_y >= 1-prop_y2) {
           real wt = (prop_y-(1-prop_y2))/prop_y2;
-          wt = wt*wt*wt;
+          wt = std::pow( wt , pwr );
           state(l,k,j,i) = wt*column(l,k) + (1-wt)*state(l,k,j,i);
         }
       });

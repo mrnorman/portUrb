@@ -218,13 +218,37 @@ namespace modules {
     };
 
 
-    // IMPORTANT: It looks like c cannot be zero or bad things happen. So make it close to zero if you want zero
+    // Sagemath code producing the function used in DefaultThrustShape
+    // def c_scalar(val,coeflab) :
+    //     import re
+    //     s = str(val).replace(' ','')
+    //     s = re.sub("([a-zA-Z0-9_]*)\\^2","(\\1*\\1)",s,0,re.DOTALL)
+    //     s = re.sub("([a-zA-Z0-9_]*)\\^3","(\\1*\\1*\\1)",s,0,re.DOTALL)
+    //     return s
+    // def coefs_1d(N,N0,lab) :
+    //     return vector([ var(lab+'%s'%i) for i in range(N0,N0+N) ])
+    // def poly_1d(N,coefs) :
+    //     return sum( vector([ coefs[i]*x^i for i in range(N) ]) )
+    // var('x2,x3,a')
+    // coefs = coefs_1d(3,0,'a')
+    // p = poly_1d(3,coefs)
+    // constr = vector([p.subs(x=0),p.subs(x=x2),p.diff(x).subs(x=x2)])
+    // p1 = poly_1d(3,(jacobian(constr,coefs)^-1)*vector([0,1,0]))
+    // coefs = coefs_1d(4,0,'a')
+    // p = poly_1d(4,coefs)
+    // constr = vector([p.subs(x=x2),p.diff(x).subs(x=x2),p.subs(x=x3),p.diff(x).subs(x=x3)])
+    // p2 = poly_1d(4,(jacobian(constr,coefs)^-1)*vector([1,0,0,0]))
+    // print("p1 = pow(",c_scalar(p1.simplify_full(),'none'),", a );")
+    // print("p2 = ",c_scalar(p2.simplify_full(),'none'),";")
+    // x2 = 0.9;    x3 = 1;    a = 0.5
+    // ( plot(p1.subs(x2=x2)^a,x,0 ,x2) + plot(p2.subs(x2=x2,x3=x3),x,x2,x3) ).show()
     struct DefaultThrustShape {
-      KOKKOS_INLINE_FUNCTION real operator() ( real r , real a = 4 , real b = -8 , real c = 0.01 ) const {
+      KOKKOS_INLINE_FUNCTION real operator() ( real r , real x2 = 0.9 , real x3 = 1.0 , real a = 0.5 ) const {
         using std::pow;
-        if ( r > 1 ) return 0;
-        // ((2*(c^a-2*c^b)*x^(2*a)-(c^a-4*c^b)*x^a)/c^b)^(1/(a-b))
-        return pow( (2*(pow(c,a)-2*pow(c,b))*pow(r,(2*a))-(pow(c,a)-4*pow(c,b))*pow(r,a))/pow(c,b) , 1/(a-b) );
+        real x = r;
+        if (r < x2) return pow(-1.0*((x*x)-2*x*x2)/(x2*x2),a);
+        if (r < x3) return -1.0*(2*(x*x*x)-3*(x*x)*x2-3*x2*(x3*x3)+(x3*x3*x3)-3*((x*x)-2*x*x2)*x3)/((x2*x2*x2)-3*(x2*x2)*x3+3*x2*(x3*x3)-(x3*x3*x3));
+        return 0;
       }
     };
 
@@ -589,8 +613,10 @@ namespace modules {
           real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power generation
           real rot_speed = do_blades ? interp( ref_velmag , ref_rotation , inertial_mag0 ) : 0; // Interpolate rot speed
           if (inertial_mag0 > 1.e-10) {
-            real a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
-            C_T    = 4*a*(1-a);
+            if ( ! coupler.get_option<bool>("turbine_orig_C_T",false) ) {
+              real a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
+              C_T    = 4*a*(1-a);
+            }
             C_P    = std::min( C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
           } else {
             C_T = 0;

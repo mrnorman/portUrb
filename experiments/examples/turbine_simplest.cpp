@@ -18,23 +18,25 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    dx = 4;
+    real dx = 1;
+    coupler.set_option<bool>("turbine_orig_C_T",true);
+
     std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
-    real D = config["blade_radius"]<real>()*2;
+    real D = config["blade_radius"].as<real>()*2;
 
-    real        sim_time     = 100;
-    real        xlen         = D*12;
-    real        ylen         = D*4;
+    real        sim_time     = 1800;
+    real        xlen         = D*10;
+    real        ylen         = D*3;
     real        zlen         = D*3;
     int         nx_glob      = std::ceil(xlen/dx);    xlen = nx_glob * dx;
     int         ny_glob      = std::ceil(ylen/dx);    ylen = ny_glob * dx;
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
-    real        out_freq     = 10;
-    real        inform_freq  = 1;
+    real        out_freq     = 120;
+    real        inform_freq  = 10;
     std::string out_prefix   = "awaken_simplest";
     bool        is_restart   = false;
     std::string restart_file = "";
@@ -61,7 +63,7 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "turbine_floating_motions" , false  );
 
     // Set the turbine
-    coupler.set_option<std::vector<real>>("turbine_x_locs"      ,{2*D   });
+    coupler.set_option<std::vector<real>>("turbine_x_locs"      ,{3*D   });
     coupler.set_option<std::vector<real>>("turbine_y_locs"      ,{ylen/2});
     coupler.set_option<std::vector<bool>>("turbine_apply_thrust",{true  });
 
@@ -85,6 +87,7 @@ int main(int argc, char** argv) {
 
     // Run the initialization modules
     custom_modules::sc_init   ( coupler );
+    coupler.set_option<std::string>("bc_y","periodic");
     les_closure  .init        ( coupler );
     dycore       .init        ( coupler );
     windmills    .init        ( coupler );
@@ -120,7 +123,7 @@ int main(int argc, char** argv) {
       // Run modules
       {
         using core::Coupler;
-        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply       (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
+        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply       (c,0.05,0.05,0,0); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step        (c,dt); } , "dycore"        );
         coupler.run_module( [&] (Coupler &c) { windmills.apply         (c,dt); } , "windmills"     );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply       (c,dt); } , "les_closure"   );

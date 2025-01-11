@@ -6,6 +6,7 @@
 #include "sc_perturb.h"
 #include "les_closure.h"
 #include "windmill_actuators_yaw.h"
+#include "dump_vorticity.h"
 #include "edge_sponge.h"
 
 int main(int argc, char** argv) {
@@ -18,18 +19,19 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    real dx = 1;
+    real dx = 2;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
     std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
+    coupler.set_option<real>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
 
-    real        sim_time     = 1800;
+    real        sim_time     = 10+1.e-8;
     real        xlen         = D*10;
-    real        ylen         = D*3;
-    real        zlen         = D*3;
+    real        ylen         = D*4;
+    real        zlen         = D*4;
     int         nx_glob      = std::ceil(xlen/dx);    xlen = nx_glob * dx;
     int         ny_glob      = std::ceil(ylen/dx);    ylen = ny_glob * dx;
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
@@ -42,7 +44,8 @@ int main(int argc, char** argv) {
     std::string restart_file = "";
     real        latitude     = 0;
     real        roughness    = 0;
-    int         dyn_cycle    = 10;
+    int         dyn_cycle    = 1;
+    real        vort_freq    = 1./20.;
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"     , out_prefix   );
@@ -95,10 +98,14 @@ int main(int argc, char** argv) {
     edge_sponge  .set_column  ( coupler );
     custom_modules::sc_perturb( coupler );
 
+    windmills.turbine_group.turbines[0].u_samp_inertial = coupler.get_option<real>("constant_uvel");
+    windmills.turbine_group.turbines[0].v_samp_inertial = coupler.get_option<real>("constant_vvel");
+
     // Get elapsed time (zero), and create counters for output and informing the user in stdout
     real etime = coupler.get_option<real>("elapsed_time");
     core::Counter output_counter( out_freq    , etime );
     core::Counter inform_counter( inform_freq , etime );
+    core::Counter vort_counter  ( vort_freq   , etime );
 
     // if restart, overwrite with restart data, and set the counters appropriately. Otherwise, write initial output
     if (is_restart) {
@@ -141,6 +148,10 @@ int main(int argc, char** argv) {
         coupler.write_output_file( out_prefix , true );
         time_averager.reset(coupler);
         output_counter.reset();
+      }
+      if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
+        custom_modules::dump_vorticity( coupler );
+        vort_counter.reset();
       }
     } // End main simulation loop
 

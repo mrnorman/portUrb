@@ -79,9 +79,9 @@ namespace custom_modules {
     auto v = fields_halos.get_field(1);
     auto w = fields_halos.get_field(2);
     parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-      u(0    ,hs+j,hs+i) = 0;
-      v(0    ,hs+j,hs+i) = 0;
-      w(0    ,hs+j,hs+i) = 0;
+      u(0    ,hs+j,hs+i) = u(hs+0   ,hs+j,hs+i);
+      v(0    ,hs+j,hs+i) = v(hs+0   ,hs+j,hs+i);
+      w(0    ,hs+j,hs+i) = w(hs+0   ,hs+j,hs+i);
       u(hs+nz,hs+j,hs+i) = u(hs+nz-1,hs+j,hs+i);
       v(hs+nz,hs+j,hs+i) = v(hs+nz-1,hs+j,hs+i);
       w(hs+nz,hs+j,hs+i) = w(hs+nz-1,hs+j,hs+i);

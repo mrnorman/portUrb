@@ -242,8 +242,9 @@ namespace modules {
     // print("p2 = ",c_scalar(p2.simplify_full(),'none'),";")
     // x2 = 0.9;    x3 = 1;    a = 0.5
     // ( plot(p1.subs(x2=x2)^a,x,0 ,x2) + plot(p2.subs(x2=x2,x3=x3),x,x2,x3) ).show()
+    // a = 0.5 reproduces: A comparison of actuator disk and actuator line wind turbine models and best practices for their use
     struct DefaultThrustShape {
-      KOKKOS_INLINE_FUNCTION real operator() ( real r , real x2 = 0.9 , real x3 = 1.0 , real a = 0.5 ) const {
+      KOKKOS_INLINE_FUNCTION real operator() ( real r , real x2 = 0.9 , real x3 = 1.0 , real a = 2 ) const {
         using std::pow;
         real x = r;
         if (r < x2) return pow(-1.0*((x*x)-2*x*x2)/(x2*x2),a);
@@ -436,9 +437,9 @@ namespace modules {
       auto proj_shape_1d = DefaultProjectionShape1D();
       auto proj_shape_2d = DefaultProjectionShape2D();
 
-      real3d tend_u  ("tend_u"  ,nz,ny,nx);
-      real3d tend_v  ("tend_v"  ,nz,ny,nx);
-      real3d tend_tke("tend_tke",nz,ny,nx);
+      float3d tend_u  ("tend_u"  ,nz,ny,nx);
+      float3d tend_v  ("tend_v"  ,nz,ny,nx);
+      float3d tend_tke("tend_tke",nz,ny,nx);
       parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
         tend_u         (k,j,i) = 0;
         tend_v         (k,j,i) = 0;
@@ -454,39 +455,42 @@ namespace modules {
           // Sampling of turbine disk
           ///////////////////////////////////////////////////
           // Pre-compute rotation matrix terms
-          real cos_yaw = std::cos(turbine.yaw_angle);
-          real sin_yaw = std::sin(turbine.yaw_angle);
+          float cos_yaw = std::cos(turbine.yaw_angle);
+          float sin_yaw = std::sin(turbine.yaw_angle);
           // These are the global extents of this MPI task's domain
-          real dom_x1 = (i_beg+0 )*dx;
-          real dom_x2 = (i_beg+nx)*dx;
-          real dom_y1 = (j_beg+0 )*dy;
-          real dom_y2 = (j_beg+ny)*dy;
+          float dom_x1 = (i_beg+0 )*dx;
+          float dom_x2 = (i_beg+nx)*dx;
+          float dom_y1 = (j_beg+0 )*dy;
+          float dom_y2 = (j_beg+ny)*dy;
           // Use monte carlo to compute proportion of the turbine in each cell
           // Get reference data for later computations
-          real rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
-          real hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
-          real base_x          = turbine.base_loc_x;
-          real base_y          = turbine.base_loc_y;
-          real rot_angle       = turbine.rot_angle;
-          auto ref_velmag      = turbine.ref_turbine.velmag_host     ; // For interpolation
-          auto ref_thrust_coef = turbine.ref_turbine.thrust_coef_host; // For interpolation
-          auto ref_power_coef  = turbine.ref_turbine.power_coef_host ; // For interpolation
-          auto ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
-          auto ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
-          bool do_blades       = ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed");
+          float rad             = turbine.ref_turbine.blade_radius    ; // Radius of the blade plane
+          float hub_height      = turbine.ref_turbine.hub_height      ; // height of the hub
+          float base_x          = turbine.base_loc_x;
+          float base_y          = turbine.base_loc_y;
+          float rot_angle       = turbine.rot_angle;
+          auto  ref_velmag      = turbine.ref_turbine.velmag_host     ; // For interpolation
+          auto  ref_thrust_coef = turbine.ref_turbine.thrust_coef_host; // For interpolation
+          auto  ref_power_coef  = turbine.ref_turbine.power_coef_host ; // For interpolation
+          auto  ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
+          auto  ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
+          bool  do_blades       = ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed");
+          float decay = 3*dx/rad;
           // Zero out disk weights for projection and sampling
           // Compute 19.5m horizontal wind magnitude for floating platform motions
           // Compute wind direction and offset for upstream sampling to get freestream velocities
-          real3d disk_weight_proj("disk_weight_proj",nz,ny,nx);
-          real3d disk_weight_samp("disk_weight_samp",nz,ny,nx);
-          real3d uvel_3d         ("uvel_3d"         ,nz,ny,nx);
-          real3d vvel_3d         ("vvel_3d"         ,nz,ny,nx);
+          float3d disk_weight_proj ("disk_weight_proj" ,nz,ny,nx);
+          float3d disk_weight_samp ("disk_weight_samp" ,nz,ny,nx);
+          float3d uvel_3d          ("uvel_3d"          ,nz,ny,nx);
+          float3d vvel_3d          ("vvel_3d"          ,nz,ny,nx);
+          float3d blade_weight_proj("blade_weight_proj",nz,ny,nx);
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-            disk_weight_proj(k,j,i) = 0;
-            disk_weight_samp(k,j,i) = 0;
-            real x = (i_beg+i+0.5_fp)*dx;
-            real y = (j_beg+j+0.5_fp)*dy;
-            real z = (      k+0.5_fp)*dz;
+            disk_weight_proj (k,j,i) = 0;
+            disk_weight_samp (k,j,i) = 0;
+            blade_weight_proj(k,j,i) = 0;
+            float x = (i_beg+i+0.5_fp)*dx;
+            float y = (j_beg+j+0.5_fp)*dy;
+            float z = (      k+0.5_fp)*dz;
             if ( z >= hub_height-rad && z <= hub_height+rad &&
                  y >= base_y    -rad && y <= base_y    +rad &&
                  x >= base_x    -rad && x <= base_x    +rad ) {
@@ -497,62 +501,59 @@ namespace modules {
               vvel_3d(k,j,i) = 0;
             }
           });
-          yakl::SArray<real,1,2> weights_tot;
+          yakl::SArray<float,1,2> weights_tot;
           weights_tot(0) = yakl::intrinsics::sum(uvel_3d);
           weights_tot(1) = yakl::intrinsics::sum(vvel_3d);
           weights_tot = turbine.par_comm.all_reduce( weights_tot , MPI_SUM , "windmill_Allreduce1" );
-          real upstream_uvel = weights_tot(0);
-          real upstream_vvel = weights_tot(1);
-          real upstream_dir;
+          float upstream_uvel = weights_tot(0);
+          float upstream_vvel = weights_tot(1);
+          float upstream_dir;
           if (coupler.option_exists("turbine_upstream_dir")) {
-            upstream_dir = coupler.get_option<real>("turbine_upstream_dir");
+            upstream_dir = coupler.get_option<float>("turbine_upstream_dir");
           } else {
             upstream_dir = std::atan2( upstream_vvel , upstream_uvel );  // theta=tan^-1(v/u)
           }
-          real upstream_x_offset = -5*rad*std::cos(upstream_dir);
-          real upstream_y_offset = -5*rad*std::sin(upstream_dir);
+          float upstream_x_offset = -5*rad*std::cos(upstream_dir);
+          float upstream_y_offset = -5*rad*std::sin(upstream_dir);
           // Compute and sum weights for disk projection and upstream sampling projection
-          real2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
+          float2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {
             // Project disks
-            real xr = 5*dx;
-            int num_x = std::round(xr*2);
-            int num_y = std::round(rad*2);
-            int num_z = std::round(rad*2);
+            float xr = std::max(10.,5*dx);
+            int num_x = std::ceil(20/dx*xr *2);
+            int num_y = std::ceil(20/dx*rad*2);
+            int num_z = std::ceil(20/dx*rad*2);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , KOKKOS_LAMBDA (int k, int j, int i) {
               // Initial point in the y-z plane facing the negative x direction
-              real x = -xr  + (2*xr *i)/(num_x-1);
-              real y = -rad + (2*rad*j)/(num_y-1);
-              real z = -rad + (2*rad*k)/(num_z-1);
-              real rloc = std::sqrt(y*y+z*z);
-              if (rloc <= rad) {
-                real proj1d = proj_shape_1d(x,xr);
+              float x = -xr  + (2*xr *i)/(num_x-1);
+              float y = -rad + (2*rad*j)/(num_y-1);
+              float z = -rad + (2*rad*k)/(num_z-1);
+              float rloc = std::sqrt(y*y+z*z);
+              if (rloc <= rad+decay) {
+                float proj1d = proj_shape_1d(x,xr);
                 // Now rotate x and y according to the yaw angle, and translate to base location
-                real xp = base_x     + cos_yaw*x - sin_yaw*y;
-                real yp = base_y     + sin_yaw*x + cos_yaw*y;
-                real zp = hub_height + z;
-                // If we're going to do blades, then don't project a disk here. Wait and project blades later
-                if (! do_blades) {
-                  // if it's in this task's domain, then increment the appropriate cell count atomically
-                  int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
-                  int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
-                  int tk = static_cast<int>(std::round(zp/dz-0.5      ));
-                  if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                    Kokkos::atomic_add( &disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
-                  }
-                }
-                xp += upstream_x_offset;
-                yp += upstream_y_offset;
+                float xp = base_x     + cos_yaw*x - sin_yaw*y;
+                float yp = base_y     + sin_yaw*x + cos_yaw*y;
+                float zp = hub_height + z;
+                // if it's in this task's domain, then increment the appropriate cell count atomically
                 int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
                 int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
                 int tk = static_cast<int>(std::round(zp/dz-0.5      ));
                 if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
-                  Kokkos::atomic_add( &disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad)*proj1d );
+                  Kokkos::atomic_add( &disk_weight_proj(tk,tj,ti) , thrust_shape(rloc/rad,1,1+decay)*proj1d );
+                }
+                xp += upstream_x_offset;
+                yp += upstream_y_offset;
+                ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
+                tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
+                tk = static_cast<int>(std::round(zp/dz-0.5      ));
+                if ( ti >= 0 && ti < nx && tj >= 0 && tj < ny && tk >= 0 && tk < nz) {
+                  Kokkos::atomic_add( &disk_weight_samp(tk,tj,ti) , thrust_shape(rloc/rad,1,1+decay)*proj1d );
                 }
               }
             });
             // Project blades
-            if (do_blades) {
+            if (do_blades && dx < 16) {
               float3d blade_1("blade_1",nz,ny,nx);
               float3d blade_2("blade_2",nz,ny,nx);
               float3d blade_3("blade_3",nz,ny,nx);
@@ -561,10 +562,10 @@ namespace modules {
                 blade_2(k,j,i) = 0;
                 blade_3(k,j,i) = 0;
               });
-              float   xr = 5*dx;
-              int    num_x = 5*std::round(xr*2);
-              int    num_y = 5*std::round(xr*2);
-              int    num_z = 5*std::round(rad );
+              float   xr    = std::max(10.,5*dx);
+              int     num_x = std::ceil(20/dx*xr*2);
+              int     num_y = std::ceil(20/dx*xr*2);
+              int     num_z = std::ceil(20/dx*rad );
               float   th1 = rot_angle;
               float   th2 = rot_angle + 2.*M_PI/3.;
               float   th3 = rot_angle + 4.*M_PI/3.;
@@ -581,7 +582,7 @@ namespace modules {
                 float rloc = std::sqrt(x*x+y*y);
                 if (rloc <= xr) {
                   float proj1d = proj_shape_1d(rloc,xr);
-                  float wt = thrust_shape(z/rad)*proj1d;
+                  float wt = thrust_shape(z/rad,1,1+decay)*proj1d;
                   // BLADE 1
                   {
                     // Rotate y and z about the x axis for rotation angle
@@ -638,31 +639,31 @@ namespace modules {
                   }
                 }
               });
-              yakl::SArray<real,1,3> blade_sum;
+              yakl::SArray<float,1,3> blade_sum;
               blade_sum(0) = yakl::intrinsics::sum(blade_1);
               blade_sum(1) = yakl::intrinsics::sum(blade_2);
               blade_sum(2) = yakl::intrinsics::sum(blade_3);
               blade_sum = turbine.par_comm.all_reduce( blade_sum , MPI_SUM , "blade_reduce" );
-              real r_sum1 = 1./blade_sum(0);
-              real r_sum2 = 1./blade_sum(1);
-              real r_sum3 = 1./blade_sum(2);
+              float r_sum1 = 1./blade_sum(0);
+              float r_sum2 = 1./blade_sum(1);
+              float r_sum3 = 1./blade_sum(2);
               // Normalize blade weights by sum
               // Compute the max over each cell as the "disk weight" to avoid summing multiple blades in the same cell
               parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
-                real n1 = blade_1(k,j,i) * r_sum1;
-                real n2 = blade_2(k,j,i) * r_sum2;
-                real n3 = blade_3(k,j,i) * r_sum3;
-                disk_weight_proj(k,j,i) = std::max( n1 , std::max( n2 , n3 ) );
+                float n1 = blade_1(k,j,i) * r_sum1;
+                float n2 = blade_2(k,j,i) * r_sum2;
+                float n3 = blade_3(k,j,i) * r_sum3;
+                blade_weight_proj(k,j,i) = std::max(n1,std::max(n2,n3));
               });
               // Disk weights for projection will be normalized by sum later
             }
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<2>(ny,nx) , KOKKOS_LAMBDA (int j, int i) {
-              real x = (i_beg+i+0.5_fp)*dx;
-              real y = (j_beg+j+0.5_fp)*dy;
+              float x = (i_beg+i+0.5_fp)*dx;
+              float y = (j_beg+j+0.5_fp)*dy;
               if (std::abs(x-(base_x+upstream_x_offset)) <= rad && std::abs(y-(base_y+upstream_y_offset)) <= rad) {
                 int k19_5 = std::max( 0._fp , std::round(19.5/dz-0.5) );
-                real u = uvel(k19_5,j,i);
-                real v = vvel(k19_5,j,i);
+                float u = uvel(k19_5,j,i);
+                float v = vvel(k19_5,j,i);
                 umag_19_5m_2d(j,i) = std::sqrt(u*u + v*v);
               } else {
                 umag_19_5m_2d(j,i) = 0;
@@ -670,23 +671,41 @@ namespace modules {
             });
           }
           using yakl::componentwise::operator>;
-          yakl::SArray<real,1,4> weights_tot2;
+          yakl::SArray<float,1,5> weights_tot2;
           weights_tot2(0) = yakl::intrinsics::sum(umag_19_5m_2d);
-          weights_tot2(1) = (real) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
+          weights_tot2(1) = (float) yakl::intrinsics::count(umag_19_5m_2d > 0._fp);
           weights_tot2(2) = yakl::intrinsics::sum(disk_weight_proj);
           weights_tot2(3) = yakl::intrinsics::sum(disk_weight_samp);
+          weights_tot2(4) = yakl::intrinsics::sum(blade_weight_proj);
           weights_tot2 = turbine.par_comm.all_reduce( weights_tot2 , MPI_SUM , "windmill_Allreduce1" );
-          real umag_19_5m    = weights_tot2(0) / weights_tot2(1);
-          real disk_proj_tot = weights_tot2(2);
-          real disk_samp_tot = weights_tot2(3);
+          float umag_19_5m     = weights_tot2(0) / weights_tot2(1);
+          float disk_proj_tot  = weights_tot2(2);
+          float disk_samp_tot  = weights_tot2(3);
+          float blade_proj_tot = weights_tot2(4);
           turbine.mag195_trace.push_back( umag_19_5m );
+          // Blend blades and disk based on grid spacing
+          if (do_blades && dx < 16) {
+            parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
+              disk_weight_proj (k,j,i) /= disk_proj_tot;
+              blade_weight_proj(k,j,i) /= blade_proj_tot;
+              real blade_wt;
+              if (dx <= 2) {
+                blade_wt = 1;
+              } else {
+                float x = (std::log2(dx)-1)/3; // Interpolate based on grid spacing in log space between 2 and 16
+                blade_wt = -2*x*x*x + 3*x*x;   // p(0)=0; p'(0)=0; p(1)=1; p'(1)=0  defined in [0,1]
+              }
+              disk_weight_proj(k,j,i) = blade_wt*blade_weight_proj(k,j,i) + (1-blade_wt)*disk_weight_proj(k,j,i);
+            });
+            disk_proj_tot = turbine.par_comm.all_reduce( yakl::intrinsics::sum(disk_weight_proj) , MPI_SUM , "disk2" );
+          }
           ///////////////////////////////////////////////////
           // Aggregation of disk integrals
           ///////////////////////////////////////////////////
           // Normalize disk weights for projection and upstream sampling
           // Aggregate disk-averaged wind velocities in upstream sampling region
-          real3d samp_u("samp_u",nz,ny,nx);
-          real3d samp_v("samp_v",nz,ny,nx);
+          float3d samp_u("samp_u",nz,ny,nx);
+          float3d samp_v("samp_v",nz,ny,nx);
           parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
             if (disk_weight_proj(k,j,i) > 0) {
               disk_weight_proj(k,j,i) /= disk_proj_tot;
@@ -702,35 +721,35 @@ namespace modules {
               samp_v          (k,j,i) = 0;
             }
           });
-          SArray<real,1,2> sums;
+          SArray<float,1,2> sums;
           sums(0) = yakl::intrinsics::sum( samp_u );
           sums(1) = yakl::intrinsics::sum( samp_v );
           sums = turbine.par_comm.all_reduce( sums , MPI_SUM , "windmill_Allreduce2" );
           turbine.u_samp_trace.push_back( sums(0) );
           turbine.v_samp_trace.push_back( sums(1) );
           // Compute instantaneous wind magnitude
-          real instant_u0   = sums(0)*cos_yaw;  // instantaneous u-velocity normal to the turbine plane
-          real instant_v0   = sums(1)*sin_yaw;  // instantaneous v-velocity normal to the turbine plane
-          real instant_mag0 = std::max( 0._fp , instant_u0 + instant_v0 );
+          float instant_u0   = sums(0)*cos_yaw;  // instantaneous u-velocity normal to the turbine plane
+          float instant_v0   = sums(1)*sin_yaw;  // instantaneous v-velocity normal to the turbine plane
+          float instant_mag0 = std::max( 0.f , instant_u0 + instant_v0 );
           // Compute inertial wind magnitude
-          real inertial_u0   = turbine.u_samp_inertial;  // inertial u-velocity normal to the turbine plane
-          real inertial_v0   = turbine.v_samp_inertial;  // inertial v-velocity normal to the turbine plane
-          real inertial_mag0 = std::max( 0._fp , inertial_u0 + inertial_v0 );
+          float inertial_u0   = turbine.u_samp_inertial;  // inertial u-velocity normal to the turbine plane
+          float inertial_v0   = turbine.v_samp_inertial;  // inertial v-velocity normal to the turbine plane
+          float inertial_mag0 = std::max( 0.f , inertial_u0 + inertial_v0 );
           ///////////////////////////////////////////////////
           // Computation of disk properties
           ///////////////////////////////////////////////////
-          real C_T       = interp( ref_velmag , ref_thrust_coef , inertial_mag0 ); // Interpolate thrust coefficient
-          real C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coefficient
-          real pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power generation
-          real rot_speed = 0;
+          float C_T       = interp( ref_velmag , ref_thrust_coef , inertial_mag0 ); // Interpolate thrust coefficient
+          float C_P       = interp( ref_velmag , ref_power_coef  , inertial_mag0 ); // Interpolate power coefficient
+          float pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power generation
+          float rot_speed = 0;
           if (ref_rotation.initialized()) rot_speed = interp( ref_velmag , ref_rotation , inertial_mag0 );
-          if (coupler.option_exists("turbine_rot_fixed")) rot_speed = coupler.get_option<real>("turbine_rot_fixed");
+          if (coupler.option_exists("turbine_rot_fixed")) rot_speed = coupler.get_option<float>("turbine_rot_fixed");
           if (inertial_mag0 > 1.e-10) {
             if ( ! coupler.get_option<bool>("turbine_orig_C_T",false) ) {
-              real a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
+              float a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
               C_T    = 4*a*(1-a);
             }
-            C_P = std::min( C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
+            C_P = std::min( (double) C_T , pwr*1.e6/(0.5*1.2*M_PI*rad*rad*inertial_mag0*inertial_mag0*inertial_mag0) );
           } else {
             C_T = 0;
             C_P = 0;
@@ -739,18 +758,18 @@ namespace modules {
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
-            real betti_pert;
+            float betti_pert;
             if (coupler.get_option<bool>( "turbine_floating_sine"  , false )) {
-              auto amp   = coupler.get_option<real>( "turbine_floating_sine_amp"  );
-              auto freq  = coupler.get_option<real>( "turbine_floating_sine_freq" );
-              auto etime = coupler.get_option<real>( "elapsed_time"               );
+              auto amp   = coupler.get_option<float>( "turbine_floating_sine_amp"  );
+              auto freq  = coupler.get_option<float>( "turbine_floating_sine_freq" );
+              auto etime = coupler.get_option<float>( "elapsed_time"               );
               betti_pert = freq*amp*std::cos(freq*etime);
             } else {
               betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
             }
             turbine.betti_trace.push_back( betti_pert );
-            real mult = 1;
-            if ( instant_mag0 > 1.e-10 ) mult = std::max(0._fp,instant_mag0+betti_pert)/instant_mag0;
+            float mult = 1;
+            if ( instant_mag0 > 1.e-10 ) mult = std::max(0.f,instant_mag0+betti_pert)/instant_mag0;
             instant_mag0 *= mult;
             instant_u0   *= mult;
             instant_v0   *= mult;
@@ -758,7 +777,7 @@ namespace modules {
             turbine.betti_trace.push_back( 0 );
           }
           // Compute inertial u and v at sampling disk
-          real inertial_tau = 30;
+          float inertial_tau = 30;
           turbine.u_samp_inertial = instant_u0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.u_samp_inertial;
           turbine.v_samp_inertial = instant_v0*dt/inertial_tau + (inertial_tau-dt)/inertial_tau*turbine.v_samp_inertial;
           // Keep track of the turbine yaw angle and the power production for this time step
@@ -767,17 +786,17 @@ namespace modules {
           turbine.cp_trace    .push_back( C_P               );
           turbine.ct_trace    .push_back( C_T               );
           // This is needed to compute the thrust force based on windmill proportion in each cell
-          real turb_factor = M_PI*rad*rad/(dx*dy*dz);
+          float turb_factor = M_PI*rad*rad/(dx*dy*dz);
           // Fraction of thrust that didn't generate power to send into TKE
-          real f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
-          real C_TKE = f_TKE * (C_T - C_P);
+          float f_TKE = 0.25_fp; // Recommended by Archer et al., 2020, MWR "Two corrections TKE ..."
+          float C_TKE = f_TKE * (C_T - C_P);
           ///////////////////////////////////////////////////
           // Application of disk onto tendencies
           ///////////////////////////////////////////////////
           if (turbine.apply_thrust) {
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               if (disk_weight_proj(k,j,i) > 0) {
-                real wt = disk_weight_proj(k,j,i)*turb_factor;
+                float wt = disk_weight_proj(k,j,i)*turb_factor;
                 tend_u  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_mag0*cos_yaw     *wt;
                 tend_v  (k,j,i) += -0.5_fp             *C_T  *instant_mag0*instant_mag0*sin_yaw     *wt;
                 tend_tke(k,j,i) +=  0.5_fp*rho_d(k,j,i)*C_TKE*instant_mag0*instant_mag0*instant_mag0*wt;
@@ -789,7 +808,7 @@ namespace modules {
           ///////////////////////////////////////////////////
           // Using only the hub cell's velocity leads to odd behavior. I'm going to use the disk-averaged
           // u and v velocity instead (note it's *not* normal u an v velocity but just plain u and v)
-          real max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
+          float max_yaw_speed = turbine.ref_turbine.max_yaw_speed;
           if (! coupler.get_option<bool>("turbine_fixed_yaw",false)) {
             turbine.yaw_angle = turbine.yaw_tend( upstream_uvel , upstream_vvel , dt , turbine.yaw_angle , max_yaw_speed );
           }

@@ -19,14 +19,14 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    real dx = 2;
+    real dx = 32;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
     std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
-    coupler.set_option<real>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
+    coupler.set_option<float>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
 
     real        sim_time     = 10+1.e-8;
     real        xlen         = D*10;
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
-    real        out_freq     = 120;
+    real        out_freq     = 1;
     real        inform_freq  = 10;
     std::string out_prefix   = "awaken_simplest";
     bool        is_restart   = false;

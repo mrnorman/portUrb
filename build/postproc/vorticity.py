@@ -3,10 +3,8 @@ import numpy as np
 import sys
 
 
-dx = 100
-
-prefix = f"supercell_{dx}m"
-times = [i for i in range(61,64)]
+prefix = f"awaken_simplest"
+times = [i for i in range(0,57)]
 files = [f"{prefix}_{i:08d}.nc" for i in range(times[-1]+1)]
 nc = Dataset(files[0],"r")
 x = np.array(nc["x"][:])

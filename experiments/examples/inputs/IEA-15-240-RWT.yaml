@@ -1,7 +1,9 @@
 
-hub_height  : 150
+hub_height: 150
 
 blade_radius: 121.118878225
+
+overhang: -12.0313
 
 velocity_magnitude: [ 3                ,
                       3.5495323704249  ,

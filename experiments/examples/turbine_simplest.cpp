@@ -19,32 +19,32 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    real dx = 32;
+    real dx = 2;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
-    std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
+    std::string turbine_file = "./inputs/IEA-22-280-RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
-    coupler.set_option<float>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
+    // coupler.set_option<float>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
 
-    real        sim_time     = 10+1.e-8;
+    real        sim_time     = 1801.;
     real        xlen         = D*10;
-    real        ylen         = D*4;
-    real        zlen         = D*4;
+    real        ylen         = D*3;
+    real        zlen         = D*3;
     int         nx_glob      = std::ceil(xlen/dx);    xlen = nx_glob * dx;
     int         ny_glob      = std::ceil(ylen/dx);    ylen = ny_glob * dx;
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
-    real        out_freq     = 1;
-    real        inform_freq  = 10;
+    real        out_freq     = 10;
+    real        inform_freq  = 1;
     std::string out_prefix   = "awaken_simplest";
     bool        is_restart   = false;
     std::string restart_file = "";
     real        latitude     = 0;
     real        roughness    = 0;
-    int         dyn_cycle    = 1;
+    int         dyn_cycle    = 10;
     real        vort_freq    = 1./20.;
 
     // Things the coupler might need to know about
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "restart_file"   , restart_file );
     coupler.set_option<real       >( "latitude"       , latitude     );
     coupler.set_option<real       >( "roughness"      , roughness    );
-    coupler.set_option<real       >( "constant_uvel"  , 8            );
+    coupler.set_option<real       >( "constant_uvel"  , 9            );
     coupler.set_option<real       >( "constant_vvel"  , 0            );
     coupler.set_option<real       >( "constant_temp"  , 300          );
     coupler.set_option<real       >( "constant_press" , 1.e5         );
@@ -92,8 +92,8 @@ int main(int argc, char** argv) {
     custom_modules::sc_init   ( coupler );
     coupler.set_option<std::string>("bc_y","periodic");
     les_closure  .init        ( coupler );
-    dycore       .init        ( coupler );
     windmills    .init        ( coupler );
+    dycore       .init        ( coupler ); // Important that dycore inits after windmills for base immersed boundaries
     time_averager.init        ( coupler );
     edge_sponge  .set_column  ( coupler );
     custom_modules::sc_perturb( coupler );
@@ -149,10 +149,10 @@ int main(int argc, char** argv) {
         time_averager.reset(coupler);
         output_counter.reset();
       }
-      if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
-        custom_modules::dump_vorticity( coupler );
-        vort_counter.reset();
-      }
+      // if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
+      //   custom_modules::dump_vorticity( coupler );
+      //   vort_counter.reset();
+      // }
     } // End main simulation loop
 
     yakl::timer_stop("main");

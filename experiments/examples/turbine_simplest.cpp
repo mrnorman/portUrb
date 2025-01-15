@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     real D = config["blade_radius"].as<real>()*2;
     // coupler.set_option<float>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
 
-    real        sim_time     = 1801.;
+    real        sim_time     = 601.;
     real        xlen         = D*10;
     real        ylen         = D*3;
     real        zlen         = D*3;
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
-    real        out_freq     = 10;
+    real        out_freq     = 60;
     real        inform_freq  = 1;
     std::string out_prefix   = "awaken_simplest";
     bool        is_restart   = false;

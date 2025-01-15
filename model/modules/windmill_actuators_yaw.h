@@ -497,7 +497,7 @@ namespace modules {
 
           // First, apply tendencies due to immersed hub & hub flange
           if (turbine.apply_thrust) {
-            int constexpr N = 4;
+            int constexpr N = 10;
             float ov = -turbine.ref_turbine.overhang         ;
             float hr =  turbine.ref_turbine.hub_radius       ;
             float fh =  turbine.ref_turbine.hub_flange_height;
@@ -577,7 +577,7 @@ namespace modules {
           float2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {
             // Project disks
-            float xr = std::max(10.,5*dx);
+            float xr = std::max(5.,5*dx);
             int num_x = std::ceil(20/dx*xr           *2);
             int num_y = std::ceil(20/dx*rad*(1+decay)*2);
             int num_z = std::ceil(20/dx*rad*(1+decay)*2);

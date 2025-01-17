@@ -490,7 +490,8 @@ namespace modules {
           auto  ref_power_coef  = turbine.ref_turbine.power_coef_host ; // For interpolation
           auto  ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
           auto  ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
-          bool  do_blades       = ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed");
+          bool  do_blades       = coupler.get_option<bool>("turbine_do_blades",true) &&
+                                  ( ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed") );
           float overhang        = turbine.ref_turbine.overhang;
           float hub_radius      = turbine.ref_turbine.hub_radius;
           float decay = 3*dx/rad; // Length of decay of thrust after the end of the blade radius (relative)
@@ -571,8 +572,8 @@ namespace modules {
           } else {
             upstream_dir = std::atan2( upstream_vvel , upstream_uvel );  // theta=tan^-1(v/u)
           }
-          float upstream_x_offset = -5*rad*std::cos(upstream_dir);
-          float upstream_y_offset = -5*rad*std::sin(upstream_dir);
+          float upstream_x_offset = -4*rad*std::cos(upstream_dir);
+          float upstream_y_offset = -4*rad*std::sin(upstream_dir);
           // Compute and sum weights for disk projection and upstream sampling projection
           float2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {

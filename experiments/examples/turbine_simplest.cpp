@@ -22,16 +22,15 @@ int main(int argc, char** argv) {
     real dx = 2;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
-    std::string turbine_file = "./inputs/IEA-22-280-RWT.yaml";
+    std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
-    // coupler.set_option<float>("turbine_rot_fixed" , 9.1552*2*M_PI/60 );
 
     real        sim_time     = 601.;
-    real        xlen         = D*10;
-    real        ylen         = D*3;
-    real        zlen         = D*3;
+    real        xlen         = D*14;
+    real        ylen         = D*2;
+    real        zlen         = D*2;
     int         nx_glob      = std::ceil(xlen/dx);    xlen = nx_glob * dx;
     int         ny_glob      = std::ceil(ylen/dx);    ylen = ny_glob * dx;
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
@@ -55,7 +54,7 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "restart_file"   , restart_file );
     coupler.set_option<real       >( "latitude"       , latitude     );
     coupler.set_option<real       >( "roughness"      , roughness    );
-    coupler.set_option<real       >( "constant_uvel"  , 9            );
+    coupler.set_option<real       >( "constant_uvel"  , 11.4         );
     coupler.set_option<real       >( "constant_vvel"  , 0            );
     coupler.set_option<real       >( "constant_temp"  , 300          );
     coupler.set_option<real       >( "constant_press" , 1.e5         );
@@ -66,7 +65,7 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "turbine_floating_motions" , false  );
 
     // Set the turbine
-    coupler.set_option<std::vector<real>>("turbine_x_locs"      ,{3*D   });
+    coupler.set_option<std::vector<real>>("turbine_x_locs"      ,{2.5*D });
     coupler.set_option<std::vector<real>>("turbine_y_locs"      ,{ylen/2});
     coupler.set_option<std::vector<bool>>("turbine_apply_thrust",{true  });
 

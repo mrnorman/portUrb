@@ -259,11 +259,50 @@ namespace modules {
     // ( plot(p1.subs(x2=x2)^a,x,0 ,x2) + plot(p2.subs(x2=x2,x3=x3),x,x2,x3) ).show()
     // a = 0.5 reproduces: A comparison of actuator disk and actuator line wind turbine models and best practices for their use
     struct DefaultThrustShape {
-      KOKKOS_INLINE_FUNCTION float operator() ( float r , float x2 = 0.9 , float x3 = 1.0 , float a = 2 ) const {
+      KOKKOS_INLINE_FUNCTION float operator() ( float x , float x2 = 0.9 , float x3 = 1.0 , float a = 2 ) const {
         using std::pow;
-        float x = r;
-        if (r < x2) return pow(-1.0*((x*x)-2*x*x2)/(x2*x2),a);
-        if (r < x3) return -1.0*(2*(x*x*x)-3*(x*x)*x2-3*x2*(x3*x3)+(x3*x3*x3)-3*((x*x)-2*x*x2)*x3)/((x2*x2*x2)-3*(x2*x2)*x3+3*x2*(x3*x3)-(x3*x3*x3));
+        if (x < x2) return pow(-1.0*((x*x)-2*x*x2)/(x2*x2),a);
+        if (x < x3) return -1.0*(2*(x*x*x)-3*(x*x)*x2-3*x2*(x3*x3)+(x3*x3*x3)-3*((x*x)-2*x*x2)*x3)/((x2*x2*x2)-3*(x2*x2)*x3+3*x2*(x3*x3)-(x3*x3*x3));
+        return 0;
+      }
+    };
+
+
+    // var('x2,x3,x4,v3,a')
+    // N = 3
+    // coefs = coefs_1d(N,0,'a')
+    // p = poly_1d(N,coefs)
+    // constr = vector([p        .subs(x=0 ),
+    //                  p        .subs(x=x2),
+    //                  p.diff(x).subs(x=x2)])
+    // A = jacobian(constr,coefs)^-1
+    // vals = vector([0,1,0])
+    // p1 = poly_1d(N,A*vals)^a
+    // coefs = coefs_1d(N,0,'a')
+    // p = poly_1d(N,coefs)
+    // constr = vector([p        .subs(x=x3),
+    //                  p        .subs(x=x4),
+    //                  p.diff(x).subs(x=x4)])
+    // A = jacobian(constr,coefs)^-1
+    // vals = vector([v3,0,0])
+    // p2 = poly_1d(N,A*vals)
+    // 
+    // print(p1.simplify_full())
+    // print(p2.simplify_full())
+    // 
+    // x2 = 0.7;    x3 = 1;    x4 = 1.05;    a = 1
+    // plt  = plot(p1.subs(x2=x2,a=a),x,0 ,x3)
+    // v3 = p1.subs(x2=x2,a=a,x=x3)
+    // plt += plot(p2.subs(x3=x3,x4=x4,v3=v3),x,x3,x4)
+    // plt.show()
+    struct DefaultThrustShape2 {
+      KOKKOS_INLINE_FUNCTION float operator() ( float x , float x2=0.6 , float x3=0.9 , float x4=1 , float a=1 ) const {
+        using std::pow;
+        if (x < x3) return pow(-((x*x) - 2*x*x2)/(x2*x2),a);
+        if (x < x4) {
+          float v3 = pow(-((x3*x3) - 2*x3*x2)/(x2*x2),a);
+          return (v3*x*x - 2*v3*x*x4 + v3*x4*x4)/(x3*x3 - 2*x3*x4 + x4*x4);
+        }
         return 0;
       }
     };
@@ -450,6 +489,7 @@ namespace modules {
       auto proj_weight_tot = dm.get<real      ,3>("windmill_proj_weight");
       auto samp_weight_tot = dm.get<real      ,3>("windmill_samp_weight");
       auto thrust_shape = DefaultThrustShape();
+      auto thrust_shape2 = DefaultThrustShape2();
       auto proj_shape_1d = DefaultProjectionShape1D();
       auto proj_shape_2d = DefaultProjectionShape2D();
 
@@ -578,18 +618,19 @@ namespace modules {
           float2d umag_19_5m_2d("umag_19_5m_2d",ny,nx);
           {
             // Project disks
+            float decayloc = decay + 0.02;
             float xr = std::max(5.,5*dx);
             int num_x = std::ceil(20/dx*xr           *2);
-            int num_y = std::ceil(20/dx*rad*(1+decay)*2);
-            int num_z = std::ceil(20/dx*rad*(1+decay)*2);
+            int num_y = std::ceil(20/dx*rad*(1+decayloc)*2);
+            int num_z = std::ceil(20/dx*rad*(1+decayloc)*2);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , KOKKOS_LAMBDA (int k, int j, int i) {
               // Initial point in the y-z plane facing the negative x direction
-              float x = -xr        + (2*xr           *i)/(num_x-1);
-              float y = -rad-decay + (2*rad*(1+decay)*j)/(num_y-1);
-              float z = -rad-decay + (2*rad*(1+decay)*k)/(num_z-1);
+              float x = -xr               + (2*xr              *i)/(num_x-1);
+              float y = -rad*(1+decayloc) + (2*rad*(1+decayloc)*j)/(num_y-1);
+              float z = -rad*(1+decayloc) + (2*rad*(1+decayloc)*k)/(num_z-1);
               float rloc = std::sqrt(y*y+z*z);
-              if (rloc <= rad+decay) {
-                float shp = rloc <= hub_radius ? 0 : thrust_shape(rloc/rad,1,1+decay)*proj_shape_1d(x,xr);
+              if (rloc <= rad*(1+decayloc)) {
+                float shp = rloc <= hub_radius ? 0 : thrust_shape2(rloc/rad,0.7,1,1+decayloc,1)*proj_shape_1d(x,xr);
                 // Now rotate x and y according to the yaw angle, and translate to base location
                 float xp = base_x     + cos_yaw*(x+overhang) - sin_yaw*y;
                 float yp = base_y     + sin_yaw*(x+overhang) + cos_yaw*y;

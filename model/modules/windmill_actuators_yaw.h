@@ -204,7 +204,7 @@ namespace modules {
         // Add the turbine
         turbines.push_back(loc);
         // Add the base to immersed_proportion
-        {
+          if (loc.apply_thrust && coupler.get_option<bool>("turbine_immerse_material",false)) {
           real tower_top      = ref_turbine.hub_height - ref_turbine.hub_flange_height/2;
           real tower_base_rad = ref_turbine.tower_base_rad;
           real tower_top_rad  = ref_turbine.tower_top_rad ;
@@ -531,13 +531,14 @@ namespace modules {
           auto  ref_power       = turbine.ref_turbine.power_host      ; // For interpolation
           auto  ref_rotation    = turbine.ref_turbine.rotation_host   ; // For interpolation
           bool  do_blades       = coupler.get_option<bool>("turbine_do_blades",true) &&
-                                  ( ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed") );
+                                  ( ref_rotation.initialized() || coupler.option_exists("turbine_rot_fixed") ) &&
+                                  ( dx*(63/rad) < 16 );
           float overhang        = turbine.ref_turbine.overhang;
           float hub_radius      = turbine.ref_turbine.hub_radius;
           float decay = 3*dx/rad; // Length of decay of thrust after the end of the blade radius (relative)
 
           // First, apply tendencies due to immersed hub & hub flange
-          if (turbine.apply_thrust) {
+          if (turbine.apply_thrust && coupler.get_option<bool>("turbine_immerse_material",false)) {
             int constexpr N = 10;
             float ov = -turbine.ref_turbine.overhang         ;
             float hr =  turbine.ref_turbine.hub_radius       ;
@@ -653,7 +654,7 @@ namespace modules {
               }
             });
             // Project blades
-            if (do_blades && dx < 16) {
+            if (do_blades) {
               float3d blade_1("blade_1",nz,ny,nx);
               float3d blade_2("blade_2",nz,ny,nx);
               float3d blade_3("blade_3",nz,ny,nx);
@@ -782,15 +783,16 @@ namespace modules {
           float disk_samp_tot  = weights_tot2(3);
           float blade_proj_tot = weights_tot2(4);
           float blade_wt;
-          if (dx <= 2) {
+          float dxloc = dx*(63/rad);
+          if (dxloc <= 2) {
             blade_wt = 1;
           } else {
-            float x = (std::log2(dx)-1)/3; // Interpolate based on grid spacing in log space between 2 and 16
+            float x = (std::log2(dxloc)-1)/3; // Interpolate based on grid spacing in log space between 2 and 16
             blade_wt = -2*x*x*x + 3*x*x;   // p(0)=0; p'(0)=0; p(1)=1; p'(1)=0  defined in [0,1]
           }
           turbine.mag195_trace.push_back( umag_19_5m );
           // Blend blades and disk based on grid spacing
-          if (do_blades && dx < 16) {
+          if (do_blades) {
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(nz,ny,nx) , KOKKOS_LAMBDA (int k, int j, int i) {
               disk_weight_proj (k,j,i) /= disk_proj_tot;
               blade_weight_proj(k,j,i) /= blade_proj_tot;

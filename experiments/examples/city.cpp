@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     mesh.load_file("/ccs/home/imn/nyc2.obj");
     mesh.zero_domain_lo();
 
-    real        sim_time    = 1210.0;
+    real        sim_time    = 160;
     real        xlen        = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
     real        ylen        = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
     real        zlen        = std::ceil((mesh.domain_hi.z       +pad_z2)/dz)*dz;
@@ -52,8 +52,9 @@ int main(int argc, char** argv) {
     int         dyn_cycle   = 10;
     real        out_freq    = 60;
     real        inform_freq = 1;
-    std::string out_prefix  = "vortdump";
+    std::string out_prefix  = "city_2m";
     bool        is_restart  = true;
+    real        vort_freq    = 1./10.;
 
     mesh.add_offset(pad_x1,pad_y1);
 
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
     coupler.set_option<std::string>( "init_data"          , "city"      );
     coupler.set_option<real       >( "out_freq"           , out_freq    );
     coupler.set_option<bool       >( "is_restart"         , is_restart  );
-    coupler.set_option<std::string>( "restart_file"       , "/lustre/storm/nwp501/scratch/imn/portUrb/build/restart.nc" );
+    coupler.set_option<std::string>( "restart_file"       , "city_2m_00000002.nc" );
     coupler.set_option<real       >( "latitude"           , 0.          );
     coupler.set_option<real       >( "roughness"          , 5e-2        );
     coupler.set_option<real       >( "building_roughness" , 5.e-2       );
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
     modules::Dynamics_Euler_Stratified_WenoFV  dycore;
     custom_modules::Time_Averager              time_averager;
     modules::LES_Closure                       les_closure;
-    // custom_modules::EdgeSponge                 edge_sponge;
+    custom_modules::EdgeSponge                 edge_sponge;
 
     // No microphysics specified, so create a water_vapor tracer required by the dycore
     coupler.add_tracer("water_vapor","water_vapor",true,true ,true);
@@ -93,12 +94,16 @@ int main(int argc, char** argv) {
     les_closure  .init        ( coupler );
     dycore       .init        ( coupler );
     time_averager.init        ( coupler );
-    // edge_sponge  .set_column  ( coupler );
+    edge_sponge  .set_column  ( coupler );
     custom_modules::sc_perturb( coupler );
+
+    coupler.set_option<std::string>("bc_x","precursor");
+    coupler.set_option<std::string>("bc_y","precursor");
 
     real etime = coupler.get_option<real>("elapsed_time");
     core::Counter output_counter( out_freq    , etime );
     core::Counter inform_counter( inform_freq , etime );
+    core::Counter vort_counter  ( vort_freq   , etime );
 
     // if restart, overwrite with restart data, and set the counters appropriately. Otherwise, write initial output
     if (is_restart) {
@@ -128,14 +133,13 @@ int main(int argc, char** argv) {
         real ur = 20*std::cos(29./180.*M_PI);
         real vr = 20*std::sin(29./180.*M_PI);
         real tr = dt*100;
-        coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,hr,ur,vr,tr); } , "pg_forcing"     );
-        // coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.02,0.02,0.02,0.02); } , "edge_sponge" );
+        // coupler.run_module( [&] (Coupler &c) { uniform_pg_wind_forcing_height(c,dt,hr,ur,vr,tr); } , "pg_forcing"     );
+        coupler.run_module( [&] (Coupler &c) { edge_sponge.apply            (c,0.01,0.01,0.01,0.01); } , "edge_sponge" );
         coupler.run_module( [&] (Coupler &c) { dycore.time_step             (c,dt);         } , "dycore"         );
         coupler.run_module( [&] (Coupler &c) { modules::sponge_layer        (c,dt,dt,0.02); } , "sponge"         );
         coupler.run_module( [&] (Coupler &c) { modules::apply_surface_fluxes(c,dt);         } , "surface_fluxes" );
         coupler.run_module( [&] (Coupler &c) { les_closure.apply            (c,dt);         } , "les_closure"    );
         coupler.run_module( [&] (Coupler &c) { time_averager.accumulate     (c,dt);         } , "time_averager"  );
-        coupler.run_module( [&] (Coupler &c) { dump_vorticity               (c   );         } , "dump_vorticity" );
       }
 
       // Update time step
@@ -149,6 +153,10 @@ int main(int argc, char** argv) {
         coupler.write_output_file( out_prefix , true );
         time_averager.reset(coupler);
         output_counter.reset();
+      }
+      if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
+        custom_modules::dump_vorticity( coupler );
+        vort_counter.reset();
       }
     } // End main simulation loop
 

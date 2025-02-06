@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     // This holds all of the model's variables, dimension sizes, and options
     core::Coupler coupler;
 
-    real dx = 4;
+    real dx = 2;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
     std::string turbine_file = "./inputs/IEA-22-280-RWT.yaml";
@@ -27,10 +27,10 @@ int main(int argc, char** argv) {
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
 
-    real        sim_time     = 601.;
+    real        sim_time     = 620.01;
     real        xlen         = D*14;
-    real        ylen         = D*4;
-    real        zlen         = D*4;
+    real        ylen         = D*2;
+    real        zlen         = D*2;
     int         nx_glob      = std::ceil(xlen/dx);    xlen = nx_glob * dx;
     int         ny_glob      = std::ceil(ylen/dx);    ylen = ny_glob * dx;
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
@@ -39,12 +39,12 @@ int main(int argc, char** argv) {
     real        out_freq     = 60;
     real        inform_freq  = 1;
     std::string out_prefix   = "run_21";
-    bool        is_restart   = false;
-    std::string restart_file = "";
+    bool        is_restart   = true;
+    std::string restart_file = "run_03_00000010.nc";
     real        latitude     = 0;
     real        roughness    = 0;
     int         dyn_cycle    = 10;
-    real        vort_freq    = 1./20.;
+    real        vort_freq    = 1./10.;
 
     // Things the coupler might need to know about
     coupler.set_option<std::string>( "out_prefix"     , out_prefix   );
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     coupler.set_option<real       >( "turbine_initial_yaw"      , 0./180.*M_PI );
     coupler.set_option<bool       >( "turbine_fixed_yaw"        , true   );
     coupler.set_option<bool       >( "turbine_floating_motions" , false  );
-    coupler.set_option<bool       >( "turbine_immerse_material" , false  );
+    coupler.set_option<bool       >( "turbine_immerse_material" , true   );
 
     // Set the turbine
     coupler.set_option<std::vector<real>>("turbine_x_locs"      ,{2.5*D });
@@ -149,10 +149,10 @@ int main(int argc, char** argv) {
         time_averager.reset(coupler);
         output_counter.reset();
       }
-      // if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
-      //   custom_modules::dump_vorticity( coupler );
-      //   vort_counter.reset();
-      // }
+      if (vort_freq   >= 0. && vort_counter  .update_and_check(dt)) {
+        custom_modules::dump_vorticity( coupler );
+        vort_counter.reset();
+      }
     } // End main simulation loop
 
     yakl::timer_stop("main");

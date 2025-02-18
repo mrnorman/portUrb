@@ -16,6 +16,8 @@ tower_base_radius: 3
 
 tower_top_radius: 1.935
 
+shaft_tilt_deg: 5
+
 velocity_magnitude: [ 3    ,
                       4    ,
                       5    ,

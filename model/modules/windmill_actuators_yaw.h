@@ -30,6 +30,7 @@ namespace modules {
       real       hub_flange_height; // Height (and width) of the hub flange (m)
       real       tower_base_rad;    // Radius of the tower base at ground or water level (m)
       real       tower_top_rad;     // Radius of the tower top connected to hub flange (m)
+      real       shaft_tilt;        // Shaft tilt in radians
       void init( std::string fname , real dx , real dy , real dz ) {
         YAML::Node config = YAML::LoadFile( fname );
         if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
@@ -70,6 +71,7 @@ namespace modules {
         this->hub_flange_height = config["hub_flange_height"].as<real>(0.04*blade_radius);
         this->tower_base_rad    = config["tower_base_radius"].as<real>(5);
         this->tower_top_rad     = config["tower_top_radius" ].as<real>(3);
+        this->shaft_tilt        = config["shaft_tilt_deg"   ].as<real>(0)/180.*M_PI;
       }
     };
 
@@ -513,6 +515,8 @@ namespace modules {
           // Pre-compute rotation matrix terms
           float cos_yaw = std::cos(turbine.yaw_angle);
           float sin_yaw = std::sin(turbine.yaw_angle);
+          float cos_tlt = std::cos(-turbine.ref_turbine.shaft_tilt);
+          float sin_tlt = std::sin(-turbine.ref_turbine.shaft_tilt);
           // These are the global extents of this MPI task's domain
           float dom_x1 = (i_beg+0 )*dx;
           float dom_x2 = (i_beg+nx)*dx;
@@ -621,7 +625,7 @@ namespace modules {
             // Project disks
             float decayloc = decay + 0.02;
             float xr = std::max(5.,5*dx);
-            int num_x = std::ceil(20/dx*xr           *2);
+            int num_x = std::ceil(20/dx*xr              *2);
             int num_y = std::ceil(20/dx*rad*(1+decayloc)*2);
             int num_z = std::ceil(20/dx*rad*(1+decayloc)*2);
             parallel_for( YAKL_AUTO_LABEL() , SimpleBounds<3>(num_z,num_y,num_x) , KOKKOS_LAMBDA (int k, int j, int i) {
@@ -632,10 +636,14 @@ namespace modules {
               float rloc = std::sqrt(y*y+z*z);
               if (rloc <= rad*(1+decayloc)) {
                 float shp = rloc <= hub_radius ? 0 : thrust_shape2(rloc/rad,0.7,1,1+decayloc,1)*proj_shape_1d(x,xr);
-                // Now rotate x and y according to the yaw angle, and translate to base location
-                float xp = base_x     + cos_yaw*(x+overhang) - sin_yaw*y;
-                float yp = base_y     + sin_yaw*(x+overhang) + cos_yaw*y;
-                float zp = hub_height + z;
+                // Rotate about y-axis for shaft tilt
+                float x1 =  cos_tlt*(x+overhang) + sin_tlt*z;
+                float y1 =  y;
+                float z1 = -sin_tlt*(x+overhang) + cos_tlt*z;
+                // Rotate about z-axis for yaw angle, and translate to base location
+                float xp = base_x     + cos_yaw*x1 - sin_yaw*y1;
+                float yp = base_y     + sin_yaw*x1 + cos_yaw*y1;
+                float zp = hub_height + z1;
                 // if it's in this task's domain, then increment the appropriate cell count atomically
                 int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
                 int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
@@ -685,14 +693,18 @@ namespace modules {
                   float shp = z <= hub_radius ? 0 : thrust_shape(z/rad,1,1+decay)*proj_shape_1d(rloc,xr);
                   // BLADE 1
                   {
-                    // Rotate y and z about the x axis for rotation angle
-                    float xr = x;
-                    float yr = cos_th1*y - sin_th1*z;
-                    float zr = sin_th1*y + cos_th1*z;
-                    // Now rotate xp and yp according to the yaw angle, and translate to base location
-                    float xp = base_x     + cos_yaw*(xr+overhang) - sin_yaw*yr;
-                    float yp = base_y     + sin_yaw*(xr+overhang) + cos_yaw*yr;
-                    float zp = hub_height + zr;
+                    // Rotate about x-axis for rotation angle
+                    float x1 = x;
+                    float y1 = cos_th1*y - sin_th1*z;
+                    float z1 = sin_th1*y + cos_th1*z;
+                    // Rotate about y-axis for shaft tilt
+                    float x2 =  cos_tlt*(x1+overhang) + sin_tlt*z1;
+                    float y2 =  y1;
+                    float z2 = -sin_tlt*(x1+overhang) + cos_tlt*z1;
+                    // Rotate about z-axis for yaw angle, and translate to base location
+                    float xp = base_x     + cos_yaw*x2 - sin_yaw*y2;
+                    float yp = base_y     + sin_yaw*x2 + cos_yaw*y2;
+                    float zp = hub_height + z2;
                     // if it's in this task's domain, then increment the appropriate cell count atomically
                     int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
                     int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
@@ -703,14 +715,18 @@ namespace modules {
                   }
                   // BLADE 2
                   {
-                    // Rotate y and z about the x axis for rotation angle
-                    float xr = x;
-                    float yr = cos_th2*y - sin_th2*z;
-                    float zr = sin_th2*y + cos_th2*z;
-                    // Now rotate xp and yp according to the yaw angle, and translate to base location
-                    float xp = base_x     + cos_yaw*(xr+overhang) - sin_yaw*yr;
-                    float yp = base_y     + sin_yaw*(xr+overhang) + cos_yaw*yr;
-                    float zp = hub_height + zr;
+                    // Rotate about x-axis for rotation angle
+                    float x1 = x;
+                    float y1 = cos_th2*y - sin_th2*z;
+                    float z1 = sin_th2*y + cos_th2*z;
+                    // Rotate about y-axis for shaft tilt
+                    float x2 =  cos_tlt*(x1+overhang) + sin_tlt*z1;
+                    float y2 =  y1;
+                    float z2 = -sin_tlt*(x1+overhang) + cos_tlt*z1;
+                    // Rotate about z-axis for yaw angle, and translate to base location
+                    float xp = base_x     + cos_yaw*x2 - sin_yaw*y2;
+                    float yp = base_y     + sin_yaw*x2 + cos_yaw*y2;
+                    float zp = hub_height + z2;
                     // if it's in this task's domain, then increment the appropriate cell count atomically
                     int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
                     int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));
@@ -721,14 +737,18 @@ namespace modules {
                   }
                   // BLADE 3
                   {
-                    // Rotate y and z about the x axis for rotation angle
-                    float xr = x;
-                    float yr = cos_th3*y - sin_th3*z;
-                    float zr = sin_th3*y + cos_th3*z;
-                    // Now rotate xp and yp according to the yaw angle, and translate to base location
-                    float xp = base_x     + cos_yaw*(xr+overhang) - sin_yaw*yr;
-                    float yp = base_y     + sin_yaw*(xr+overhang) + cos_yaw*yr;
-                    float zp = hub_height + zr;
+                    // Rotate about x-axis for rotation angle
+                    float x1 = x;
+                    float y1 = cos_th3*y - sin_th3*z;
+                    float z1 = sin_th3*y + cos_th3*z;
+                    // Rotate about y-axis for shaft tilt
+                    float x2 =  cos_tlt*(x1+overhang) + sin_tlt*z1;
+                    float y2 =  y1;
+                    float z2 = -sin_tlt*(x1+overhang) + cos_tlt*z1;
+                    // Rotate about z-axis for yaw angle, and translate to base location
+                    float xp = base_x     + cos_yaw*x2 - sin_yaw*y2;
+                    float yp = base_y     + sin_yaw*x2 + cos_yaw*y2;
+                    float zp = hub_height + z2;
                     // if it's in this task's domain, then increment the appropriate cell count atomically
                     int ti = static_cast<int>(std::round(xp/dx-0.5-i_beg));
                     int tj = static_cast<int>(std::round(yp/dy-0.5-j_beg));

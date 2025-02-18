@@ -3,9 +3,9 @@ import numpy as np
 import sys
 
 
-prefix = f"run_21"
-times = [i for i in range(8,9)]
-files = [f"{prefix}_{i:08d}.nc" for i in range(times[-1]+1)]
+prefix = f"./city_2m_5e-2"
+times = [i for i in range(100,101)]
+files = [f"{prefix}_{i:08d}.nc" for i in times]
 nc = Dataset(files[0],"r")
 x = np.array(nc["x"][:])
 y = np.array(nc["y"][:])
@@ -25,8 +25,8 @@ def d_dy(q) :
   return (q[1:nz-1,2:ny  ,1:nx-1]-q[1:nz-1,0:ny-2,1:nx-1])/(2*dy)
 def d_dz(q) :
   return (q[2:nz  ,1:ny-1,1:nx-1]-q[0:nz-2,1:ny-1,1:nx-1])/(2*dz)
-for i in times :
-  print(i)
+for i in range(len(times)) :
+  print(times[i])
   nc = Dataset(files[i],"r")
   u = np.array(nc["uvel"][:,:,:])
   v = np.array(nc["vvel"][:,:,:])
@@ -35,19 +35,24 @@ for i in times :
   vort_y = d_dz(u) - d_dx(w)
   vort_z = d_dx(v) - d_dy(u)
   vortmag = np.sqrt(vort_x*vort_x + vort_y*vort_y + vort_z*vort_z)
-  ncout = Dataset(f"{prefix}_vorticity_{i:08d}.nc","w")
+  velmag  = np.sqrt(u*u + v*v + w*w)
+  ncout = Dataset(f"{prefix}_vorticity_{times[i]:08d}.nc","w")
   ncout.createDimension("x",nx)
   ncout.createDimension("y",ny)
   ncout.createDimension("z",nz)
   ncout.createVariable("x",'f4',("x"))[:] = nc.variables["x"][:]
   ncout.createVariable("y",'f4',("y"))[:] = nc.variables["y"][:]
   ncout.createVariable("z",'f4',("z"))[:] = nc.variables["z"][:]
+  # Vort z
   # var = ncout.createVariable("vort_z",'f4',("z","y","x"))
   # var[:,:,:] = 0
   # var[1:nz-1,1:ny-1,1:nx-1] = np.abs(vort_z[:,:,:])
+  # Vortmag
   var = ncout.createVariable("vortmag",'f4',("z","y","x"))
   var[:,:,:] = 0
   var[1:nz-1,1:ny-1,1:nx-1] = vortmag[:,:,:]
+  # Velmag
+  var = ncout.createVariable("velmag",'f4',("z","y","x"))[:,:,:] = velmag
   nc.close()
   ncout.close()
 

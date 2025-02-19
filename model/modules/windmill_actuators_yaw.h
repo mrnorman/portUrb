@@ -613,7 +613,7 @@ namespace modules {
           float upstream_vvel = weights_tot(1);
           float upstream_dir;
           if (coupler.option_exists("turbine_upstream_dir")) {
-            upstream_dir = coupler.get_option<float>("turbine_upstream_dir");
+            upstream_dir = coupler.get_option<real>("turbine_upstream_dir");
           } else {
             upstream_dir = std::atan2( upstream_vvel , upstream_uvel );  // theta=tan^-1(v/u)
           }
@@ -864,7 +864,7 @@ namespace modules {
           float pwr       = interp( ref_velmag , ref_power       , inertial_mag0 ); // Interpolate power generation
           float rot_speed = 0;
           if (ref_rotation.initialized()) rot_speed = interp( ref_velmag , ref_rotation , inertial_mag0 );
-          if (coupler.option_exists("turbine_rot_fixed")) rot_speed = coupler.get_option<float>("turbine_rot_fixed");
+          if (coupler.option_exists("turbine_rot_fixed")) rot_speed = coupler.get_option<real>("turbine_rot_fixed");
           if (inertial_mag0 > 1.e-10) {
             if ( ! coupler.get_option<bool>("turbine_orig_C_T",false) ) {
               float a = std::max( 0._fp , std::min( 1._fp , 1 - C_P / (C_T+1.e-10) ) );
@@ -881,9 +881,9 @@ namespace modules {
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
             float betti_pert;
             if (coupler.get_option<bool>( "turbine_floating_sine"  , false )) {
-              auto amp   = coupler.get_option<float>( "turbine_floating_sine_amp"  );
-              auto freq  = coupler.get_option<float>( "turbine_floating_sine_freq" );
-              auto etime = coupler.get_option<float>( "elapsed_time"               );
+              auto amp   = coupler.get_option<real>( "turbine_floating_sine_amp"  );
+              auto freq  = coupler.get_option<real>( "turbine_floating_sine_freq" );
+              auto etime = coupler.get_option<real>( "elapsed_time"               );
               betti_pert = freq*amp*std::cos(freq*etime);
             } else {
               betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );

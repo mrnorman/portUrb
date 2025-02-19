@@ -515,8 +515,8 @@ namespace modules {
           // Pre-compute rotation matrix terms
           float cos_yaw = std::cos(turbine.yaw_angle);
           float sin_yaw = std::sin(turbine.yaw_angle);
-          float cos_tlt = std::cos(-turbine.ref_turbine.shaft_tilt);
-          float sin_tlt = std::sin(-turbine.ref_turbine.shaft_tilt);
+          float cos_tlt = std::cos(turbine.ref_turbine.shaft_tilt);
+          float sin_tlt = std::sin(turbine.ref_turbine.shaft_tilt);
           // These are the global extents of this MPI task's domain
           float dom_x1 = (i_beg+0 )*dx;
           float dom_x2 = (i_beg+nx)*dx;

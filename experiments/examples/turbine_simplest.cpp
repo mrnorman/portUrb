@@ -22,12 +22,12 @@ int main(int argc, char** argv) {
     real dx = 2;
     coupler.set_option<bool>("turbine_orig_C_T",true);
 
-    std::string turbine_file = "./inputs/IEA-22-280-RWT.yaml";
+    std::string turbine_file = "./inputs/NREL_5MW_126_RWT.yaml";
     YAML::Node config = YAML::LoadFile( turbine_file );
     if ( !config ) { endrun("ERROR: Invalid turbine input file"); }
     real D = config["blade_radius"].as<real>()*2;
 
-    real        sim_time     = 620.01;
+    real        sim_time     = 30;
     real        xlen         = D*14;
     real        ylen         = D*2;
     real        zlen         = D*2;
@@ -36,11 +36,11 @@ int main(int argc, char** argv) {
     int         nz           = std::ceil(zlen/dx);    zlen = nz      * dx;
     real        dtphys_in    = 0;
     std::string init_data    = "constant";
-    real        out_freq     = 60;
+    real        out_freq     = 5;
     real        inform_freq  = 1;
-    std::string out_prefix   = "run_21";
-    bool        is_restart   = true;
-    std::string restart_file = "run_03_00000010.nc";
+    std::string out_prefix   = "test";
+    bool        is_restart   = false;
+    std::string restart_file = "";
     real        latitude     = 0;
     real        roughness    = 0;
     int         dyn_cycle    = 10;
@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
     coupler.set_option<bool       >( "turbine_do_blades"        , true   );
     coupler.set_option<real       >( "turbine_initial_yaw"      , 0./180.*M_PI );
     coupler.set_option<bool       >( "turbine_fixed_yaw"        , true   );
-    coupler.set_option<bool       >( "turbine_floating_motions" , false  );
+    coupler.set_option<bool       >( "turbine_floating_motions" , true   );
     coupler.set_option<bool       >( "turbine_immerse_material" , true   );
 
     // Set the turbine

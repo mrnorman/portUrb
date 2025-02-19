@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
       coupler_main.set_option<bool             >( "turbine_fixed_yaw"      , true  );
       coupler_main.set_option<real             >( "turbine_upstream_dir"   , 0     );
       coupler_main.set_option<bool             >( "weno_all"               , true  );
-      coupler_main.set_option<bool             >( "turbine_floating_sine"  , true  );
+      coupler_main.set_option<bool             >( "turbine_floating_sine"  , false );
       real z0       = coupler_main.get_option<real>("roughness");
       real u19_5    = hub_wind*std::log(19.5/z0)/std::log(90/z0);
       real omega_pm = 0.877*9.81/u19_5;

@@ -251,7 +251,6 @@ namespace custom_modules {
       auto faces = coupler.get_data_manager_readwrite().get<float,3>("mesh_faces");
       auto compute_theta = KOKKOS_LAMBDA (real z) -> real { return 300; };
       auto pressGLL = modules::integrate_hydrostatic_pressure_gll_theta(compute_theta,nz,zlen,p0,grav,R_d,cp_d).createDeviceCopy();
-      Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
       auto t1 = std::chrono::high_resolution_clock::now();
       if (coupler.is_mainproc()) std::cout << "*** Beginning setup ***" << std::endl;
       float4d zmesh("zmesh",ny,nx,nqpoints,nqpoints);
@@ -299,7 +298,6 @@ namespace custom_modules {
           }
         }
       });
-      Kokkos::fence(); MPI_Barrier(MPI_COMM_WORLD);
       std::chrono::duration<double> dur = std::chrono::high_resolution_clock::now() - t1;
       if (coupler.is_mainproc()) std::cout << "*** Finished setup in [" << dur.count() << "] seconds ***" << std::endl;
 

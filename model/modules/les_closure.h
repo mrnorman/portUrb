@@ -45,6 +45,10 @@ namespace modules {
       auto immersed       = dm.get<real const,3>("immersed_proportion_halos");
       real constexpr Pr = 0.7;
 
+      auto total_mult       = coupler.get_option<real>("les_total_mult"      ,1.);
+      auto dissipation_mult = coupler.get_option<real>("les_dissipation_mult",1.);
+      auto shear_prod_mult  = coupler.get_option<real>("les_shear_prod_mult" ,1.);
+
       real4d state , tracers;
       real3d tke;
       convert_coupler_to_dynamics( coupler , state , tracers , tke );
@@ -117,7 +121,7 @@ namespace modules {
             real t           = 0.5_fp * ( state(idT,hs+k,hs+j,hs+i-1) + state(idT,hs+k,hs+j,hs+i) );
             real N           = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
             real ell         = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-            real km          = 0.1_fp * ell * std::sqrt(K);
+            real km          = total_mult * 0.1_fp * ell * std::sqrt(K);
             real Pr_t        = delta / (1+2*ell);
             real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_x );
             real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_x );
@@ -163,7 +167,7 @@ namespace modules {
             real t    = 0.5_fp * ( state(idT,hs+k,hs+j-1,hs+i) + state(idT,hs+k,hs+j,hs+i) );
             real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
             real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-            real km   = 0.1_fp * ell * std::sqrt(K);
+            real km   = total_mult * 0.1_fp * ell * std::sqrt(K);
             real Pr_t = delta / (1+2*ell);
             real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_y );
             real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_y );
@@ -207,7 +211,7 @@ namespace modules {
             real t    = 0.5_fp * ( state(idT,hs+k-1,hs+j,hs+i) + state(idT,hs+k,hs+j,hs+i) );
             real N    = dt_dz >= 0 && enable_gravity ? std::sqrt(grav/t*dt_dz) : 0;
             real ell  = std::min( 0.76_fp*std::sqrt(K)/(N+1.e-20_fp) , delta );
-            real km   = 0.1_fp * ell * std::sqrt(K);
+            real km   = total_mult * 0.1_fp * ell * std::sqrt(K);
             real Pr_t = delta / (1+2*ell);
             real visc_tot    = dns ? nu : std::min( km+nu         , 0.5_fp*visc_max_z );
             real visc_tot_th = dns ? nu : std::min( km/Pr_t+nu/Pr , 0.5_fp*visc_max_z );
@@ -243,7 +247,7 @@ namespace modules {
             tke_source  (k,j,i) += -(grav*rho*km)/(t*Pr_t)*dt_dz;
           }
           // TKE dissipation
-          tke_source  (k,j,i) -=  rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
+          tke_source  (k,j,i) -=  dissipation_mult*rho*(0.19_fp + 0.51_fp*ell/delta)/delta*std::pow(K,1.5_fp);
           // Shear production
           int im1 = immersed(hs+k,hs+j,hs+i-1) > 0 ? i : i-1;
           int ip1 = immersed(hs+k,hs+j,hs+i+1) > 0 ? i : i+1;
@@ -269,7 +273,7 @@ namespace modules {
           real j3_i1 = (du_dz + dw_dx) * du_dz;
           real j3_i2 = (dv_dz + dw_dy) * dv_dz;
           real j3_i3 = (dw_dz + dw_dz) * dw_dz;
-          tke_source   (k,j,i) += rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
+          tke_source   (k,j,i) += shear_prod_mult*rho*km*(j1_i1 + j1_i2 + j1_i3 + j2_i1 + j2_i2 + j2_i3 + j3_i1 + j3_i2 + j3_i3);
         }
       });
 

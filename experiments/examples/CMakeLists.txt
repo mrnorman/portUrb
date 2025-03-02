@@ -49,4 +49,5 @@ process_target(cubes_periodic)
 process_target(bomex)
 process_target(sphere)
 process_target(city)
+process_target(city_ensemble)
 

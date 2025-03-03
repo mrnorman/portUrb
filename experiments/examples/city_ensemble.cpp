@@ -42,29 +42,27 @@ int main(int argc, char** argv) {
     mesh.load_file("/ccs/home/imn/nyc2.obj");
     mesh.zero_domain_lo();
 
-    real        sim_time    = 7200;
-    real        xlen        = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
-    real        ylen        = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
-    real        zlen        = std::ceil((mesh.domain_hi.z       +pad_z2)/dz)*dz;
-    int         nx_glob     = xlen/dx;
-    int         ny_glob     = ylen/dy;
-    int         nz          = zlen/dz;
-    real        dtphys_in   = 0;    // Use dycore time step
-    int         dyn_cycle   = 10;
-    real        out_freq    = 300;
-    real        inform_freq = 0.1;
-    std::string out_prefix  = "cit_2m";
-    bool        is_restart  = false;
-    real        vort_freq   = -1;
+    real        sim_time       = 7200;
+    real        xlen           = std::ceil((mesh.domain_hi.x+pad_x1+pad_x2)/dx)*dx;
+    real        ylen           = std::ceil((mesh.domain_hi.y+pad_y1+pad_y2)/dy)*dy;
+    real        zlen           = std::ceil((mesh.domain_hi.z       +pad_z2)/dz)*dz;
+    int         nx_glob        = xlen/dx;
+    int         ny_glob        = ylen/dy;
+    int         nz             = zlen/dz;
+    real        dtphys_in      = 0;    // Use dycore time step
+    int         dyn_cycle      = 10;
+    real        out_freq       = 300;
+    real        inform_freq    = 0.1;
+    bool        is_restart     = true;
+    real        vort_freq      = -1;
+    std::string restart_suffix = "00000004.nc";
 
     mesh.add_offset(pad_x1,pad_y1);
 
     core::Coupler coupler;
-    coupler.set_option<std::string>( "out_prefix"         , out_prefix  );
     coupler.set_option<std::string>( "init_data"          , "city"      );
     coupler.set_option<real       >( "out_freq"           , out_freq    );
     coupler.set_option<bool       >( "is_restart"         , is_restart  );
-    coupler.set_option<std::string>( "restart_file"       , ""          );
     coupler.set_option<real       >( "latitude"           , 0.          );
     coupler.set_option<real       >( "roughness"          , 5e-2        );
     coupler.set_option<real       >( "building_roughness" , 5.e-2       );
@@ -74,6 +72,7 @@ int main(int argc, char** argv) {
 
     coupler.set_option<std::string>("ensemble_stdout","city_ensemble");
     coupler.set_option<std::string>("out_prefix"     ,"city_ensemble");
+    coupler.set_option<std::string>( "restart_file"  ,"city_ensemble");
 
     // This holds all of the model's variables, dimension sizes, and options
     core::Ensembler ensembler;
@@ -86,6 +85,7 @@ int main(int argc, char** argv) {
         coupler.set_option<real>("les_total_mult",mult);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("total_mult-")+std::to_string(mult));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("total_mult-")+std::to_string(mult));
+        ensembler.append_coupler_string(coupler,"restart_file"   ,std::string("total_mult-")+std::to_string(mult));
       };
       ensembler.register_dimension( 2 , func_nranks , func_coupler );
     }
@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
         coupler.set_option<real>("les_dissipation_mult",mult);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("diss_mult-")+std::to_string(mult));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("diss_mult-")+std::to_string(mult));
+        ensembler.append_coupler_string(coupler,"restart_file"   ,std::string("diss_mult-")+std::to_string(mult));
       };
       ensembler.register_dimension( 2 , func_nranks , func_coupler );
     }
@@ -110,11 +111,14 @@ int main(int argc, char** argv) {
         coupler.set_option<real>("les_shear_prod_mult",mult);
         ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("shear_mult-")+std::to_string(mult));
         ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("shear_mult-")+std::to_string(mult));
+        ensembler.append_coupler_string(coupler,"restart_file"   ,std::string("shear_mult-")+std::to_string(mult));
       };
       ensembler.register_dimension( 2 , func_nranks , func_coupler );
     }
     auto par_comm = ensembler.create_coupler_comm( coupler , 15 , MPI_COMM_WORLD );
     coupler.set_parallel_comm( par_comm );
+
+    ensembler.append_coupler_string(coupler,"restart_file",restart_suffix);
 
     std::ofstream ostr(coupler.get_option<std::string>("ensemble_stdout")+std::string(".out"));
     auto orig_cout_buf = std::cout.rdbuf();

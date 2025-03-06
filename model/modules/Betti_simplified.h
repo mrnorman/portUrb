@@ -289,7 +289,7 @@ namespace modules {
     }
 
 
-    real time_step( real dt , real turbine_wind , real wind_19_5m , real Ct ) {
+    std::array<real,7> time_step( real dt , real turbine_wind , real wind_19_5m , real Ct ) {
       using yakl::componentwise::operator+;
       using yakl::componentwise::operator*;
       using yakl::componentwise::operator/;
@@ -307,7 +307,15 @@ namespace modules {
         etime += dt;
         wind  += state(1) + std::sqrt(d_Ph*d_Ph + d_Pv*d_Pv)*state(5)*std::cos(state(4));
       }
-      return wind / niter;
+      std::array<real,7> ret;
+      ret.at(0) = state(0); // surge (x) position
+      ret.at(1) = state(1); // surge velocity
+      ret.at(2) = state(2); // heave (y) position
+      ret.at(3) = state(3); // heave velocity
+      ret.at(4) = state(4); // pitch position
+      ret.at(5) = state(5); // pitch velocity    
+      ret.at(6) = wind / niter;
+      return ret;
     }
 
   };

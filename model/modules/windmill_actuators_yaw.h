@@ -114,6 +114,12 @@ namespace modules {
       std::vector<real>       v_samp_trace;      // Time trace of disk-integrated inflow v velocity
       std::vector<real>       mag195_trace;      // Time trace of disk-integrated 19.5m infoat velocity
       std::vector<real>       betti_trace;       // Time trace of floating motions perturbations
+      std::vector<real>       surge_pos_trace;   // Time trace of floating surge position
+      std::vector<real>       surge_vel_trace;   // Time trace of floating surge velocity
+      std::vector<real>       heave_pos_trace;   // Time trace of floating heave position
+      std::vector<real>       heave_vel_trace;   // Time trace of floating heave velocity
+      std::vector<real>       pitch_pos_trace;   // Time trace of floating pitch position
+      std::vector<real>       pitch_vel_trace;   // Time trace of floating pitch velocity
       std::vector<real>       cp_trace;          // Time trace of coefficient of power
       std::vector<real>       ct_trace;          // Time trace of coefficient of thrust
       real                    u_samp_inertial;   // Intertial inflow u-velocity normal to the turbine plane
@@ -360,6 +366,9 @@ namespace modules {
       
       RefTurbine ref_turbine;
       ref_turbine.init( coupler.get_option<std::string>("turbine_file") , dx , dy , dz );
+      if (coupler.option_exists("override_shaft_tilt_deg")) {
+        ref_turbine.shaft_tilt = coupler.get_option<real>("override_shaft_tilt_deg");
+      }
 
       int num_x = (int) std::round( xlen / 10 / (2*ref_turbine.blade_radius) );
       int num_y = (int) std::round( ylen / 10 / (2*ref_turbine.blade_radius) );
@@ -396,70 +405,112 @@ namespace modules {
           nc.redef();
           nc.create_dim( "num_time_steps" , trace_size );
           for (int iturb=0; iturb < turbine_group.turbines.size(); iturb++) {
-            std::string pow_vname    = std::string("power_trace_turb_" ) + std::to_string(iturb);
-            std::string yaw_vname    = std::string("yaw_trace_turb_"   ) + std::to_string(iturb);
-            std::string u_samp_vname = std::string("u_samp_trace_turb_") + std::to_string(iturb);
-            std::string v_samp_vname = std::string("v_samp_trace_turb_") + std::to_string(iturb);
-            std::string mag195_vname = std::string("mag195_trace_turb_") + std::to_string(iturb);
-            std::string betti_vname  = std::string("betti_trace_turb_" ) + std::to_string(iturb);
-            std::string cp_vname     = std::string("cp_trace_turb_"    ) + std::to_string(iturb);
-            std::string ct_vname     = std::string("ct_trace_turb_"    ) + std::to_string(iturb);
-            nc.create_var<real>( pow_vname    , {"num_time_steps"} );
-            nc.create_var<real>( yaw_vname    , {"num_time_steps"} );
-            nc.create_var<real>( u_samp_vname , {"num_time_steps"} );
-            nc.create_var<real>( v_samp_vname , {"num_time_steps"} );
-            nc.create_var<real>( mag195_vname , {"num_time_steps"} );
-            nc.create_var<real>( betti_vname  , {"num_time_steps"} );
-            nc.create_var<real>( cp_vname     , {"num_time_steps"} );
-            nc.create_var<real>( ct_vname     , {"num_time_steps"} );
+            std::string pow_vname       = std::string("power_trace_turb_"    ) + std::to_string(iturb);
+            std::string yaw_vname       = std::string("yaw_trace_turb_"      ) + std::to_string(iturb);
+            std::string u_samp_vname    = std::string("u_samp_trace_turb_"   ) + std::to_string(iturb);
+            std::string v_samp_vname    = std::string("v_samp_trace_turb_"   ) + std::to_string(iturb);
+            std::string mag195_vname    = std::string("mag195_trace_turb_"   ) + std::to_string(iturb);
+            std::string betti_vname     = std::string("betti_trace_turb_"    ) + std::to_string(iturb);
+            std::string surge_pos_vname = std::string("surge_pos_trace_turb_") + std::to_string(iturb);
+            std::string surge_vel_vname = std::string("surge_vel_trace_turb_") + std::to_string(iturb);
+            std::string heave_pos_vname = std::string("heave_pos_trace_turb_") + std::to_string(iturb);
+            std::string heave_vel_vname = std::string("heave_vel_trace_turb_") + std::to_string(iturb);
+            std::string pitch_pos_vname = std::string("pitch_pos_trace_turb_") + std::to_string(iturb);
+            std::string pitch_vel_vname = std::string("pitch_vel_trace_turb_") + std::to_string(iturb);
+            std::string cp_vname        = std::string("cp_trace_turb_"       ) + std::to_string(iturb);
+            std::string ct_vname        = std::string("ct_trace_turb_"       ) + std::to_string(iturb);
+            nc.create_var<real>( pow_vname       , {"num_time_steps"} );
+            nc.create_var<real>( yaw_vname       , {"num_time_steps"} );
+            nc.create_var<real>( u_samp_vname    , {"num_time_steps"} );
+            nc.create_var<real>( v_samp_vname    , {"num_time_steps"} );
+            nc.create_var<real>( mag195_vname    , {"num_time_steps"} );
+            nc.create_var<real>( betti_vname     , {"num_time_steps"} );
+            nc.create_var<real>( surge_pos_vname , {"num_time_steps"} );
+            nc.create_var<real>( surge_vel_vname , {"num_time_steps"} );
+            nc.create_var<real>( heave_pos_vname , {"num_time_steps"} );
+            nc.create_var<real>( heave_vel_vname , {"num_time_steps"} );
+            nc.create_var<real>( pitch_pos_vname , {"num_time_steps"} );
+            nc.create_var<real>( pitch_vel_vname , {"num_time_steps"} );
+            nc.create_var<real>( cp_vname        , {"num_time_steps"} );
+            nc.create_var<real>( ct_vname        , {"num_time_steps"} );
           }
           nc.enddef();
           nc.begin_indep_data();
           for (int iturb=0; iturb < turbine_group.turbines.size(); iturb++) {
             auto &turbine = turbine_group.turbines.at(iturb);
             if (turbine.active && turbine.sub_rankid == turbine.owning_sub_rankid) {
-              realHost1d power_arr ("power_arr" ,trace_size);
-              realHost1d yaw_arr   ("yaw_arr"   ,trace_size);
-              realHost1d u_samp_arr("u_samp_arr",trace_size);
-              realHost1d v_samp_arr("v_samp_arr",trace_size);
-              realHost1d mag195_arr("mag195_arr",trace_size);
-              realHost1d betti_arr ("betti_arr" ,trace_size);
-              realHost1d cp_arr    ("cp_arr"    ,trace_size);
-              realHost1d ct_arr    ("ct_arr"    ,trace_size);
-              for (int i=0; i < trace_size; i++) { power_arr (i) = turbine.power_trace .at(i); }
-              for (int i=0; i < trace_size; i++) { yaw_arr   (i) = turbine.yaw_trace   .at(i)/M_PI*180; }
-              for (int i=0; i < trace_size; i++) { u_samp_arr(i) = turbine.u_samp_trace.at(i); }
-              for (int i=0; i < trace_size; i++) { v_samp_arr(i) = turbine.v_samp_trace.at(i); }
-              for (int i=0; i < trace_size; i++) { mag195_arr(i) = turbine.mag195_trace.at(i); }
-              for (int i=0; i < trace_size; i++) { betti_arr (i) = turbine.betti_trace .at(i); }
-              for (int i=0; i < trace_size; i++) { cp_arr    (i) = turbine.cp_trace    .at(i); }
-              for (int i=0; i < trace_size; i++) { ct_arr    (i) = turbine.ct_trace    .at(i); }
-              std::string pow_vname    = std::string("power_trace_turb_" ) + std::to_string(iturb);
-              std::string yaw_vname    = std::string("yaw_trace_turb_"   ) + std::to_string(iturb);
-              std::string u_samp_vname = std::string("u_samp_trace_turb_") + std::to_string(iturb);
-              std::string v_samp_vname = std::string("v_samp_trace_turb_") + std::to_string(iturb);
-              std::string mag195_vname = std::string("mag195_trace_turb_") + std::to_string(iturb);
-              std::string betti_vname  = std::string("betti_trace_turb_" ) + std::to_string(iturb);
-              std::string cp_vname     = std::string("cp_trace_turb_"    ) + std::to_string(iturb);
-              std::string ct_vname     = std::string("ct_trace_turb_"    ) + std::to_string(iturb);
-              nc.write( power_arr  , pow_vname    );
-              nc.write( yaw_arr    , yaw_vname    );
-              nc.write( u_samp_arr , u_samp_vname );
-              nc.write( v_samp_arr , v_samp_vname );
-              nc.write( mag195_arr , mag195_vname );
-              nc.write( betti_arr  , betti_vname  );
-              nc.write( cp_arr     , cp_vname     );
-              nc.write( ct_arr     , ct_vname     );
+              realHost1d power_arr    ("power_arr"    ,trace_size);
+              realHost1d yaw_arr      ("yaw_arr"      ,trace_size);
+              realHost1d u_samp_arr   ("u_samp_arr"   ,trace_size);
+              realHost1d v_samp_arr   ("v_samp_arr"   ,trace_size);
+              realHost1d mag195_arr   ("mag195_arr"   ,trace_size);
+              realHost1d betti_arr    ("betti_arr"    ,trace_size);
+              realHost1d surge_pos_arr("surge_pos_arr",trace_size);
+              realHost1d surge_vel_arr("surge_vel_arr",trace_size);
+              realHost1d heave_pos_arr("heave_pos_arr",trace_size);
+              realHost1d heave_vel_arr("heave_vel_arr",trace_size);
+              realHost1d pitch_pos_arr("pitch_pos_arr",trace_size);
+              realHost1d pitch_vel_arr("pitch_vel_arr",trace_size);
+              realHost1d cp_arr       ("cp_arr"       ,trace_size);
+              realHost1d ct_arr       ("ct_arr"       ,trace_size);
+              for (int i=0; i < trace_size; i++) { power_arr    (i) = turbine.power_trace    .at(i); }
+              for (int i=0; i < trace_size; i++) { yaw_arr      (i) = turbine.yaw_trace      .at(i)/M_PI*180; }
+              for (int i=0; i < trace_size; i++) { u_samp_arr   (i) = turbine.u_samp_trace   .at(i); }
+              for (int i=0; i < trace_size; i++) { v_samp_arr   (i) = turbine.v_samp_trace   .at(i); }
+              for (int i=0; i < trace_size; i++) { mag195_arr   (i) = turbine.mag195_trace   .at(i); }
+              for (int i=0; i < trace_size; i++) { betti_arr    (i) = turbine.betti_trace    .at(i); }
+              for (int i=0; i < trace_size; i++) { surge_pos_arr(i) = turbine.surge_pos_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { surge_vel_arr(i) = turbine.surge_vel_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { heave_pos_arr(i) = turbine.heave_pos_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { heave_vel_arr(i) = turbine.heave_vel_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { pitch_pos_arr(i) = turbine.pitch_pos_trace.at(i)/M_PI*180; }
+              for (int i=0; i < trace_size; i++) { pitch_vel_arr(i) = turbine.pitch_vel_trace.at(i); }
+              for (int i=0; i < trace_size; i++) { cp_arr       (i) = turbine.cp_trace       .at(i); }
+              for (int i=0; i < trace_size; i++) { ct_arr       (i) = turbine.ct_trace       .at(i); }
+              std::string pow_vname       = std::string("power_trace_turb_"    ) + std::to_string(iturb);
+              std::string yaw_vname       = std::string("yaw_trace_turb_"      ) + std::to_string(iturb);
+              std::string u_samp_vname    = std::string("u_samp_trace_turb_"   ) + std::to_string(iturb);
+              std::string v_samp_vname    = std::string("v_samp_trace_turb_"   ) + std::to_string(iturb);
+              std::string mag195_vname    = std::string("mag195_trace_turb_"   ) + std::to_string(iturb);
+              std::string betti_vname     = std::string("betti_trace_turb_"    ) + std::to_string(iturb);
+              std::string surge_pos_vname = std::string("surge_pos_trace_turb_") + std::to_string(iturb);
+              std::string surge_vel_vname = std::string("surge_vel_trace_turb_") + std::to_string(iturb);
+              std::string heave_pos_vname = std::string("heave_pos_trace_turb_") + std::to_string(iturb);
+              std::string heave_vel_vname = std::string("heave_vel_trace_turb_") + std::to_string(iturb);
+              std::string pitch_pos_vname = std::string("pitch_pos_trace_turb_") + std::to_string(iturb);
+              std::string pitch_vel_vname = std::string("pitch_vel_trace_turb_") + std::to_string(iturb);
+              std::string cp_vname        = std::string("cp_trace_turb_"       ) + std::to_string(iturb);
+              std::string ct_vname        = std::string("ct_trace_turb_"       ) + std::to_string(iturb);
+              nc.write( power_arr     , pow_vname       );
+              nc.write( yaw_arr       , yaw_vname       );
+              nc.write( u_samp_arr    , u_samp_vname    );
+              nc.write( v_samp_arr    , v_samp_vname    );
+              nc.write( mag195_arr    , mag195_vname    );
+              nc.write( betti_arr     , betti_vname     );
+              nc.write( surge_pos_arr , surge_pos_vname );
+              nc.write( surge_vel_arr , surge_vel_vname );
+              nc.write( heave_pos_arr , heave_pos_vname );
+              nc.write( heave_vel_arr , heave_vel_vname );
+              nc.write( pitch_pos_arr , pitch_pos_vname );
+              nc.write( pitch_vel_arr , pitch_vel_vname );
+              nc.write( cp_arr        , cp_vname        );
+              nc.write( ct_arr        , ct_vname        );
             }
             coupler.get_parallel_comm().barrier();
-            turbine.power_trace   .clear();
-            turbine.yaw_trace     .clear();
-            turbine.u_samp_trace  .clear();
-            turbine.v_samp_trace  .clear();
-            turbine.mag195_trace  .clear();
-            turbine.betti_trace   .clear();
-            turbine.cp_trace      .clear();
-            turbine.ct_trace      .clear();
+            turbine.power_trace    .clear();
+            turbine.yaw_trace      .clear();
+            turbine.u_samp_trace   .clear();
+            turbine.v_samp_trace   .clear();
+            turbine.mag195_trace   .clear();
+            turbine.betti_trace    .clear();
+            turbine.surge_pos_trace.clear();
+            turbine.surge_vel_trace.clear();
+            turbine.heave_pos_trace.clear();
+            turbine.heave_vel_trace.clear();
+            turbine.pitch_pos_trace.clear();
+            turbine.pitch_vel_trace.clear();
+            turbine.cp_trace       .clear();
+            turbine.ct_trace       .clear();
           }
           nc.end_indep_data();
         }
@@ -879,23 +930,48 @@ namespace modules {
           // Application of floating turbine motion perturbation
           //////////////////////////////////////////////////////////////////
           if (coupler.get_option<bool>("turbine_floating_motions",false)) {
-            float betti_pert;
+            float betti_pert, surge_pos, surge_vel, heave_pos, heave_vel, pitch_pos, pitch_vel;
             if (coupler.get_option<bool>( "turbine_floating_sine"  , false )) {
               auto amp   = coupler.get_option<real>( "turbine_floating_sine_amp"  );
               auto freq  = coupler.get_option<real>( "turbine_floating_sine_freq" );
               auto etime = coupler.get_option<real>( "elapsed_time"               );
               betti_pert = freq*amp*std::cos(freq*etime);
+              surge_pos  = 0;
+              surge_vel  = 0;
+              heave_pos  = 0;
+              heave_vel  = 0;
+              pitch_pos  = 0;
+              pitch_vel  = 0;
             } else {
-              betti_pert = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
+              auto vect  = turbine.floating_motions.time_step( dt , instant_mag0 , umag_19_5m , C_T );
+              surge_pos  = vect.at(0); // surge (x) position
+              surge_vel  = vect.at(1); // surge velocity
+              heave_pos  = vect.at(2); // heave (y) position
+              heave_vel  = vect.at(3); // heave velocity
+              pitch_pos  = vect.at(4); // pitch position
+              pitch_vel  = vect.at(5); // pitch velocity    
+              betti_pert = vect.at(6); // Induced velocity normal to disk
             }
-            turbine.betti_trace.push_back( betti_pert );
+            turbine.betti_trace    .push_back( betti_pert );
+            turbine.surge_pos_trace.push_back( surge_pos  );
+            turbine.surge_vel_trace.push_back( surge_vel  );
+            turbine.heave_pos_trace.push_back( heave_pos  );
+            turbine.heave_vel_trace.push_back( heave_vel  );
+            turbine.pitch_pos_trace.push_back( pitch_pos  );
+            turbine.pitch_vel_trace.push_back( pitch_vel  );
             float mult = 1;
             if ( instant_mag0 > 1.e-10 ) mult = std::max(0.f,instant_mag0+betti_pert)/instant_mag0;
             instant_mag0 *= mult;
             instant_u0   *= mult;
             instant_v0   *= mult;
           } else {
-            turbine.betti_trace.push_back( 0 );
+            turbine.betti_trace    .push_back( 0 );
+            turbine.surge_pos_trace.push_back( 0 );
+            turbine.surge_vel_trace.push_back( 0 );
+            turbine.heave_pos_trace.push_back( 0 );
+            turbine.heave_vel_trace.push_back( 0 );
+            turbine.pitch_pos_trace.push_back( 0 );
+            turbine.pitch_vel_trace.push_back( 0 );
           }
           // Compute inertial u and v at sampling disk
           float inertial_tau = 30;

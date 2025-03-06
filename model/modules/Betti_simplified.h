@@ -12,6 +12,7 @@ namespace modules {
     real                    etime;      // Current elapsed time
     std::vector<real>       rand_pool;
     int                     rand_pool_counter;
+    real                    shaft_tilt;
 
 
     // Assume arr is ordered lowest to highest. Return index of arr(index) nearest to "val"
@@ -26,10 +27,10 @@ namespace modules {
     }
 
 
-    void init() {
-      this->state(0)  = -2;
+    void init(real shaft_tilt = 0) {
+      this->state(0)  = 0;
       this->state(1)  = 0;
-      this->state(2)  = 37.550;
+      this->state(2)  = 0;
       this->state(3)  = 0;
       this->state(4)  = 0;
       this->state(5)  = 0;
@@ -40,6 +41,7 @@ namespace modules {
       std::uniform_real_distribution<real> distribution(0.,2.*M_PI);
       for (int i=0; i < rand_pool_size; i++) { rand_pool.at(i) = distribution(generator); }
       rand_pool_counter = 0;
+      this->shaft_tilt = shaft_tilt;
     }
 
 
@@ -223,11 +225,11 @@ namespace modules {
       real FAN       = 0.5*rho*C_dN*A_N    *cos_alpha*std::pow(turbine_wind+v_zeta+d_N*omega*cos_alpha,2._fp);
       real FAT       = 0.5*rho*C_dT*h_T*D_T*cos_alpha*std::pow(turbine_wind+v_zeta+d_T*omega*cos_alpha,2._fp);
       // 5 degree shaft tilt of the 5MW turbine taken into account in the two LOCs below
-      real Qwi_zeta  = -(FAN+FAT) + std::cos(5./180.*M_PI)*(-FA);
+      real Qwi_zeta  = -(FAN+FAT) + std::cos(shaft_tilt/180.*M_PI)*(-FA);
       // Negative should be correct because downward is negative
       // eta       : "the y component to evaluate .Note: the coordinate system here is different
       //                from the Betti model. The downward is negative in this case"
-      real Qwi_eta   =              std::sin(5./180.*M_PI)*(-FA);
+      real Qwi_eta   =              std::sin(shaft_tilt/180.*M_PI)*(-FA);
       real Qwi_alpha = (-FA *(d_Pv*cos_alpha - d_Ph*sin_alpha)
                         -FAN*(d_Nv*cos_alpha - d_Nh*sin_alpha)
                         -FAT  *d_T*cos_alpha);

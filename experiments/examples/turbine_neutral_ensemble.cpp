@@ -28,37 +28,53 @@ int main(int argc, char** argv) {
     core::Ensembler ensembler;
 
     // Add wind dimension
-    {
-      auto func_nranks  = [=] (int ind) { return 1; };
-      auto func_coupler = [=] (int ind, core::Coupler &coupler) {
-        real wind = ind*2+5;
-        coupler.set_option<real>("hub_height_wind_mag",wind);
-        ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
-        ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
-      };
-      ensembler.register_dimension( 10 , func_nranks , func_coupler );
-    }
-    // coupler_main.set_option<real>("hub_height_wind_mag",12);
+    // {
+    //   auto func_nranks  = [=] (int ind) { return 1; };
+    //   auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+    //     real wind = ind*2+5;
+    //     coupler.set_option<real>("hub_height_wind_mag",wind);
+    //     ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("wind-")+std::to_string(wind));
+    //     ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("wind-")+std::to_string(wind));
+    //   };
+    //   ensembler.register_dimension( 10 , func_nranks , func_coupler );
+    // }
+    coupler_main.set_option<real>("hub_height_wind_mag",11);
 
     // Add floating dimension
+    // {
+    //   auto func_nranks  = [=] (int ind) { return 1; };
+    //   auto func_coupler = [=] (int ind, core::Coupler &coupler) {
+    //     if (ind == 0) {
+    //       coupler.set_option<bool>( "turbine_floating_motions" , false );
+    //       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("fixed-"));
+    //       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("fixed-"));
+    //     } else {
+    //       coupler.set_option<bool>( "turbine_floating_motions" , true );
+    //       ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("floating-"));
+    //       ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("floating-"));
+    //     }
+    //   };
+    //   ensembler.register_dimension( 2 , func_nranks , func_coupler );
+    // }
+    coupler_main.set_option<bool>( "turbine_floating_motions" , true );
+
     {
       auto func_nranks  = [=] (int ind) { return 1; };
       auto func_coupler = [=] (int ind, core::Coupler &coupler) {
         if (ind == 0) {
-          coupler.set_option<bool>( "turbine_floating_motions" , false );
-          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("fixed-"));
-          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("fixed-"));
+          coupler.set_option<real>("override_shaft_tilt_deg",0.);
+          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("shaft_tilt_0-"));
+          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("shaft_tilt_0-"));
         } else {
-          coupler.set_option<bool>( "turbine_floating_motions" , true );
-          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("floating-"));
-          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("floating-"));
+          coupler.set_option<real>("override_shaft_tilt_deg",5.);
+          ensembler.append_coupler_string(coupler,"ensemble_stdout",std::string("shaft_tilt_5-"));
+          ensembler.append_coupler_string(coupler,"out_prefix"     ,std::string("shaft_tilt_5-"));
         }
       };
       ensembler.register_dimension( 2 , func_nranks , func_coupler );
     }
-    // coupler_main.set_option<bool>( "turbine_floating_motions" , true );
 
-    auto par_comm = ensembler.create_coupler_comm( coupler_main , 4 , MPI_COMM_WORLD );
+    auto par_comm = ensembler.create_coupler_comm( coupler_main , 128 , MPI_COMM_WORLD );
     coupler_main.set_parallel_comm( par_comm );
     // // auto par_comm = ensembler.create_coupler_comm( coupler_main , 12 , MPI_COMM_WORLD );
 

@@ -185,7 +185,7 @@ namespace modules {
         loc.v_samp_inertial = 0;
         loc.apply_thrust    = apply_thrust;
         // loc.floating_motions.init("./inputs/Betti_NREL_5MW.nc");
-        loc.floating_motions.init();
+        loc.floating_motions.init(ref_turbine.shaft_tilt);
         loc.par_comm.create( active , coupler.get_parallel_comm().get_mpi_comm() );
         if (active) {
           // Get subcommunicator size and rank id
